@@ -1,10 +1,1 @@
-'use strict';
-const express = require('express');
-const path = require('path');
-const app = express();
-const port = Number(process.env.PORT) || 3000;
-app.disable('x-powered-by');
-app.get('/health', (_req, res) => res.status(200).json({status:'ok', application:'raptors-training-scheduler'}));
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('*', (_req, res) => res.status(404).send('Not found'));
-app.listen(port, '0.0.0.0', () => console.log(`Raptors Training listening on ${port}`));
+require("./src/app").start();
