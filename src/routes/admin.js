@@ -34,13 +34,15 @@ function parseProgram(b) {
 const programParams = (p) => [p.name, p.activity, p.age_groups, p.description, p.priority_limit,
   p.priority_ends_at, p.booking_opens_at, p.cancel_hours];
 
-router.get("/", (req, res) => res.redirect("/admin/programs"));
+router.get("/", (req, res) => res.redirect("/admin/rounds"));
 
 router.get("/programs", wrap(async (req, res) => {
   const programs = (await query(
-    `SELECT p.*, (SELECT count(*)::int FROM training_sessions s WHERE s.program_id=p.id
+    `SELECT p.*, r.name AS round_name, r.published_at IS NOT NULL AS round_published,
+       (SELECT count(*)::int FROM training_sessions s WHERE s.program_id=p.id
        AND s.canceled_at IS NULL AND s.starts_at > now()) AS upcoming
-     FROM programs p ORDER BY p.archived, p.activity, p.name`)).rows;
+     FROM programs p LEFT JOIN rounds r ON r.id=p.round_id
+     ORDER BY p.archived, r.starts_on DESC NULLS LAST, p.activity, p.name`)).rows;
   res.send(v.programsPage(view(req, { programs })));
 }));
 

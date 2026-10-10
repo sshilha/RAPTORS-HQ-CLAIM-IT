@@ -7,13 +7,15 @@ const { errorPage } = require("./views/layout");
 
 const app = express();
 app.set("trust proxy", 1); // Railway sits behind a proxy
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "15mb" })); // room for uploaded schedule PDFs
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(auth.loadUser);
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use(require("./routes/auth"));
+app.use("/admin/import", require("./routes/import"));
+app.use("/admin/rounds", require("./routes/rounds"));
 app.use("/admin", require("./routes/admin"));
 app.use(require("./routes/parent"));
 

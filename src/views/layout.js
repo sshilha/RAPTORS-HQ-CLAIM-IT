@@ -13,7 +13,8 @@ function flashHtml(flash = {}) {
          (flash.err ? `<p class="alert" role="alert">${esc(flash.err)}</p>` : "");
 }
 
-function layout({ title, body, user, admin, flash, wide }) {
+function layout({ title, body, user, admin, flash, wide, xwide }) {
+  const w = xwide ? " wide xwide" : wide ? " wide" : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,7 +29,7 @@ function layout({ title, body, user, admin, flash, wide }) {
 <body>
 <header class="band">
   ${seam}
-  <div class="band-inner${wide ? " wide" : ""}">
+  <div class="band-inner${w}">
     <a class="brand" href="/">
       <span class="brand-org">Chippewa Valley Raptors</span>
       <span class="brand-mark">Training</span>
@@ -40,7 +41,7 @@ function layout({ title, body, user, admin, flash, wide }) {
     </nav>` : ""}
   </div>
 </header>
-<main class="page${wide ? " wide" : ""}">${flashHtml(flash)}${body}</main>
+<main class="page${w}">${flashHtml(flash)}${body}</main>
 <footer class="foot">Chippewa Valley Raptors Fastpitch</footer>
 </body>
 </html>`;

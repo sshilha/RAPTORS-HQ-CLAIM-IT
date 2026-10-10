@@ -1,0 +1,316 @@
+const { esc } = require("./layout");
+const { page } = require("./admin");
+const { AGE_GROUPS, ACTIVITIES, ACTIVITY_COLORS, ALL_AGES_ACTIVITIES } = require("../config");
+const { inputParts } = require("../time");
+const { typeLabel, defaultsFor } = require("../rounds");
+
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const parse = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const iso = (dt) => dt.toISOString().slice(0, 10);
+const addDays = (dt, n) => new Date(dt.getTime() + n * 864e5);
+const nice = (isoDate) => { const d = parse(isoDate); return `${DOW[d.getUTCDay()]}, ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+const niceRange = (a, b) => `${nice(a)} to ${nice(b)}, ${parse(b).getUTCFullYear()}`;
+
+function hm(t) {
+  const [h, m] = t.split(":").map(Number);
+  return { txt: `${((h + 11) % 12) + 1}${m ? `:${String(m).padStart(2, "0")}` : ""}`, ap: h < 12 ? "a" : "p" };
+}
+const shortRange = (s, e) => { const a = hm(s), b = hm(e); return a.ap === b.ap ? `${a.txt}–${b.txt}${b.ap}` : `${a.txt}${a.ap}–${b.txt}${b.ap}`; };
+
+const statusPill = (r) => r.published_at ? `<span class="pill ok">Published</span>` : `<span class="pill wait">Draft</span>`;
+
+function defaultsTable(round) {
+  return `<div class="table-wrap"><table class="defaults">
+    <thead><tr><th>Activity</th><th>Capacity</th><th>Coach</th></tr></thead>
+    <tbody>${ACTIVITIES.map((a, i) => { const d = defaultsFor(round || {}, a); return `<tr>
+      <td><span class="swatch" style="background:${ACTIVITY_COLORS[a]}"></span>${esc(a)}</td>
+      <td><input type="number" min="1" max="200" name="cap_${i}" value="${d.capacity}" aria-label="${esc(a)} capacity"></td>
+      <td><input name="coach_${i}" value="${esc(d.coach)}" aria-label="${esc(a)} coach" placeholder="Optional"></td></tr>`; }).join("")}
+    </tbody></table></div>`;
+}
+
+const roundsPage = ({ user, flash, rounds }) => page({
+  title: "Rounds", tab: "rounds", user, flash,
+  body: `<section class="panel">
+    <h1>Rounds</h1>
+    ${rounds.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Round</th><th>Dates</th><th>Sessions</th><th>Reservations</th><th>Status</th></tr></thead>
+      <tbody>${rounds.map((r) => `<tr>
+        <td><a href="/admin/rounds/${r.id}">${esc(r.name)}</a></td>
+        <td>${esc(niceRange(r.starts_on, r.ends_on))}</td>
+        <td>${r.sessions}</td><td>${r.reservations}</td><td>${statusPill(r)}</td></tr>`).join("")}</tbody></table></div>`
+      : `<p class="muted">No rounds yet. Create one below, or import a vendor schedule.</p>`}
+  </section>
+  <section class="panel">
+    <h2>New round</h2>
+    <form method="post" action="/admin/rounds" class="grid-form">
+      <div><label>Name<input name="name" required placeholder="Round 1"></label></div>
+      <div class="pair"><div><label>First day<input type="date" name="starts_on" required></label></div>
+        <div><label>Last day<input type="date" name="ends_on" required></label></div></div>
+      <div class="full"><label>Start from
+        <select name="copy_from"><option value="">An empty calendar</option>
+          ${rounds.map((r) => `<option value="${r.id}">A copy of ${esc(r.name)} (${esc(niceRange(r.starts_on, r.ends_on))})</option>`).join("")}
+        </select></label>
+        <span class="fine">Copying shifts every session by the gap between the two first days. Start on the same weekday to keep sessions on the same days.</span></div>
+      <div class="full"><button class="btn" type="submit">Create round</button></div>
+    </form>
+  </section>`,
+});
+
+function grid(round, sessions) {
+  const start = parse(round.starts_on), end = parse(round.ends_on);
+  const first = addDays(start, -start.getUTCDay());
+  const last = addDays(end, 6 - end.getUTCDay());
+  const byDate = {};
+  sessions.forEach((s) => (byDate[s.date] = byDate[s.date] || []).push(s));
+  const weeks = [];
+  for (let w = first; w <= last; w = addDays(w, 7)) {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(w, i), key = iso(d);
+      const list = byDate[key] || [];
+      const label = d.getUTCDate() === 1 || key === round.starts_on || i === 0 ? `${MON[d.getUTCMonth()]} ${d.getUTCDate()}` : d.getUTCDate();
+      days.push(d >= start && d <= end ? `<div class="day" data-date="${key}" data-label="${esc(nice(key))}" tabindex="0" role="button" aria-pressed="false">
+        <div class="day-head"><span class="day-num">${label}</span>
+          ${list.length ? `<button type="button" class="copy-btn" data-copy="${key}" data-count="${list.length}" title="Copy this day to other days">Copy</button>` : ""}</div>
+        ${list.map((s) => `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
+          <a href="/admin/sessions/${s.id}" title="Open roster and edit">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
+            <span class="spots-n">${s.taken}/${s.capacity}</span></a>
+          ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/sessions/${s.id}/delete"><button type="submit" class="x" title="Remove from calendar" aria-label="Remove from calendar">×</button></form>`}
+        </div>`).join("")}
+      </div>` : `<div class="day out"></div>`);
+    }
+    weeks.push(`<div class="week">${days.join("")}</div>`);
+  }
+  return `<div class="cal"><div class="week dow">${DOW.map((d) => `<div>${d}</div>`).join("")}</div>${weeks.join("")}</div>`;
+}
+
+const swatch = (a) => `<span class="swatch" style="background:${ACTIVITY_COLORS[a]}"></span>`;
+
+function timesPanel(r) {
+  const slots = r.time_slots || [];
+  return `<section class="panel step">
+    <h2><span class="step-n">1</span> Times</h2>
+    <p class="fine">The time slots used in this round. You'll pick from these when scheduling.</p>
+    ${slots.length ? `<ul class="slot-list">${slots.map((t) => `<li><span>${esc(shortRange(t.start, t.end))}</span>
+      <form method="post" action="/admin/rounds/${r.id}/slots/remove"><input type="hidden" name="slot" value="${t.start}-${t.end}">
+        <button type="submit" class="x" aria-label="Remove ${esc(shortRange(t.start, t.end))}">×</button></form></li>`).join("")}</ul>`
+      : `<p class="muted">No times yet.</p>`}
+    <form method="post" action="/admin/rounds/${r.id}/slots" class="inline-add">
+      <label>Start<input type="time" name="start_time" required></label>
+      <label>End<input type="time" name="end_time" required></label>
+      <button class="btn-small" type="submit">Add time</button>
+    </form>
+  </section>`;
+}
+
+function sessionsPanel(r, types) {
+  return `<section class="panel step">
+    <h2><span class="step-n">2</span> Sessions</h2>
+    <p class="fine">Each session is an activity for a group, with the number of spots players can claim.</p>
+    ${types.length ? `<div class="table-wrap"><table class="types">
+      <thead><tr><th>Session</th><th>Spots</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
+      <tbody>${types.map((t) => `<tr>
+        <td>${swatch(t.activity)}<strong>${esc(typeLabel(t.activity, t.age_groups))}</strong></td>
+        <td><input form="type-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
+        <td><input form="type-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
+        <td>${t.scheduled}</td>
+        <td><div class="row-actions">
+          <form id="type-${t.id}" method="post" action="/admin/rounds/${r.id}/types/${t.id}"><button class="btn-ghost" type="submit">Save</button></form>
+          ${t.scheduled ? "" : `<form method="post" action="/admin/rounds/${r.id}/types/${t.id}/delete"><button class="x" type="submit" aria-label="Remove session">×</button></form>`}
+        </div></td></tr>`).join("")}</tbody></table></div>
+      <p class="fine">Saving spots updates every scheduled occurrence. If you add spots, waitlisted athletes move in automatically.</p>`
+      : `<p class="muted">No sessions yet. Add the activity and group combinations this round offers.</p>`}
+
+    <form method="post" action="/admin/rounds/${r.id}/types" class="type-add">
+      <h3>Add a session</h3>
+      <fieldset class="checks"><legend>Activity</legend>
+        ${ACTIVITIES.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
+      </fieldset>
+      <fieldset class="checks"><legend>Group</legend>
+        ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${g}"> ${g}</label>`).join("")}
+        <div class="presets">
+          <button type="button" class="tchip" data-ages="8U,10U">8U–10U</button>
+          <button type="button" class="tchip" data-ages="12U,14U,16U,18U">12U–18U</button>
+          <button type="button" class="tchip" data-ages="${AGE_GROUPS.join(",")}">All ages</button>
+        </div>
+      </fieldset>
+      <div class="inline-add">
+        <label>Spots<input type="number" name="spots" min="1" max="200" required placeholder="10"></label>
+        <label>Coach<input name="coach" placeholder="Optional"></label>
+        <button class="btn-small" type="submit">Add session</button>
+      </div>
+    </form>
+  </section>`;
+}
+
+function schedulePanel(r, types, last) {
+  const slots = r.time_slots || [];
+  const lastTypes = String(last.types || "").split(",");
+  const lastSlot = String(last.slot || "");
+  const ready = types.length > 0;
+  return `<aside class="panel add-panel">
+      <div id="copy-bar" class="copy-bar" hidden>
+        <p><strong>Copying <span id="copy-label"></span></strong>. Select the days to copy it to.</p>
+        <form method="post" action="/admin/rounds/${r.id}/copy-day">
+          <input type="hidden" name="copy_from" id="copy-from"><input type="hidden" name="dates" class="sel-dates">
+          <button class="btn-small" type="submit" id="paste-btn" disabled>Paste to 0 days</button>
+          <button class="btn-ghost" type="button" id="copy-cancel">Cancel</button>
+        </form>
+      </div>
+      <form method="post" action="/admin/rounds/${r.id}/schedule" id="add-form">
+        <h2><span class="step-n">3</span> Schedule</h2>
+        ${ready ? `
+        <input type="hidden" name="dates" class="sel-dates">
+        <div><p class="label-like">Days</p>
+          <p class="sel-line"><span id="sel-label">Click days on the calendar.</span> <button type="button" class="link-dark" id="sel-clear" hidden>Clear</button></p></div>
+
+        <fieldset class="checks stack-list"><legend>Time</legend>
+          ${slots.map((t) => { const k = `${t.start}-${t.end}`; return `<label class="radio-row"><input type="radio" name="slot" value="${k}"${lastSlot === k ? " checked" : ""} required> ${esc(shortRange(t.start, t.end))}</label>`; }).join("")}
+          <label class="radio-row"><input type="radio" name="slot" value="custom" id="slot-custom"${!slots.length || lastSlot === "custom" ? " checked" : ""}> Other time</label>
+          <div class="pair" id="custom-times"${slots.length && lastSlot !== "custom" ? " hidden" : ""}>
+            <div><label>Start<input type="time" name="start_time"></label></div>
+            <div><label>End<input type="time" name="end_time"></label></div></div>
+        </fieldset>
+
+        <fieldset class="checks stack-list"><legend>Sessions at this time</legend>
+          ${types.map((t) => `<label class="act wide" style="--c:${ACTIVITY_COLORS[t.activity]}"><input type="checkbox" name="types" value="${t.id}"${lastTypes.includes(String(t.id)) ? " checked" : ""}>
+            ${esc(typeLabel(t.activity, t.age_groups))} <span class="fine-inline">${t.default_capacity || defaultsFor(r, t.activity).capacity} spots</span></label>`).join("")}
+        </fieldset>
+        <button class="btn wide-btn" type="submit" id="add-btn" disabled>Select days first</button>`
+        : `<p class="muted">Add this round's sessions (step 2) first. Then select days here and schedule them.</p>`}
+      </form>
+    </aside>`;
+}
+
+function builderPage({ user, flash, round, types, sessions, last = {} }) {
+  const r = round;
+  const total = sessions.length;
+  const taken = sessions.reduce((n, s) => n + s.taken, 0);
+  return page({
+    title: r.name, tab: "rounds", user, flash, xwide: true,
+    body: `<a class="back" href="/admin/rounds">All rounds</a>
+  <section class="panel">
+    <div class="athlete-head">
+      <div><h1>${esc(r.name)}</h1><p class="muted tight">${esc(niceRange(r.starts_on, r.ends_on))}. ${total} scheduled, ${taken} spots claimed. <a href="#settings">Round settings</a></p></div>
+      <div class="head-actions">${statusPill(r)}
+        <form method="post" action="/admin/rounds/${r.id}/publish" ${r.published_at ? `onsubmit="return confirm('Hide this round from families? Their reservations are kept.')"` : ""}>
+          <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide from families" : "Publish round"}</button></form></div>
+    </div>
+    ${r.published_at ? "" : `<p class="rule">Draft: families can't see this round yet. Set up times and sessions, schedule them on the calendar, then publish.</p>`}
+  </section>
+
+  <div class="setup" id="setup">${timesPanel(r)}${sessionsPanel(r, types)}</div>
+
+  <div class="builder">
+    <section class="panel cal-panel">
+      <h2>Calendar</h2>
+      <p class="fine">Click days to select them. Click a scheduled session to see its roster. Numbers show spots claimed out of spots available.</p>
+      ${grid(r, sessions)}
+    </section>
+    ${schedulePanel(r, types, last)}
+  </div>
+
+  <section class="panel" id="settings">
+    <h2>Round settings</h2>
+    <form method="post" action="/admin/rounds/${r.id}/settings" class="grid-form">
+      <div><label>Name<input name="name" required value="${esc(r.name)}"></label></div>
+      <div class="pair"><div><label>First day<input type="date" name="starts_on" required value="${esc(r.starts_on)}"></label></div>
+        <div><label>Last day<input type="date" name="ends_on" required value="${esc(r.ends_on)}"></label></div></div>
+      <div><label>Booking opens<input type="datetime-local" name="booking_opens_at" value="${inputParts(r.booking_opens_at).local}"></label>
+        <span class="fine">Blank opens booking as soon as the round is published.</span></div>
+      <div><label>Priority booking ends<input type="datetime-local" name="priority_ends_at" value="${inputParts(r.priority_ends_at).local}"></label>
+        <span class="fine">Blank means no priority limit.</span></div>
+      <div><label>Priority reservations per athlete, per session<input type="number" min="1" max="50" name="priority_limit" value="${r.priority_limit}"></label>
+        <span class="fine">E.g. 2 means up to 2 Hitting 12U–18U and 2 Defense 12U–18U during priority booking.</span></div>
+      <div><label>Cancellation deadline (hours before)<input type="number" min="0" max="336" name="cancel_hours" value="${r.cancel_hours}"></label></div>
+      <div class="full"><label>Location<input name="location" value="${esc(r.location)}"></label>
+        <label class="check"><input type="checkbox" name="apply_location" value="1"> Also change it on sessions already scheduled</label></div>
+      <div class="full"><button class="btn" type="submit">Save round</button></div>
+    </form>
+    <form method="post" action="/admin/rounds/${r.id}/delete" class="inline-end" onsubmit="return confirm('Delete ${esc(r.name)} and everything in it?')">
+      <button class="btn-ghost danger" type="submit">Delete round</button>
+      <span class="fine">Only possible while no one has reserved.</span>
+    </form>
+  </section>
+
+  <script>
+  (function () {
+    var sel = new Set(), copyFrom = null;
+    var $ = function (q) { return document.querySelector(q); };
+    var days = document.querySelectorAll(".day[data-date]");
+    function labelFor(d) { return document.querySelector('.day[data-date="' + d + '"]').dataset.label; }
+    function typeCount() { return document.querySelectorAll('input[name="types"]:checked').length; }
+    function refresh() {
+      var list = Array.from(sel).sort();
+      document.querySelectorAll(".sel-dates").forEach(function (i) { i.value = list.join(","); });
+      days.forEach(function (el) {
+        var on = sel.has(el.dataset.date);
+        el.classList.toggle("selected", on); el.setAttribute("aria-pressed", on);
+        el.classList.toggle("source", el.dataset.date === copyFrom);
+      });
+      var n = list.length, s = n === 1 ? "" : "s";
+      if ($("#sel-label")) {
+        $("#sel-label").textContent = n ? (n <= 4 ? list.map(labelFor).join("; ") : n + " days selected") : "Click days on the calendar.";
+        $("#sel-clear").hidden = !n;
+        var total = n * typeCount();
+        $("#add-btn").disabled = !total;
+        $("#add-btn").textContent = !n ? "Select days first" : !typeCount() ? "Check sessions to schedule" :
+          "Schedule " + total + " session" + (total === 1 ? "" : "s");
+      }
+      $("#paste-btn").disabled = !n;
+      $("#paste-btn").textContent = "Paste to " + n + " day" + s;
+    }
+    function toggle(el) {
+      var d = el.dataset.date;
+      if (d === copyFrom) return;
+      sel.has(d) ? sel.delete(d) : sel.add(d);
+      refresh();
+    }
+    days.forEach(function (el) {
+      el.addEventListener("click", function (e) { if (!e.target.closest("a,button,form")) toggle(el); });
+      el.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target === el) { e.preventDefault(); toggle(el); } });
+    });
+    if ($("#sel-clear")) $("#sel-clear").addEventListener("click", function () { sel.clear(); refresh(); });
+    document.querySelectorAll('input[name="types"]').forEach(function (c) { c.addEventListener("change", refresh); });
+    document.querySelectorAll('input[name="slot"]').forEach(function (r) {
+      r.addEventListener("change", function () { $("#custom-times").hidden = !$("#slot-custom").checked; });
+    });
+
+    document.querySelectorAll(".copy-btn").forEach(function (b) {
+      b.addEventListener("click", function () {
+        copyFrom = b.dataset.copy; sel.clear();
+        $("#copy-from").value = copyFrom;
+        $("#copy-label").textContent = labelFor(copyFrom) + " (" + b.dataset.count + " session" + (b.dataset.count === "1" ? "" : "s") + ")";
+        $("#copy-bar").hidden = false; $("#add-form").hidden = true;
+        refresh();
+      });
+    });
+    $("#copy-cancel").addEventListener("click", function () {
+      copyFrom = null; sel.clear(); $("#copy-bar").hidden = true; $("#add-form").hidden = false; refresh();
+    });
+    document.querySelectorAll(".tchip[data-ages]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var want = b.dataset.ages.split(","), form = b.closest("form");
+        form.querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = want.indexOf(c.value) >= 0; });
+      });
+    });
+    var allAges = ${JSON.stringify(ALL_AGES_ACTIVITIES)};
+    document.querySelectorAll('.type-add input[name="activity"]').forEach(function (r) {
+      r.addEventListener("change", function () {
+        if (allAges.indexOf(r.value) >= 0) r.closest("form").querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = true; });
+      });
+    });
+    var last = ${JSON.stringify(String(last.d || ""))};
+    if (last) {
+      var cell = document.querySelector('.day[data-date="' + last + '"]');
+      if (cell) cell.closest(".week").scrollIntoView({ block: "center" });
+    }
+    refresh();
+  })();
+  </script>`,
+  });
+}
+
+module.exports = { roundsPage, builderPage, defaultsTable, niceRange };

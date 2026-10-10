@@ -5,7 +5,9 @@ const { priorityActive } = require("../booking");
 
 const page = (opts) => layout({ ...opts, admin: true, wide: true,
   body: `<nav class="subnav">
-    <a href="/admin/programs"${opts.tab === "programs" ? ' aria-current="page"' : ""}>Programs and sessions</a>
+    <a href="/admin/rounds"${opts.tab === "rounds" ? ' aria-current="page"' : ""}>Rounds</a>
+    <a href="/admin/programs"${opts.tab === "programs" ? ' aria-current="page"' : ""}>All programs</a>
+    <a href="/admin/import"${opts.tab === "import" ? ' aria-current="page"' : ""}>Import schedule</a>
     <a href="/admin/athletes"${opts.tab === "athletes" ? ' aria-current="page"' : ""}>Athletes and parents</a>
   </nav>${opts.body}` });
 
@@ -40,16 +42,18 @@ const programsPage = ({ user, programs, flash }) => page({
   body: `<section class="panel">
     <h1>Programs</h1>
     ${programs.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Program</th><th>Ages</th><th>Upcoming sessions</th><th>Status</th></tr></thead>
+      <thead><tr><th>Program</th><th>Round</th><th>Ages</th><th>Upcoming sessions</th><th>Status</th></tr></thead>
       <tbody>${programs.map((p) => `<tr>
         <td><a href="/admin/programs/${p.id}">${esc(p.name)}</a><div class="fine">${esc(p.activity)}</div></td>
+        <td>${p.round_id ? `<a href="/admin/rounds/${p.round_id}">${esc(p.round_name)}</a>${p.round_published ? "" : ` <span class="pill wait">Draft</span>`}` : `<span class="fine">None</span>`}</td>
         <td>${esc(p.age_groups.join(", "))}</td>
         <td>${p.upcoming}</td>
         <td>${programStatus(p)}</td></tr>`).join("")}</tbody></table></div>`
       : `<p class="muted">No programs yet. Create one below, then add sessions to it.</p>`}
   </section>
   <section class="panel">
-    <h2>New program</h2>
+    <h2>New standalone program</h2>
+    <p class="muted">For one-off training outside a round. Most training is easier to set up under Rounds.</p>
     <form method="post" action="/admin/programs" class="grid-form">${programFields()}
       <div class="full"><button class="btn" type="submit">Create program</button></div></form>
   </section>`,
@@ -84,7 +88,8 @@ const programPage = ({ user, program: p, sessions, flash }) => page({
         <td>${s.confirmed} / ${s.capacity}</td><td>${s.waitlisted}</td></tr>`).join("")}</tbody></table></div>`
       : `<p class="muted">No sessions yet. Add one below.</p>`}
   </section>
-  <section class="panel">
+  ${p.round_id ? `<section class="panel"><p class="rule">This program belongs to a round. Add sessions and change booking rules on the
+    <a href="/admin/rounds/${p.round_id}">round's page</a>.</p></section>` : `<section class="panel">
     <h2>Add sessions</h2>
     <form method="post" action="/admin/programs/${p.id}/sessions" class="grid-form">${sessionFields({}, { create: true })}
       <div class="full"><button class="btn" type="submit">Add sessions</button></div></form>
@@ -97,7 +102,7 @@ const programPage = ({ user, program: p, sessions, flash }) => page({
       <button class="btn-ghost" type="submit">${p.archived ? "Restore program" : "Archive program"}</button>
       <span class="fine">${p.archived ? "Restoring shows it to parents again." : "Archiving hides it from parents. Reservations are kept."}</span>
     </form>
-  </section>`,
+  </section>`}`,
 });
 
 const rosterRows = (rows, kind) => rows.length ? `<div class="table-wrap"><table>
@@ -112,7 +117,7 @@ const rosterRows = (rows, kind) => rows.length ? `<div class="table-wrap"><table
 
 const sessionPage = ({ user, session: s, program: p, confirmed, waitlist, flash }) => page({
   title: "Session", tab: "programs", user, flash,
-  body: `<a class="back" href="/admin/programs/${p.id}">${esc(p.name)}</a>
+  body: `<a class="back" href="${p.round_id ? `/admin/rounds/${p.round_id}` : `/admin/programs/${p.id}`}">${p.round_id ? "Back to round calendar" : esc(p.name)}</a>
   <section class="panel">
     <div class="athlete-head"><h1>${esc(fmtRange(s.starts_at, s.ends_at))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>
     <p class="muted">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</p>
@@ -190,4 +195,4 @@ const athletePage = ({ user, athlete: a, parents, flash }) => page({
   </section>`,
 });
 
-module.exports = { programsPage, programPage, sessionPage, athletesPage, athletePage };
+module.exports = { page, programsPage, programPage, sessionPage, athletesPage, athletePage };

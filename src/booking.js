@@ -60,8 +60,8 @@ async function reserve({ userId, athleteId, sessionId }) {
     // Lock the session row so two families can't take the last spot at once
     const { rows } = await db.query(
       `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at,
-              p.booking_opens_at, p.archived
-       FROM training_sessions s JOIN programs p ON p.id=s.program_id
+              p.booking_opens_at, (p.archived OR (p.round_id IS NOT NULL AND r.published_at IS NULL)) AS archived
+       FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id
        WHERE s.id=$1 FOR UPDATE OF s`,
       [sessionId]
     );
@@ -170,7 +170,9 @@ async function parentReservations(userId) {
 
 async function bookingOptions(athlete) {
   const programs = (await query(
-    `SELECT * FROM programs WHERE NOT archived AND $1 = ANY(age_groups) ORDER BY activity, name`,
+    `SELECT p.* FROM programs p LEFT JOIN rounds r ON r.id=p.round_id
+     WHERE NOT p.archived AND $1 = ANY(p.age_groups) AND (p.round_id IS NULL OR r.published_at IS NOT NULL)
+     ORDER BY r.starts_on NULLS LAST, p.activity, p.name`,
     [athlete.age_group || ""]
   )).rows;
   if (!programs.length) return [];

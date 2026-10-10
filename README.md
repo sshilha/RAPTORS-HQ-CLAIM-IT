@@ -25,6 +25,26 @@ Flow: SportsEngine private page → this app → email sign-in link → My train
 
 ## Admin (emails in ADMIN_EMAILS)
 
+- **Rounds** are set up in levels, top down:
+  1. **Round:** name, first and last day, booking opens, priority ends, priority limit,
+     cancellation hours, location. Create as many rounds as you need; a new round can start
+     as a copy of an old one (times, sessions, and the schedule shift by the gap in dates).
+  2. **Times:** the round's time slots (3–4:30, 4:30–6, …).
+  3. **Sessions:** activity + group + spots (+ optional coach), e.g. "Defense 12U–18U, 14 spots".
+     Changing spots updates every scheduled occurrence and pulls athletes off the waitlist.
+  4. **Schedule:** click days on the calendar, pick a time (or "Other time", which is saved
+     as a new time slot), check one or more sessions, and schedule them all at once.
+     "Copy" duplicates a day onto other days.
+  Rounds are drafts, hidden from families, until you click **Publish round**.
+- **Cage Time** is an activity open to all ages.
+
+- **Import schedule:** upload the Turn Two schedule PDF (or paste its text). The app reads
+  lines like `6-7:30pm-Hitting-12/14/16/18U` under each date and creates draft rounds
+  (one per ROUND header) after a review screen. Set each round's name, booking-open, and
+  priority-end dates there. An import whose round name matches an existing round from the
+  same season adds to it. Re-importing skips sessions that already exist. Times without
+  am/pm are read as afternoon/evening (11 = 11 AM). Cage Time is imported for all ages.
+
 - **Programs and sessions:** create programs, add sessions, see the reserved list and
   waitlist for each session, edit or cancel a session.
 - **Athletes and parents:** add athletes with an age group and one or more parent emails.

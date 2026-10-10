@@ -1,4 +1,7 @@
-const { Pool } = require("pg");
+const { Pool, types } = require("pg");
+
+// Return DATE columns as plain "YYYY-MM-DD" strings (no timezone shifting)
+types.setTypeParser(1082, (v) => v);
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is not set. Add a Postgres database in Railway and reference it.");
@@ -60,6 +63,21 @@ async function migrate() {
 
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS age_group TEXT;
 
+    CREATE TABLE IF NOT EXISTS rounds (
+      id                SERIAL PRIMARY KEY,
+      name              TEXT NOT NULL,
+      starts_on         DATE NOT NULL,
+      ends_on           DATE NOT NULL,
+      booking_opens_at  TIMESTAMPTZ,
+      priority_ends_at  TIMESTAMPTZ,
+      priority_limit    INTEGER NOT NULL DEFAULT 2,
+      cancel_hours      INTEGER NOT NULL DEFAULT 24,
+      location          TEXT,
+      activity_defaults JSONB NOT NULL DEFAULT '{}',
+      published_at      TIMESTAMPTZ,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS programs (
       id               SERIAL PRIMARY KEY,
       name             TEXT NOT NULL,
@@ -102,6 +120,11 @@ async function migrate() {
     CREATE UNIQUE INDEX IF NOT EXISTS uq_res_active
       ON reservations(session_id, athlete_id) WHERE status <> 'canceled';
     CREATE INDEX IF NOT EXISTS idx_res_session ON reservations(session_id, status, created_at);
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS round_id INTEGER REFERENCES rounds(id) ON DELETE CASCADE;
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS default_capacity INTEGER;
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS default_coach TEXT;
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS time_slots JSONB NOT NULL DEFAULT '[]';
+
     CREATE INDEX IF NOT EXISTS idx_sessions_program ON training_sessions(program_id, starts_at);
   `);
 }
