@@ -1,5 +1,6 @@
 const { pool, query } = require("./db");
 const R = require("./rounds");
+const { fmtDateTime } = require("./time");
 
 class BookingError extends Error {}
 
@@ -40,7 +41,7 @@ async function activityUsage(db, athleteId, roundId, activity) {
   const { rows } = await db.query(
     `SELECT count(*)::int AS n FROM reservations r JOIN training_sessions s ON s.id=r.session_id
      JOIN programs p ON p.id=s.program_id
-     WHERE r.athlete_id=$1 AND p.round_id=$2 AND p.activity=$3 AND r.status<>'canceled'`,
+     WHERE r.athlete_id=$1 AND p.round_id=$2 AND p.activity=$3 AND r.status<>'canceled' AND r.counts_toward_limit`,
     [athleteId, roundId, activity]);
   return rows[0].n;
 }
@@ -71,7 +72,7 @@ async function reserve({ userId, athleteId, sessionId }) {
     // Lock the session row so two families can't take the last spot at once
     const { rows } = await db.query(
       `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at, p.activity, p.round_id,
-              r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.priority_ends_at AS round_ends,
+              r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours,
               p.booking_opens_at,
               (p.archived OR (p.round_id IS NOT NULL AND r.published_at IS NULL) OR se.completed_at IS NOT NULL) AS archived
        FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id
@@ -95,15 +96,20 @@ async function reserve({ userId, athleteId, sessionId }) {
     );
     if (dup.rowCount) throw new BookingError(`${a.first_name} already has a spot or waitlist place for this session.`);
 
+    let counts = true;
     if (s.round_id) {
-      // Round programs: limit per activity across the whole round (null = unlimited)
-      const round = { activity_limits: s.activity_limits, priority_limit: s.round_limit, priority_ends_at: s.round_ends };
+      // Round programs: per-activity limit across the round (null = unlimited), unless the session is unlocked
+      const round = { activity_limits: s.activity_limits, priority_limit: s.round_limit, unlock_hours: s.unlock_hours };
       const limit = R.limitFor(round, s.activity);
-      if (limit != null && R.limitsActive(round) && (await activityUsage(db, athleteId, s.round_id, s.activity)) >= limit)
+      const unlocked = R.isUnlocked(s, round);
+      counts = limit != null && !unlocked;
+      if (counts && (await activityUsage(db, athleteId, s.round_id, s.activity)) >= limit) {
+        const at = R.unlocksAt(s, round);
         throw new BookingError(
           (limit === 1 ? `${a.first_name} already has the 1 ${s.activity} reservation allowed in ${s.round_name}.`
             : `${a.first_name} has used all ${limit} ${s.activity} reservations for ${s.round_name}.`) +
-          (s.round_ends ? " More open up when the limits end." : ""));
+          (at ? ` If spots are still open, this session opens to everyone ${fmtDateTime(at)}.` : ""));
+      }
     } else if (priorityActive(s) && (await usage(db, athleteId, s.program_id)) >= s.priority_limit) {
       throw new BookingError(
         `${a.first_name} has used all ${s.priority_limit} priority reservations for ${s.program_name}. More sessions open up when priority booking ends.`
@@ -116,8 +122,8 @@ async function reserve({ userId, athleteId, sessionId }) {
     const status = confirmed < s.capacity ? "confirmed" : "waitlisted";
 
     const r = (await db.query(
-      `INSERT INTO reservations (session_id, athlete_id, booked_by, status) VALUES ($1,$2,$3,$4) RETURNING id`,
-      [sessionId, athleteId, userId, status]
+      `INSERT INTO reservations (session_id, athlete_id, booked_by, status, counts_toward_limit) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [sessionId, athleteId, userId, status, counts]
     )).rows[0];
     return { reservationId: r.id, status };
   });
@@ -197,7 +203,7 @@ async function parentReservations(userId) {
 
 async function bookingOptions(athlete) {
   const programs = (await query(
-    `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.priority_ends_at AS round_ends
+    `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      WHERE NOT p.archived AND $1 = ANY(p.age_groups) AND (p.round_id IS NULL OR r.published_at IS NOT NULL)
        AND se.completed_at IS NULL
@@ -231,19 +237,21 @@ async function bookingOptions(athlete) {
   (await query(
     `SELECT p.round_id, p.activity, count(*)::int AS n FROM reservations r JOIN training_sessions s ON s.id=r.session_id
      JOIN programs p ON p.id=s.program_id WHERE r.athlete_id=$1 AND r.status<>'canceled' AND p.round_id IS NOT NULL
+       AND r.counts_toward_limit
      GROUP BY p.round_id, p.activity`, [athlete.id])).rows.forEach((r) => (usedAct[`${r.round_id}|${r.activity}`] = r.n));
 
   return programs
     .map((p) => {
       let limit, limitsOn, usedN;
+      let progSessions = sessions.filter((s) => s.program_id === p.id);
       if (p.round_id) {
-        const round = { activity_limits: p.activity_limits, priority_limit: p.round_limit, priority_ends_at: p.round_ends };
-        limit = R.limitFor(round, p.activity); limitsOn = R.limitsActive(round); usedN = usedAct[`${p.round_id}|${p.activity}`] || 0;
+        const round = { activity_limits: p.activity_limits, priority_limit: p.round_limit, unlock_hours: p.unlock_hours };
+        limit = R.limitFor(round, p.activity); limitsOn = limit != null; usedN = usedAct[`${p.round_id}|${p.activity}`] || 0;
+        progSessions = progSessions.map((s) => ({ ...s, unlocked: limit != null && R.isUnlocked(s, round), unlocksAt: R.unlocksAt(s, round) }));
       } else {
         limit = p.priority_ends_at ? p.priority_limit : null; limitsOn = priorityActive(p); usedN = used[p.id] || 0;
       }
-      return { ...p, limit, limitsOn, used: usedN, limitsEnd: p.round_id ? p.round_ends : p.priority_ends_at,
-        sessions: sessions.filter((s) => s.program_id === p.id) };
+      return { ...p, limit, limitsOn, used: usedN, limitsEnd: p.round_id ? null : p.priority_ends_at, sessions: progSessions };
     })
     .filter((p) => p.sessions.length);
 }

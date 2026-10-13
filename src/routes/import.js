@@ -16,14 +16,17 @@ const roundKey = (round) => (round ? String(round) : "0");
 const defaultRoundName = (round) => (round ? `Round ${round}` : "Imported sessions");
 
 function readSettings(b) {
-  return {
+  const out = {
     location: str(b.location) || null,
     priority_limit: Math.min(Math.max(int(b.priority_limit) || 2, 1), 50),
     cancel_hours: Math.min(int(b.cancel_hours) ?? 24, 336),
     defaults: b.defaults ? R.normalizeDefaults(b.defaults) : R.readDefaults(b),
     season_id: int(b.season_id) || null,
     limits: b.limits ? R.normalizeLimits(b.limits) : R.readLimits(b),
+    unlock_hours: b.limits ? (b.unlock_hours == null ? null : Math.max(0, parseInt(b.unlock_hours, 10) || 0)) : R.readUnlock(b),
   };
+  out.unlockText = R.unlockLabel(out.unlock_hours) + (out.unlock_hours == null ? "" : " each session");
+  return out;
 }
 
 // An existing round "matches" when the name is the same and it starts within ~2 months
@@ -111,11 +114,11 @@ router.post("/commit", wrap(async (req, res) => {
       } else {
         round = (await client.query(
           `INSERT INTO rounds (name, starts_on, ends_on, booking_opens_at, priority_ends_at, priority_limit, cancel_hours, location,
-             activity_defaults, season_id, activity_limits)
-           VALUES ($1,$2,$3,${localSql(4)},${localSql(5)},$6,$7,$8,$9,$10,$11) RETURNING *`,
+             activity_defaults, season_id, activity_limits, unlock_hours)
+           VALUES ($1,$2,$3,${localSql(4)},${localSql(5)},$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
           [name, first, last, local(`opens_${key}`), local(`priority_${key}`), settings.priority_limit,
            settings.cancel_hours, settings.location, JSON.stringify(settings.defaults), settings.season_id,
-           JSON.stringify(settings.limits)])).rows[0];
+           JSON.stringify(settings.limits), settings.unlock_hours])).rows[0];
       }
       touched.push(round.id);
       for (const r of rr) { const n = await R.addSession(client, round, r); if (n) created += n; else skipped++; }

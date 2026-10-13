@@ -84,7 +84,7 @@ router.get("/:id", wrap(async (req, res) => {
     .sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity) ||
       AGE_GROUPS.indexOf(a.age_groups[0]) - AGE_GROUPS.indexOf(b.age_groups[0]));
   const sessions = (await query(
-    `SELECT s.id, s.capacity, p.id AS program_id, p.activity, p.age_groups, p.block_minutes,
+    `SELECT s.id, s.capacity, s.starts_at, s.unlocked_at, p.id AS program_id, p.activity, p.age_groups, p.block_minutes,
        to_char(s.starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS date,
        to_char(s.starts_at AT TIME ZONE '${TZ}', 'HH24:MI') AS start,
        to_char(s.ends_at AT TIME ZONE '${TZ}', 'HH24:MI') AS "end",
@@ -120,14 +120,15 @@ router.post("/:id/settings", wrap(async (req, res) => {
 router.post("/:id/limits", wrap(async (req, res) => {
   const id = int(req.params.id);
   const limits = R.readLimits(req.body);
+  const unlock = R.readUnlock(req.body);
   await tx(async (db) => {
     const round = (await db.query(
-      `UPDATE rounds SET activity_limits=$2, priority_ends_at=${localSql(3)} WHERE id=$1 RETURNING *`,
-      [id, JSON.stringify(limits), localOrNull(req.body.priority_ends_at)])).rows[0];
+      `UPDATE rounds SET activity_limits=$2, unlock_hours=$3 WHERE id=$1 RETURNING *`,
+      [id, JSON.stringify(limits), unlock])).rows[0];
     await R.syncPrograms(db, round);
   });
   const summary = Object.entries(limits).map(([a, n]) => `${a} ${n == null ? "unlimited" : n}`).join(", ");
-  go(res, dest(req, `/admin/rounds/${id}#limits`), { ok: `Limits saved: ${summary}.` });
+  go(res, dest(req, `/admin/rounds/${id}#limits`), { ok: `Limits saved: ${summary}. Open spots unlock ${R.unlockLabel(unlock)}${unlock == null ? "" : " each session"}.` });
 }));
 
 // ---------- times ----------
@@ -266,6 +267,21 @@ router.post("/:id/sessions/:sid/delete", wrap(async (req, res) => {
   const date = (await query(`SELECT to_char(starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS d FROM training_sessions WHERE id=$1`, [sid])).rows[0]?.d;
   await query(`DELETE FROM training_sessions WHERE id=$1`, [sid]);
   go(res, `/admin/rounds/${id}`, { ok: "Removed from the calendar.", d: date || "" });
+}));
+
+// Unlock (or lock again) every session on the selected days
+router.post("/:id/unlock-days", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const dates = parseDates(req.body.dates);
+  const unlock = req.body.mode !== "lock";
+  if (!dates.length) return go(res, `/admin/rounds/${id}`, { err: "Select days on the calendar first." });
+  const { rowCount } = await query(
+    `UPDATE training_sessions s SET unlocked_at = ${unlock ? "now()" : "NULL"} FROM programs p
+     WHERE p.id=s.program_id AND p.round_id=$1 AND s.canceled_at IS NULL
+       AND to_char(s.starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') = ANY($2)`, [id, dates]);
+  go(res, `/admin/rounds/${id}`, { ok: unlock
+    ? `Unlocked ${plural(rowCount, "session")}. Any athlete can take their open spots.`
+    : `Locked ${plural(rowCount, "session")} again. Sessions inside the unlock period stay open.`, d: dates[0] });
 }));
 
 // Remove all of a split session's blocks on one day (only blocks nobody has reserved)

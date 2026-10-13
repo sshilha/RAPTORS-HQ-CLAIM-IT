@@ -154,7 +154,7 @@ const builders = {
          bu.email AS booked_by,
          to_char(x.created_at AT TIME ZONE '${TZ}', 'Mon FMDD, YYYY FMHH12:MI AM') AS booked_at,
          to_char(x.canceled_at AT TIME ZONE '${TZ}', 'Mon FMDD, YYYY FMHH12:MI AM') AS canceled_at,
-         x.promoted_at IS NOT NULL AS promoted
+         x.promoted_at IS NOT NULL AS promoted, x.counts_toward_limit AS counted
        FROM reservations x JOIN athletes a ON a.id=x.athlete_id JOIN training_sessions s ON s.id=x.session_id
        JOIN programs p ON p.id=s.program_id LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
        LEFT JOIN users bu ON bu.id=x.booked_by
@@ -169,7 +169,8 @@ const builders = {
         { key: "booked_by", label: "Booked by" }, { key: "booked_at", label: "Booked" }, { key: "canceled_at", label: "Canceled" },
       ],
       rows: rows.map((r) => ({ ...r, session: typeLabel(r.activity, r.age_groups), athlete: `${r.last_name}, ${r.first_name}`,
-        parents: r.emails.join(", "), statusText: label[r.status] + (r.promoted && r.status !== "waitlisted" ? " (from waitlist)" : ""),
+        parents: r.emails.join(", "), statusText: label[r.status] + (r.promoted && r.status !== "waitlisted" ? " (from waitlist)" : "") +
+          (r.counted ? "" : " (open spot)"),
         link: `/admin/sessions/${r.sid}` })),
     };
   },

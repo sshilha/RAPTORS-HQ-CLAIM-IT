@@ -54,6 +54,10 @@ const dashboardPage = ({ user, athletes, reservations, admin, flash }) =>
   });
 
 const atLimit = (p) => p.limit != null && p.limitsOn && p.used >= p.limit;
+// A session is blocked by the limit only while it's locked
+const blocked = (p, s) => atLimit(p) && !s.unlocked;
+const unlockHint = (s, compact) => s.unlocksAt
+  ? (compact ? `Opens ${fmtDay(s.unlocksAt)}` : `Opens to all ${fmtDateTime(s.unlocksAt)}`) : "";
 
 function ruleLine(p) {
   if (!bookingOpen(p)) return `Booking opens ${esc(fmtDateTime(p.booking_opens_at))}.`;
@@ -61,16 +65,22 @@ function ruleLine(p) {
     return p.limit == null && p.round_id ? `Book as many ${esc(p.activity)} spots as you like.` : `Open booking: reserve any session with open spots.`;
   const n = p.limit === 1 ? "session" : "sessions";
   const scope = p.round_id ? `${esc(p.activity)} ${n} in ${esc(p.round_name)}` : `${n} in this program`;
+  const unlockNote = p.round_id
+    ? (p.unlock_hours != null ? ` Spots still open ${esc(unlockWhen(p.unlock_hours))} a session are open to everyone.` : "")
+    : "";
   return `Up to ${p.limit} ${scope} per athlete${p.limitsEnd ? ` until ${esc(fmtDateTime(p.limitsEnd))}` : ""}. ` +
-    `<strong>${Math.min(p.used, p.limit)} of ${p.limit} used.</strong>`;
+    `<strong>${Math.min(p.used, p.limit)} of ${p.limit} used.</strong>${unlockNote}`;
 }
+
+const unlockWhen = (h) => (h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"} before` : `${h} hour${h === 1 ? "" : "s"} before`);
 
 function actionFor(p, s, athlete, compact) {
   const open = s.capacity - s.confirmed;
   if (s.my_status === "confirmed") return `<span class="pill ok">Reserved</span>`;
   if (s.my_status === "waitlisted") return `<span class="pill wait">Waitlist #${s.my_pos}</span>`;
   if (!bookingOpen(p)) return `<button class="btn-small" disabled>${compact ? "Soon" : "Not open yet"}</button>`;
-  if (atLimit(p)) return `<button class="btn-small" disabled>${compact ? "Limit" : "Limit reached"}</button>`;
+  if (blocked(p, s)) return `<button class="btn-small" disabled>${compact ? "Limit" : "Limit reached"}</button>` +
+    (unlockHint(s, compact) ? `<span class="fine unlock-hint">${esc(unlockHint(s, compact))}</span>` : "");
   return `<form method="post" action="/athletes/${athlete.id}/book">
       <input type="hidden" name="session_id" value="${s.id}">
       <button class="${open > 0 ? "btn-small" : "btn-small secondary"}" type="submit">${open > 0 ? "Reserve" : compact ? "Waitlist" : "Join waitlist"}</button>
@@ -87,7 +97,7 @@ function sessionRow(p, s, athlete) {
       <div class="sess-meta">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</div>
       ${s.notes ? `<div class="sess-meta">${esc(s.notes)}</div>` : ""}
     </div>
-    <div class="sess-side"><div class="spots">${spots}</div>${actionFor(p, s, athlete)}</div>
+    <div class="sess-side"><div class="spots">${spots}</div>${s.unlocked && open > 0 ? `<span class="pill open-all">Open to all</span>` : ""}${actionFor(p, s, athlete)}</div>
   </li>`;
 }
 
@@ -107,7 +117,7 @@ function blockDays(p, athlete) {
       const open = s.capacity - s.confirmed;
       return `<div class="block${s.my_status ? " mine" : open > 0 ? "" : " full"}">
         <div class="block-time">${esc(fmtTime(s.starts_at))}</div>
-        <div class="block-open">${s.my_status ? "&nbsp;" : open > 0 ? `${open} open` : "Full"}</div>
+        <div class="block-open">${s.my_status ? "&nbsp;" : open > 0 ? `${open} open${s.unlocked ? " · all" : ""}` : "Full"}</div>
         ${actionFor(p, s, athlete, true)}
       </div>`;
     }).join("")}</div>

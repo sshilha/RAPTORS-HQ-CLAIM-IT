@@ -2,6 +2,7 @@ const { esc, layout } = require("./layout");
 const { AGE_GROUPS, ACTIVITIES } = require("../config");
 const { fmtRange, fmtDateTime, inputParts } = require("../time");
 const { priorityActive } = require("../booking");
+const { limitFor, isUnlocked, unlocksAt } = require("../rounds");
 
 const page = (opts) => layout({ ...opts, admin: true, wide: true });
 
@@ -109,12 +110,31 @@ const rosterRows = (rows, kind) => rows.length ? `<div class="table-wrap"><table
       <button class="btn-ghost" type="submit">Remove</button></form></td></tr>`).join("")}</tbody></table></div>`
   : `<p class="muted">${kind === "wait" ? "No one on the waitlist." : "No reservations yet."}</p>`;
 
-const sessionPage = ({ user, session: s, program: p, confirmed, waitlist, flash, readonly }) => page({
+function lockPanel(s, p, round) {
+  if (!round || s.canceled_at) return "";
+  const limit = limitFor(round, p.activity);
+  if (limit == null) return `<p class="rule">${esc(p.activity)} has no limit in this round, so any athlete can book it.</p>`;
+  const open = isUnlocked(s, round);
+  const at = unlocksAt(s, round);
+  return `<div class="lock-panel ${open ? "is-open" : "is-locked"}">
+    <div><strong>${open ? "🔓 Unlocked: open to all athletes" : "🔒 Locked"}</strong>
+      <div class="fine">${open
+        ? (s.unlocked_at ? `Unlocked by hand ${esc(fmtDateTime(s.unlocked_at))}.` : "Inside the round's unlock period.") + ` Any athlete can take open spots without using a ${esc(p.activity)} reservation.`
+        : `Athletes need one of their ${limit} ${esc(p.activity)} reservations for this round.${at ? ` Opens to all automatically ${esc(fmtDateTime(at))}.` : ""}`}</div></div>
+    <form method="post" action="/admin/sessions/${s.id}/unlock">
+      ${open && !s.unlocked_at ? "" : `<input type="hidden" name="mode" value="${open ? "lock" : "unlock"}">
+      <button class="btn-ghost" type="submit">${open ? "Lock again" : "🔓 Unlock now"}</button>`}
+    </form>
+  </div>`;
+}
+
+const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist, flash, readonly }) => page({
   title: "Session", tab: "rounds", user, flash, readonly,
   body: `<a class="back" href="${p.round_id ? `/admin/rounds/${p.round_id}` : `/admin/programs/${p.id}`}">${p.round_id ? "Back to round calendar" : esc(p.name)}</a>
   <section class="panel">
     <div class="athlete-head"><h1>${esc(fmtRange(s.starts_at, s.ends_at))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>
     <p class="muted">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</p>
+    ${lockPanel(s, p, round)}
     <h2>Reserved (${confirmed.length} of ${s.capacity})</h2>${rosterRows(confirmed, "ok")}
     <h2>Waitlist</h2>${rosterRows(waitlist, "wait")}
   </section>

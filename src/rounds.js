@@ -57,8 +57,24 @@ function limitFor(round, activity) {
   if (l && Object.prototype.hasOwnProperty.call(l, activity)) return l[activity] == null ? null : Number(l[activity]);
   return ALL_AGES_ACTIVITIES.includes(activity) ? null : (round && round.priority_limit) || 2;
 }
-// Limits apply until "limits end"; blank means they apply all round
-const limitsActive = (round) => !round.priority_ends_at || new Date(round.priority_ends_at) > new Date();
+// A session is unlocked (open to any athlete) when it was unlocked by hand, or once it's within
+// the round's unlock period before it starts. unlock_hours NULL = never unlocks automatically.
+function isUnlocked(session, round) {
+  if (session.unlocked_at) return true;
+  if (round.unlock_hours == null) return false;
+  return Date.now() >= new Date(session.starts_at).getTime() - round.unlock_hours * 3600 * 1000;
+}
+function unlocksAt(session, round) {
+  if (session.unlocked_at || round.unlock_hours == null) return null;
+  return new Date(new Date(session.starts_at).getTime() - round.unlock_hours * 3600 * 1000);
+}
+function readUnlock(body) {
+  if (body.unlock_never) return null;
+  const n = parseInt(body.unlock_n, 10);
+  if (!(n >= 0 && n <= 60 * 24)) return 168;
+  return body.unlock_unit === "hours" ? n : n * 24;
+}
+const unlockLabel = (h) => (h == null ? "never automatically" : h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"} before` : `${h} hour${h === 1 ? "" : "s"} before`);
 function readLimits(body) {
   return Object.fromEntries(ACTIVITIES.map((a, i) => {
     if (body[`unl_${i}`]) return [a, null];
@@ -159,9 +175,9 @@ async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetD
   const shift = (col) => `CASE WHEN $7::boolean THEN ${col} + ($2::int * interval '1 day') END`;
   const round = (await db.query(
     `INSERT INTO rounds (name, starts_on, ends_on, season_id, booking_opens_at, priority_ends_at, priority_limit,
-       cancel_hours, location, activity_defaults, time_slots, activity_limits)
+       cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours)
      SELECT $3, $4, $5, $6, ${shift("booking_opens_at")}, ${shift("priority_ends_at")}, priority_limit,
-       cancel_hours, location, activity_defaults, time_slots, activity_limits FROM rounds WHERE id=$1 RETURNING *`,
+       cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours FROM rounds WHERE id=$1 RETURNING *`,
     [src.id, offsetDays, name, starts_on, ends_on, season_id, !!shiftRules])).rows[0];
   for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows)
     await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach, block: p.block_minutes });
@@ -178,7 +194,7 @@ async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetD
 }
 
 module.exports = {
-  BLOCK_CHOICES, cleanBlock, blocksFor, defaultLimits, limitFor, limitsActive, readLimits, normalizeLimits,
+  BLOCK_CHOICES, cleanBlock, blocksFor, defaultLimits, limitFor, isUnlocked, unlocksAt, readUnlock, unlockLabel, readLimits, normalizeLimits,
   copyRound,
   sortAges, agesLabel, typeLabel, programName, isAllAges, defaultsFor, readDefaults, normalizeDefaults,
   addSlots, ensureProgram, syncPrograms, schedule, addSession,

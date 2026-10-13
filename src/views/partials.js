@@ -41,13 +41,26 @@ function limitsForm(round, { returnTo, readonly, compact } = {}) {
     ${returnTo ? `<input type="hidden" name="return_to" value="${esc(returnTo)}">` : ""}
     <fieldset class="plain"${readonly ? " disabled" : ""}>
     ${compact ? limitsCards(round) : limitsTable(round)}
-    <div class="limits-foot">
-      <label class="ends">Limits end (optional)<input type="datetime-local" name="priority_ends_at" value="${inputParts(round.priority_ends_at).local}"></label>
+    <div class="limits-foot">${unlockFields(round)}
       ${readonly ? "" : `<button class="btn-ghost" type="submit">Save limits</button>`}
     </div>
-    <p class="fine">Sessions of each activity one athlete can hold in this round. After "limits end", athletes can book any open spot; leave it blank to keep the limits all round.</p>
+    <p class="fine">Sessions are locked to these limits. Inside the unlock period, or when you unlock a session by hand, any athlete can take its open spots, and those spots don't use up the athlete's limit.</p>
     </fieldset>
   </form>`;
+}
+
+// "Unlock open spots [7] [days] before each session", or never
+function unlockFields(round) {
+  const h = round ? (round.unlock_hours === undefined ? 168 : round.unlock_hours) : 168;
+  const days = h != null && h % 24 === 0;
+  return `<div class="unlock-fields"><span class="label-like">Unlock open spots</span>
+    <span class="unlock-row">
+      <input type="number" name="unlock_n" min="0" max="1440" value="${h == null ? 7 : days ? h / 24 : h}" class="unlock-n" aria-label="Unlock period"${h == null ? " disabled" : ""}>
+      <select name="unlock_unit" class="unlock-unit" aria-label="Unit"${h == null ? " disabled" : ""}>
+        <option value="days"${h == null || days ? " selected" : ""}>days</option><option value="hours"${h != null && !days ? " selected" : ""}>hours</option></select>
+      <span class="unlock-before">before each session</span>
+      <label class="check"><input type="checkbox" name="unlock_never" value="1" class="unlock-never"${h == null ? " checked" : ""}> Never automatically</label>
+    </span></div>`;
 }
 
 // Script that greys out the number when Unlimited is checked
@@ -55,6 +68,12 @@ const limitsScript = `<script>
 document.querySelectorAll(".lim-unl").forEach(function (c) {
   c.addEventListener("change", function () { c.closest("tr, .limit-card").querySelector(".lim-n").disabled = c.checked; });
 });
+document.querySelectorAll(".unlock-never").forEach(function (c) {
+  c.addEventListener("change", function () {
+    var w = c.closest(".unlock-fields");
+    w.querySelector(".unlock-n").disabled = c.checked; w.querySelector(".unlock-unit").disabled = c.checked;
+  });
+});
 </script>`;
 
-module.exports = { swatch, blockSelect, spotsLabel, limitsTable, limitsForm, limitsScript };
+module.exports = { swatch, blockSelect, spotsLabel, limitsTable, limitsForm, limitsScript, unlockFields };

@@ -132,7 +132,8 @@ router.get("/sessions/:id", wrap(async (req, res) => {
        ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS emails
      FROM reservations r JOIN athletes a ON a.id=r.athlete_id
      WHERE r.session_id=$1 AND r.status<>'canceled' ORDER BY r.created_at, r.id`, [session.id])).rows;
-  res.send(v.sessionPage(view(req, { session, program, readonly: await locks.sessionLocked(session.id),
+  const round = program.round_id ? (await query(`SELECT * FROM rounds WHERE id=$1`, [program.round_id])).rows[0] : null;
+  res.send(v.sessionPage(view(req, { session, program, round, readonly: await locks.sessionLocked(session.id),
     confirmed: roster.filter((r) => r.status === "confirmed"),
     waitlist: roster.filter((r) => r.status === "waitlisted") })));
 }));
@@ -156,6 +157,13 @@ router.post("/sessions/:id", wrap(async (req, res) => {
     if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
     throw e;
   }
+}));
+
+router.post("/sessions/:id/unlock", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const lock = req.body.mode === "lock";
+  await query(`UPDATE training_sessions SET unlocked_at=${lock ? "NULL" : "now()"} WHERE id=$1`, [id]);
+  go(res, `/admin/sessions/${id}`, { ok: lock ? "Locked again. Athletes need an unused reservation for this activity." : "Unlocked. Any athlete can take the open spots." });
 }));
 
 router.post("/sessions/:id/cancel", wrap(async (req, res) => {

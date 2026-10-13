@@ -136,6 +136,11 @@ async function migrate() {
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS season_id INTEGER REFERENCES seasons(id) ON DELETE SET NULL;
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS activity_limits JSONB;
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS block_minutes INTEGER;
+    -- Locked sessions honor the per-activity limits; they unlock this many hours before they start (NULL = never)
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS unlock_hours INTEGER DEFAULT 168;
+    ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMPTZ;
+    -- Spots taken from unlocked sessions don't use up an athlete's limit
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS counts_toward_limit BOOLEAN NOT NULL DEFAULT true;
     -- Older rounds: carry their single limit over to every activity; Cage Time unlimited
     UPDATE rounds SET activity_limits = jsonb_build_object('Hitting', priority_limit, 'Pitching', priority_limit,
       'Catching', priority_limit, 'Defense', priority_limit, 'Cage Time', NULL) WHERE activity_limits IS NULL;

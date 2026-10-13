@@ -516,3 +516,22 @@ table.types select { padding: 8px; width: auto; }
 .limit-card .check { font-size: 13px; }
 .limits-foot { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; }
 .limits-foot .ends { margin-top: 0; }
+.pill.open-all { background: #e3edff; border-color: #6d8fd6; color: var(--navy); }
+.unlock-hint { margin: 0; text-align: right; }
+.block .unlock-hint { text-align: center; font-size: 11px; }
+.lock-ic { font-size: 11px; margin-left: 2px; }
+.unlock-fields { display: flex; flex-direction: column; gap: 6px; }
+.unlock-fields .label-like { margin: 0; }
+.unlock-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.unlock-row .unlock-n { width: 80px; padding: 9px 10px; }
+.unlock-row .unlock-unit { width: auto; padding: 9px 10px; }
+.unlock-row .unlock-n:disabled, .unlock-row .unlock-unit:disabled { background: var(--paper); color: var(--muted); }
+.unlock-before { font-size: 14px; color: var(--muted); }
+.unlock-days { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 8px; }
+.unlock-days .label-like { margin: 0; }
+.unlock-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.lock-panel { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
+  border-radius: 8px; padding: 12px 14px; margin: 10px 0 4px; border: 1.5px solid var(--line); }
+.lock-panel.is-open { background: #eef3ff; border-color: #6d8fd6; }
+.lock-panel.is-locked { background: var(--paper); }
+.lock-panel form { margin: 0; }

@@ -54,9 +54,13 @@ Admin has three tabs: **Setup**, **Reports**, and **Athletes and parents**.
      "Copy" duplicates a day onto other days.
   Rounds are drafts, hidden from families, until you click **Publish round**.
 - **Limits per athlete** are set per round, per activity (e.g. Hitting 2, Defense 1,
-  Catching 1, Cage Time unlimited). They count every session of that activity the athlete
-  holds in the round, including waitlist spots. Optional **Limits end** lifts them at a set
-  time; blank keeps them all round.
+  Catching 1, Cage Time unlimited). Sessions are **locked** to these limits: an athlete can
+  reserve a locked session only while she has an unused reservation for that activity.
+- **Unlocking:** each round has an unlock period (default 7 days before each session, or
+  never). Inside it, open spots are open to any athlete. You can also unlock by hand, per
+  session (its roster page) or for whole days (select days on the round calendar). Spots
+  taken from unlocked sessions don't use up the athlete's limit; reports mark them
+  "(open spot)". The calendar shows unlocked sessions with 🔓.
 - **Blocks:** a session can be split into 15/20/30/45/60-minute blocks, with spots per block.
   Cage Time defaults to 30-minute blocks of 2: scheduling Saturday 3–7 creates eight blocks.
   The calendar shows a day's blocks as one chip; parents pick times from a grid.

@@ -2,7 +2,7 @@ const { esc } = require("./layout");
 const { page } = require("./admin");
 const { AGE_GROUPS, ACTIVITIES, ACTIVITY_COLORS, ALL_AGES_ACTIVITIES } = require("../config");
 const { inputParts } = require("../time");
-const { typeLabel, defaultsFor } = require("../rounds");
+const { typeLabel, defaultsFor, isUnlocked, limitFor } = require("../rounds");
 const { blockSelect, spotsLabel, limitsForm, limitsScript } = require("./partials");
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -78,7 +78,7 @@ function groupBlocks(list) {
   const out = [];
   for (const s of list) {
     const g = s.block_minutes && out.find((x) => x.blocks && x.program_id === s.program_id && x.end === s.start);
-    if (g) { g.end = s.end; g.blocks++; g.taken += s.taken; g.capacity += s.capacity; }
+    if (g) { g.end = s.end; g.blocks++; g.taken += s.taken; g.capacity += s.capacity; g.open = g.open || s.open; }
     else if (s.block_minutes) out.push({ ...s, blocks: 1 });
     else out.push(s);
   }
@@ -90,6 +90,8 @@ function grid(round, sessions) {
   const first = addDays(start, -start.getUTCDay());
   const last = addDays(end, 6 - end.getUTCDay());
   const byDate = {};
+  // 🔓 marks sessions open to every athlete (only meaningful for activities with a limit)
+  sessions.forEach((s) => { s.open = limitFor(round, s.activity) != null && isUnlocked(s, round); });
   sessions.forEach((s) => (byDate[s.date] = byDate[s.date] || []).push(s));
   const weeks = [];
   for (let w = first; w <= last; w = addDays(w, 7)) {
@@ -103,11 +105,11 @@ function grid(round, sessions) {
           ${list.length ? `<button type="button" class="copy-btn" data-copy="${key}" data-count="${list.length}" title="Copy this day to other days">Copy</button>` : ""}</div>
         ${groupBlocks(list).map((s) => s.blocks ? `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
           <a href="/admin/programs/${s.program_id}" title="Open blocks and rosters">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
-            <span class="blocks-n">${s.blocks} blocks</span> <span class="spots-n">${s.taken}/${s.capacity}</span></a>
+            <span class="blocks-n">${s.blocks} blocks</span> <span class="spots-n">${s.taken}/${s.capacity}</span>${s.open ? `<span class="lock-ic" title="Unlocked: open to all athletes">🔓</span>` : ""}</a>
           ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/day-blocks/delete"><input type="hidden" name="program_id" value="${s.program_id}"><input type="hidden" name="date" value="${key}"><button type="submit" class="x" title="Remove these blocks" aria-label="Remove these blocks">×</button></form>`}
         </div>` : `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
           <a href="/admin/sessions/${s.id}" title="Open roster and edit">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
-            <span class="spots-n">${s.taken}/${s.capacity}</span></a>
+            <span class="spots-n">${s.taken}/${s.capacity}</span>${s.open ? `<span class="lock-ic" title="Unlocked: open to all athletes">🔓</span>` : ""}</a>
           ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/sessions/${s.id}/delete"><button type="submit" class="x" title="Remove from calendar" aria-label="Remove from calendar">×</button></form>`}
         </div>`).join("")}
       </div>` : `<div class="day out"></div>`);
@@ -117,6 +119,8 @@ function grid(round, sessions) {
   return `<div class="cal"><div class="week dow">${DOW.map((d) => `<div>${d}</div>`).join("")}</div>${weeks.join("")}</div>`;
 }
 
+const unlockText = (h) => (h == null ? "Automatic unlocking is off for this round (see Limits)."
+  : `Sessions also unlock automatically ${h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} hour${h === 1 ? "" : "s"}`} before they start.`);
 const swatch = (a) => `<span class="swatch" style="background:${ACTIVITY_COLORS[a]}"></span>`;
 
 function timesPanel(r) {
@@ -214,6 +218,15 @@ function schedulePanel(r, types, last) {
         </fieldset>
         <button class="btn wide-btn" type="submit" id="add-btn" disabled>Select days first</button>`
         : `<p class="muted">Add this round's sessions (step 2) first. Then select days here and schedule them.</p>`}
+      </form>
+      <form method="post" action="/admin/rounds/${r.id}/unlock-days" class="unlock-days">
+        <input type="hidden" name="dates" class="sel-dates">
+        <p class="label-like">Selected days: open to all athletes</p>
+        <div class="unlock-btns">
+          <button class="btn-ghost" type="submit" name="mode" value="unlock">🔓 Unlock</button>
+          <button class="btn-ghost" type="submit" name="mode" value="lock">Lock again</button>
+        </div>
+        <p class="fine">Open spots on these days unlock for every athlete, past the limits. ${esc(unlockText(r.unlock_hours))}</p>
       </form>
     </aside>`;
 }
