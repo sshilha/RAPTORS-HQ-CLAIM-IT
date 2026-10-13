@@ -53,6 +53,13 @@ Admin has three tabs: **Setup**, **Reports**, and **Athletes and parents**.
      as a new time slot), check one or more sessions, and schedule them all at once.
      "Copy" duplicates a day onto other days.
   Rounds are drafts, hidden from families, until you click **Publish round**.
+- **Limits per athlete** are set per round, per activity (e.g. Hitting 2, Defense 1,
+  Catching 1, Cage Time unlimited). They count every session of that activity the athlete
+  holds in the round, including waitlist spots. Optional **Limits end** lifts them at a set
+  time; blank keeps them all round.
+- **Blocks:** a session can be split into 15/20/30/45/60-minute blocks, with spots per block.
+  Cage Time defaults to 30-minute blocks of 2: scheduling Saturday 3–7 creates eight blocks.
+  The calendar shows a day's blocks as one chip; parents pick times from a grid.
 - **Cage Time** is an activity open to all ages.
 
 - **Import schedule:** upload the Turn Two schedule PDF (or paste its text). The app reads

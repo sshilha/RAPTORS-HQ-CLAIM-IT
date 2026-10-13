@@ -65,12 +65,12 @@ router.post("/", wrap(async (req, res) => {
       return (await R.copyRound(db, src, { name, starts_on: s, ends_on: e, season_id: seasonId, offsetDays: offset, shiftRules: false })).round.id;
     }
     return (await db.query(
-      `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults)
-       VALUES ($1,$2,$3,$4,'Turn Two Athletics',$5) RETURNING id`,
-      [name, s, e, seasonId, JSON.stringify(R.readDefaults({}))])).rows[0].id;
+      `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits)
+       VALUES ($1,$2,$3,$4,'Turn Two Athletics',$5,$6) RETURNING id`,
+      [name, s, e, seasonId, JSON.stringify(R.readDefaults({})), JSON.stringify(R.defaultLimits())])).rows[0].id;
   });
   go(res, dest(req, `/admin/rounds/${id}`, { id }), { ok: src
-    ? "Round created as a copy. Set its booking dates in Round settings, then publish."
+    ? "Round created as a copy. Check its limits, limits end, and booking dates, then publish."
     : "Round created. Next: add its times and sessions, then schedule them on the calendar." });
 }));
 
@@ -84,7 +84,7 @@ router.get("/:id", wrap(async (req, res) => {
     .sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity) ||
       AGE_GROUPS.indexOf(a.age_groups[0]) - AGE_GROUPS.indexOf(b.age_groups[0]));
   const sessions = (await query(
-    `SELECT s.id, s.capacity, p.id AS program_id, p.activity, p.age_groups,
+    `SELECT s.id, s.capacity, p.id AS program_id, p.activity, p.age_groups, p.block_minutes,
        to_char(s.starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS date,
        to_char(s.starts_at AT TIME ZONE '${TZ}', 'HH24:MI') AS start,
        to_char(s.ends_at AT TIME ZONE '${TZ}', 'HH24:MI') AS "end",
@@ -106,15 +106,28 @@ router.post("/:id/settings", wrap(async (req, res) => {
   await tx(async (db) => {
     await db.query(`UPDATE rounds SET season_id=$2 WHERE id=$1`, [id, seasonId]);
     const round = (await db.query(
-      `UPDATE rounds SET name=$2, starts_on=$3, ends_on=$4, booking_opens_at=${localSql(5)}, priority_ends_at=${localSql(6)},
-         priority_limit=$7, cancel_hours=$8, location=$9 WHERE id=$1 RETURNING *`,
-      [id, name, s, e, localOrNull(b.booking_opens_at), localOrNull(b.priority_ends_at),
-       Math.min(Math.max(int(b.priority_limit) || 2, 1), 50), Math.min(int(b.cancel_hours) ?? 24, 336), str(b.location) || null])).rows[0];
+      `UPDATE rounds SET name=$2, starts_on=$3, ends_on=$4, booking_opens_at=${localSql(5)},
+         cancel_hours=$6, location=$7 WHERE id=$1 RETURNING *`,
+      [id, name, s, e, localOrNull(b.booking_opens_at), Math.min(int(b.cancel_hours) ?? 24, 336), str(b.location) || null])).rows[0];
     await R.syncPrograms(db, round);
     if (b.apply_location) await db.query(
       `UPDATE training_sessions s SET location=$2 FROM programs p WHERE p.id=s.program_id AND p.round_id=$1`, [id, round.location]);
   });
   go(res, `/admin/rounds/${id}#settings`, { ok: "Round saved." });
+}));
+
+// ---------- limits (per activity) ----------
+router.post("/:id/limits", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const limits = R.readLimits(req.body);
+  await tx(async (db) => {
+    const round = (await db.query(
+      `UPDATE rounds SET activity_limits=$2, priority_ends_at=${localSql(3)} WHERE id=$1 RETURNING *`,
+      [id, JSON.stringify(limits), localOrNull(req.body.priority_ends_at)])).rows[0];
+    await R.syncPrograms(db, round);
+  });
+  const summary = Object.entries(limits).map(([a, n]) => `${a} ${n == null ? "unlimited" : n}`).join(", ");
+  go(res, dest(req, `/admin/rounds/${id}#limits`), { ok: `Limits saved: ${summary}.` });
 }));
 
 // ---------- times ----------
@@ -142,7 +155,7 @@ function readType(b) {
   let ages = [].concat(b.ages || []).filter((g) => AGE_GROUPS.includes(g));
   if (activity && !ages.length && ALL_AGES_ACTIVITIES.includes(activity)) ages = [...AGE_GROUPS];
   const spots = int(b.spots);
-  return { activity, ages, spots: spots && spots <= 200 ? spots : null, coach: str(b.coach) || null };
+  return { activity, ages, spots: spots && spots <= 200 ? spots : null, coach: str(b.coach) || null, block: R.cleanBlock(b.block) };
 }
 
 router.post("/:id/types", wrap(async (req, res) => {
@@ -153,8 +166,9 @@ router.post("/:id/types", wrap(async (req, res) => {
   const exists = (await query(`SELECT 1 FROM programs WHERE round_id=$1 AND activity=$2 AND age_groups=$3::text[]`,
     [id, t.activity, R.sortAges(t.ages)])).rowCount;
   if (exists) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: `${R.typeLabel(t.activity, t.ages)} is already set up in this round. Change its spots in the list.` });
-  await R.ensureProgram({ query }, round, t.activity, t.ages, { capacity: t.spots, coach: t.coach });
-  go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: `Added ${R.typeLabel(t.activity, t.ages)}, ${t.spots} spots.` });
+  await R.ensureProgram({ query }, round, t.activity, t.ages, { capacity: t.spots, coach: t.coach, block: t.block });
+  go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: `Added ${R.typeLabel(t.activity, t.ages)}, ` +
+    (t.block ? `${t.spots} spots per ${t.block}-minute block.` : `${t.spots} spots.`) });
 }));
 
 router.post("/:id/types/:pid", wrap(async (req, res) => {
@@ -164,7 +178,8 @@ router.post("/:id/types/:pid", wrap(async (req, res) => {
   const coach = str(req.body.coach) || null;
   const p = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [pid, id])).rows[0];
   if (!p) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Session not found." });
-  await query(`UPDATE programs SET default_capacity=$2, default_coach=$3 WHERE id=$1`, [pid, spots, coach]);
+  await query(`UPDATE programs SET default_capacity=$2, default_coach=$3, block_minutes=$4 WHERE id=$1`,
+    [pid, spots, coach, R.cleanBlock(req.body.block)]);
 
   // Apply to everything already scheduled; never drop below who's already reserved
   const sess = (await query(
@@ -212,14 +227,16 @@ router.post("/:id/schedule", wrap(async (req, res) => {
   if (!typeIds.length) return back({ err: "Check at least one session." });
 
   const programs = (await query(`SELECT * FROM programs WHERE round_id=$1 AND id = ANY($2)`, [id, typeIds])).rows;
-  let added = 0;
+  let added = 0, tried = 0;
   await tx(async (db) => {
-    for (const date of dates) for (const p of programs) if (await R.schedule(db, round, p, { date, start, end })) added++;
+    for (const date of dates) for (const p of programs) {
+      tried += R.blocksFor(p, start, end).length;
+      added += await R.schedule(db, round, p, { date, start, end });
+    }
     // A custom time becomes one of the round's times for next time
     if (b.slot === "custom") await db.query(`UPDATE rounds SET time_slots=$2 WHERE id=$1`,
       [id, JSON.stringify(R.addSlots(round, [{ start, end }]))]);
   });
-  const tried = dates.length * programs.length;
   if (b.slot === "custom") keep.slot = `${start}-${end}`;
   back({ ok: `Scheduled ${plural(added, "session")}` + (tried > added ? `. Skipped ${tried - added} already on the calendar.` : ".") });
 }));
@@ -237,7 +254,7 @@ router.post("/:id/copy-day", wrap(async (req, res) => {
        FROM training_sessions s JOIN programs p ON p.id=s.program_id
        WHERE p.round_id=$1 AND s.canceled_at IS NULL AND (s.starts_at AT TIME ZONE '${TZ}')::date = $2::date`, [id, from])).rows;
     for (const date of targets) for (const x of src)
-      if (await R.schedule(db, round, x, { date, start: x.start, end: x.end })) added++;
+      added += await R.schedule(db, round, { ...x, block_minutes: null }, { date, start: x.start, end: x.end });
   });
   go(res, `/admin/rounds/${id}`, { ok: `Copied ${plural(added, "session")} to ${plural(targets.length, "day")}.`, d: targets[0] });
 }));
@@ -249,6 +266,17 @@ router.post("/:id/sessions/:sid/delete", wrap(async (req, res) => {
   const date = (await query(`SELECT to_char(starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS d FROM training_sessions WHERE id=$1`, [sid])).rows[0]?.d;
   await query(`DELETE FROM training_sessions WHERE id=$1`, [sid]);
   go(res, `/admin/rounds/${id}`, { ok: "Removed from the calendar.", d: date || "" });
+}));
+
+// Remove all of a split session's blocks on one day (only blocks nobody has reserved)
+router.post("/:id/day-blocks/delete", wrap(async (req, res) => {
+  const id = int(req.params.id), pid = int(req.body.program_id), date = str(req.body.date);
+  if (!pid || !isDate(date)) return go(res, `/admin/rounds/${id}`, { err: "Nothing to remove." });
+  const { rowCount } = await query(
+    `DELETE FROM training_sessions s USING programs p WHERE p.id=s.program_id AND p.round_id=$1 AND s.program_id=$2
+       AND (s.starts_at AT TIME ZONE '${TZ}')::date = $3::date
+       AND NOT EXISTS (SELECT 1 FROM reservations x WHERE x.session_id=s.id AND x.status<>'canceled')`, [id, pid, date]);
+  go(res, `/admin/rounds/${id}`, { ok: `Removed ${plural(rowCount, "block")}. Blocks with reservations stay; cancel them from their roster.`, d: date });
 }));
 
 router.post("/:id/publish", wrap(async (req, res) => {

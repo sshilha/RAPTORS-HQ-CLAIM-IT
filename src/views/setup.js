@@ -4,6 +4,7 @@ const { AGE_GROUPS, ACTIVITIES, ACTIVITY_COLORS } = require("../config");
 const { fmtDateTime } = require("../time");
 const { typeLabel, defaultsFor } = require("../rounds");
 const { niceRange, shortRange, statusPill } = require("./rounds");
+const { blockSelect, spotsLabel, limitsForm, limitsScript } = require("./partials");
 
 const pl = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const back = (anchor) => `<input type="hidden" name="return_to" value="/admin/setup${anchor ? `#${anchor}` : ""}">`;
@@ -28,6 +29,10 @@ function roundBlock(r, locked) {
         <a class="link-dark" href="/admin/reports?round=${r.id}">Reports</a>
       </div>
 
+      <div class="round-limits">
+        <p class="label-like">Limits per athlete</p>
+        ${limitsForm(r, { returnTo: `/admin/setup#${anchor}`, readonly: locked, compact: true })}
+      </div>
       <div class="round-grid">
         <div>
           <p class="label-like">Times</p>
@@ -42,11 +47,12 @@ function roundBlock(r, locked) {
 
         <div>
           <p class="label-like">Sessions</p>
-          ${r.types.length ? `<table class="types compact"><thead><tr><th>Session</th><th>Spots</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
+          ${r.types.length ? `<table class="types compact"><thead><tr><th>Session</th><th>Spots</th><th>Split into</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
             <tbody>${r.types.map((t) => `<tr>
               <td>${swatch(t.activity)}<strong>${esc(typeLabel(t.activity, t.age_groups))}</strong></td>
-              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td><td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
+              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td><td>${t.block_minutes ? `${t.block_minutes} min` : "Whole"}</td><td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
               <td><input form="st-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
+              <td>${blockSelect("block", t.block_minutes, `form="st-${t.id}" aria-label="Split into blocks"`)}</td>
               <td><input form="st-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
               <td>${t.scheduled}</td>
               <td><div class="row-actions">
@@ -61,6 +67,7 @@ function roundBlock(r, locked) {
               <button type="button" class="tchip" data-ages="8U,10U">8U–10U</button>
               <button type="button" class="tchip" data-ages="12U,14U,16U,18U">12U–18U</button></span>
             <input type="number" name="spots" min="1" max="200" required placeholder="Spots" aria-label="Spots" class="spots-in">
+            ${blockSelect("block", null, 'aria-label="Split into blocks" class="block-in"')}
             <input name="coach" placeholder="Coach (optional)" aria-label="Coach" class="coach-in">
             <button class="btn-small" type="submit">Add session</button>
           </form>`}
@@ -176,11 +183,16 @@ function setupPage({ user, flash, seasons, rounds, standalone }) {
       // Cage Time defaults to all ages
       document.querySelectorAll('.quick-type select[name="activity"]').forEach(function (s) {
         s.addEventListener("change", function () {
-          if (s.value === "Cage Time") s.closest("form").querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = true; });
+          if (s.value === "Cage Time") {
+            var f = s.closest("form");
+            f.querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = true; });
+            f.querySelector('select[name="block"]').value = "30";
+            f.querySelector('input[name="spots"]').placeholder = "2";
+          }
         });
       });
     })();
-    </script>`,
+    </script>${limitsScript}`,
   });
 }
 

@@ -3,13 +3,7 @@ const { AGE_GROUPS, ACTIVITIES } = require("../config");
 const { fmtRange, fmtDateTime, inputParts } = require("../time");
 const { priorityActive } = require("../booking");
 
-const SETUP_TABS = ["setup", "seasons", "rounds", "programs", "import"];
-const page = (opts) => layout({ ...opts, admin: true, wide: true,
-  body: `<nav class="subnav">
-    <a href="/admin/setup"${SETUP_TABS.includes(opts.tab) ? ' aria-current="page"' : ""}>Setup</a>
-    <a href="/admin/reports"${opts.tab === "reports" ? ' aria-current="page"' : ""}>Reports</a>
-    <a href="/admin/athletes"${opts.tab === "athletes" ? ' aria-current="page"' : ""}>Athletes and parents</a>
-  </nav>${opts.body}` });
+const page = (opts) => layout({ ...opts, admin: true, wide: true });
 
 const ageChecks = (selected = []) => `<fieldset class="checks"><legend>Age groups</legend>
   ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="age_groups" value="${g}"${selected.includes(g) ? " checked" : ""}> ${g}</label>`).join("")}

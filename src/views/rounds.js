@@ -3,6 +3,7 @@ const { page } = require("./admin");
 const { AGE_GROUPS, ACTIVITIES, ACTIVITY_COLORS, ALL_AGES_ACTIVITIES } = require("../config");
 const { inputParts } = require("../time");
 const { typeLabel, defaultsFor } = require("../rounds");
+const { blockSelect, spotsLabel, limitsForm, limitsScript } = require("./partials");
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -22,10 +23,11 @@ const statusPill = (r) => r.published_at ? `<span class="pill ok">Published</spa
 
 function defaultsTable(round) {
   return `<div class="table-wrap"><table class="defaults">
-    <thead><tr><th>Activity</th><th>Capacity</th><th>Coach</th></tr></thead>
+    <thead><tr><th>Activity</th><th>Spots</th><th>Split into</th><th>Coach</th></tr></thead>
     <tbody>${ACTIVITIES.map((a, i) => { const d = defaultsFor(round || {}, a); return `<tr>
       <td><span class="swatch" style="background:${ACTIVITY_COLORS[a]}"></span>${esc(a)}</td>
       <td><input type="number" min="1" max="200" name="cap_${i}" value="${d.capacity}" aria-label="${esc(a)} capacity"></td>
+      <td>${blockSelect(`block_${i}`, d.block, `aria-label="${esc(a)} blocks"`)}</td>
       <td><input name="coach_${i}" value="${esc(d.coach)}" aria-label="${esc(a)} coach" placeholder="Optional"></td></tr>`; }).join("")}
     </tbody></table></div>`;
 }
@@ -71,6 +73,18 @@ const roundsPage = ({ user, flash, rounds, seasons, open, filter, copyable }) =>
   </section>`,
 });
 
+// Show a split session's blocks on one day as a single chip
+function groupBlocks(list) {
+  const out = [];
+  for (const s of list) {
+    const g = s.block_minutes && out.find((x) => x.blocks && x.program_id === s.program_id && x.end === s.start);
+    if (g) { g.end = s.end; g.blocks++; g.taken += s.taken; g.capacity += s.capacity; }
+    else if (s.block_minutes) out.push({ ...s, blocks: 1 });
+    else out.push(s);
+  }
+  return out;
+}
+
 function grid(round, sessions) {
   const start = parse(round.starts_on), end = parse(round.ends_on);
   const first = addDays(start, -start.getUTCDay());
@@ -87,7 +101,11 @@ function grid(round, sessions) {
       days.push(d >= start && d <= end ? `<div class="day" data-date="${key}" data-label="${esc(nice(key))}" tabindex="0" role="button" aria-pressed="false">
         <div class="day-head"><span class="day-num">${label}</span>
           ${list.length ? `<button type="button" class="copy-btn" data-copy="${key}" data-count="${list.length}" title="Copy this day to other days">Copy</button>` : ""}</div>
-        ${list.map((s) => `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
+        ${groupBlocks(list).map((s) => s.blocks ? `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
+          <a href="/admin/programs/${s.program_id}" title="Open blocks and rosters">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
+            <span class="blocks-n">${s.blocks} blocks</span> <span class="spots-n">${s.taken}/${s.capacity}</span></a>
+          ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/day-blocks/delete"><input type="hidden" name="program_id" value="${s.program_id}"><input type="hidden" name="date" value="${key}"><button type="submit" class="x" title="Remove these blocks" aria-label="Remove these blocks">×</button></form>`}
+        </div>` : `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
           <a href="/admin/sessions/${s.id}" title="Open roster and edit">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
             <span class="spots-n">${s.taken}/${s.capacity}</span></a>
           ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/sessions/${s.id}/delete"><button type="submit" class="x" title="Remove from calendar" aria-label="Remove from calendar">×</button></form>`}
@@ -123,17 +141,18 @@ function sessionsPanel(r, types) {
     <h2><span class="step-n">2</span> Sessions</h2>
     <p class="fine">Each session is an activity for a group, with the number of spots players can claim.</p>
     ${types.length ? `<div class="table-wrap"><table class="types">
-      <thead><tr><th>Session</th><th>Spots</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
+      <thead><tr><th>Session</th><th>Spots</th><th>Split into</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
       <tbody>${types.map((t) => `<tr>
         <td>${swatch(t.activity)}<strong>${esc(typeLabel(t.activity, t.age_groups))}</strong></td>
         <td><input form="type-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
+        <td>${blockSelect("block", t.block_minutes, `form="type-${t.id}" aria-label="Split into blocks"`)}</td>
         <td><input form="type-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
         <td>${t.scheduled}</td>
         <td><div class="row-actions">
           <form id="type-${t.id}" method="post" action="/admin/rounds/${r.id}/types/${t.id}"><button class="btn-ghost" type="submit">Save</button></form>
           ${t.scheduled ? "" : `<form method="post" action="/admin/rounds/${r.id}/types/${t.id}/delete"><button class="x" type="submit" aria-label="Remove session">×</button></form>`}
         </div></td></tr>`).join("")}</tbody></table></div>
-      <p class="fine">Saving spots updates every scheduled occurrence. If you add spots, waitlisted athletes move in automatically.</p>`
+      <p class="fine">Saving spots updates every scheduled occurrence. If you add spots, waitlisted athletes move in automatically. With blocks, spots are per block, and "Split into" applies the next time you schedule it.</p>`
       : `<p class="muted">No sessions yet. Add the activity and group combinations this round offers.</p>`}
 
     <form method="post" action="/admin/rounds/${r.id}/types" class="type-add">
@@ -151,9 +170,11 @@ function sessionsPanel(r, types) {
       </fieldset>
       <div class="inline-add">
         <label>Spots<input type="number" name="spots" min="1" max="200" required placeholder="10"></label>
+        <label>Split into${blockSelect("block", null)}</label>
         <label>Coach<input name="coach" placeholder="Optional"></label>
         <button class="btn-small" type="submit">Add session</button>
       </div>
+      <p class="fine">Split into blocks for sessions like Cage Time: scheduling 3–7 PM in 30-minute blocks with 2 spots creates eight 30-minute blocks of 2.</p>
     </form>
   </section>`;
 }
@@ -189,7 +210,7 @@ function schedulePanel(r, types, last) {
 
         <fieldset class="checks stack-list"><legend>Sessions at this time</legend>
           ${types.map((t) => `<label class="act wide" style="--c:${ACTIVITY_COLORS[t.activity]}"><input type="checkbox" name="types" value="${t.id}"${lastTypes.includes(String(t.id)) ? " checked" : ""}>
-            ${esc(typeLabel(t.activity, t.age_groups))} <span class="fine-inline">${t.default_capacity || defaultsFor(r, t.activity).capacity} spots</span></label>`).join("")}
+            ${esc(typeLabel(t.activity, t.age_groups))} <span class="fine-inline">${spotsLabel(t.default_capacity || defaultsFor(r, t.activity).capacity, t.block_minutes)}</span></label>`).join("")}
         </fieldset>
         <button class="btn wide-btn" type="submit" id="add-btn" disabled>Select days first</button>`
         : `<p class="muted">Add this round's sessions (step 2) first. Then select days here and schedule them.</p>`}
@@ -226,6 +247,11 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     ${readonly ? `<aside class="panel add-panel keep-visible"><h2>Read-only</h2><p class="muted">This season is completed. Reopen it from the season's page to make changes.</p></aside>` : schedulePanel(r, types, last)}
   </div>
 
+  <section class="panel" id="limits">
+    <h2>Limits per athlete</h2>
+    ${limitsForm(r, { readonly })}
+  </section>
+
   <section class="panel" id="settings">
     <h2>Round settings</h2>
     <form method="post" action="/admin/rounds/${r.id}/settings" class="grid-form keep"><fieldset class="plain grid-form full"${readonly ? " disabled" : ""}>
@@ -238,10 +264,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
         <div><label>Last day<input type="date" name="ends_on" required value="${esc(r.ends_on)}"></label></div></div>
       <div><label>Booking opens<input type="datetime-local" name="booking_opens_at" value="${inputParts(r.booking_opens_at).local}"></label>
         <span class="fine">Blank opens booking as soon as the round is published.</span></div>
-      <div><label>Priority booking ends<input type="datetime-local" name="priority_ends_at" value="${inputParts(r.priority_ends_at).local}"></label>
-        <span class="fine">Blank means no priority limit.</span></div>
-      <div><label>Priority reservations per athlete, per session<input type="number" min="1" max="50" name="priority_limit" value="${r.priority_limit}"></label>
-        <span class="fine">E.g. 2 means up to 2 Hitting 12U–18U and 2 Defense 12U–18U during priority booking.</span></div>
+
       <div><label>Cancellation deadline (hours before)<input type="number" min="0" max="336" name="cancel_hours" value="${r.cancel_hours}"></label></div>
       <div class="full"><label>Location<input name="location" value="${esc(r.location)}"></label>
         <label class="check"><input type="checkbox" name="apply_location" value="1"> Also change it on sessions already scheduled</label></div>
@@ -320,6 +343,12 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
         if (allAges.indexOf(r.value) >= 0) r.closest("form").querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = true; });
       });
     });
+    document.querySelectorAll('.type-add input[name="activity"]').forEach(function (r) {
+      r.addEventListener("change", function () {
+        var f = r.closest("form");
+        if (r.value === "Cage Time") { f.querySelector('select[name="block"]').value = "30"; f.querySelector('input[name="spots"]').placeholder = "2"; }
+      });
+    });
     var last = ${JSON.stringify(String(last.d || ""))};
     if (last) {
       var cell = document.querySelector('.day[data-date="' + last + '"]');
@@ -327,7 +356,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     }
     refresh();
   })();
-  </script>`,
+  </script>${limitsScript}`,
   });
 }
 

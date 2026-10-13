@@ -13,17 +13,27 @@ const isAllAges = (activity, ages) => ALL_AGES_ACTIVITIES.includes(activity) && 
 const typeLabel = (activity, ages) => (isAllAges(activity, ages) ? activity : `${activity} ${agesLabel(ages)}`);
 const programName = (roundName, activity, ages) => `${roundName} ${typeLabel(activity, ages)}`;
 
-// Fallback capacity/coach by activity (used by imports and older data)
+const BLOCK_CHOICES = [15, 20, 30, 45, 60];
+const cleanBlock = (v) => (BLOCK_CHOICES.includes(parseInt(v, 10)) ? parseInt(v, 10) : null);
+// Out of the box, Cage Time runs in 30-minute blocks of 2
+const BUILTIN = { "Cage Time": { capacity: 2, block: 30 } };
+
+// Fallback capacity/coach/blocks by activity (used by imports and older data)
 function defaultsFor(round, activity) {
-  const d = ((round && round.activity_defaults) || {})[activity] || {};
-  return { capacity: d.capacity || 8, coach: d.coach || null };
+  const d = ((round && round.activity_defaults) || {})[activity] || BUILTIN[activity] || {};
+  return { capacity: d.capacity || 8, coach: d.coach || null, block: cleanBlock(d.block) };
 }
 
 function readDefaults(body) {
   const out = {};
   ACTIVITIES.forEach((a, i) => {
     const cap = parseInt(body[`cap_${i}`], 10);
-    out[a] = { capacity: cap > 0 && cap <= 200 ? cap : 8, coach: String(body[`coach_${i}`] || "").trim() || null };
+    const fallback = BUILTIN[a] || {};
+    out[a] = {
+      capacity: cap > 0 && cap <= 200 ? cap : fallback.capacity || 8,
+      coach: String(body[`coach_${i}`] || "").trim() || null,
+      block: body[`block_${i}`] !== undefined ? cleanBlock(body[`block_${i}`]) : fallback.block || null,
+    };
   });
   return out;
 }
@@ -31,11 +41,39 @@ function readDefaults(body) {
 function normalizeDefaults(d = {}) {
   const out = {};
   for (const a of ACTIVITIES) {
-    const x = d[a] || {};
+    const x = d[a] || BUILTIN[a] || {};
     const cap = parseInt(x.capacity, 10);
-    out[a] = { capacity: cap > 0 && cap <= 200 ? cap : 8, coach: x.coach ? String(x.coach).slice(0, 80) : null };
+    out[a] = { capacity: cap > 0 && cap <= 200 ? cap : 8, coach: x.coach ? String(x.coach).slice(0, 80) : null, block: cleanBlock(x.block) };
   }
   return out;
+}
+
+// ---- Per-activity limits for a round. null = unlimited. ----
+function defaultLimits(n = 2) {
+  return Object.fromEntries(ACTIVITIES.map((a) => [a, ALL_AGES_ACTIVITIES.includes(a) ? null : n]));
+}
+function limitFor(round, activity) {
+  const l = round && round.activity_limits;
+  if (l && Object.prototype.hasOwnProperty.call(l, activity)) return l[activity] == null ? null : Number(l[activity]);
+  return ALL_AGES_ACTIVITIES.includes(activity) ? null : (round && round.priority_limit) || 2;
+}
+// Limits apply until "limits end"; blank means they apply all round
+const limitsActive = (round) => !round.priority_ends_at || new Date(round.priority_ends_at) > new Date();
+function readLimits(body) {
+  return Object.fromEntries(ACTIVITIES.map((a, i) => {
+    if (body[`unl_${i}`]) return [a, null];
+    const n = parseInt(body[`lim_${i}`], 10);
+    return [a, n >= 1 && n <= 50 ? n : 1];
+  }));
+}
+function normalizeLimits(l) {
+  if (!l) return defaultLimits();
+  return Object.fromEntries(ACTIVITIES.map((a) => {
+    const v = l[a];
+    if (v == null) return [a, Object.prototype.hasOwnProperty.call(l, a) ? null : (ALL_AGES_ACTIVITIES.includes(a) ? null : 2)];
+    const n = parseInt(v, 10);
+    return [a, n >= 1 && n <= 50 ? n : 2];
+  }));
 }
 
 // Time slots stored on the round, kept sorted and unique
@@ -55,10 +93,11 @@ async function ensureProgram(db, round, activity, ages, opts = {}) {
   const d = defaultsFor(round, activity);
   return (await db.query(
     `INSERT INTO programs (round_id, name, activity, age_groups, priority_limit, priority_ends_at, booking_opens_at,
-       cancel_hours, default_capacity, default_coach)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+       cancel_hours, default_capacity, default_coach, block_minutes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [round.id, programName(round.name, activity, a), activity, a, round.priority_limit, round.priority_ends_at,
-     round.booking_opens_at, round.cancel_hours, opts.capacity || d.capacity, opts.coach ?? d.coach])).rows[0];
+     round.booking_opens_at, round.cancel_hours, opts.capacity || d.capacity, opts.coach ?? d.coach,
+     opts.block !== undefined ? cleanBlock(opts.block) : d.block])).rows[0];
 }
 
 async function syncPrograms(db, round) {
@@ -71,41 +110,61 @@ async function syncPrograms(db, round) {
   }
 }
 
-// Put one occurrence of a session definition on the calendar. Returns false if it's already there.
+const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const toTime = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+// The time ranges a session occupies: one range, or consecutive blocks when the session is split
+function blocksFor(program, start, end) {
+  const b = program.block_minutes;
+  const s = toMin(start), e = toMin(end);
+  if (!b || e - s <= b) return [[start, end]];
+  const out = [];
+  for (let t = s; t < e; t += b) out.push([toTime(t), toTime(Math.min(t + b, e))]);
+  return out;
+}
+
+// Put a session definition on the calendar. Returns how many sessions were created
+// (0 when everything was already there).
 async function schedule(db, round, program, { date, start, end, capacity, coach, location, notes }) {
-  const dup = await db.query(
-    `SELECT 1 FROM training_sessions s JOIN programs p ON p.id=s.program_id
-     WHERE s.canceled_at IS NULL AND NOT p.archived AND p.activity=$1 AND p.age_groups=$2::text[]
-       AND s.starts_at = ($3::timestamp AT TIME ZONE 'America/Chicago')`,
-    [program.activity, program.age_groups, `${date} ${start}`]);
-  if (dup.rowCount) return false;
   const d = defaultsFor(round, program.activity);
-  await db.query(
-    `INSERT INTO training_sessions (program_id, starts_at, ends_at, location, coach, capacity, notes)
-     VALUES ($1, ($2::timestamp AT TIME ZONE 'America/Chicago'), ($3::timestamp AT TIME ZONE 'America/Chicago'), $4,$5,$6,$7)`,
-    [program.id, `${date} ${start}`, `${date} ${end}`, location ?? round.location,
-     coach || program.default_coach || d.coach, capacity || program.default_capacity || d.capacity, notes || null]);
-  return true;
+  let made = 0;
+  for (const [bs, be] of blocksFor(program, start, end)) {
+    const dup = await db.query(
+      `SELECT 1 FROM training_sessions s JOIN programs p ON p.id=s.program_id
+       WHERE s.canceled_at IS NULL AND NOT p.archived AND p.activity=$1 AND p.age_groups=$2::text[]
+         AND s.starts_at = ($3::timestamp AT TIME ZONE 'America/Chicago')`,
+      [program.activity, program.age_groups, `${date} ${bs}`]);
+    if (dup.rowCount) continue;
+    await db.query(
+      `INSERT INTO training_sessions (program_id, starts_at, ends_at, location, coach, capacity, notes)
+       VALUES ($1, ($2::timestamp AT TIME ZONE 'America/Chicago'), ($3::timestamp AT TIME ZONE 'America/Chicago'), $4,$5,$6,$7)`,
+      [program.id, `${date} ${bs}`, `${date} ${be}`, location ?? round.location,
+       coach || program.default_coach || d.coach, capacity || program.default_capacity || d.capacity, notes || null]);
+    made++;
+  }
+  return made;
 }
 
 // Used by imports and copies: find/create the definition, then schedule it
 async function addSession(db, round, s) {
-  const program = await ensureProgram(db, round, s.activity, s.ages || s.age_groups, { capacity: s.capacity, coach: s.coach });
+  const program = await ensureProgram(db, round, s.activity, s.ages || s.age_groups,
+    { capacity: s.capacity, coach: s.coach, ...(s.block !== undefined ? { block: s.block } : {}) });
   return schedule(db, round, program, s);
 }
 
 // Copy a round's times, sessions (with spots), and schedule into a new round, shifted by offsetDays.
 // Booking dates shift by the same amount so a copied season keeps its rhythm.
 async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetDays, shiftRules }) {
-  const shift = (col) => (shiftRules ? `${col} + ($2::int * interval '1 day')` : "NULL");
+  // $7 decides whether booking dates shift with the round or start blank
+  const shift = (col) => `CASE WHEN $7::boolean THEN ${col} + ($2::int * interval '1 day') END`;
   const round = (await db.query(
     `INSERT INTO rounds (name, starts_on, ends_on, season_id, booking_opens_at, priority_ends_at, priority_limit,
-       cancel_hours, location, activity_defaults, time_slots)
+       cancel_hours, location, activity_defaults, time_slots, activity_limits)
      SELECT $3, $4, $5, $6, ${shift("booking_opens_at")}, ${shift("priority_ends_at")}, priority_limit,
-       cancel_hours, location, activity_defaults, time_slots FROM rounds WHERE id=$1 RETURNING *`,
-    [src.id, offsetDays, name, starts_on, ends_on, season_id])).rows[0];
+       cancel_hours, location, activity_defaults, time_slots, activity_limits FROM rounds WHERE id=$1 RETURNING *`,
+    [src.id, offsetDays, name, starts_on, ends_on, season_id, !!shiftRules])).rows[0];
   for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows)
-    await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach });
+    await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach, block: p.block_minutes });
   const sess = (await db.query(
     `SELECT p.activity, p.age_groups, s.capacity, s.coach, s.location, s.notes,
        to_char((s.starts_at AT TIME ZONE 'America/Chicago')::date + $2::int, 'YYYY-MM-DD') AS date,
@@ -114,11 +173,12 @@ async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetD
      FROM training_sessions s JOIN programs p ON p.id=s.program_id
      WHERE p.round_id=$1 AND s.canceled_at IS NULL ORDER BY s.starts_at`, [src.id, offsetDays])).rows;
   let n = 0;
-  for (const x of sess) if (x.date >= starts_on && x.date <= ends_on && (await addSession(db, round, x))) n++;
+  for (const x of sess) if (x.date >= starts_on && x.date <= ends_on) n += await addSession(db, round, x);
   return { round, sessions: n };
 }
 
 module.exports = {
+  BLOCK_CHOICES, cleanBlock, blocksFor, defaultLimits, limitFor, limitsActive, readLimits, normalizeLimits,
   copyRound,
   sortAges, agesLabel, typeLabel, programName, isAllAges, defaultsFor, readDefaults, normalizeDefaults,
   addSlots, ensureProgram, syncPrograms, schedule, addSession,

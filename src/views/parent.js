@@ -1,6 +1,6 @@
 const { esc, layout } = require("./layout");
 const { fmtRange, fmtDateTime, fmtDay, fmtTime } = require("../time");
-const { cancelDeadline, priorityActive, bookingOpen } = require("../booking");
+const { cancelDeadline, bookingOpen } = require("../booking");
 
 function reservationRow(r) {
   const deadline = cancelDeadline(r.starts_at, r.cancel_hours);
@@ -26,7 +26,7 @@ function reservationRow(r) {
 
 const dashboardPage = ({ user, athletes, reservations, admin, flash }) =>
   layout({
-    title: "My training", user, admin, flash,
+    title: "My training", user, admin, flash, tab: "home",
     body: athletes.length
       ? athletes.map((a) => {
           const mine = reservations.filter((r) => r.athlete_id === a.id);
@@ -42,7 +42,7 @@ const dashboardPage = ({ user, athletes, reservations, admin, flash }) =>
               ? `<a class="btn" href="/athletes/${a.id}/book">Find training for ${esc(a.first_name)}</a>`
               : `<p class="muted">${esc(a.first_name)} doesn't have an age group yet, so no training is shown. Contact the Raptors to fix this.</p>`}
           </section>`;
-        }).join("") + `<p class="signed">Signed in as ${esc(user.email)}</p>`
+        }).join("")
       : `<section class="panel">
           <h1>Welcome to Raptors Training</h1>
           <p class="muted">Signed in as ${esc(user.email)}</p>
@@ -53,27 +53,33 @@ const dashboardPage = ({ user, athletes, reservations, admin, flash }) =>
         </section>`,
   });
 
+const atLimit = (p) => p.limit != null && p.limitsOn && p.used >= p.limit;
+
 function ruleLine(p) {
   if (!bookingOpen(p)) return `Booking opens ${esc(fmtDateTime(p.booking_opens_at))}.`;
-  if (priorityActive(p))
-    return `Priority booking until ${esc(fmtDateTime(p.priority_ends_at))}: up to ${p.priority_limit} sessions per athlete. <strong>${Math.min(p.used, p.priority_limit)} of ${p.priority_limit} used.</strong>`;
-  return `Open booking: reserve any session with open spots.`;
+  if (p.limit == null || !p.limitsOn)
+    return p.limit == null && p.round_id ? `Book as many ${esc(p.activity)} spots as you like.` : `Open booking: reserve any session with open spots.`;
+  const n = p.limit === 1 ? "session" : "sessions";
+  const scope = p.round_id ? `${esc(p.activity)} ${n} in ${esc(p.round_name)}` : `${n} in this program`;
+  return `Up to ${p.limit} ${scope} per athlete${p.limitsEnd ? ` until ${esc(fmtDateTime(p.limitsEnd))}` : ""}. ` +
+    `<strong>${Math.min(p.used, p.limit)} of ${p.limit} used.</strong>`;
+}
+
+function actionFor(p, s, athlete, compact) {
+  const open = s.capacity - s.confirmed;
+  if (s.my_status === "confirmed") return `<span class="pill ok">Reserved</span>`;
+  if (s.my_status === "waitlisted") return `<span class="pill wait">Waitlist #${s.my_pos}</span>`;
+  if (!bookingOpen(p)) return `<button class="btn-small" disabled>${compact ? "Soon" : "Not open yet"}</button>`;
+  if (atLimit(p)) return `<button class="btn-small" disabled>${compact ? "Limit" : "Limit reached"}</button>`;
+  return `<form method="post" action="/athletes/${athlete.id}/book">
+      <input type="hidden" name="session_id" value="${s.id}">
+      <button class="${open > 0 ? "btn-small" : "btn-small secondary"}" type="submit">${open > 0 ? "Reserve" : compact ? "Waitlist" : "Join waitlist"}</button>
+    </form>`;
 }
 
 function sessionRow(p, s, athlete) {
   const open = s.capacity - s.confirmed;
-  const spots = open > 0
-    ? `${open} of ${s.capacity} spots open`
-    : `Full${s.waitlisted ? `, ${s.waitlisted} on waitlist` : ""}`;
-  let action;
-  if (s.my_status === "confirmed") action = `<span class="pill ok">Reserved</span>`;
-  else if (s.my_status === "waitlisted") action = `<span class="pill wait">Waitlist #${s.my_pos}</span>`;
-  else if (!bookingOpen(p)) action = `<button class="btn-small" disabled>Not open yet</button>`;
-  else if (priorityActive(p) && p.used >= p.priority_limit) action = `<button class="btn-small" disabled>Priority limit reached</button>`;
-  else action = `<form method="post" action="/athletes/${athlete.id}/book">
-      <input type="hidden" name="session_id" value="${s.id}">
-      <button class="${open > 0 ? "btn-small" : "btn-small secondary"}" type="submit">${open > 0 ? "Reserve" : "Join waitlist"}</button>
-    </form>`;
+  const spots = open > 0 ? `${open} of ${s.capacity} spots open` : `Full${s.waitlisted ? `, ${s.waitlisted} on waitlist` : ""}`;
   return `<li class="sess${open > 0 ? "" : " full"}">
     <div class="sess-main">
       <div class="sess-day">${esc(fmtDay(s.starts_at))}</div>
@@ -81,17 +87,37 @@ function sessionRow(p, s, athlete) {
       <div class="sess-meta">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</div>
       ${s.notes ? `<div class="sess-meta">${esc(s.notes)}</div>` : ""}
     </div>
-    <div class="sess-side">
-      <div class="spots">${spots}</div>
-      ${action}
-    </div>
+    <div class="sess-side"><div class="spots">${spots}</div>${actionFor(p, s, athlete)}</div>
   </li>`;
+}
+
+// Programs split into blocks (e.g. Cage Time, 30 minutes) show as a grid of times per day
+function blockDays(p, athlete) {
+  const days = [];
+  for (const s of p.sessions) {
+    const key = fmtDay(s.starts_at);
+    let d = days.find((x) => x.key === key);
+    if (!d) days.push((d = { key, list: [] }));
+    d.list.push(s);
+  }
+  return days.map((d) => `<div class="block-day">
+    <div class="sess-day">${esc(d.key)}</div>
+    <div class="sess-meta">${esc(fmtTime(d.list[0].starts_at))}–${esc(fmtTime(d.list[d.list.length - 1].ends_at))}${d.list[0].location ? `, ${esc(d.list[0].location)}` : ""}</div>
+    <div class="block-grid">${d.list.map((s) => {
+      const open = s.capacity - s.confirmed;
+      return `<div class="block${s.my_status ? " mine" : open > 0 ? "" : " full"}">
+        <div class="block-time">${esc(fmtTime(s.starts_at))}</div>
+        <div class="block-open">${s.my_status ? "&nbsp;" : open > 0 ? `${open} open` : "Full"}</div>
+        ${actionFor(p, s, athlete, true)}
+      </div>`;
+    }).join("")}</div>
+  </div>`).join("");
 }
 
 const bookPage = ({ user, athlete, programs, admin, flash }) =>
   layout({
-    title: `Book training for ${athlete.first_name}`, user, admin, flash,
-    body: `<a class="back" href="/dashboard">Back to my training</a>
+    title: `Book training for ${athlete.first_name}`, user, admin, flash, tab: "home",
+    body: `<a class="back" href="/dashboard">My training</a>
     <section class="panel">
       <div class="athlete-head">
         <h1>Book training for ${esc(athlete.first_name)}</h1>
@@ -99,10 +125,10 @@ const bookPage = ({ user, athlete, programs, admin, flash }) =>
       </div>
       ${programs.length ? programs.map((p) => `
         <div class="program">
-          <h2>${esc(p.name)}</h2>
+          <h2 class="banner">${esc(p.name)}</h2>
           ${p.description ? `<p class="muted">${esc(p.description)}</p>` : ""}
           <p class="rule">${ruleLine(p)}</p>
-          <ul class="sess-list">${p.sessions.map((s) => sessionRow(p, s, athlete)).join("")}</ul>
+          ${p.block_minutes ? blockDays(p, athlete) : `<ul class="sess-list">${p.sessions.map((s) => sessionRow(p, s, athlete)).join("")}</ul>`}
         </div>`).join("")
       : `<div class="empty"><p>No upcoming training for ${esc(athlete.age_group)} right now.</p><p class="muted">New sessions show up here as soon as they're posted.</p></div>`}
     </section>`,

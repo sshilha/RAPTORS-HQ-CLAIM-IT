@@ -1,6 +1,7 @@
 const { esc } = require("./layout");
 const { page } = require("./admin");
 const { defaultsTable, niceRange } = require("./rounds");
+const { limitsTable, limitsScript } = require("./partials");
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -29,11 +30,10 @@ const uploadPage = ({ user, flash, v = {}, seasons = [] }) => page({
       <div><label for="year">Year of the first date</label><input id="year" name="year" inputmode="numeric" value="${esc(v.year)}" placeholder="Read from the PDF">
         <span class="fine">Leave blank to use the year on the schedule.</span></div>
       <div><label for="loc">Location</label><input id="loc" name="location" value="${esc(v.location ?? "Turn Two Athletics")}"></div>
-      <div><label for="lim">Priority reservations per athlete</label><input id="lim" type="number" min="1" max="50" name="priority_limit" value="${esc(v.priority_limit ?? 2)}">
-        <span class="fine">Per program. Each round gets its own programs.</span></div>
+      <div class="full"><p class="label-like">Limits per athlete, each round</p>${limitsTable(null)}</div>
       <div><label for="cxl">Cancellation deadline (hours before)</label><input id="cxl" type="number" min="0" max="336" name="cancel_hours" value="${esc(v.cancel_hours ?? 24)}"></div>
-      <div class="full"><p class="label-like">Defaults by activity</p>${defaultsTable(null)}
-        <span class="fine">Used for new rounds. Sessions added to an existing round use that round's defaults.</span></div>
+      <div class="full"><p class="label-like">Session defaults by activity</p>${defaultsTable(null)}
+        <span class="fine">Used for new rounds. Cage Time is split into 30-minute blocks of 2 unless you change it.</span></div>
       <input type="hidden" name="pdf_b64" id="pdf_b64">
       <div class="full"><button class="btn" type="submit">Preview sessions</button></div>
     </form>
@@ -50,7 +50,7 @@ const uploadPage = ({ user, flash, v = {}, seasons = [] }) => page({
     };
     r.readAsDataURL(f);
   });
-  </script>`,
+  </script>${limitsScript}`,
 });
 
 const ACT_SUMMARY = (d) => Object.entries(d || {}).map(([a, x]) => `${esc(a)} ${x.capacity}`).join(", ");
@@ -67,7 +67,7 @@ function previewPage({ user, flash, rows, rounds, warnings, settings, seasonName
       <p class="lede">${selectable} ready to create in ${rounds.length} round${rounds.length === 1 ? "" : "s"}${seasonName ? ` in <strong>${esc(seasonName)}</strong>` : ""}. Uncheck anything you don't want.</p>
       ${warnings.length ? `<details class="warn"><summary>${warnings.length} line${warnings.length === 1 ? "" : "s"} skipped</summary>
         <ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></details>` : ""}
-      <p class="muted">New rounds: ${esc(settings.location || "no location")}, ${settings.priority_limit} priority reservations per athlete per program, cancel ${settings.cancel_hours} hours before.
+      <p class="muted">New rounds: ${esc(settings.location || "no location")}, limits ${esc(Object.entries(settings.limits).map(([a, n]) => `${a} ${n == null ? "unlimited" : n}`).join(", "))}, cancel ${settings.cancel_hours} hours before.
         Capacity: ${ACT_SUMMARY(settings.defaults)}.</p>
     </section>
 
@@ -80,8 +80,8 @@ function previewPage({ user, flash, rows, rounds, warnings, settings, seasonName
           <span class="fine">Parents see this in program names, like "${esc(rd.name)} Hitting 12U–18U".</span></div>
         <div><label>Booking opens<input type="datetime-local" name="opens_${rd.key}"></label>
           <span class="fine">Blank opens booking when you publish.</span></div>
-        <div><label>Priority booking ends<input type="datetime-local" name="priority_${rd.key}"></label>
-          <span class="fine">Blank means no priority limit.</span></div>
+        <div><label>Limits end<input type="datetime-local" name="priority_${rd.key}"></label>
+          <span class="fine">Blank keeps the limits all round.</span></div>
       </div>`}
       <div class="table-wrap"><table class="import">
         <thead><tr><th><input type="checkbox" checked aria-label="Select all in this round" onclick="this.closest('table').querySelectorAll('tbody input:not(:disabled)').forEach(c=>c.checked=this.checked)"></th>

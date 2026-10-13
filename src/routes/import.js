@@ -22,6 +22,7 @@ function readSettings(b) {
     cancel_hours: Math.min(int(b.cancel_hours) ?? 24, 336),
     defaults: b.defaults ? R.normalizeDefaults(b.defaults) : R.readDefaults(b),
     season_id: int(b.season_id) || null,
+    limits: b.limits ? R.normalizeLimits(b.limits) : R.readLimits(b),
   };
 }
 
@@ -109,13 +110,15 @@ router.post("/commit", wrap(async (req, res) => {
           [round.id, first, last])).rows[0];
       } else {
         round = (await client.query(
-          `INSERT INTO rounds (name, starts_on, ends_on, booking_opens_at, priority_ends_at, priority_limit, cancel_hours, location, activity_defaults, season_id)
-           VALUES ($1,$2,$3,${localSql(4)},${localSql(5)},$6,$7,$8,$9,$10) RETURNING *`,
+          `INSERT INTO rounds (name, starts_on, ends_on, booking_opens_at, priority_ends_at, priority_limit, cancel_hours, location,
+             activity_defaults, season_id, activity_limits)
+           VALUES ($1,$2,$3,${localSql(4)},${localSql(5)},$6,$7,$8,$9,$10,$11) RETURNING *`,
           [name, first, last, local(`opens_${key}`), local(`priority_${key}`), settings.priority_limit,
-           settings.cancel_hours, settings.location, JSON.stringify(settings.defaults), settings.season_id])).rows[0];
+           settings.cancel_hours, settings.location, JSON.stringify(settings.defaults), settings.season_id,
+           JSON.stringify(settings.limits)])).rows[0];
       }
       touched.push(round.id);
-      for (const r of rr) (await R.addSession(client, round, r)) ? created++ : skipped++;
+      for (const r of rr) { const n = await R.addSession(client, round, r); if (n) created += n; else skipped++; }
       // The imported times become this round's time slots
       await client.query(`UPDATE rounds SET time_slots=$2 WHERE id=$1`,
         [round.id, JSON.stringify(R.addSlots(round, rr.map((r) => ({ start: r.start, end: r.end }))))]);

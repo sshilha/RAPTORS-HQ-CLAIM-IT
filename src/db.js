@@ -134,6 +134,11 @@ async function migrate() {
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS default_coach TEXT;
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS time_slots JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS season_id INTEGER REFERENCES seasons(id) ON DELETE SET NULL;
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS activity_limits JSONB;
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS block_minutes INTEGER;
+    -- Older rounds: carry their single limit over to every activity; Cage Time unlimited
+    UPDATE rounds SET activity_limits = jsonb_build_object('Hitting', priority_limit, 'Pitching', priority_limit,
+      'Catching', priority_limit, 'Defense', priority_limit, 'Cage Time', NULL) WHERE activity_limits IS NULL;
 
     CREATE INDEX IF NOT EXISTS idx_sessions_program ON training_sessions(program_id, starts_at);
   `);
