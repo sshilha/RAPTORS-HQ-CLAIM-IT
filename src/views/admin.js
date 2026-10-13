@@ -5,7 +5,9 @@ const { priorityActive } = require("../booking");
 
 const page = (opts) => layout({ ...opts, admin: true, wide: true,
   body: `<nav class="subnav">
+    <a href="/admin/seasons"${opts.tab === "seasons" ? ' aria-current="page"' : ""}>Seasons</a>
     <a href="/admin/rounds"${opts.tab === "rounds" ? ' aria-current="page"' : ""}>Rounds</a>
+    <a href="/admin/reports"${opts.tab === "reports" ? ' aria-current="page"' : ""}>Reports</a>
     <a href="/admin/programs"${opts.tab === "programs" ? ' aria-current="page"' : ""}>All programs</a>
     <a href="/admin/import"${opts.tab === "import" ? ' aria-current="page"' : ""}>Import schedule</a>
     <a href="/admin/athletes"${opts.tab === "athletes" ? ' aria-current="page"' : ""}>Athletes and parents</a>
@@ -74,8 +76,8 @@ function sessionFields(s = {}, { create } = {}) {
   <div class="full"><label for="s-notes">Notes for parents (optional)</label><input id="s-notes" name="notes" value="${esc(s.notes)}" placeholder="Bring catcher's gear"></div>`;
 }
 
-const programPage = ({ user, program: p, sessions, flash }) => page({
-  title: p.name, tab: "programs", user, flash,
+const programPage = ({ user, program: p, sessions, flash, readonly }) => page({
+  title: p.name, tab: "programs", user, flash, readonly,
   body: `<a class="back" href="/admin/programs">All programs</a>
   <section class="panel">
     <div class="athlete-head"><h1>${esc(p.name)}</h1>${programStatus(p)}</div>
@@ -115,8 +117,8 @@ const rosterRows = (rows, kind) => rows.length ? `<div class="table-wrap"><table
       <button class="btn-ghost" type="submit">Remove</button></form></td></tr>`).join("")}</tbody></table></div>`
   : `<p class="muted">${kind === "wait" ? "No one on the waitlist." : "No reservations yet."}</p>`;
 
-const sessionPage = ({ user, session: s, program: p, confirmed, waitlist, flash }) => page({
-  title: "Session", tab: "programs", user, flash,
+const sessionPage = ({ user, session: s, program: p, confirmed, waitlist, flash, readonly }) => page({
+  title: "Session", tab: "rounds", user, flash, readonly,
   body: `<a class="back" href="${p.round_id ? `/admin/rounds/${p.round_id}` : `/admin/programs/${p.id}`}">${p.round_id ? "Back to round calendar" : esc(p.name)}</a>
   <section class="panel">
     <div class="athlete-head"><h1>${esc(fmtRange(s.starts_at, s.ends_at))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>

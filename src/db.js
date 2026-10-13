@@ -63,6 +63,15 @@ async function migrate() {
 
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS age_group TEXT;
 
+    CREATE TABLE IF NOT EXISTS seasons (
+      id           SERIAL PRIMARY KEY,
+      name         TEXT NOT NULL,
+      starts_on    DATE NOT NULL,
+      ends_on      DATE NOT NULL,
+      completed_at TIMESTAMPTZ,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS rounds (
       id                SERIAL PRIMARY KEY,
       name              TEXT NOT NULL,
@@ -124,6 +133,7 @@ async function migrate() {
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS default_capacity INTEGER;
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS default_coach TEXT;
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS time_slots JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS season_id INTEGER REFERENCES seasons(id) ON DELETE SET NULL;
 
     CREATE INDEX IF NOT EXISTS idx_sessions_program ON training_sessions(program_id, starts_at);
   `);

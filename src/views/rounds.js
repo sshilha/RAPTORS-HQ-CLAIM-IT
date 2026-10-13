@@ -30,29 +30,42 @@ function defaultsTable(round) {
     </tbody></table></div>`;
 }
 
-const roundsPage = ({ user, flash, rounds }) => page({
+const roundsPage = ({ user, flash, rounds, seasons, open, filter, copyable }) => page({
   title: "Rounds", tab: "rounds", user, flash,
   body: `<section class="panel">
-    <h1>Rounds</h1>
+    <div class="athlete-head"><h1>Rounds</h1>
+      <form method="get" action="/admin/rounds" class="filter-inline">
+        <label>Show <select name="season" onchange="this.form.submit()">
+          <option value="open"${filter === "open" ? " selected" : ""}>Open seasons</option>
+          ${seasons.map((x) => `<option value="${x.id}"${String(x.id) === filter ? " selected" : ""}>${esc(x.name)}${x.completed_at ? " (completed)" : ""}</option>`).join("")}
+          <option value="none"${filter === "none" ? " selected" : ""}>Not in a season</option>
+          <option value="all"${filter === "all" ? " selected" : ""}>Everything</option>
+        </select></label><noscript><button class="btn-ghost">Show</button></noscript>
+      </form></div>
     ${rounds.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Round</th><th>Dates</th><th>Sessions</th><th>Reservations</th><th>Status</th></tr></thead>
+      <thead><tr><th>Round</th><th>Season</th><th>Dates</th><th>Sessions</th><th>Reservations</th><th>Status</th></tr></thead>
       <tbody>${rounds.map((r) => `<tr>
         <td><a href="/admin/rounds/${r.id}">${esc(r.name)}</a></td>
+        <td>${r.season_name ? `<a href="/admin/seasons/${r.season_id}">${esc(r.season_name)}</a>` : `<span class="fine">None</span>`}</td>
         <td>${esc(niceRange(r.starts_on, r.ends_on))}</td>
-        <td>${r.sessions}</td><td>${r.reservations}</td><td>${statusPill(r)}</td></tr>`).join("")}</tbody></table></div>`
-      : `<p class="muted">No rounds yet. Create one below, or import a vendor schedule.</p>`}
+        <td>${r.sessions}</td><td>${r.reservations}</td><td>${r.season_done ? `<span class="pill">Season completed</span>` : statusPill(r)}</td></tr>`).join("")}</tbody></table></div>`
+      : `<p class="muted">No rounds here yet. Create one below, or import a vendor schedule.</p>`}
   </section>
   <section class="panel">
     <h2>New round</h2>
+    ${!open.length ? `<p class="rule">Tip: <a href="/admin/seasons">open a season</a> first so rounds are grouped by year.</p>` : ""}
     <form method="post" action="/admin/rounds" class="grid-form">
       <div><label>Name<input name="name" required placeholder="Round 1"></label></div>
       <div class="pair"><div><label>First day<input type="date" name="starts_on" required></label></div>
         <div><label>Last day<input type="date" name="ends_on" required></label></div></div>
-      <div class="full"><label>Start from
+      <div><label>Season<select name="season_id">
+        ${open.map((x, i) => `<option value="${x.id}"${String(x.id) === filter || (i === 0 && !open.some((o) => String(o.id) === filter)) ? " selected" : ""}>${esc(x.name)}</option>`).join("")}
+        <option value="">No season</option></select></label></div>
+      <div><label>Start from
         <select name="copy_from"><option value="">An empty calendar</option>
-          ${rounds.map((r) => `<option value="${r.id}">A copy of ${esc(r.name)} (${esc(niceRange(r.starts_on, r.ends_on))})</option>`).join("")}
+          ${copyable.map((r) => `<option value="${r.id}">A copy of ${esc(r.name)}${r.season_name ? `, ${esc(r.season_name)}` : ""} (${esc(niceRange(r.starts_on, r.ends_on))})</option>`).join("")}
         </select></label>
-        <span class="fine">Copying shifts every session by the gap between the two first days. Start on the same weekday to keep sessions on the same days.</span></div>
+        <span class="fine">Copies times, sessions, spots, and the schedule, shifted to the new first day.</span></div>
       <div class="full"><button class="btn" type="submit">Create round</button></div>
     </form>
   </section>`,
@@ -184,13 +197,13 @@ function schedulePanel(r, types, last) {
     </aside>`;
 }
 
-function builderPage({ user, flash, round, types, sessions, last = {} }) {
+function builderPage({ user, flash, round, types, sessions, last = {}, season, seasons = [], readonly }) {
   const r = round;
   const total = sessions.length;
   const taken = sessions.reduce((n, s) => n + s.taken, 0);
   return page({
-    title: r.name, tab: "rounds", user, flash, xwide: true,
-    body: `<a class="back" href="/admin/rounds">All rounds</a>
+    title: r.name, tab: "rounds", user, flash, xwide: true, readonly,
+    body: `<a class="back" href="${season ? `/admin/seasons/${season.id}` : "/admin/rounds"}">${season ? esc(season.name) : "All rounds"}</a>
   <section class="panel">
     <div class="athlete-head">
       <div><h1>${esc(r.name)}</h1><p class="muted tight">${esc(niceRange(r.starts_on, r.ends_on))}. ${total} scheduled, ${taken} spots claimed. <a href="#settings">Round settings</a></p></div>
@@ -198,10 +211,11 @@ function builderPage({ user, flash, round, types, sessions, last = {} }) {
         <form method="post" action="/admin/rounds/${r.id}/publish" ${r.published_at ? `onsubmit="return confirm('Hide this round from families? Their reservations are kept.')"` : ""}>
           <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide from families" : "Publish round"}</button></form></div>
     </div>
-    ${r.published_at ? "" : `<p class="rule">Draft: families can't see this round yet. Set up times and sessions, schedule them on the calendar, then publish.</p>`}
+    ${readonly ? `<p class="rule">Part of a completed season: read-only and hidden from families. <a href="/admin/reports?round=${r.id}">Run reports for this round</a>.</p>`
+      : r.published_at ? "" : `<p class="rule">Draft: families can't see this round yet. Set up times and sessions, schedule them on the calendar, then publish.</p>`}
   </section>
 
-  <div class="setup" id="setup">${timesPanel(r)}${sessionsPanel(r, types)}</div>
+  <div class="setup" id="setup">${timesPanel(r)}${readonly ? `<fieldset disabled class="plain">${sessionsPanel(r, types)}</fieldset>` : sessionsPanel(r, types)}</div>
 
   <div class="builder">
     <section class="panel cal-panel">
@@ -209,13 +223,17 @@ function builderPage({ user, flash, round, types, sessions, last = {} }) {
       <p class="fine">Click days to select them. Click a scheduled session to see its roster. Numbers show spots claimed out of spots available.</p>
       ${grid(r, sessions)}
     </section>
-    ${schedulePanel(r, types, last)}
+    ${readonly ? `<aside class="panel add-panel keep-visible"><h2>Read-only</h2><p class="muted">This season is completed. Reopen it from the season's page to make changes.</p></aside>` : schedulePanel(r, types, last)}
   </div>
 
   <section class="panel" id="settings">
     <h2>Round settings</h2>
-    <form method="post" action="/admin/rounds/${r.id}/settings" class="grid-form">
+    <form method="post" action="/admin/rounds/${r.id}/settings" class="grid-form keep"><fieldset class="plain grid-form full"${readonly ? " disabled" : ""}>
       <div><label>Name<input name="name" required value="${esc(r.name)}"></label></div>
+      <div><label>Season<select name="season_id">
+        ${season && season.completed_at ? `<option value="${season.id}" selected>${esc(season.name)}</option>` : ""}
+        ${seasons.map((x) => `<option value="${x.id}"${x.id === r.season_id ? " selected" : ""}>${esc(x.name)}</option>`).join("")}
+        <option value=""${r.season_id ? "" : " selected"}>No season</option></select></label></div>
       <div class="pair"><div><label>First day<input type="date" name="starts_on" required value="${esc(r.starts_on)}"></label></div>
         <div><label>Last day<input type="date" name="ends_on" required value="${esc(r.ends_on)}"></label></div></div>
       <div><label>Booking opens<input type="datetime-local" name="booking_opens_at" value="${inputParts(r.booking_opens_at).local}"></label>
@@ -227,8 +245,8 @@ function builderPage({ user, flash, round, types, sessions, last = {} }) {
       <div><label>Cancellation deadline (hours before)<input type="number" min="0" max="336" name="cancel_hours" value="${r.cancel_hours}"></label></div>
       <div class="full"><label>Location<input name="location" value="${esc(r.location)}"></label>
         <label class="check"><input type="checkbox" name="apply_location" value="1"> Also change it on sessions already scheduled</label></div>
-      <div class="full"><button class="btn" type="submit">Save round</button></div>
-    </form>
+      ${readonly ? "" : `<div class="full"><button class="btn" type="submit">Save round</button></div>`}
+    </fieldset></form>
     <form method="post" action="/admin/rounds/${r.id}/delete" class="inline-end" onsubmit="return confirm('Delete ${esc(r.name)} and everything in it?')">
       <button class="btn-ghost danger" type="submit">Delete round</button>
       <span class="fine">Only possible while no one has reserved.</span>

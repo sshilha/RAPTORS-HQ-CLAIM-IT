@@ -94,7 +94,32 @@ async function addSession(db, round, s) {
   return schedule(db, round, program, s);
 }
 
+// Copy a round's times, sessions (with spots), and schedule into a new round, shifted by offsetDays.
+// Booking dates shift by the same amount so a copied season keeps its rhythm.
+async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetDays, shiftRules }) {
+  const shift = (col) => (shiftRules ? `${col} + ($2::int * interval '1 day')` : "NULL");
+  const round = (await db.query(
+    `INSERT INTO rounds (name, starts_on, ends_on, season_id, booking_opens_at, priority_ends_at, priority_limit,
+       cancel_hours, location, activity_defaults, time_slots)
+     SELECT $3, $4, $5, $6, ${shift("booking_opens_at")}, ${shift("priority_ends_at")}, priority_limit,
+       cancel_hours, location, activity_defaults, time_slots FROM rounds WHERE id=$1 RETURNING *`,
+    [src.id, offsetDays, name, starts_on, ends_on, season_id])).rows[0];
+  for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows)
+    await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach });
+  const sess = (await db.query(
+    `SELECT p.activity, p.age_groups, s.capacity, s.coach, s.location, s.notes,
+       to_char((s.starts_at AT TIME ZONE 'America/Chicago')::date + $2::int, 'YYYY-MM-DD') AS date,
+       to_char(s.starts_at AT TIME ZONE 'America/Chicago', 'HH24:MI') AS start,
+       to_char(s.ends_at AT TIME ZONE 'America/Chicago', 'HH24:MI') AS "end"
+     FROM training_sessions s JOIN programs p ON p.id=s.program_id
+     WHERE p.round_id=$1 AND s.canceled_at IS NULL ORDER BY s.starts_at`, [src.id, offsetDays])).rows;
+  let n = 0;
+  for (const x of sess) if (x.date >= starts_on && x.date <= ends_on && (await addSession(db, round, x))) n++;
+  return { round, sessions: n };
+}
+
 module.exports = {
+  copyRound,
   sortAges, agesLabel, typeLabel, programName, isAllAges, defaultsFor, readDefaults, normalizeDefaults,
   addSlots, ensureProgram, syncPrograms, schedule, addSession,
 };

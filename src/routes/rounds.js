@@ -7,6 +7,7 @@ const { AGE_GROUPS, ACTIVITIES, ALL_AGES_ACTIVITIES, TZ } = require("../config")
 const R = require("../rounds");
 const { isDate, isTime, isLocal, localSql } = require("../time");
 const v = require("../views/rounds");
+const locks = require("../locks");
 const { wrap, flashFrom, go, int, str } = require("./util");
 
 const router = express.Router();
@@ -19,50 +20,57 @@ async function tx(fn) {
   finally { c.release(); }
 }
 
+// Everything that changes a round is blocked once its season is completed
+router.post("/:id/*", wrap(async (req, res, next) => {
+  if (await locks.roundLocked(int(req.params.id))) return go(res, `/admin/rounds/${int(req.params.id)}`, { err: locks.LOCKED_MSG });
+  next();
+}));
+
+const openSeasons = async () => (await query(`SELECT * FROM seasons WHERE completed_at IS NULL ORDER BY starts_on DESC`)).rows;
+const seasonOk = async (id) => !id || (await query(`SELECT 1 FROM seasons WHERE id=$1 AND completed_at IS NULL`, [id])).rowCount > 0;
+
 const getRound = async (id, db = { query }) => (await db.query(`SELECT * FROM rounds WHERE id=$1`, [id])).rows[0];
 const localOrNull = (s) => (isLocal(str(s)) ? str(s).replace("T", " ") : null);
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 // ---------- list + create ----------
 router.get("/", wrap(async (req, res) => {
+  const seasons = (await query(`SELECT * FROM seasons ORDER BY starts_on DESC`)).rows;
+  const filter = str(req.query.season) || "open";
+  const where = filter === "all" ? "TRUE" : filter === "none" ? "r.season_id IS NULL"
+    : int(filter) ? `r.season_id = ${int(filter)}` : "(se.id IS NULL OR se.completed_at IS NULL)";
   const rounds = (await query(
-    `SELECT r.*,
+    `SELECT r.*, se.name AS season_name, se.completed_at AS season_done,
        (SELECT count(*)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id
           WHERE p.round_id=r.id AND s.canceled_at IS NULL) AS sessions,
        (SELECT count(*)::int FROM reservations x JOIN training_sessions s ON s.id=x.session_id
           JOIN programs p ON p.id=s.program_id WHERE p.round_id=r.id AND x.status<>'canceled') AS reservations
-     FROM rounds r ORDER BY r.starts_on DESC`)).rows;
-  res.send(v.roundsPage({ user: req.user, flash: flashFrom(req), rounds }));
+     FROM rounds r LEFT JOIN seasons se ON se.id=r.season_id WHERE ${where} ORDER BY r.starts_on DESC`)).rows;
+  const copyable = (await query(`SELECT r.id, r.name, r.starts_on, r.ends_on, se.name AS season_name
+     FROM rounds r LEFT JOIN seasons se ON se.id=r.season_id ORDER BY r.starts_on DESC`)).rows;
+  res.send(v.roundsPage({ user: req.user, flash: flashFrom(req), rounds, seasons, filter, copyable,
+    open: seasons.filter((x) => !x.completed_at) }));
 }));
 
 router.post("/", wrap(async (req, res) => {
   const name = str(req.body.name), s = str(req.body.starts_on), e = str(req.body.ends_on);
+  const seasonId = int(req.body.season_id) || null;
   if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, "/admin/rounds", { err: "Enter a name and a start date on or before the end date." });
+  if (!(await seasonOk(seasonId))) return go(res, "/admin/rounds", { err: "Pick an open season." });
   const src = int(req.body.copy_from) ? await getRound(int(req.body.copy_from)) : null;
 
   const id = await tx(async (db) => {
-    const round = (await db.query(
-      `INSERT INTO rounds (name, starts_on, ends_on, priority_limit, cancel_hours, location, activity_defaults, time_slots)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [name, s, e, src?.priority_limit ?? 2, src?.cancel_hours ?? 24, src ? src.location : "Turn Two Athletics",
-       JSON.stringify(src?.activity_defaults || R.readDefaults({})), JSON.stringify(src?.time_slots || [])])).rows[0];
     if (src) {
-      // Copy the session definitions (with their spots), then shift every scheduled session
-      for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows)
-        await R.ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach });
-      const sess = (await db.query(
-        `SELECT p.activity, p.age_groups, s.capacity, s.coach, s.location, s.notes,
-           to_char((s.starts_at AT TIME ZONE '${TZ}')::date + ($2::date - $3::date), 'YYYY-MM-DD') AS date,
-           to_char(s.starts_at AT TIME ZONE '${TZ}', 'HH24:MI') AS start,
-           to_char(s.ends_at AT TIME ZONE '${TZ}', 'HH24:MI') AS "end"
-         FROM training_sessions s JOIN programs p ON p.id=s.program_id
-         WHERE p.round_id=$1 AND s.canceled_at IS NULL ORDER BY s.starts_at`, [src.id, s, src.starts_on])).rows;
-      for (const x of sess) if (x.date <= e) await R.addSession(db, round, x);
+      const offset = (await db.query(`SELECT $1::date - $2::date AS d`, [s, src.starts_on])).rows[0].d;
+      return (await R.copyRound(db, src, { name, starts_on: s, ends_on: e, season_id: seasonId, offsetDays: offset, shiftRules: false })).round.id;
     }
-    return round.id;
+    return (await db.query(
+      `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults)
+       VALUES ($1,$2,$3,$4,'Turn Two Athletics',$5) RETURNING id`,
+      [name, s, e, seasonId, JSON.stringify(R.readDefaults({}))])).rows[0].id;
   });
   go(res, `/admin/rounds/${id}`, { ok: src
-    ? "Round created as a copy. Adjust it, then publish."
+    ? "Round created as a copy. Set its booking dates in Round settings, then publish."
     : "Round created. Next: add its times and sessions, then schedule them on the calendar." });
 }));
 
@@ -83,7 +91,9 @@ router.get("/:id", wrap(async (req, res) => {
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS taken
      FROM training_sessions s JOIN programs p ON p.id=s.program_id
      WHERE p.round_id=$1 AND s.canceled_at IS NULL ORDER BY s.starts_at, p.activity`, [round.id])).rows;
-  res.send(v.builderPage({ user: req.user, flash: flashFrom(req), round, types, sessions, last: req.query }));
+  const season = round.season_id ? (await query(`SELECT * FROM seasons WHERE id=$1`, [round.season_id])).rows[0] : null;
+  res.send(v.builderPage({ user: req.user, flash: flashFrom(req), round, types, sessions, last: req.query,
+    season, seasons: await openSeasons(), readonly: !!season?.completed_at }));
 }));
 
 router.post("/:id/settings", wrap(async (req, res) => {
@@ -91,7 +101,10 @@ router.post("/:id/settings", wrap(async (req, res) => {
   const b = req.body;
   const name = str(b.name), s = str(b.starts_on), e = str(b.ends_on);
   if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, `/admin/rounds/${id}`, { err: "Enter a name and a start date on or before the end date." });
+  const seasonId = int(b.season_id) || null;
+  if (!(await seasonOk(seasonId))) return go(res, `/admin/rounds/${id}#settings`, { err: "Pick an open season." });
   await tx(async (db) => {
+    await db.query(`UPDATE rounds SET season_id=$2 WHERE id=$1`, [id, seasonId]);
     const round = (await db.query(
       `UPDATE rounds SET name=$2, starts_on=$3, ends_on=$4, booking_opens_at=${localSql(5)}, priority_ends_at=${localSql(6)},
          priority_limit=$7, cancel_hours=$8, location=$9 WHERE id=$1 RETURNING *`,

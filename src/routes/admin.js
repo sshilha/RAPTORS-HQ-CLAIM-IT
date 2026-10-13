@@ -6,6 +6,7 @@ const { notify } = require("../notify");
 const { AGE_GROUPS } = require("../config");
 const { isDate, isTime, isLocal, localSql } = require("../time");
 const v = require("../views/admin");
+const locks = require("../locks");
 const { wrap, flashFrom, go, int, str } = require("./util");
 
 const router = express.Router();
@@ -34,7 +35,18 @@ function parseProgram(b) {
 const programParams = (p) => [p.name, p.activity, p.age_groups, p.description, p.priority_limit,
   p.priority_ends_at, p.booking_opens_at, p.cancel_hours];
 
-router.get("/", (req, res) => res.redirect("/admin/rounds"));
+router.get("/", (req, res) => res.redirect("/admin/seasons"));
+
+// Completed seasons are read-only
+const lockGuard = (check, back) => wrap(async (req, res, next) => {
+  if (await check(int(req.params.id))) return go(res, back(req), { err: locks.LOCKED_MSG });
+  next();
+});
+for (const [path, check, back] of [
+  ["programs", locks.programLocked, (req) => `/admin/programs/${int(req.params.id)}`],
+  ["sessions", locks.sessionLocked, (req) => `/admin/sessions/${int(req.params.id)}`],
+  ["reservations", locks.reservationLocked, () => "/admin/rounds"],
+]) router.post([`/${path}/:id`, `/${path}/:id/*`], lockGuard(check, back));
 
 router.get("/programs", wrap(async (req, res) => {
   const programs = (await query(
@@ -64,7 +76,7 @@ router.get("/programs/:id", wrap(async (req, res) => {
        (SELECT count(*)::int FROM reservations r WHERE r.session_id=s.id AND r.status='waitlisted') AS waitlisted
      FROM training_sessions s WHERE s.program_id=$1 AND s.ends_at > now() - interval '14 days'
      ORDER BY s.starts_at`, [program.id])).rows;
-  res.send(v.programPage(view(req, { program, sessions })));
+  res.send(v.programPage(view(req, { program, sessions, readonly: await locks.programLocked(program.id) })));
 }));
 
 router.post("/programs/:id", wrap(async (req, res) => {
@@ -120,7 +132,7 @@ router.get("/sessions/:id", wrap(async (req, res) => {
        ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS emails
      FROM reservations r JOIN athletes a ON a.id=r.athlete_id
      WHERE r.session_id=$1 AND r.status<>'canceled' ORDER BY r.created_at, r.id`, [session.id])).rows;
-  res.send(v.sessionPage(view(req, { session, program,
+  res.send(v.sessionPage(view(req, { session, program, readonly: await locks.sessionLocked(session.id),
     confirmed: roster.filter((r) => r.status === "confirmed"),
     waitlist: roster.filter((r) => r.status === "waitlisted") })));
 }));

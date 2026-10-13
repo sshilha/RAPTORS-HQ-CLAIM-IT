@@ -21,15 +21,19 @@ function readSettings(b) {
     priority_limit: Math.min(Math.max(int(b.priority_limit) || 2, 1), 50),
     cancel_hours: Math.min(int(b.cancel_hours) ?? 24, 336),
     defaults: b.defaults ? R.normalizeDefaults(b.defaults) : R.readDefaults(b),
+    season_id: int(b.season_id) || null,
   };
 }
 
 // An existing round "matches" when the name is the same and it starts within ~2 months
-async function findRound(db, name, firstDate) {
+async function findRound(db, name, firstDate, seasonId) {
   return (await db.query(
-    `SELECT * FROM rounds WHERE lower(name)=lower($1) AND abs(starts_on - $2::date) <= 60 ORDER BY starts_on DESC LIMIT 1`,
-    [name, firstDate])).rows[0] || null;
+    `SELECT * FROM rounds WHERE lower(name)=lower($1) AND abs(starts_on - $2::date) <= 60
+       AND season_id IS NOT DISTINCT FROM $3 ORDER BY starts_on DESC LIMIT 1`,
+    [name, firstDate, seasonId])).rows[0] || null;
 }
+const openSeasons = async () => (await query(`SELECT * FROM seasons WHERE completed_at IS NULL ORDER BY starts_on DESC`)).rows;
+const seasonOpen = async (id) => !id || (await query(`SELECT 1 FROM seasons WHERE id=$1 AND completed_at IS NULL`, [id])).rowCount > 0;
 
 async function classify(rows) {
   const existing = new Set((await query(
@@ -47,31 +51,34 @@ async function classify(rows) {
   });
 }
 
-router.get("/", (req, res) => res.send(v.uploadPage({ user: req.user, flash: flashFrom(req) })));
+router.get("/", wrap(async (req, res) => res.send(v.uploadPage({ user: req.user, flash: flashFrom(req), seasons: await openSeasons() }))));
 
 router.post("/preview", wrap(async (req, res) => {
   const b = req.body;
   let text = str(b.text);
   if (b.pdf_b64) {
     try { text = (await pdf(Buffer.from(b.pdf_b64, "base64"))).text; }
-    catch { return res.send(v.uploadPage({ user: req.user, v: b, flash: { err: "That file couldn't be read as a PDF. Try pasting the text instead." } })); }
+    catch { return res.send(v.uploadPage({ user: req.user, v: b, seasons: await openSeasons(), flash: { err: "That file couldn't be read as a PDF. Try pasting the text instead." } })); }
   }
-  if (!text) return res.send(v.uploadPage({ user: req.user, v: b, flash: { err: "Choose a PDF or paste the schedule text." } }));
+  if (!text) return res.send(v.uploadPage({ user: req.user, v: b, seasons: await openSeasons(), flash: { err: "Choose a PDF or paste the schedule text." } }));
 
   const year = int(b.year);
   const { sessions, warnings } = parseSchedule(text, { year: year && year > 2000 ? year : undefined });
-  if (!sessions.length) return res.send(v.uploadPage({ user: req.user, v: b,
+  if (!sessions.length) return res.send(v.uploadPage({ user: req.user, v: b, seasons: await openSeasons(),
     flash: { err: "No sessions found. Lines should look like 6-7:30pm-Hitting-12/14/16/18U, under a date like November 4." } }));
 
+  const settings = readSettings(b);
+  if (!(await seasonOpen(settings.season_id))) return res.send(v.uploadPage({ user: req.user, v: b, seasons: await openSeasons(), flash: { err: "Pick an open season." } }));
   const rows = await classify(sessions);
   const rounds = [];
   for (const round of [...new Set(rows.map((r) => r.round))]) {
     const rr = rows.filter((r) => r.round === round);
     const name = defaultRoundName(round);
     rounds.push({ round, key: roundKey(round), name, first: rr[0].date, last: rr[rr.length - 1].date,
-      match: await findRound({ query }, name, rr[0].date) });
+      match: await findRound({ query }, name, rr[0].date, settings.season_id) });
   }
-  res.send(v.previewPage({ user: req.user, rows, rounds, warnings, settings: readSettings(b) }));
+  const season = settings.season_id ? (await query(`SELECT name FROM seasons WHERE id=$1`, [settings.season_id])).rows[0] : null;
+  res.send(v.previewPage({ user: req.user, rows, rounds, warnings, settings, seasonName: season?.name }));
 }));
 
 router.post("/commit", wrap(async (req, res) => {
@@ -83,6 +90,7 @@ router.post("/commit", wrap(async (req, res) => {
     picked.has(String(r.i)) && isDate(r.date) && isTime(r.start) && isTime(r.end) && r.end > r.start &&
     ACTIVITIES.includes(r.activity) && Array.isArray(r.ages) && r.ages.length && r.ages.every((a) => AGE_GROUPS.includes(a)));
   if (!rows.length) return go(res, "/admin/import", { err: "No sessions were selected." });
+  if (!(await seasonOpen(settings.season_id))) return go(res, "/admin/import", { err: "That season is completed. Pick an open season." });
 
   const local = (name) => { const s = str(req.body[name]); return isLocal(s) ? s.replace("T", " ") : null; };
   const client = await pool.connect();
@@ -94,17 +102,17 @@ router.post("/commit", wrap(async (req, res) => {
       const rr = rows.filter((r) => roundKey(r.round) === key).sort((a, b) => a.date.localeCompare(b.date));
       const name = str(req.body[`name_${key}`]) || defaultRoundName(rr[0].round);
       const first = rr[0].date, last = rr[rr.length - 1].date;
-      let round = await findRound(client, name, first);
+      let round = await findRound(client, name, first, settings.season_id);
       if (round) {
         round = (await client.query(
           `UPDATE rounds SET starts_on=LEAST(starts_on,$2::date), ends_on=GREATEST(ends_on,$3::date) WHERE id=$1 RETURNING *`,
           [round.id, first, last])).rows[0];
       } else {
         round = (await client.query(
-          `INSERT INTO rounds (name, starts_on, ends_on, booking_opens_at, priority_ends_at, priority_limit, cancel_hours, location, activity_defaults)
-           VALUES ($1,$2,$3,${localSql(4)},${localSql(5)},$6,$7,$8,$9) RETURNING *`,
+          `INSERT INTO rounds (name, starts_on, ends_on, booking_opens_at, priority_ends_at, priority_limit, cancel_hours, location, activity_defaults, season_id)
+           VALUES ($1,$2,$3,${localSql(4)},${localSql(5)},$6,$7,$8,$9,$10) RETURNING *`,
           [name, first, last, local(`opens_${key}`), local(`priority_${key}`), settings.priority_limit,
-           settings.cancel_hours, settings.location, JSON.stringify(settings.defaults)])).rows[0];
+           settings.cancel_hours, settings.location, JSON.stringify(settings.defaults), settings.season_id])).rows[0];
       }
       touched.push(round.id);
       for (const r of rr) (await R.addSession(client, round, r)) ? created++ : skipped++;

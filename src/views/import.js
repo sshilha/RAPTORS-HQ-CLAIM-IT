@@ -13,7 +13,7 @@ const t12 = (hhmm) => {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 };
 
-const uploadPage = ({ user, flash, v = {} }) => page({
+const uploadPage = ({ user, flash, v = {}, seasons = [] }) => page({
   title: "Import schedule", tab: "import", user, flash,
   body: `<section class="panel">
     <h1>Import a vendor schedule</h1>
@@ -22,6 +22,10 @@ const uploadPage = ({ user, flash, v = {} }) => page({
       <div class="full"><label for="pdf">Schedule PDF</label><input id="pdf" type="file" accept="application/pdf,.pdf"></div>
       <div class="full"><label for="text">Or paste the schedule text</label>
         <textarea id="text" name="text" rows="6" placeholder="November 3&#10;4:30-6pm-Hitting-8/10U&#10;November 4&#10;6-7:30pm-Hitting-8/10U">${esc(v.text)}</textarea></div>
+      <div><label for="season">Season</label><select id="season" name="season_id">
+        ${seasons.map((x) => `<option value="${x.id}"${String(v.season_id) === String(x.id) ? " selected" : ""}>${esc(x.name)}</option>`).join("")}
+        <option value=""${seasons.length ? "" : " selected"}>No season</option></select>
+        ${seasons.length ? "" : `<span class="fine"><a href="/admin/seasons">Open a season</a> first to group these rounds by year.</span>`}</div>
       <div><label for="year">Year of the first date</label><input id="year" name="year" inputmode="numeric" value="${esc(v.year)}" placeholder="Read from the PDF">
         <span class="fine">Leave blank to use the year on the schedule.</span></div>
       <div><label for="loc">Location</label><input id="loc" name="location" value="${esc(v.location ?? "Turn Two Athletics")}"></div>
@@ -51,7 +55,7 @@ const uploadPage = ({ user, flash, v = {} }) => page({
 
 const ACT_SUMMARY = (d) => Object.entries(d || {}).map(([a, x]) => `${esc(a)} ${x.capacity}`).join(", ");
 
-function previewPage({ user, flash, rows, rounds, warnings, settings }) {
+function previewPage({ user, flash, rows, rounds, warnings, settings, seasonName }) {
   const selectable = rows.filter((r) => r.status === "new").length;
   const byRound = rounds.map((rd) => ({ ...rd, rows: rows.filter((r) => r.round === rd.round) }));
   return page({
@@ -60,7 +64,7 @@ function previewPage({ user, flash, rows, rounds, warnings, settings }) {
     <form method="post" action="/admin/import/commit">
     <section class="panel">
       <h1>Review ${rows.length} sessions</h1>
-      <p class="lede">${selectable} ready to create in ${rounds.length} round${rounds.length === 1 ? "" : "s"}. Uncheck anything you don't want.</p>
+      <p class="lede">${selectable} ready to create in ${rounds.length} round${rounds.length === 1 ? "" : "s"}${seasonName ? ` in <strong>${esc(seasonName)}</strong>` : ""}. Uncheck anything you don't want.</p>
       ${warnings.length ? `<details class="warn"><summary>${warnings.length} line${warnings.length === 1 ? "" : "s"} skipped</summary>
         <ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></details>` : ""}
       <p class="muted">New rounds: ${esc(settings.location || "no location")}, ${settings.priority_limit} priority reservations per athlete per program, cancel ${settings.cancel_hours} hours before.

@@ -60,8 +60,10 @@ async function reserve({ userId, athleteId, sessionId }) {
     // Lock the session row so two families can't take the last spot at once
     const { rows } = await db.query(
       `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at,
-              p.booking_opens_at, (p.archived OR (p.round_id IS NOT NULL AND r.published_at IS NULL)) AS archived
+              p.booking_opens_at,
+              (p.archived OR (p.round_id IS NOT NULL AND r.published_at IS NULL) OR se.completed_at IS NOT NULL) AS archived
        FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id
+       LEFT JOIN seasons se ON se.id=r.season_id
        WHERE s.id=$1 FOR UPDATE OF s`,
       [sessionId]
     );
@@ -103,13 +105,15 @@ async function reserve({ userId, athleteId, sessionId }) {
 async function cancelReservation({ userId, reservationId, admin = false }) {
   return tx(async (db) => {
     const { rows } = await db.query(
-      `SELECT r.*, s.starts_at, s.id AS sid, p.cancel_hours
+      `SELECT r.*, s.starts_at, s.id AS sid, p.cancel_hours, se.completed_at AS season_done
        FROM reservations r JOIN training_sessions s ON s.id=r.session_id JOIN programs p ON p.id=s.program_id
+       LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
        WHERE r.id=$1 FOR UPDATE OF r, s`,
       [reservationId]
     );
     const r = rows[0];
     if (!r || r.status === "canceled") throw new BookingError("That reservation was already canceled.");
+    if (r.season_done) throw new BookingError("That season is completed, so its reservations can't be changed.");
     if (!admin && !(await isParentOf(db, userId, r.athlete_id))) throw new BookingError("That reservation isn't yours.");
     if (!admin && r.status === "confirmed" && new Date() > cancelDeadline(r.starts_at, r.cancel_hours))
       throw new BookingError(`Online cancellation closed ${r.cancel_hours} hours before the session. Contact your coach.`);
@@ -161,7 +165,8 @@ async function parentReservations(userId) {
      JOIN training_sessions s ON s.id=r.session_id
      JOIN programs p ON p.id=s.program_id
      JOIN parent_athletes pa ON pa.athlete_id=r.athlete_id AND pa.user_id=$1
-     WHERE r.status<>'canceled' AND s.canceled_at IS NULL AND s.ends_at > now()
+     LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
+     WHERE r.status<>'canceled' AND s.canceled_at IS NULL AND s.ends_at > now() AND se.completed_at IS NULL
      ORDER BY s.starts_at`,
     [userId]
   );
@@ -170,8 +175,9 @@ async function parentReservations(userId) {
 
 async function bookingOptions(athlete) {
   const programs = (await query(
-    `SELECT p.* FROM programs p LEFT JOIN rounds r ON r.id=p.round_id
+    `SELECT p.* FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      WHERE NOT p.archived AND $1 = ANY(p.age_groups) AND (p.round_id IS NULL OR r.published_at IS NOT NULL)
+       AND se.completed_at IS NULL
      ORDER BY r.starts_on NULLS LAST, p.activity, p.name`,
     [athlete.age_group || ""]
   )).rows;

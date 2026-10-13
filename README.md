@@ -25,6 +25,16 @@ Flow: SportsEngine private page → this app → email sign-in link → My train
 
 ## Admin (emails in ADMIN_EMAILS)
 
+- **Seasons** sit above rounds (e.g. "Winter Training 2026–27"). Open a season empty or as a
+  copy of last season (rounds, times, sessions, spots, schedule, and booking dates shift to
+  the new dates; copied rounds start as drafts). **Complete season** hides it from families
+  and makes it read-only everywhere (enforced on the server); it stays viewable in Admin and
+  can be reopened. The Rounds list shows open seasons by default.
+- **Reports:** Session fill, Activity and group summary, Athlete participation, and
+  Reservation detail. Filter by season, round, date range (same From/To for one day),
+  activity, and age group. Download any report as CSV or print it. Reports count
+  reservations, not attendance.
+
 - **Rounds** are set up in levels, top down:
   1. **Round:** name, first and last day, booking opens, priority ends, priority limit,
      cancellation hours, location. Create as many rounds as you need; a new round can start

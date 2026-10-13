@@ -13,8 +13,9 @@ function flashHtml(flash = {}) {
          (flash.err ? `<p class="alert" role="alert">${esc(flash.err)}</p>` : "");
 }
 
-function layout({ title, body, user, admin, flash, wide, xwide }) {
+function layout({ title, body, user, admin, flash, wide, xwide, readonly }) {
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
+  const ro = readonly ? " ro" : ""; // read-only styling applies to page content only, not the header
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,7 +42,7 @@ function layout({ title, body, user, admin, flash, wide, xwide }) {
     </nav>` : ""}
   </div>
 </header>
-<main class="page${w}">${flashHtml(flash)}${body}</main>
+<main class="page${w}${ro}">${flashHtml(flash)}${body}</main>
 <footer class="foot">Chippewa Valley Raptors Fastpitch</footer>
 </body>
 </html>`;
