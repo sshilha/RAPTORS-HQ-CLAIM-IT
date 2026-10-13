@@ -8,7 +8,7 @@ const R = require("../rounds");
 const { isDate, isTime, isLocal, localSql } = require("../time");
 const v = require("../views/rounds");
 const locks = require("../locks");
-const { wrap, flashFrom, go, int, str } = require("./util");
+const { wrap, flashFrom, go, int, str, dest } = require("./util");
 
 const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
@@ -22,7 +22,7 @@ async function tx(fn) {
 
 // Everything that changes a round is blocked once its season is completed
 router.post("/:id/*", wrap(async (req, res, next) => {
-  if (await locks.roundLocked(int(req.params.id))) return go(res, `/admin/rounds/${int(req.params.id)}`, { err: locks.LOCKED_MSG });
+  if (await locks.roundLocked(int(req.params.id))) return go(res, dest(req, `/admin/rounds/${int(req.params.id)}`), { err: locks.LOCKED_MSG });
   next();
 }));
 
@@ -55,8 +55,8 @@ router.get("/", wrap(async (req, res) => {
 router.post("/", wrap(async (req, res) => {
   const name = str(req.body.name), s = str(req.body.starts_on), e = str(req.body.ends_on);
   const seasonId = int(req.body.season_id) || null;
-  if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, "/admin/rounds", { err: "Enter a name and a start date on or before the end date." });
-  if (!(await seasonOk(seasonId))) return go(res, "/admin/rounds", { err: "Pick an open season." });
+  if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, dest(req, "/admin/rounds", { id: "new" }), { err: "Enter a round name and a first day on or before the last day." });
+  if (!(await seasonOk(seasonId))) return go(res, dest(req, "/admin/rounds", { id: "new" }), { err: "Pick an open season." });
   const src = int(req.body.copy_from) ? await getRound(int(req.body.copy_from)) : null;
 
   const id = await tx(async (db) => {
@@ -69,7 +69,7 @@ router.post("/", wrap(async (req, res) => {
        VALUES ($1,$2,$3,$4,'Turn Two Athletics',$5) RETURNING id`,
       [name, s, e, seasonId, JSON.stringify(R.readDefaults({}))])).rows[0].id;
   });
-  go(res, `/admin/rounds/${id}`, { ok: src
+  go(res, dest(req, `/admin/rounds/${id}`, { id }), { ok: src
     ? "Round created as a copy. Set its booking dates in Round settings, then publish."
     : "Round created. Next: add its times and sessions, then schedule them on the calendar." });
 }));
@@ -121,10 +121,10 @@ router.post("/:id/settings", wrap(async (req, res) => {
 router.post("/:id/slots", wrap(async (req, res) => {
   const id = int(req.params.id);
   const start = str(req.body.start_time), end = str(req.body.end_time);
-  if (!isTime(start) || !isTime(end) || end <= start) return go(res, `/admin/rounds/${id}#setup`, { err: "Enter a start time and a later end time." });
+  if (!isTime(start) || !isTime(end) || end <= start) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Enter a start time and a later end time." });
   const round = await getRound(id);
   await query(`UPDATE rounds SET time_slots=$2 WHERE id=$1`, [id, JSON.stringify(R.addSlots(round, [{ start, end }]))]);
-  go(res, `/admin/rounds/${id}#setup`, { ok: "Time added." });
+  go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: "Time added." });
 }));
 
 router.post("/:id/slots/remove", wrap(async (req, res) => {
@@ -133,7 +133,7 @@ router.post("/:id/slots/remove", wrap(async (req, res) => {
   const key = str(req.body.slot);
   const slots = (round.time_slots || []).filter((s) => `${s.start}-${s.end}` !== key);
   await query(`UPDATE rounds SET time_slots=$2 WHERE id=$1`, [id, JSON.stringify(slots)]);
-  go(res, `/admin/rounds/${id}#setup`, { ok: "Time removed. Sessions already scheduled at that time stay on the calendar." });
+  go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: "Time removed. Sessions already scheduled at that time stay on the calendar." });
 }));
 
 // ---------- session definitions (activity + group + spots) ----------
@@ -148,22 +148,22 @@ function readType(b) {
 router.post("/:id/types", wrap(async (req, res) => {
   const id = int(req.params.id);
   const t = readType(req.body);
-  if (!t.activity || !t.ages.length || !t.spots) return go(res, `/admin/rounds/${id}#setup`, { err: "Choose an activity, at least one age group, and the number of spots." });
+  if (!t.activity || !t.ages.length || !t.spots) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Choose an activity, at least one age group, and the number of spots." });
   const round = await getRound(id);
   const exists = (await query(`SELECT 1 FROM programs WHERE round_id=$1 AND activity=$2 AND age_groups=$3::text[]`,
     [id, t.activity, R.sortAges(t.ages)])).rowCount;
-  if (exists) return go(res, `/admin/rounds/${id}#setup`, { err: `${R.typeLabel(t.activity, t.ages)} is already set up in this round. Change its spots in the list.` });
+  if (exists) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: `${R.typeLabel(t.activity, t.ages)} is already set up in this round. Change its spots in the list.` });
   await R.ensureProgram({ query }, round, t.activity, t.ages, { capacity: t.spots, coach: t.coach });
-  go(res, `/admin/rounds/${id}#setup`, { ok: `Added ${R.typeLabel(t.activity, t.ages)}, ${t.spots} spots.` });
+  go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: `Added ${R.typeLabel(t.activity, t.ages)}, ${t.spots} spots.` });
 }));
 
 router.post("/:id/types/:pid", wrap(async (req, res) => {
   const id = int(req.params.id), pid = int(req.params.pid);
   const spots = int(req.body.spots);
-  if (!spots || spots > 200) return go(res, `/admin/rounds/${id}#setup`, { err: "Spots must be between 1 and 200." });
+  if (!spots || spots > 200) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Spots must be between 1 and 200." });
   const coach = str(req.body.coach) || null;
   const p = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [pid, id])).rows[0];
-  if (!p) return go(res, `/admin/rounds/${id}#setup`, { err: "Session not found." });
+  if (!p) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Session not found." });
   await query(`UPDATE programs SET default_capacity=$2, default_coach=$3 WHERE id=$1`, [pid, spots, coach]);
 
   // Apply to everything already scheduled; never drop below who's already reserved
@@ -179,7 +179,7 @@ router.post("/:id/types/:pid", wrap(async (req, res) => {
     updated++;
   }
   promoted.forEach((rid) => notify("promoted", rid));
-  go(res, `/admin/rounds/${id}#setup`, { ok: `Saved. Updated ${plural(updated, "scheduled session")}` +
+  go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: `Saved. Updated ${plural(updated, "scheduled session")}` +
     (kept ? `; ${kept} kept higher because more athletes are already reserved` : "") +
     (promoted.length ? `; ${plural(promoted.length, "athlete")} moved off the waitlist` : "") + "." });
 }));
@@ -187,9 +187,9 @@ router.post("/:id/types/:pid", wrap(async (req, res) => {
 router.post("/:id/types/:pid/delete", wrap(async (req, res) => {
   const id = int(req.params.id), pid = int(req.params.pid);
   const n = (await query(`SELECT count(*)::int AS n FROM training_sessions WHERE program_id=$1`, [pid])).rows[0].n;
-  if (n) return go(res, `/admin/rounds/${id}#setup`, { err: "Remove this session from the calendar first." });
+  if (n) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Remove this session from the calendar first." });
   await query(`DELETE FROM programs WHERE id=$1 AND round_id=$2`, [pid, id]);
-  go(res, `/admin/rounds/${id}#setup`, { ok: "Session removed." });
+  go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: "Session removed." });
 }));
 
 // ---------- schedule ----------
@@ -255,7 +255,7 @@ router.post("/:id/publish", wrap(async (req, res) => {
   const id = int(req.params.id);
   const { rows } = await query(
     `UPDATE rounds SET published_at = CASE WHEN published_at IS NULL THEN now() ELSE NULL END WHERE id=$1 RETURNING published_at`, [id]);
-  go(res, `/admin/rounds/${id}`, { ok: rows[0]?.published_at ? "Published. Families can now see and book this round." : "Hidden from families. Existing reservations are kept." });
+  go(res, dest(req, `/admin/rounds/${id}`), { ok: rows[0]?.published_at ? "Published. Families can now see and book this round." : "Hidden from families. Existing reservations are kept." });
 }));
 
 router.post("/:id/delete", wrap(async (req, res) => {

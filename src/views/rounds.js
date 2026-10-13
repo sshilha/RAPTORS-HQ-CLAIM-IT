@@ -331,4 +331,4 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
   });
 }
 
-module.exports = { roundsPage, builderPage, defaultsTable, niceRange };
+module.exports = { roundsPage, builderPage, defaultsTable, niceRange, shortRange, statusPill };

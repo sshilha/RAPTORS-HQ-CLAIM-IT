@@ -4,7 +4,7 @@ const auth = require("../auth");
 const R = require("../rounds");
 const { isDate } = require("../time");
 const v = require("../views/seasons");
-const { wrap, flashFrom, go, int, str } = require("./util");
+const { wrap, flashFrom, go, int, str, dest } = require("./util");
 
 const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
@@ -25,7 +25,7 @@ router.get("/", wrap(async (req, res) => {
 
 router.post("/", wrap(async (req, res) => {
   const name = str(req.body.name), s = str(req.body.starts_on), e = str(req.body.ends_on);
-  if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, "/admin/seasons", { err: "Enter a name and a start date on or before the end date." });
+  if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, dest(req, "/admin/seasons", { id: "new" }), { err: "Enter a season name and a first day on or before the last day." });
   const src = int(req.body.copy_from) ? await getSeason(int(req.body.copy_from)) : null;
 
   const c = await pool.connect();
@@ -47,7 +47,7 @@ router.post("/", wrap(async (req, res) => {
     await c.query("COMMIT");
   } catch (err) { await c.query("ROLLBACK"); throw err; }
   finally { c.release(); }
-  go(res, `/admin/seasons/${id}`, { ok: src
+  go(res, dest(req, `/admin/seasons/${id}`, { id }), { ok: src
     ? `Season created with ${copied.rounds} round${copied.rounds === 1 ? "" : "s"} and ${copied.sessions} session${copied.sessions === 1 ? "" : "s"} copied from ${src.name}. They're drafts: review each round, then publish.`
     : "Season created. Add rounds to it, or import the vendor schedule." });
 }));
@@ -68,7 +68,7 @@ router.get("/:id", wrap(async (req, res) => {
 const guardOpen = async (req, res) => {
   const s = await getSeason(int(req.params.id));
   if (!s) { go(res, "/admin/seasons", { err: "Season not found." }); return null; }
-  if (s.completed_at) { go(res, `/admin/seasons/${s.id}`, { err: "This season is completed. Reopen it to make changes." }); return null; }
+  if (s.completed_at) { go(res, dest(req, `/admin/seasons/${s.id}`), { err: "This season is completed. Reopen it to make changes." }); return null; }
   return s;
 };
 
@@ -91,13 +91,13 @@ router.post("/:id/attach", wrap(async (req, res) => {
 router.post("/:id/complete", wrap(async (req, res) => {
   const s = await guardOpen(req, res); if (!s) return;
   await query(`UPDATE seasons SET completed_at=now() WHERE id=$1`, [s.id]);
-  go(res, `/admin/seasons/${s.id}`, { ok: "Season completed. It's hidden from families and read-only. Its reports are still available." });
+  go(res, dest(req, `/admin/seasons/${s.id}`), { ok: "Season completed. It's hidden from families and read-only. Its reports are still available." });
 }));
 
 router.post("/:id/reopen", wrap(async (req, res) => {
   const id = int(req.params.id);
   await query(`UPDATE seasons SET completed_at=NULL WHERE id=$1`, [id]);
-  go(res, `/admin/seasons/${id}`, { ok: "Season reopened. Rounds that were published are visible to families again." });
+  go(res, dest(req, `/admin/seasons/${id}`), { ok: "Season reopened. Rounds that were published are visible to families again." });
 }));
 
 router.post("/:id/delete", wrap(async (req, res) => {

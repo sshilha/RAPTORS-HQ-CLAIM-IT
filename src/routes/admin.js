@@ -35,7 +35,7 @@ function parseProgram(b) {
 const programParams = (p) => [p.name, p.activity, p.age_groups, p.description, p.priority_limit,
   p.priority_ends_at, p.booking_opens_at, p.cancel_hours];
 
-router.get("/", (req, res) => res.redirect("/admin/seasons"));
+router.get("/", (req, res) => res.redirect("/admin/setup"));
 
 // Completed seasons are read-only
 const lockGuard = (check, back) => wrap(async (req, res, next) => {

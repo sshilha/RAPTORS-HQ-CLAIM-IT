@@ -25,6 +25,13 @@ Flow: SportsEngine private page → this app → email sign-in link → My train
 
 ## Admin (emails in ADMIN_EMAILS)
 
+Admin has three tabs: **Setup**, **Reports**, and **Athletes and parents**.
+
+- **Setup** is one page for everything: each open season, its rounds, and each round's
+  times and sessions (activity + group + spots), with add/edit right there. Open a round's
+  calendar to schedule sessions on days. Also: open a new season (empty or copied),
+  import the vendor schedule, and view completed seasons (read-only).
+
 - **Seasons** sit above rounds (e.g. "Winter Training 2026–27"). Open a season empty or as a
   copy of last season (rounds, times, sessions, spots, schedule, and booking dates shift to
   the new dates; copied rounds start as drafts). **Complete season** hides it from families

@@ -7,4 +7,11 @@ const go = (res, path, flash = {}) => {
 };
 const int = (v) => (/^\d+$/.test(String(v)) ? parseInt(v, 10) : null);
 const str = (v) => String(v ?? "").trim();
-module.exports = { wrap, flashFrom, go, int, str };
+// Forms on the Setup page send return_to so actions land back where they started
+const dest = (req, fallback, vars = {}) => {
+  let r = String((req.body && req.body.return_to) || "");
+  if (!r.startsWith("/admin/") || r.startsWith("//")) return fallback;
+  for (const [k, v] of Object.entries(vars)) r = r.replace(`{${k}}`, v);
+  return r;
+};
+module.exports = { wrap, flashFrom, go, int, str, dest };
