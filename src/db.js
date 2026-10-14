@@ -141,6 +141,11 @@ async function migrate() {
     ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMPTZ;
     -- Spots taken from unlocked sessions don't use up an athlete's limit
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS counts_toward_limit BOOLEAN NOT NULL DEFAULT true;
+    -- Earlier builds flagged bookings of unlimited activities as "open spots"; they're regular bookings
+    UPDATE reservations x SET counts_toward_limit = true
+      FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
+      WHERE x.session_id=s.id AND NOT x.counts_toward_limit
+        AND r.activity_limits ? p.activity AND r.activity_limits -> p.activity = 'null'::jsonb;
     -- Older rounds: carry their single limit over to every activity; Cage Time unlimited
     UPDATE rounds SET activity_limits = jsonb_build_object('Hitting', priority_limit, 'Pitching', priority_limit,
       'Catching', priority_limit, 'Defense', priority_limit, 'Cage Time', NULL) WHERE activity_limits IS NULL;

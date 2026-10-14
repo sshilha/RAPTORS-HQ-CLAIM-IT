@@ -3,7 +3,16 @@
 Training reservations for Chippewa Valley Raptors families, launched from the private
 SportsEngine **Training Sign-Up** page.
 
-Flow: SportsEngine private page → this app → email sign-in link → My training → book sessions.
+Flow: SportsEngine private page → this app → email sign-in link → My Training calendar → tap a day → reserve.
+
+**Families** see a month calendar for each athlete (tabs if they have more than one): dots
+show the activities offered each day, ✓ marks days already booked. A "This round" summary
+shows what's used (e.g. Hitting 1 of 2, Defense 0 of 1, Cage Time unlimited) on the calendar
+and on every day page. Tapping a day lists its sessions (block grid for split sessions) with
+reserve, waitlist, and cancel right there, plus buttons to jump to the previous/next
+training day. Each session shows who's going (names only, never contact details; Settings →
+Family view picks full names, first name + last initial, or hidden). Upcoming reservations are
+listed under the calendar.
 
 ## How it works
 
@@ -25,7 +34,7 @@ Flow: SportsEngine private page → this app → email sign-in link → My train
 
 ## Admin (emails in ADMIN_EMAILS)
 
-Admin has three tabs: **Setup**, **Reports**, and **Athletes and parents**.
+Admin has four tabs: **Setup**, **Reports**, **Athletes**, and **Settings**.
 
 - **Setup** is one page for everything: each open season, its rounds, and each round's
   times and sessions (activity + group + spots), with add/edit right there. Open a round's
@@ -64,7 +73,17 @@ Admin has three tabs: **Setup**, **Reports**, and **Athletes and parents**.
 - **Blocks:** a session can be split into 15/20/30/45/60-minute blocks, with spots per block.
   Cage Time defaults to 30-minute blocks of 2: scheduling Saturday 3–7 creates eight blocks.
   The calendar shows a day's blocks as one chip; parents pick times from a grid.
-- **Cage Time** is an activity open to all ages.
+- **Who's signed up** (`/admin/day/<date>`): every session on a day with the athletes booked
+  and the waitlist, grouped by session (split sessions show each block's names). Tap a name
+  for parent emails and to **Remove**, **Move** to another session that day, or **Move in**
+  from the waitlist. **+ Add athlete** adds anyone (admins skip limits and group rules);
+  "Add anyway" adds a spot when it's full. Families are emailed. Print for a coach sheet. Open it from the 👥 on any day of a round's
+  calendar, a block chip, or the "Who's signed up" link admins see on the family day page.
+- **Settings** holds the building blocks, all editable: **activities** (name, color, default
+  spots, split into blocks, default limit or unlimited, open to all groups, import codes,
+  hidden), **groups** (ages, levels, or anything), **group shortcuts** (one-click group
+  picks), and **locations**. Renames cascade through existing data; removal is blocked while
+  something still uses it (hide an activity instead). New groups join all-groups sessions.
 
 - **Import schedule:** upload the Turn Two schedule PDF (or paste its text). The app reads
   lines like `6-7:30pm-Hitting-12/14/16/18U` under each date and creates draft rounds

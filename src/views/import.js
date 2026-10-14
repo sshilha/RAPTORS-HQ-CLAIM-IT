@@ -33,7 +33,7 @@ const uploadPage = ({ user, flash, v = {}, seasons = [] }) => page({
       <div class="full"><p class="label-like">Limits per athlete, each round</p>${limitsTable(null)}${unlockFields(null)}</div>
       <div><label for="cxl">Cancellation deadline (hours before)</label><input id="cxl" type="number" min="0" max="336" name="cancel_hours" value="${esc(v.cancel_hours ?? 24)}"></div>
       <div class="full"><p class="label-like">Session defaults by activity</p>${defaultsTable(null)}
-        <span class="fine">Used for new rounds. Cage Time is split into 30-minute blocks of 2 unless you change it.</span></div>
+        <span class="fine">Used for new rounds. These start from each activity's defaults in Settings.</span></div>
       <input type="hidden" name="pdf_b64" id="pdf_b64">
       <div class="full"><button class="btn" type="submit">Preview sessions</button></div>
     </form>

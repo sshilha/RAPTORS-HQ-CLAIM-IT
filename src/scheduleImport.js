@@ -1,6 +1,6 @@
 // Parses vendor schedule text (from the Turn Two PDF or pasted) into sessions.
 // Format per line: "<date>" lines followed by "6-7:30pm-Hitting-12/14/16/18U" lines.
-const { AGE_GROUPS, ACTIVITIES, ALL_AGES_ACTIVITIES } = require("./config");
+const { AGE_GROUPS, ACTIVITIES, ALL_AGES_ACTIVITIES, ACTIVITY_META } = require("./config");
 const { programName } = require("./rounds");
 
 const MONTHS = ["january","february","march","april","may","june","july","august","september","october","november","december"];
@@ -9,12 +9,12 @@ const MONTH_YEAR_RE = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{4})\\b`, "i")
 // Spaces are stripped first, so "Cage Time 1" arrives as "CageTime1"; age groups are optional
 const SESSION_RE = /^(\d{1,2})(?::(\d{2}))?(am|pm)?-(\d{1,2})(?::(\d{2}))?(am|pm)?-([a-z]+?)\d*(?:-((?:\d{1,2}\/)*\d{1,2})u)?$/i;
 
-const ACTIVITY_ALIASES = { h: "Hitting", d: "Defense", c: "Catching", p: "Pitching", def: "Defense" };
-
+// Matches an activity by name (spaces ignored) or by one of its import codes from Settings
 function activityFor(word) {
   const w = word.toLowerCase();
-  if (ACTIVITY_ALIASES[w]) return ACTIVITY_ALIASES[w];
-  return ACTIVITIES.find((a) => a.replace(/\s/g, "").toLowerCase() === w) || null;
+  const squash = (x) => String(x).replace(/\s/g, "").toLowerCase();
+  return ACTIVITIES.find((a) => squash(a) === w) ||
+    ACTIVITIES.find((a) => ((ACTIVITY_META[a] || {}).aliases || []).some((x) => squash(x) === w)) || null;
 }
 
 const to24 = (h, suffix) => (suffix.toLowerCase() === "am" ? h % 12 : (h % 12) + 12);

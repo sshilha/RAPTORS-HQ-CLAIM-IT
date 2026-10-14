@@ -44,7 +44,8 @@ function gateLayout({ title, body, flash }) {
 function bottomNav(tab, admin) {
   const items = [
     ["home", "/dashboard", "🏠", "My Training"],
-    ...(admin ? [["setup", "/admin/setup", "⚙️", "Setup"], ["reports", "/admin/reports", "📊", "Reports"], ["athletes", "/admin/athletes", "👥", "Athletes"]] : []),
+    ...(admin ? [["setup", "/admin/setup", "⚙️", "Setup"], ["reports", "/admin/reports", "📊", "Reports"],
+      ["athletes", "/admin/athletes", "👥", "Athletes"], ["settings", "/admin/settings", "🛠️", "Settings"]] : []),
   ];
   const active = SETUP_TABS.includes(tab) ? "setup" : tab || "home";
   return `<nav class="site-nav" aria-label="Main">${items.map(([k, href, icon, label]) =>

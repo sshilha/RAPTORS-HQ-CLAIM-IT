@@ -70,7 +70,7 @@ router.post("/", wrap(async (req, res) => {
       [name, s, e, seasonId, JSON.stringify(R.readDefaults({})), JSON.stringify(R.defaultLimits())])).rows[0].id;
   });
   go(res, dest(req, `/admin/rounds/${id}`, { id }), { ok: src
-    ? "Round created as a copy. Check its limits, limits end, and booking dates, then publish."
+    ? "Round created as a copy. Check its limits, unlock period, and booking dates, then publish."
     : "Round created. Next: add its times and sessions, then schedule them on the calendar." });
 }));
 

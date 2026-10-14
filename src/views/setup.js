@@ -1,6 +1,6 @@
 const { esc } = require("./layout");
 const { page } = require("./admin");
-const { AGE_GROUPS, ACTIVITIES, ACTIVITY_COLORS } = require("../config");
+const { AGE_GROUPS, ACTIVE_ACTIVITIES, ACTIVITY_COLORS, ACTIVITY_META, PRESETS, LOCATIONS } = require("../config");
 const { fmtDateTime } = require("../time");
 const { typeLabel, defaultsFor } = require("../rounds");
 const { niceRange, shortRange, statusPill } = require("./rounds");
@@ -62,10 +62,9 @@ function roundBlock(r, locked) {
             </tr>`).join("")}</tbody></table>` : `<p class="muted small">No sessions yet.</p>`}
 
           ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/types" class="quick-type">${back(anchor)}
-            <select name="activity" required aria-label="Activity"><option value="">Activity…</option>${ACTIVITIES.map((a) => `<option>${esc(a)}</option>`).join("")}</select>
+            <select name="activity" required aria-label="Activity"><option value="">Activity…</option>${ACTIVE_ACTIVITIES.map((a) => `<option>${esc(a)}</option>`).join("")}</select>
             <span class="ages">${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${g}"> ${g}</label>`).join("")}
-              <button type="button" class="tchip" data-ages="8U,10U">8U–10U</button>
-              <button type="button" class="tchip" data-ages="12U,14U,16U,18U">12U–18U</button></span>
+              ${PRESETS.map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}</span>
             <input type="number" name="spots" min="1" max="200" required placeholder="Spots" aria-label="Spots" class="spots-in">
             ${blockSelect("block", null, 'aria-label="Split into blocks" class="block-in"')}
             <input name="coach" placeholder="Coach (optional)" aria-label="Coach" class="coach-in">
@@ -180,15 +179,15 @@ function setupPage({ user, flash, seasons, rounds, standalone }) {
           b.closest("form").querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = want.indexOf(c.value) >= 0; });
         });
       });
-      // Cage Time defaults to all ages
+      // Picking an activity fills in its defaults from Settings
+      var META = ${JSON.stringify(ACTIVITY_META).replace(/</g, "\\u003c")};
       document.querySelectorAll('.quick-type select[name="activity"]').forEach(function (s) {
         s.addEventListener("change", function () {
-          if (s.value === "Cage Time") {
-            var f = s.closest("form");
-            f.querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = true; });
-            f.querySelector('select[name="block"]').value = "30";
-            f.querySelector('input[name="spots"]').placeholder = "2";
-          }
+          var m = META[s.value]; if (!m) return;
+          var f = s.closest("form");
+          if (m.all_ages) f.querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = true; });
+          f.querySelector('select[name="block"]').value = m.default_block ? String(m.default_block) : "";
+          f.querySelector('input[name="spots"]').placeholder = m.default_spots || "Spots";
         });
       });
     })();

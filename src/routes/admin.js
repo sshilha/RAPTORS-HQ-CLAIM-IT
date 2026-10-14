@@ -7,7 +7,7 @@ const { AGE_GROUPS } = require("../config");
 const { isDate, isTime, isLocal, localSql } = require("../time");
 const v = require("../views/admin");
 const locks = require("../locks");
-const { wrap, flashFrom, go, int, str } = require("./util");
+const { wrap, flashFrom, go, int, str, dest } = require("./util");
 
 const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
@@ -159,6 +159,58 @@ router.post("/sessions/:id", wrap(async (req, res) => {
   }
 }));
 
+// ---------- adjustments from the Who's signed up page ----------
+router.post("/sessions/:id/add", wrap(async (req, res) => {
+  const sid = int(req.params.id);
+  const back = dest(req, `/admin/sessions/${sid}`);
+  const athleteId = int(req.body.athlete_id);
+  if (!athleteId) return go(res, back, { err: "Pick an athlete to add." });
+  try {
+    const r = await booking.adminAdd({ adminId: req.user.id, athleteId, sessionId: sid, overCapacity: !!req.body.over });
+    notify(r.status, r.reservationId);
+    const a = (await query(`SELECT first_name, last_name FROM athletes WHERE id=$1`, [athleteId])).rows[0];
+    go(res, back, { ok: r.status === "confirmed"
+      ? `Added ${a.first_name} ${a.last_name}${r.grew ? " (added a spot)" : ""}. Their family was emailed.`
+      : `That session is full, so ${a.first_name} is on the waitlist. Check "Add anyway" to add a spot instead.` });
+  } catch (e) {
+    if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
+    if (e.code === "23505") return go(res, back, { err: "That athlete is already in this session." });
+    throw e;
+  }
+}));
+
+router.post("/reservations/:id/promote", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const back = dest(req, "/admin/setup");
+  try {
+    const r = await booking.adminPromote({ reservationId: id });
+    notify("promoted", id);
+    go(res, back, { ok: `Moved in from the waitlist${r.grew ? " (added a spot)" : ""}. Their family was emailed.` });
+  } catch (e) {
+    if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
+    throw e;
+  }
+}));
+
+router.post("/reservations/:id/move", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const back = dest(req, "/admin/setup");
+  const to = int(req.body.to_session_id);
+  if (!to) return go(res, back, { err: "Pick the session to move them to." });
+  if (await locks.sessionLocked(to)) return go(res, back, { err: locks.LOCKED_MSG });
+  try {
+    const r = await booking.adminMove({ adminId: req.user.id, reservationId: id, toSessionId: to, overCapacity: !!req.body.over });
+    notify(r.status, r.reservationId);
+    r.promoted.forEach((pid) => notify("promoted", pid));
+    go(res, back, { ok: r.status === "confirmed" ? `Moved${r.grew ? " (added a spot)" : ""}. Their family was emailed.`
+      : "Moved onto that session's waitlist because it's full. Check \"Add anyway\" to add a spot instead." });
+  } catch (e) {
+    if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
+    if (e.code === "23505") return go(res, back, { err: "That athlete is already in the other session." });
+    throw e;
+  }
+}));
+
 router.post("/sessions/:id/unlock", wrap(async (req, res) => {
   const id = int(req.params.id);
   const lock = req.body.mode === "lock";
@@ -185,9 +237,9 @@ router.post("/reservations/:id/cancel", wrap(async (req, res) => {
     const r = await booking.cancelReservation({ userId: req.user.id, reservationId: id, admin: true });
     notify("canceled", id);
     r.promoted.forEach((pid) => notify("promoted", pid));
-    go(res, `/admin/sessions/${sid}`, { ok: r.promoted.length ? "Removed. The next waitlisted athlete moved in." : "Removed." });
+    go(res, dest(req, `/admin/sessions/${sid}`), { ok: r.promoted.length ? "Removed. The next waitlisted athlete moved in." : "Removed." });
   } catch (e) {
-    if (e instanceof booking.BookingError) return go(res, `/admin/sessions/${sid}`, { err: e.message });
+    if (e instanceof booking.BookingError) return go(res, dest(req, `/admin/sessions/${sid}`), { err: e.message });
     throw e;
   }
 }));

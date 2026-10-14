@@ -18,6 +18,8 @@ app.use("/admin/import", require("./routes/import"));
 app.use("/admin/rounds", require("./routes/rounds"));
 app.use("/admin/seasons", require("./routes/seasons"));
 app.use("/admin/setup", require("./routes/setup"));
+app.use("/admin/settings", require("./routes/settings"));
+app.use("/admin/day", require("./routes/roster"));
 app.use("/admin/reports", require("./routes/reports"));
 app.use("/admin", require("./routes/admin"));
 app.use(require("./routes/parent"));
@@ -30,6 +32,7 @@ app.use((err, req, res, next) => {
 
 async function start() {
   await migrate();
+  await require("./catalog").load(); // activities, age groups, shortcuts, locations
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => console.log(`Raptors Training running on port ${PORT}`));

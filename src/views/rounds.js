@@ -1,6 +1,6 @@
 const { esc } = require("./layout");
 const { page } = require("./admin");
-const { AGE_GROUPS, ACTIVITIES, ACTIVITY_COLORS, ALL_AGES_ACTIVITIES } = require("../config");
+const { AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ACTIVITY_COLORS, ALL_AGES_ACTIVITIES, ACTIVITY_META, PRESETS, LOCATIONS } = require("../config");
 const { inputParts } = require("../time");
 const { typeLabel, defaultsFor, isUnlocked, limitFor } = require("../rounds");
 const { blockSelect, spotsLabel, limitsForm, limitsScript } = require("./partials");
@@ -102,9 +102,9 @@ function grid(round, sessions) {
       const label = d.getUTCDate() === 1 || key === round.starts_on || i === 0 ? `${MON[d.getUTCMonth()]} ${d.getUTCDate()}` : d.getUTCDate();
       days.push(d >= start && d <= end ? `<div class="day" data-date="${key}" data-label="${esc(nice(key))}" tabindex="0" role="button" aria-pressed="false">
         <div class="day-head"><span class="day-num">${label}</span>
-          ${list.length ? `<button type="button" class="copy-btn" data-copy="${key}" data-count="${list.length}" title="Copy this day to other days">Copy</button>` : ""}</div>
+          ${list.length ? `<span class="day-tools"><a class="who-btn" href="/admin/day/${key}" title="Who's signed up" aria-label="Who's signed up on ${esc(nice(key))}">👥</a><button type="button" class="copy-btn" data-copy="${key}" data-count="${list.length}" title="Copy this day to other days">Copy</button></span>` : ""}</div>
         ${groupBlocks(list).map((s) => s.blocks ? `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
-          <a href="/admin/programs/${s.program_id}" title="Open blocks and rosters">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
+          <a href="/admin/day/${key}#p${s.program_id}" title="See who's signed up for each block">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
             <span class="blocks-n">${s.blocks} blocks</span> <span class="spots-n">${s.taken}/${s.capacity}</span>${s.open ? `<span class="lock-ic" title="Unlocked: open to all athletes">🔓</span>` : ""}</a>
           ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/day-blocks/delete"><input type="hidden" name="program_id" value="${s.program_id}"><input type="hidden" name="date" value="${key}"><button type="submit" class="x" title="Remove these blocks" aria-label="Remove these blocks">×</button></form>`}
         </div>` : `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
@@ -162,13 +162,12 @@ function sessionsPanel(r, types) {
     <form method="post" action="/admin/rounds/${r.id}/types" class="type-add">
       <h3>Add a session</h3>
       <fieldset class="checks"><legend>Activity</legend>
-        ${ACTIVITIES.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
+        ${ACTIVE_ACTIVITIES.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
       </fieldset>
       <fieldset class="checks"><legend>Group</legend>
         ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${g}"> ${g}</label>`).join("")}
         <div class="presets">
-          <button type="button" class="tchip" data-ages="8U,10U">8U–10U</button>
-          <button type="button" class="tchip" data-ages="12U,14U,16U,18U">12U–18U</button>
+          ${PRESETS.map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}
           <button type="button" class="tchip" data-ages="${AGE_GROUPS.join(",")}">All ages</button>
         </div>
       </fieldset>
@@ -178,7 +177,7 @@ function sessionsPanel(r, types) {
         <label>Coach<input name="coach" placeholder="Optional"></label>
         <button class="btn-small" type="submit">Add session</button>
       </div>
-      <p class="fine">Split into blocks for sessions like Cage Time: scheduling 3–7 PM in 30-minute blocks with 2 spots creates eight 30-minute blocks of 2.</p>
+      <p class="fine">Split into blocks for drop-in style sessions (like Cage Time): scheduling 3–7 PM in 30-minute blocks with 2 spots creates eight 30-minute blocks of 2.</p>
     </form>
   </section>`;
 }
@@ -279,7 +278,8 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
         <span class="fine">Blank opens booking as soon as the round is published.</span></div>
 
       <div><label>Cancellation deadline (hours before)<input type="number" min="0" max="336" name="cancel_hours" value="${r.cancel_hours}"></label></div>
-      <div class="full"><label>Location<input name="location" value="${esc(r.location)}"></label>
+      <div class="full"><label>Location<input name="location" value="${esc(r.location)}" list="locations"></label>
+        <datalist id="locations">${LOCATIONS.map((l) => `<option value="${esc(l)}">`).join("")}</datalist>
         <label class="check"><input type="checkbox" name="apply_location" value="1"> Also change it on sessions already scheduled</label></div>
       ${readonly ? "" : `<div class="full"><button class="btn" type="submit">Save round</button></div>`}
     </fieldset></form>
@@ -359,7 +359,9 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     document.querySelectorAll('.type-add input[name="activity"]').forEach(function (r) {
       r.addEventListener("change", function () {
         var f = r.closest("form");
-        if (r.value === "Cage Time") { f.querySelector('select[name="block"]').value = "30"; f.querySelector('input[name="spots"]').placeholder = "2"; }
+        var m = ${JSON.stringify(ACTIVITY_META).replace(/</g, "\\u003c")}[r.value] || {};
+        f.querySelector('select[name="block"]').value = m.default_block ? String(m.default_block) : "";
+        f.querySelector('input[name="spots"]').placeholder = m.default_spots || "10";
       });
     });
     var last = ${JSON.stringify(String(last.d || ""))};

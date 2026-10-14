@@ -1,147 +1,234 @@
+// Family-facing pages: a month calendar per athlete, and a day page to book from.
 const { esc, layout } = require("./layout");
-const { fmtRange, fmtDateTime, fmtDay, fmtTime } = require("../time");
+const { fmtRange, fmtDateTime, fmtDay, fmtTime, inputParts } = require("../time");
 const { cancelDeadline, bookingOpen } = require("../booking");
+const { ACTIVITY_COLORS, ACTIVITIES } = require("../config");
 
-function reservationRow(r) {
+const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const parse = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const iso = (dt) => dt.toISOString().slice(0, 10);
+const addDays = (dt, n) => new Date(dt.getTime() + n * 864e5);
+const localDate = (ts) => inputParts(ts).date;
+const longDay = (isoDate) => { const d = parse(isoDate); return `${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getUTCDay()]}, ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+const dot = (a) => `<span class="dot" style="background:${ACTIVITY_COLORS[a] || "#8d9db6"}"></span>`;
+
+// ---------- shared pieces ----------
+
+// "This round" summary: what the athlete has used, per activity
+function usagePanel(programs, { title = "This round" } = {}) {
+  const groups = new Map();
+  for (const p of programs) {
+    const key = p.round_id ? `r${p.round_id}` : `p${p.id}`;
+    const g = groups.get(key) || { name: p.round_id ? p.round_name : p.name, unlock: p.round_id ? p.unlock_hours : null, items: new Map() };
+    if (!g.items.has(p.activity)) g.items.set(p.activity, { activity: p.activity, limit: p.limitsOn ? p.limit : null, used: p.used });
+    groups.set(key, g);
+  }
+  if (!groups.size) return "";
+  return `<section class="usage">${[...groups.values()].map((g) => {
+    const items = [...g.items.values()].sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity));
+    const full = items.some((i) => i.limit != null && i.used >= i.limit);
+    return `<div class="usage-round">
+      <div class="usage-title">${esc(groups.size > 1 ? g.name : `${title}: ${g.name}`)}</div>
+      <div class="usage-items">${items.map((i) => {
+        const done = i.limit != null && i.used >= i.limit;
+        return `<span class="usage-item${done ? " done" : ""}">${dot(i.activity)}<b>${esc(i.activity)}</b>
+          <span>${i.limit == null ? "Unlimited" : `${Math.min(i.used, i.limit)} of ${i.limit} used`}</span></span>`;
+      }).join("")}</div>
+      ${full && g.unlock != null ? `<p class="fine">Used up? Spots still open ${g.unlock % 24 === 0 ? `${g.unlock / 24} day${g.unlock === 24 ? "" : "s"}` : `${g.unlock} hour${g.unlock === 1 ? "" : "s"}`} before a session open to everyone, and those don't count against your limit.</p>` : ""}
+    </div>`;
+  }).join("")}</section>`;
+}
+
+function cancelControl(r, back) {
   const deadline = cancelDeadline(r.starts_at, r.cancel_hours);
   const canCancel = r.status === "waitlisted" || new Date() < deadline;
-  const pill = r.status === "confirmed"
-    ? `<span class="pill ok">Reserved</span>`
-    : `<span class="pill wait">Waitlist #${r.wait_pos}</span>`;
-  const action = canCancel
-    ? `<form method="post" action="/reservations/${r.id}/cancel"
-         onsubmit="return confirm('${r.status === "confirmed" ? "Cancel this reservation? The spot will open for another athlete." : "Leave the waitlist?"}')">
-         <button class="btn-ghost" type="submit">${r.status === "confirmed" ? "Cancel reservation" : "Leave waitlist"}</button>
-       </form>
-       ${r.status === "confirmed" ? `<span class="fine">Cancel by ${esc(fmtDateTime(deadline))}</span>` : ""}`
-    : `<span class="fine">Online cancellation closed. Contact your coach.</span>`;
-  return `<li class="res">
-    <div class="res-main">
-      <div class="res-when">${esc(fmtRange(r.starts_at, r.ends_at))}</div>
-      <div class="res-what">${esc(r.program_name)}${r.location ? `, ${esc(r.location)}` : ""}</div>
-    </div>
-    <div class="res-side">${pill}${action}</div>
-  </li>`;
+  if (!canCancel) return `<span class="fine">Online cancellation closed. Contact your coach.</span>`;
+  return `<form method="post" action="/reservations/${r.id}/cancel"
+      onsubmit="return confirm('${r.status === "confirmed" ? "Cancel this reservation? The spot will open for another athlete." : "Leave the waitlist?"}')">
+      <input type="hidden" name="return_to" value="${esc(back)}">
+      <button class="btn-ghost" type="submit">${r.status === "confirmed" ? "Cancel" : "Leave waitlist"}</button>
+    </form>${r.status === "confirmed" ? `<span class="fine">Cancel by ${esc(fmtDateTime(deadline))}</span>` : ""}`;
 }
 
-const dashboardPage = ({ user, athletes, reservations, admin, flash }) =>
-  layout({
+function athleteTabs(athletes, current, hrefFor) {
+  if (athletes.length < 2) return "";
+  return `<nav class="ath-tabs" aria-label="Athletes">${athletes.map((a) =>
+    `<a href="${hrefFor(a)}"${a.id === current.id ? ' aria-current="page"' : ""}>${esc(a.first_name)}${a.age_group ? ` <span>${esc(a.age_group)}</span>` : ""}</a>`).join("")}</nav>`;
+}
+
+// ---------- calendar (My Training) ----------
+
+function monthGrid(athlete, month, byDay, today) {
+  const first = parse(`${month}-01`);
+  const start = addDays(first, -first.getUTCDay());
+  const nextMonth = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1));
+  const end = addDays(nextMonth, (7 - nextMonth.getUTCDay()) % 7 - 1);
+  const cells = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    const key = iso(d);
+    const inMonth = d.getUTCMonth() === first.getUTCMonth();
+    const info = byDay.get(key);
+    const past = key < today;
+    if (!info || !inMonth) {
+      cells.push(`<div class="cal-day${inMonth ? "" : " other"}${key === today ? " today" : ""}${past ? " past" : ""}"><span class="cal-num">${d.getUTCDate()}</span></div>`);
+      continue;
+    }
+    cells.push(`<a class="cal-day has${info.mine ? " mine" : ""}${key === today ? " today" : ""}" href="/athletes/${athlete.id}/day/${key}"
+        aria-label="${esc(longDay(key))}: ${info.activities.size} activit${info.activities.size === 1 ? "y" : "ies"}${info.mine ? `, ${info.mine} reserved` : ""}">
+      <span class="cal-num">${d.getUTCDate()}</span>
+      ${info.mine ? `<span class="cal-mine" aria-hidden="true">✓${info.mine > 1 ? info.mine : ""}</span>` : ""}
+      <span class="cal-dots">${[...info.activities].map(dot).join("")}</span>
+    </a>`);
+  }
+  return `<div class="pcal"><div class="pcal-dow">${DOW.map((x) => `<span>${x[0]}<i>${x.slice(1)}</i></span>`).join("")}</div>
+    <div class="pcal-grid">${cells.join("")}</div></div>`;
+}
+
+function shiftMonth(month, n) {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash }) {
+  if (!athletes.length) return layout({ title: "My training", user, admin, flash, tab: "home",
+    body: `<section class="panel"><h1>Welcome to Raptors Training</h1>
+      <div class="empty"><p>No athletes are linked to this email yet.</p>
+        <p class="muted">If you signed in with a different email than the one on your SportsEngine account, sign out and try that one. Otherwise, contact the Raptors and we'll link your athlete.</p></div></section>` });
+
+  const today = inputParts(new Date()).date;
+  const byDay = new Map();
+  for (const p of programs) for (const s of p.sessions) {
+    const k = localDate(s.starts_at);
+    const info = byDay.get(k) || { activities: new Set(), mine: 0 };
+    info.activities.add(p.activity);
+    if (s.my_status) info.mine++;
+    byDay.set(k, info);
+  }
+  const mine = reservations.filter((r) => r.athlete_id === athlete.id);
+  const [y, m] = month.split("-").map(Number);
+  const href = (mo) => `/dashboard?a=${athlete.id}&m=${mo}`;
+  const curMonth = today.slice(0, 7);
+  const activities = [...new Set(programs.map((p) => p.activity))].sort((a, b) => ACTIVITIES.indexOf(a) - ACTIVITIES.indexOf(b));
+  const nextDay = [...byDay.keys()].filter((k) => k >= today).sort()[0];
+
+  return layout({
     title: "My training", user, admin, flash, tab: "home",
-    body: athletes.length
-      ? athletes.map((a) => {
-          const mine = reservations.filter((r) => r.athlete_id === a.id);
-          return `<section class="panel athlete">
-            <div class="athlete-head">
-              <h1>${esc(a.first_name)} ${esc(a.last_name)}</h1>
-              ${a.age_group ? `<span class="chip">${esc(a.age_group)}</span>` : ""}
-            </div>
-            ${mine.length
-              ? `<h2>Upcoming sessions</h2><ul class="res-list">${mine.map(reservationRow).join("")}</ul>`
-              : `<p class="muted">No upcoming sessions reserved.</p>`}
-            ${a.age_group
-              ? `<a class="btn" href="/athletes/${a.id}/book">Find training for ${esc(a.first_name)}</a>`
-              : `<p class="muted">${esc(a.first_name)} doesn't have an age group yet, so no training is shown. Contact the Raptors to fix this.</p>`}
-          </section>`;
-        }).join("")
-      : `<section class="panel">
-          <h1>Welcome to Raptors Training</h1>
-          <p class="muted">Signed in as ${esc(user.email)}</p>
-          <div class="empty">
-            <p>No athletes are linked to this email yet.</p>
-            <p class="muted">If you signed in with a different email than the one on your SportsEngine account, sign out and try that one. Otherwise, contact the Raptors and we'll link your athlete.</p>
-          </div>
-        </section>`,
+    body: `${athleteTabs(athletes, athlete, (a) => `/dashboard?a=${a.id}&m=${month}`)}
+    <section class="panel athlete">
+      <div class="athlete-head"><h1>${esc(athlete.first_name)} ${esc(athlete.last_name)}</h1>
+        ${athlete.age_group ? `<span class="chip">${esc(athlete.age_group)}</span>` : ""}</div>
+      ${!athlete.age_group ? `<p class="muted">${esc(athlete.first_name)} doesn't have a group yet, so no training is shown. Contact the Raptors to fix this.</p>` : `
+      ${usagePanel(programs)}
+      <div class="month-head">
+        ${month > curMonth ? `<a class="month-nav" href="${href(shiftMonth(month, -1))}" aria-label="Previous month">‹</a>` : `<span class="month-nav off" aria-hidden="true">‹</span>`}
+        <h2>${MON[m - 1]} ${y}</h2>
+        <a class="month-nav" href="${href(shiftMonth(month, 1))}" aria-label="Next month">›</a>
+      </div>
+      ${monthGrid(athlete, month, byDay, today)}
+      <div class="pcal-legend">${activities.map((a) => `<span>${dot(a)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Reserved</span></div>
+      ${byDay.size ? `<p class="fine">Tap a day to see its sessions and reserve.${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
+        : `<div class="empty"><p>No upcoming training for ${esc(athlete.age_group)} right now.</p><p class="muted">New sessions show up here as soon as they're posted.</p></div>`}`}
+    </section>
+
+    <section class="panel">
+      <h2 class="banner">Upcoming for ${esc(athlete.first_name)}</h2>
+      ${mine.length ? `<ul class="res-list">${mine.map((r) => `<li class="res">
+        <a class="res-main res-link" href="/athletes/${athlete.id}/day/${localDate(r.starts_at)}">
+          <div class="res-when">${esc(fmtRange(r.starts_at, r.ends_at))}</div>
+          <div class="res-what">${esc(r.program_name)}${r.location ? `, ${esc(r.location)}` : ""}</div></a>
+        <div class="res-side">${r.status === "confirmed" ? `<span class="pill ok">Reserved</span>` : `<span class="pill wait">Waitlist #${r.wait_pos}</span>`}
+          ${cancelControl(r, `/dashboard?a=${athlete.id}&m=${month}`)}</div></li>`).join("")}</ul>`
+        : `<p class="muted">Nothing reserved yet. Pick a day on the calendar to get started.</p>`}
+    </section>`,
   });
+}
+
+// ---------- day page ----------
 
 const atLimit = (p) => p.limit != null && p.limitsOn && p.used >= p.limit;
-// A session is blocked by the limit only while it's locked
 const blocked = (p, s) => atLimit(p) && !s.unlocked;
-const unlockHint = (s, compact) => s.unlocksAt
-  ? (compact ? `Opens ${fmtDay(s.unlocksAt)}` : `Opens to all ${fmtDateTime(s.unlocksAt)}`) : "";
 
-function ruleLine(p) {
-  if (!bookingOpen(p)) return `Booking opens ${esc(fmtDateTime(p.booking_opens_at))}.`;
-  if (p.limit == null || !p.limitsOn)
-    return p.limit == null && p.round_id ? `Book as many ${esc(p.activity)} spots as you like.` : `Open booking: reserve any session with open spots.`;
-  const n = p.limit === 1 ? "session" : "sessions";
-  const scope = p.round_id ? `${esc(p.activity)} ${n} in ${esc(p.round_name)}` : `${n} in this program`;
-  const unlockNote = p.round_id
-    ? (p.unlock_hours != null ? ` Spots still open ${esc(unlockWhen(p.unlock_hours))} a session are open to everyone.` : "")
-    : "";
-  return `Up to ${p.limit} ${scope} per athlete${p.limitsEnd ? ` until ${esc(fmtDateTime(p.limitsEnd))}` : ""}. ` +
-    `<strong>${Math.min(p.used, p.limit)} of ${p.limit} used.</strong>${unlockNote}`;
-}
-
-const unlockWhen = (h) => (h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"} before` : `${h} hour${h === 1 ? "" : "s"} before`);
-
-function actionFor(p, s, athlete, compact) {
+function actionFor(p, s, athlete, back, compact) {
   const open = s.capacity - s.confirmed;
-  if (s.my_status === "confirmed") return `<span class="pill ok">Reserved</span>`;
-  if (s.my_status === "waitlisted") return `<span class="pill wait">Waitlist #${s.my_pos}</span>`;
-  if (!bookingOpen(p)) return `<button class="btn-small" disabled>${compact ? "Soon" : "Not open yet"}</button>`;
+  if (s.my_status) {
+    const r = { id: s.my_id, status: s.my_status, starts_at: s.starts_at, cancel_hours: p.cancel_hours };
+    return `${s.my_status === "confirmed" ? `<span class="pill ok">Reserved</span>` : `<span class="pill wait">Waitlist #${s.my_pos}</span>`}
+      ${compact ? `<form method="post" action="/reservations/${s.my_id}/cancel" onsubmit="return confirm('Cancel this spot?')">
+          <input type="hidden" name="return_to" value="${esc(back)}"><button class="link-dark sm" type="submit">Cancel</button></form>` : cancelControl(r, back)}`;
+  }
+  if (!bookingOpen(p)) return `<button class="btn-small" disabled>${compact ? "Soon" : `Opens ${esc(fmtDateTime(p.booking_opens_at))}`}</button>`;
   if (blocked(p, s)) return `<button class="btn-small" disabled>${compact ? "Limit" : "Limit reached"}</button>` +
-    (unlockHint(s, compact) ? `<span class="fine unlock-hint">${esc(unlockHint(s, compact))}</span>` : "");
+    (s.unlocksAt ? `<span class="fine unlock-hint">${compact ? `Opens ${esc(fmtDay(s.unlocksAt))}` : `Opens to all ${esc(fmtDateTime(s.unlocksAt))}`}</span>` : "");
   return `<form method="post" action="/athletes/${athlete.id}/book">
-      <input type="hidden" name="session_id" value="${s.id}">
+      <input type="hidden" name="session_id" value="${s.id}"><input type="hidden" name="return_to" value="${esc(back)}">
       <button class="${open > 0 ? "btn-small" : "btn-small secondary"}" type="submit">${open > 0 ? "Reserve" : compact ? "Waitlist" : "Join waitlist"}</button>
     </form>`;
 }
 
-function sessionRow(p, s, athlete) {
+// "Going (3): Ava S., Bea J., Cy J." with the current athlete highlighted
+function goingLine(list, athlete, compact) {
+  if (!list || !list.length) return compact ? "" : `<div class="going none">No one yet. Be the first!</div>`;
+  const names = list.map((g) => g.id === athlete.id ? `<b>${esc(g.name)}</b>` : esc(g.name)).join(", ");
+  if (compact) return `<div class="going sm">${names}</div>`;
+  return list.length > 8
+    ? `<details class="going"><summary>Going (${list.length})</summary>${names}</details>`
+    : `<div class="going"><span>Going (${list.length}):</span> ${names}</div>`;
+}
+
+function sessionCard(p, s, athlete, back, going, showNames) {
   const open = s.capacity - s.confirmed;
   const spots = open > 0 ? `${open} of ${s.capacity} spots open` : `Full${s.waitlisted ? `, ${s.waitlisted} on waitlist` : ""}`;
-  return `<li class="sess${open > 0 ? "" : " full"}">
+  return `<li class="sess${open > 0 ? "" : " full"}${s.my_status ? " mine" : ""}">
     <div class="sess-main">
-      <div class="sess-day">${esc(fmtDay(s.starts_at))}</div>
       <div class="sess-time">${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}</div>
       <div class="sess-meta">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</div>
       ${s.notes ? `<div class="sess-meta">${esc(s.notes)}</div>` : ""}
+      <div class="spots">${spots}${s.unlocked && open > 0 && !s.my_status ? ` <span class="pill open-all">Open to all</span>` : ""}</div>
+      ${showNames ? goingLine(going[s.id], athlete) : ""}
     </div>
-    <div class="sess-side"><div class="spots">${spots}</div>${s.unlocked && open > 0 ? `<span class="pill open-all">Open to all</span>` : ""}${actionFor(p, s, athlete)}</div>
+    <div class="sess-side">${actionFor(p, s, athlete, back)}</div>
   </li>`;
 }
 
-// Programs split into blocks (e.g. Cage Time, 30 minutes) show as a grid of times per day
-function blockDays(p, athlete) {
-  const days = [];
-  for (const s of p.sessions) {
-    const key = fmtDay(s.starts_at);
-    let d = days.find((x) => x.key === key);
-    if (!d) days.push((d = { key, list: [] }));
-    d.list.push(s);
-  }
-  return days.map((d) => `<div class="block-day">
-    <div class="sess-day">${esc(d.key)}</div>
-    <div class="sess-meta">${esc(fmtTime(d.list[0].starts_at))}–${esc(fmtTime(d.list[d.list.length - 1].ends_at))}${d.list[0].location ? `, ${esc(d.list[0].location)}` : ""}</div>
-    <div class="block-grid">${d.list.map((s) => {
+function blockGrid(p, list, athlete, back, going, showNames) {
+  return `<div class="sess-meta">${esc(fmtTime(list[0].starts_at))}–${esc(fmtTime(list[list.length - 1].ends_at))}${list[0].location ? `, ${esc(list[0].location)}` : ""}</div>
+    <div class="block-grid">${list.map((s) => {
       const open = s.capacity - s.confirmed;
       return `<div class="block${s.my_status ? " mine" : open > 0 ? "" : " full"}">
         <div class="block-time">${esc(fmtTime(s.starts_at))}</div>
         <div class="block-open">${s.my_status ? "&nbsp;" : open > 0 ? `${open} open${s.unlocked ? " · all" : ""}` : "Full"}</div>
-        ${actionFor(p, s, athlete, true)}
+        ${showNames ? goingLine(going[s.id], athlete, true) : ""}
+        ${actionFor(p, s, athlete, back, true)}
       </div>`;
-    }).join("")}</div>
-  </div>`).join("");
+    }).join("")}</div>`;
 }
 
-const bookPage = ({ user, athlete, programs, admin, flash }) =>
-  layout({
-    title: `Book training for ${athlete.first_name}`, user, admin, flash, tab: "home",
-    body: `<a class="back" href="/dashboard">My training</a>
+function dayPage({ user, athletes, athlete, programs, date, prevDay, nextDay, admin, flash, going = {}, showNames }) {
+  const back = `/athletes/${athlete.id}/day/${date}`;
+  const todays = programs.map((p) => ({ ...p, today: p.sessions.filter((s) => localDate(s.starts_at) === date) })).filter((p) => p.today.length)
+    .sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity) || a.today[0].starts_at - b.today[0].starts_at);
+  const relevant = programs.filter((p) => todays.some((t) => (t.round_id && t.round_id === p.round_id) || t.id === p.id));
+  return layout({
+    title: longDay(date), user, admin, flash, tab: "home",
+    body: `${athleteTabs(athletes, athlete, (a) => `/athletes/${a.id}/day/${date}`)}
+    <div class="day-nav">
+      <a class="back" href="/dashboard?a=${athlete.id}&m=${date.slice(0, 7)}">Calendar</a>
+      <span class="spacer"></span>
+      ${prevDay ? `<a class="month-nav" href="/athletes/${athlete.id}/day/${prevDay}" aria-label="Previous training day">‹</a>` : `<span class="month-nav off">‹</span>`}
+      ${nextDay ? `<a class="month-nav" href="/athletes/${athlete.id}/day/${nextDay}" aria-label="Next training day">›</a>` : `<span class="month-nav off">›</span>`}
+    </div>
     <section class="panel">
-      <div class="athlete-head">
-        <h1>Book training for ${esc(athlete.first_name)}</h1>
-        <span class="chip">${esc(athlete.age_group)}</span>
-      </div>
-      ${programs.length ? programs.map((p) => `
-        <div class="program">
-          <h2 class="banner">${esc(p.name)}</h2>
-          ${p.description ? `<p class="muted">${esc(p.description)}</p>` : ""}
-          <p class="rule">${ruleLine(p)}</p>
-          ${p.block_minutes ? blockDays(p, athlete) : `<ul class="sess-list">${p.sessions.map((s) => sessionRow(p, s, athlete)).join("")}</ul>`}
-        </div>`).join("")
-      : `<div class="empty"><p>No upcoming training for ${esc(athlete.age_group)} right now.</p><p class="muted">New sessions show up here as soon as they're posted.</p></div>`}
+      <div class="athlete-head"><h1>${esc(longDay(date))}</h1><span class="chip">${esc(athlete.first_name)}</span></div>
+      ${admin ? `<p class="admin-hint"><a href="/admin/day/${date}">👥 Who's signed up this day</a> <span class="fine-inline">(admins only)</span></p>` : ""}
+      ${usagePanel(relevant)}
+      ${todays.length ? todays.map((p) => `<div class="program">
+        <h2 class="banner">${esc(p.round_id ? p.name.replace(new RegExp(`^${p.round_name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+`), "") : p.name)}</h2>
+        ${p.block_minutes ? blockGrid(p, p.today, athlete, back, going, showNames) : `<ul class="sess-list">${p.today.map((s) => sessionCard(p, s, athlete, back, going, showNames)).join("")}</ul>`}
+      </div>`).join("") : `<div class="empty"><p>No training for ${esc(athlete.first_name)} on this day.</p></div>`}
     </section>`,
   });
+}
 
-module.exports = { dashboardPage, bookPage };
+module.exports = { dashboardPage, dayPage };

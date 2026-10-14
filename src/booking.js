@@ -102,8 +102,9 @@ async function reserve({ userId, athleteId, sessionId }) {
       const round = { activity_limits: s.activity_limits, priority_limit: s.round_limit, unlock_hours: s.unlock_hours };
       const limit = R.limitFor(round, s.activity);
       const unlocked = R.isUnlocked(s, round);
-      counts = limit != null && !unlocked;
-      if (counts && (await activityUsage(db, athleteId, s.round_id, s.activity)) >= limit) {
+      // Only an extra spot taken from an unlocked session is exempt from the limit
+      counts = !(limit != null && unlocked);
+      if (limit != null && !unlocked && (await activityUsage(db, athleteId, s.round_id, s.activity)) >= limit) {
         const at = R.unlocksAt(s, round);
         throw new BookingError(
           (limit === 1 ? `${a.first_name} already has the 1 ${s.activity} reservation allowed in ${s.round_name}.`
@@ -126,6 +127,62 @@ async function reserve({ userId, athleteId, sessionId }) {
       [sessionId, athleteId, userId, status, counts]
     )).rows[0];
     return { reservationId: r.id, status };
+  });
+}
+
+// ---------- admin adjustments (skip limits and group rules) ----------
+
+// Put an athlete into a session. Full sessions waitlist them, unless overCapacity adds a spot.
+async function placeAthlete(db, { adminId, athleteId, sessionId, overCapacity }) {
+  const s = (await db.query(
+    `SELECT s.*, p.activity, p.round_id, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours
+     FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id
+     WHERE s.id=$1 FOR UPDATE OF s`, [sessionId])).rows[0];
+  if (!s || s.canceled_at) throw new BookingError("That session isn't available.");
+  const dup = await db.query(`SELECT 1 FROM reservations WHERE session_id=$1 AND athlete_id=$2 AND status<>'canceled'`, [sessionId, athleteId]);
+  if (dup.rowCount) throw new BookingError("That athlete is already in this session (or its waitlist).");
+  const confirmed = (await db.query(`SELECT count(*)::int AS n FROM reservations WHERE session_id=$1 AND status='confirmed'`, [sessionId])).rows[0].n;
+  let status = "confirmed";
+  if (confirmed >= s.capacity) {
+    if (overCapacity) await db.query(`UPDATE training_sessions SET capacity=$2 WHERE id=$1`, [sessionId, confirmed + 1]);
+    else status = "waitlisted";
+  }
+  let counts = true;
+  if (s.round_id) {
+    const round = { activity_limits: s.activity_limits, priority_limit: s.round_limit, unlock_hours: s.unlock_hours };
+    counts = !(R.limitFor(round, s.activity) != null && R.isUnlocked(s, round));
+  }
+  const r = (await db.query(
+    `INSERT INTO reservations (session_id, athlete_id, booked_by, status, counts_toward_limit) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+    [sessionId, athleteId, adminId, status, counts])).rows[0];
+  return { reservationId: r.id, status, grew: confirmed >= s.capacity && overCapacity };
+}
+
+const adminAdd = (opts) => tx((db) => placeAthlete(db, opts));
+
+// Move someone off the waitlist now; if the session is full, add a spot for them
+async function adminPromote({ reservationId }) {
+  return tx(async (db) => {
+    const r = (await db.query(`SELECT * FROM reservations WHERE id=$1 FOR UPDATE`, [reservationId])).rows[0];
+    if (!r || r.status !== "waitlisted") throw new BookingError("That athlete isn't on the waitlist.");
+    const s = (await db.query(`SELECT * FROM training_sessions WHERE id=$1 FOR UPDATE`, [r.session_id])).rows[0];
+    const confirmed = (await db.query(`SELECT count(*)::int AS n FROM reservations WHERE session_id=$1 AND status='confirmed'`, [s.id])).rows[0].n;
+    if (confirmed >= s.capacity) await db.query(`UPDATE training_sessions SET capacity=$2 WHERE id=$1`, [s.id, confirmed + 1]);
+    await db.query(`UPDATE reservations SET status='confirmed', promoted_at=now() WHERE id=$1`, [reservationId]);
+    return { grew: confirmed >= s.capacity };
+  });
+}
+
+// Move an athlete to another session: their old spot opens (waitlist moves up), they're placed in the new one
+async function adminMove({ adminId, reservationId, toSessionId, overCapacity }) {
+  return tx(async (db) => {
+    const r = (await db.query(`SELECT * FROM reservations WHERE id=$1 FOR UPDATE`, [reservationId])).rows[0];
+    if (!r || r.status === "canceled") throw new BookingError("That reservation no longer exists.");
+    if (r.session_id === toSessionId) throw new BookingError("Pick a different session to move to.");
+    await db.query(`UPDATE reservations SET status='canceled', canceled_at=now(), canceled_by=$2 WHERE id=$1`, [reservationId, adminId]);
+    const promoted = r.status === "confirmed" ? await promoteWaitlist(db, r.session_id) : [];
+    const placed = await placeAthlete(db, { adminId, athleteId: r.athlete_id, sessionId: toSessionId, overCapacity });
+    return { ...placed, promoted };
   });
 }
 
@@ -257,6 +314,6 @@ async function bookingOptions(athlete) {
 }
 
 module.exports = {
-  BookingError, reserve, cancelReservation, cancelSession, updateSessionCapacity, promoteWaitlist,
+  BookingError, reserve, cancelReservation, adminAdd, adminPromote, adminMove, cancelSession, updateSessionCapacity, promoteWaitlist,
   parentReservations, bookingOptions, priorityActive, bookingOpen, cancelDeadline, isParentOf,
 };
