@@ -30,7 +30,7 @@ function details(r) {
   return { html: `<p style="line-height:1.6">${lines.map(esc).join("<br>")}</p>`, text: lines.join("\n") };
 }
 
-const button = { href: `${APP_URL}/dashboard`, label: "View my training" };
+const button = { href: `${APP_URL}/dashboard`, label: "View my sign-ups" };
 
 const templates = {
   confirmed: (r) => ({

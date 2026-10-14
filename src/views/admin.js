@@ -4,9 +4,22 @@ const { fmtRange, fmtDateTime, inputParts } = require("../time");
 const { priorityActive } = require("../booking");
 const { limitFor, isUnlocked, unlocksAt } = require("../rounds");
 
-const page = (opts) => layout({ ...opts, admin: true, wide: true });
+// Tabs across the top of every Settings page
+const { LABELS } = require("../config");
+const SETTINGS_TABS = [
+  ["schedule", "/admin/setup", "Schedule", ["setup", "seasons", "rounds", "programs", "import"]],
+  ["athletes", "/admin/athletes", () => esc(LABELS.participants), ["athletes"]],
+  ["lists", "/admin/settings", `<span class="t-long">Activities &amp; groups</span><span class="t-short">Activities</span>`, ["settings"]],
+];
+function settingsTabs(tab) {
+  const cur = SETTINGS_TABS.find((t) => t[3].includes(tab));
+  if (!cur) return "";
+  return `<nav class="settings-tabs no-print" aria-label="Settings">${SETTINGS_TABS.map(([k, href, label]) =>
+    `<a href="${href}"${k === cur[0] ? ' aria-current="page"' : ""}>${typeof label === "function" ? label() : label}</a>`).join("")}</nav>`;
+}
+const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsTabs(opts.tab) + opts.body });
 
-const ageChecks = (selected = []) => `<fieldset class="checks"><legend>Age groups</legend>
+const ageChecks = (selected = []) => `<fieldset class="checks"><legend>Groups</legend>
   ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="age_groups" value="${g}"${selected.includes(g) ? " checked" : ""}> ${g}</label>`).join("")}
 </fieldset>`;
 
@@ -154,27 +167,27 @@ const ageSelect = (val) => `<select name="age_group" required>
   <option value="">Choose…</option>${AGE_GROUPS.map((g) => `<option${g === val ? " selected" : ""}>${g}</option>`).join("")}</select>`;
 
 const athletesPage = ({ user, athletes, flash }) => page({
-  title: "Athletes", tab: "athletes", user, flash,
+  title: LABELS.participants, tab: "athletes", user, flash,
   body: `<section class="panel">
-    <h1>Athletes</h1>
+    <h1>${esc(LABELS.participants)}</h1>
     ${athletes.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>Athlete</th><th>Age group</th><th>Team</th><th>Parent emails</th></tr></thead>
+      <thead><tr><th>${esc(LABELS.participant)}</th><th>${esc(LABELS.group)}</th><th>Team</th><th>Emails</th></tr></thead>
       <tbody>${athletes.map((a) => `<tr>
         <td><a href="/admin/athletes/${a.id}">${esc(a.last_name)}, ${esc(a.first_name)}</a></td>
-        <td>${esc(a.age_group || "Missing")}</td><td>${esc(a.team || "")}</td>
+        <td>${a.self_user_id ? `<span class="fine">Adult (self)</span>` : esc(a.age_group || "None")}</td><td>${esc(a.team || "")}</td>
         <td>${a.emails.length ? esc(a.emails.join(", ")) : `<span class="fine">None linked</span>`}</td></tr>`).join("")}</tbody></table></div>`
-      : `<p class="muted">No athletes yet. Add one below.</p>`}
+      : `<p class="muted">No ${esc(LABELS.participants.toLowerCase())} yet. Add one below.</p>`}
   </section>
   <section class="panel">
-    <h2>Add athlete</h2>
+    <h2>Add ${esc(LABELS.participant.toLowerCase())}</h2>
     <form method="post" action="/admin/athletes" class="grid-form">
       <div><label>First name<input name="first_name" required></label></div>
       <div><label>Last name<input name="last_name" required></label></div>
-      <div><label>Age group${ageSelect()}</label></div>
+      <div><label>${esc(LABELS.group)}${ageSelect()}</label></div>
       <div><label>Team (optional)<input name="team" placeholder="12U Shilha"></label></div>
       <div class="full"><label>Parent emails<input name="parent_emails" placeholder="mom@example.com, dad@example.com"></label>
         <span class="fine">Separate with commas. Each parent signs in with their own email.</span></div>
-      <div class="full"><button class="btn" type="submit">Add athlete</button></div>
+      <div class="full"><button class="btn" type="submit">Add ${esc(LABELS.participant.toLowerCase())}</button></div>
     </form>
   </section>`,
 });
@@ -187,7 +200,7 @@ const athletePage = ({ user, athlete: a, parents, flash }) => page({
     <form method="post" action="/admin/athletes/${a.id}" class="grid-form">
       <div><label>First name<input name="first_name" required value="${esc(a.first_name)}"></label></div>
       <div><label>Last name<input name="last_name" required value="${esc(a.last_name)}"></label></div>
-      <div><label>Age group${ageSelect(a.age_group)}</label></div>
+      <div><label>${esc(LABELS.group)}${ageSelect(a.age_group)}</label></div>
       <div><label>Team (optional)<input name="team" value="${esc(a.team)}"></label></div>
       <div class="full"><button class="btn" type="submit">Save athlete</button></div>
     </form>

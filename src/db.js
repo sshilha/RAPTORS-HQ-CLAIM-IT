@@ -139,6 +139,30 @@ async function migrate() {
     -- Locked sessions honor the per-activity limits; they unlock this many hours before they start (NULL = never)
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS unlock_hours INTEGER DEFAULT 168;
     ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS unlocked_at TIMESTAMPTZ;
+    -- Waitlists are optional: per round (default off), with a per-session override (NULL = use the round's)
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS waitlist BOOLEAN NOT NULL DEFAULT false;
+
+    -- Schedules: separate sign-up instances (e.g. Training, Concessions), each naming its own levels
+    CREATE TABLE IF NOT EXISTS schedules (
+      id         SERIAL PRIMARY KEY,
+      name       TEXT NOT NULL,
+      labels     JSONB NOT NULL DEFAULT '{}',
+      activities TEXT[],            -- which activities this schedule offers (NULL = all)
+      sort       INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    ALTER TABLE seasons ADD COLUMN IF NOT EXISTS schedule_id INTEGER REFERENCES schedules(id) ON DELETE CASCADE;
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS schedule_id INTEGER REFERENCES schedules(id) ON DELETE CASCADE;
+    -- Who can sign up for a sheet: roster (linked athletes in matching groups), family (signed-in
+    -- users for themselves or their kids), public (anyone with the link)
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS signup_mode TEXT NOT NULL DEFAULT 'roster';
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE;
+    ALTER TABLE rounds ALTER COLUMN share_token SET DEFAULT md5(random()::text || clock_timestamp()::text);
+    UPDATE rounds SET share_token = md5(random()::text || clock_timestamp()::text || id) WHERE share_token IS NULL;
+    -- A participant can be an adult signing up themselves (linked to their own login)
+    ALTER TABLE athletes ADD COLUMN IF NOT EXISTS self_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_self_participant ON athletes(self_user_id) WHERE self_user_id IS NOT NULL;
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS waitlist BOOLEAN;
     -- Spots taken from unlocked sessions don't use up an athlete's limit
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS counts_toward_limit BOOLEAN NOT NULL DEFAULT true;
     -- Earlier builds flagged bookings of unlimited activities as "open spots"; they're regular bookings

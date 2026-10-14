@@ -1,4 +1,33 @@
-# Raptors Training Scheduler
+# Raptors Sign-Ups
+
+A general sign-up tool (think SignUpGenius) for the Chippewa Valley Raptors: training,
+concessions and volunteer shifts, events, anything with times and spots.
+
+## Schedules and levels
+
+A **schedule** is a separate sign-up instance (e.g. "Training", "Concessions"). Each one
+names its own levels under Settings → Schedule → Schedule settings:
+
+| Level | What it is | e.g. |
+|---|---|---|
+| Top level | Groups everything for a period; complete it to archive read-only | Season, Term, Year |
+| Sheet level | One sign-up sheet with its own dates, rules, limits, and who signs up | Round, Event, Week |
+| Type | What people sign up for, with default spots and limits | Activity, Role, Item |
+| Slot | One bookable time with spots, whole or split into blocks | Session, Shift, Slot |
+
+Each schedule also picks which types (activities/roles) it offers. App-wide names (app,
+organization, participant, group) are under Settings → Activities & groups → Names & labels.
+
+## Who signs up (per sheet)
+
+- **Roster only:** linked participants in the sheet's groups (how training works).
+- **Signed-in families:** any signed-in family can sign up themselves (a "Me" tab) or any of
+  their participants; groups don't restrict it.
+- **Anyone with the link:** a public page at `/s/<token>` (share link + QR code on the sheet).
+  People enter a name and email, no account needed; they can sign in later with that email
+  to see or cancel.
+
+# (Original training scheduler notes)
 
 Training reservations for Chippewa Valley Raptors families, launched from the private
 SportsEngine **Training Sign-Up** page.
@@ -34,9 +63,12 @@ listed under the calendar.
 
 ## Admin (emails in ADMIN_EMAILS)
 
-Admin has four tabs: **Setup**, **Reports**, **Athletes**, and **Settings**.
+Admins have three items in the bottom nav: **My Training**, **Reports**, and **Settings**.
+Settings has three tabs: **Schedule** (seasons, rounds, times, sessions, calendars, import,
+Who's signed up), **Athletes** (athletes and parents), and **Activities & groups** (activities,
+groups, shortcuts, locations, family view).
 
-- **Setup** is one page for everything: each open season, its rounds, and each round's
+- **Schedule** (Settings → Schedule) is one page for everything: each open season, its rounds, and each round's
   times and sessions (activity + group + spots), with add/edit right there. Open a round's
   calendar to schedule sessions on days. Also: open a new season (empty or copied),
   import the vendor schedule, and view completed seasons (read-only).
@@ -62,6 +94,9 @@ Admin has four tabs: **Setup**, **Reports**, **Athletes**, and **Settings**.
      as a new time slot), check one or more sessions, and schedule them all at once.
      "Copy" duplicates a day onto other days.
   Rounds are drafts, hidden from families, until you click **Publish round**.
+- **Waitlist (optional):** off by default. Turn it on per round ("Use a waitlist when sessions
+  fill up" in the round's limits), and override per session (Round default / On / Off). With it
+  off, full sessions show "Full"; admins can still "Add anyway" to add a spot.
 - **Limits per athlete** are set per round, per activity (e.g. Hitting 2, Defense 1,
   Catching 1, Cage Time unlimited). Sessions are **locked** to these limits: an athlete can
   reserve a locked session only while she has an unused reservation for that activity.

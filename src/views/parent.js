@@ -2,7 +2,8 @@
 const { esc, layout } = require("./layout");
 const { fmtRange, fmtDateTime, fmtDay, fmtTime, inputParts } = require("../time");
 const { cancelDeadline, bookingOpen } = require("../booking");
-const { ACTIVITY_COLORS, ACTIVITIES } = require("../config");
+const { ACTIVITY_COLORS, ACTIVITIES, LABELS } = require("../config");
+const SC = require("../schedules");
 
 const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -20,7 +21,8 @@ function usagePanel(programs, { title = "This round" } = {}) {
   const groups = new Map();
   for (const p of programs) {
     const key = p.round_id ? `r${p.round_id}` : `p${p.id}`;
-    const g = groups.get(key) || { name: p.round_id ? p.round_name : p.name, unlock: p.round_id ? p.unlock_hours : null, items: new Map() };
+    const g = groups.get(key) || { name: p.round_id ? p.round_name : p.name, unlock: p.round_id ? p.unlock_hours : null, items: new Map(),
+      level: SC.labels({ labels: p.schedule_labels }).middle.one };
     if (!g.items.has(p.activity)) g.items.set(p.activity, { activity: p.activity, limit: p.limitsOn ? p.limit : null, used: p.used });
     groups.set(key, g);
   }
@@ -29,7 +31,7 @@ function usagePanel(programs, { title = "This round" } = {}) {
     const items = [...g.items.values()].sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity));
     const full = items.some((i) => i.limit != null && i.used >= i.limit);
     return `<div class="usage-round">
-      <div class="usage-title">${esc(groups.size > 1 ? g.name : `${title}: ${g.name}`)}</div>
+      <div class="usage-title">${esc(groups.size > 1 ? g.name : `This ${g.level.toLowerCase()}: ${g.name}`)}</div>
       <div class="usage-items">${items.map((i) => {
         const done = i.limit != null && i.used >= i.limit;
         return `<span class="usage-item${done ? " done" : ""}">${dot(i.activity)}<b>${esc(i.activity)}</b>
@@ -53,8 +55,9 @@ function cancelControl(r, back) {
 
 function athleteTabs(athletes, current, hrefFor) {
   if (athletes.length < 2) return "";
-  return `<nav class="ath-tabs" aria-label="Athletes">${athletes.map((a) =>
-    `<a href="${hrefFor(a)}"${a.id === current.id ? ' aria-current="page"' : ""}>${esc(a.first_name)}${a.age_group ? ` <span>${esc(a.age_group)}</span>` : ""}</a>`).join("")}</nav>`;
+  // (adults signing up themselves show as "Me")
+  return `<nav class="ath-tabs" aria-label="${esc(LABELS.participants)}">${athletes.map((a) =>
+    `<a href="${hrefFor(a)}"${a.id === current.id ? ' aria-current="page"' : ""}>${a.self_user_id ? "Me" : esc(a.first_name)}${a.age_group ? ` <span>${esc(a.age_group)}</span>` : ""}</a>`).join("")}</nav>`;
 }
 
 // ---------- calendar (My Training) ----------
@@ -91,11 +94,21 @@ function shiftMonth(month, n) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash }) {
-  if (!athletes.length) return layout({ title: "My training", user, admin, flash, tab: "home",
-    body: `<section class="panel"><h1>Welcome to Raptors Training</h1>
-      <div class="empty"><p>No athletes are linked to this email yet.</p>
-        <p class="muted">If you signed in with a different email than the one on your SportsEngine account, sign out and try that one. Otherwise, contact the Raptors and we'll link your athlete.</p></div></section>` });
+const selfCard = () => `<section class="panel self-card">
+  <h2 class="banner">Sign up yourself</h2>
+  <p class="muted">Some sign-ups (like volunteer shifts) are for adults. Add yourself once, then you'll find a "Me" tab here.</p>
+  <form method="post" action="/me" class="inline-add">
+    <label>First name<input name="first_name" required maxlength="40" autocomplete="given-name"></label>
+    <label>Last name<input name="last_name" required maxlength="40" autocomplete="family-name"></label>
+    <button class="btn-small" type="submit">Add me</button>
+  </form></section>`;
+
+function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash, canSelf }) {
+  if (!athletes.length) return layout({ title: "My sign-ups", user, admin, flash, tab: "home",
+    body: `<section class="panel"><h1>Welcome to ${esc(LABELS.app_name)}</h1>
+      <div class="empty"><p>No ${esc(LABELS.participants.toLowerCase())} are linked to this email yet.</p>
+        <p class="muted">If you signed in with a different email than the one you gave us, sign out and try that one. Otherwise, contact us and we'll link your ${esc(LABELS.participant.toLowerCase())}.</p></div></section>
+      ${canSelf ? selfCard() : ""}` });
 
   const today = inputParts(new Date()).date;
   const byDay = new Map();
@@ -114,12 +127,12 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
   const nextDay = [...byDay.keys()].filter((k) => k >= today).sort()[0];
 
   return layout({
-    title: "My training", user, admin, flash, tab: "home",
+    title: "My sign-ups", user, admin, flash, tab: "home",
     body: `${athleteTabs(athletes, athlete, (a) => `/dashboard?a=${a.id}&m=${month}`)}
     <section class="panel athlete">
       <div class="athlete-head"><h1>${esc(athlete.first_name)} ${esc(athlete.last_name)}</h1>
         ${athlete.age_group ? `<span class="chip">${esc(athlete.age_group)}</span>` : ""}</div>
-      ${!athlete.age_group ? `<p class="muted">${esc(athlete.first_name)} doesn't have a group yet, so no training is shown. Contact the Raptors to fix this.</p>` : `
+      ${!athlete.age_group && !athlete.self_user_id && !programs.length ? `<p class="muted">${esc(athlete.first_name)} doesn't have a ${esc(LABELS.group.toLowerCase())} yet, so nothing is shown. Contact us to fix this.</p>` : `
       ${usagePanel(programs)}
       <div class="month-head">
         ${month > curMonth ? `<a class="month-nav" href="${href(shiftMonth(month, -1))}" aria-label="Previous month">‹</a>` : `<span class="month-nav off" aria-hidden="true">‹</span>`}
@@ -129,11 +142,11 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
       ${monthGrid(athlete, month, byDay, today)}
       <div class="pcal-legend">${activities.map((a) => `<span>${dot(a)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Reserved</span></div>
       ${byDay.size ? `<p class="fine">Tap a day to see its sessions and reserve.${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
-        : `<div class="empty"><p>No upcoming training for ${esc(athlete.age_group)} right now.</p><p class="muted">New sessions show up here as soon as they're posted.</p></div>`}`}
+        : `<div class="empty"><p>Nothing open to sign up for right now.</p><p class="muted">New sign-ups show up here as soon as they're posted.</p></div>`}`}
     </section>
 
     <section class="panel">
-      <h2 class="banner">Upcoming for ${esc(athlete.first_name)}</h2>
+      <h2 class="banner">Upcoming for ${athlete.self_user_id ? "you" : esc(athlete.first_name)}</h2>
       ${mine.length ? `<ul class="res-list">${mine.map((r) => `<li class="res">
         <a class="res-main res-link" href="/athletes/${athlete.id}/day/${localDate(r.starts_at)}">
           <div class="res-when">${esc(fmtRange(r.starts_at, r.ends_at))}</div>
@@ -141,7 +154,8 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
         <div class="res-side">${r.status === "confirmed" ? `<span class="pill ok">Reserved</span>` : `<span class="pill wait">Waitlist #${r.wait_pos}</span>`}
           ${cancelControl(r, `/dashboard?a=${athlete.id}&m=${month}`)}</div></li>`).join("")}</ul>`
         : `<p class="muted">Nothing reserved yet. Pick a day on the calendar to get started.</p>`}
-    </section>`,
+    </section>
+    ${canSelf ? selfCard() : ""}`,
   });
 }
 
@@ -159,6 +173,7 @@ function actionFor(p, s, athlete, back, compact) {
           <input type="hidden" name="return_to" value="${esc(back)}"><button class="link-dark sm" type="submit">Cancel</button></form>` : cancelControl(r, back)}`;
   }
   if (!bookingOpen(p)) return `<button class="btn-small" disabled>${compact ? "Soon" : `Opens ${esc(fmtDateTime(p.booking_opens_at))}`}</button>`;
+  if (open <= 0 && !p.waitlistOn) return `<button class="btn-small" disabled>Full</button>`;
   if (blocked(p, s)) return `<button class="btn-small" disabled>${compact ? "Limit" : "Limit reached"}</button>` +
     (s.unlocksAt ? `<span class="fine unlock-hint">${compact ? `Opens ${esc(fmtDay(s.unlocksAt))}` : `Opens to all ${esc(fmtDateTime(s.unlocksAt))}`}</span>` : "");
   return `<form method="post" action="/athletes/${athlete.id}/book">
@@ -179,7 +194,7 @@ function goingLine(list, athlete, compact) {
 
 function sessionCard(p, s, athlete, back, going, showNames) {
   const open = s.capacity - s.confirmed;
-  const spots = open > 0 ? `${open} of ${s.capacity} spots open` : `Full${s.waitlisted ? `, ${s.waitlisted} on waitlist` : ""}`;
+  const spots = open > 0 ? `${open} of ${s.capacity} spots open` : `Full${p.waitlistOn && s.waitlisted ? `, ${s.waitlisted} on waitlist` : ""}`;
   return `<li class="sess${open > 0 ? "" : " full"}${s.my_status ? " mine" : ""}">
     <div class="sess-main">
       <div class="sess-time">${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}</div>

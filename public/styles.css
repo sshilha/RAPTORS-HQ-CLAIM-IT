@@ -684,3 +684,51 @@ tr.add-row td { background: var(--paper); }
 .going.sm { font-size: 11.5px; margin: 0; color: var(--muted); }
 .block .going.sm b { color: var(--lime-dark); }
 #family .fine-inline { margin-left: 6px; }
+.waitlist-check { align-self: flex-end; padding-bottom: 8px; }
+
+/* ---------- Settings tab bar ---------- */
+.settings-tabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; }
+.settings-tabs a {
+  flex: 1; min-width: max-content; text-align: center; text-decoration: none; padding: 10px 14px; border-radius: 8px;
+  border: 1.5px solid var(--line); background: #fff; color: var(--muted);
+  font: 700 16px var(--display); text-transform: uppercase; letter-spacing: .5px; white-space: nowrap;
+}
+.settings-tabs a:hover { border-color: var(--navy); color: var(--navy); }
+.settings-tabs a[aria-current="page"] { background: var(--navy); border-color: var(--navy); color: #fff; box-shadow: inset 0 -3px 0 var(--lime-dark); }
+@media (max-width: 480px) { .settings-tabs a { font-size: 14px; padding: 9px 10px; } }
+.t-short { display: none; }
+@media (max-width: 480px) { .settings-tabs .t-long { display: none; } .settings-tabs .t-short { display: inline; } }
+
+/* ---------- schedules, who signs up, sharing, public sheets ---------- */
+.sched-tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
+.sched-tabs > a { text-decoration: none; padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: #fff;
+  color: var(--navy); font: 700 15px var(--display); text-transform: uppercase; letter-spacing: .4px; }
+.sched-tabs > a[aria-current="page"] { background: var(--lime); border-color: var(--lime); color: #fff; box-shadow: inset 0 -3px 0 var(--lime-dark); }
+.new-sched > summary { cursor: pointer; font-weight: 700; color: var(--navy-2); padding: 8px 6px; }
+.new-sched[open] { flex-basis: 100%; background: #fff; border: 1.5px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+.sched-settings { margin-top: 14px; }
+.sched-form { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.sched-form .w-wide { max-width: 340px; display: flex; flex-direction: column; gap: 6px; }
+table.levels td { vertical-align: top; }
+table.levels td.def { white-space: normal; min-width: 240px; color: var(--ink); font-size: 14px; }
+table.levels input { padding: 8px 10px; min-width: 120px; }
+.mode-pill { background: #e9ecf6; }
+.round-who { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px dashed var(--line); }
+.mode-form fieldset { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.mode-opt { flex: 1 1 220px; display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  text-transform: none; letter-spacing: normal; color: var(--ink); font-size: 15px; cursor: pointer; }
+.mode-opt.on, .mode-opt:has(input:checked) { border-color: var(--navy); box-shadow: inset 0 -3px 0 var(--lime-dark); }
+.mode-opt input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--navy); flex: none; }
+.mode-opt b { display: block; font: 700 16px var(--display); text-transform: uppercase; letter-spacing: .3px; color: var(--navy); }
+.mode-opt .fine { margin-top: 2px; }
+.mode-form .btn-ghost { align-self: center; }
+.share-box { display: flex; gap: 14px; align-items: center; margin-top: 12px; background: var(--paper); border-radius: var(--radius); padding: 12px; flex-wrap: wrap; }
+.share-box img { background: #fff; border-radius: 8px; padding: 4px; }
+.share-main { flex: 1; min-width: 220px; }
+.share-row { display: flex; gap: 6px; }
+.share-row input { padding: 8px 10px; font-size: 14px; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.pub-day + .pub-day, .panel + .pub-day { margin-top: 12px; }
+a.btn-small.secondary { color: var(--navy); }
+.done-card h1 { color: var(--lime-dark); }
+.self-card { margin-top: 14px; }

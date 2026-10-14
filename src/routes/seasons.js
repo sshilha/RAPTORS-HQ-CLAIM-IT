@@ -32,7 +32,9 @@ router.post("/", wrap(async (req, res) => {
   let id, copied = { rounds: 0, sessions: 0 };
   try {
     await c.query("BEGIN");
-    id = (await c.query(`INSERT INTO seasons (name, starts_on, ends_on) VALUES ($1,$2,$3) RETURNING id`, [name, s, e])).rows[0].id;
+    id = (await c.query(`INSERT INTO seasons (name, starts_on, ends_on, schedule_id)
+      VALUES ($1,$2,$3, COALESCE($4, (SELECT schedule_id FROM seasons WHERE id=$5), (SELECT min(id) FROM schedules))) RETURNING id`,
+      [name, s, e, int(req.body.schedule_id) || null, src ? src.id : null])).rows[0].id;
     if (src) {
       // Shift every round by the gap between the two seasons' first days
       const offset = (await c.query(`SELECT $1::date - $2::date AS d`, [s, src.starts_on])).rows[0].d;
@@ -47,9 +49,11 @@ router.post("/", wrap(async (req, res) => {
     await c.query("COMMIT");
   } catch (err) { await c.query("ROLLBACK"); throw err; }
   finally { c.release(); }
+  const L = require("../schedules").labels(await require("../schedules").forSeason(id));
+  const n = (k, c) => `${c} ${(c === 1 ? L[k].one : L[k].many).toLowerCase()}`;
   go(res, dest(req, `/admin/seasons/${id}`, { id }), { ok: src
-    ? `Season created with ${copied.rounds} round${copied.rounds === 1 ? "" : "s"} and ${copied.sessions} session${copied.sessions === 1 ? "" : "s"} copied from ${src.name}. They're drafts: review each round, then publish.`
-    : "Season created. Add rounds to it, or import the vendor schedule." });
+    ? `${L.top.one} created with ${n("middle", copied.rounds)} and ${n("slot", copied.sessions)} copied from ${src.name}. They're drafts: review each one, then publish.`
+    : `${L.top.one} created. Add ${L.middle.many.toLowerCase()} to it, or import a schedule.` });
 }));
 
 router.get("/:id", wrap(async (req, res) => {

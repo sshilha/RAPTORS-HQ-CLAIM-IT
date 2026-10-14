@@ -73,6 +73,7 @@ async function reserve({ userId, athleteId, sessionId }) {
     const { rows } = await db.query(
       `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at, p.activity, p.round_id,
               r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours,
+              p.waitlist AS program_waitlist, r.waitlist AS round_waitlist, r.signup_mode,
               p.booking_opens_at,
               (p.archived OR (p.round_id IS NOT NULL AND r.published_at IS NULL) OR se.completed_at IS NOT NULL) AS archived
        FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id
@@ -87,14 +88,16 @@ async function reserve({ userId, athleteId, sessionId }) {
     if (!bookingOpen(s)) throw new BookingError("Booking for this program hasn't opened yet.");
 
     const a = (await db.query(`SELECT * FROM athletes WHERE id=$1`, [athleteId])).rows[0];
-    if (!a.age_group || !s.age_groups.includes(a.age_group))
+    // Roster sheets are limited to the session's groups; family and public sheets are open to anyone
+    const openSheet = s.signup_mode === "family" || s.signup_mode === "public";
+    if (!openSheet && (a.self_user_id || !a.age_group || !s.age_groups.includes(a.age_group)))
       throw new BookingError(`${a.first_name} isn't eligible for ${s.program_name}.`);
 
     const dup = await db.query(
       `SELECT 1 FROM reservations WHERE session_id=$1 AND athlete_id=$2 AND status<>'canceled'`,
       [sessionId, athleteId]
     );
-    if (dup.rowCount) throw new BookingError(`${a.first_name} already has a spot or waitlist place for this session.`);
+    if (dup.rowCount) throw new BookingError(`${a.first_name} is already signed up for this time.`);
 
     let counts = true;
     if (s.round_id) {
@@ -121,6 +124,8 @@ async function reserve({ userId, athleteId, sessionId }) {
       `SELECT count(*)::int AS n FROM reservations WHERE session_id=$1 AND status='confirmed'`, [sessionId]
     )).rows[0].n;
     const status = confirmed < s.capacity ? "confirmed" : "waitlisted";
+    if (status === "waitlisted" && !R.waitlistOn({ waitlist: s.program_waitlist }, { waitlist: s.round_waitlist }))
+      throw new BookingError("Sorry, that time just filled up.");
 
     const r = (await db.query(
       `INSERT INTO reservations (session_id, athlete_id, booked_by, status, counts_toward_limit) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
@@ -135,7 +140,8 @@ async function reserve({ userId, athleteId, sessionId }) {
 // Put an athlete into a session. Full sessions waitlist them, unless overCapacity adds a spot.
 async function placeAthlete(db, { adminId, athleteId, sessionId, overCapacity }) {
   const s = (await db.query(
-    `SELECT s.*, p.activity, p.round_id, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours
+    `SELECT s.*, p.activity, p.round_id, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours,
+       p.waitlist AS program_waitlist, r.waitlist AS round_waitlist
      FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id
      WHERE s.id=$1 FOR UPDATE OF s`, [sessionId])).rows[0];
   if (!s || s.canceled_at) throw new BookingError("That session isn't available.");
@@ -145,7 +151,8 @@ async function placeAthlete(db, { adminId, athleteId, sessionId, overCapacity })
   let status = "confirmed";
   if (confirmed >= s.capacity) {
     if (overCapacity) await db.query(`UPDATE training_sessions SET capacity=$2 WHERE id=$1`, [sessionId, confirmed + 1]);
-    else status = "waitlisted";
+    else if (R.waitlistOn({ waitlist: s.program_waitlist }, { waitlist: s.round_waitlist })) status = "waitlisted";
+    else throw new BookingError('That session is full. Check "Add anyway" to add a spot.');
   }
   let counts = true;
   if (s.round_id) {
@@ -260,12 +267,14 @@ async function parentReservations(userId) {
 
 async function bookingOptions(athlete) {
   const programs = (await query(
-    `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours
+    `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours, r.waitlist AS round_waitlist,
+       r.signup_mode, sc.labels AS schedule_labels, sc.name AS schedule_name
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
-     WHERE NOT p.archived AND $1 = ANY(p.age_groups) AND (p.round_id IS NULL OR r.published_at IS NOT NULL)
-       AND se.completed_at IS NULL
+     LEFT JOIN schedules sc ON sc.id=r.schedule_id
+     WHERE NOT p.archived AND (p.round_id IS NULL OR r.published_at IS NOT NULL) AND se.completed_at IS NULL
+       AND (r.signup_mode IN ('family','public') OR ($1 = ANY(p.age_groups) AND NOT $2::boolean))
      ORDER BY r.starts_on NULLS LAST, p.activity, p.name`,
-    [athlete.age_group || ""]
+    [athlete.age_group || "", !!athlete.self_user_id]
   )).rows;
   if (!programs.length) return [];
 
@@ -308,7 +317,8 @@ async function bookingOptions(athlete) {
       } else {
         limit = p.priority_ends_at ? p.priority_limit : null; limitsOn = priorityActive(p); usedN = used[p.id] || 0;
       }
-      return { ...p, limit, limitsOn, used: usedN, limitsEnd: p.round_id ? null : p.priority_ends_at, sessions: progSessions };
+      return { ...p, limit, limitsOn, used: usedN, limitsEnd: p.round_id ? null : p.priority_ends_at, sessions: progSessions,
+        waitlistOn: R.waitlistOn(p, { waitlist: p.round_waitlist }) };
     })
     .filter((p) => p.sessions.length);
 }

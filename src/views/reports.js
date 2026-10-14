@@ -4,7 +4,7 @@ const { AGE_GROUPS, ACTIVITIES } = require("../config");
 
 const opt = (val, label, cur) => `<option value="${esc(val)}"${String(cur) === String(val) ? " selected" : ""}>${esc(label)}</option>`;
 
-function reportsPage({ user, f, reports, seasons, rounds, out, totals }) {
+function reportsPage({ user, f, reports, seasons, rounds, out, totals, schedules = [], L }) {
   const qs = new URLSearchParams(Object.entries({ report: f.report, season: f.season || "", round: f.round || "", from: f.from, to: f.to,
     activity: f.activity, age: f.age, status: f.status, zero: f.zero ? "1" : "" }).filter(([, x]) => x)).toString();
   return page({
@@ -15,9 +15,10 @@ function reportsPage({ user, f, reports, seasons, rounds, out, totals }) {
       <div class="full"><fieldset class="checks"><legend>Report</legend>
         ${Object.entries(reports).map(([k, l]) => `<label class="radio-row"><input type="radio" name="report" value="${k}"${f.report === k ? " checked" : ""} onchange="this.form.submit()"> ${esc(l)}</label>`).join("")}
       </fieldset></div>
-      <div><label>Season<select name="season" id="f-season">${opt("", "All seasons", f.season || "")}
+      ${schedules.length > 1 ? `<div><label>Schedule<select name="schedule">${opt("", "All schedules", f.schedule || "")}${schedules.map((x) => opt(x.id, x.name, f.schedule || "")).join("")}</select></label></div>` : ""}
+      <div><label>${esc(L.top.one)}<select name="season" id="f-season">${opt("", `All ${L.top.many.toLowerCase()}`, f.season || "")}
         ${seasons.map((s) => opt(s.id, s.name + (s.completed_at ? " (completed)" : ""), f.season || "")).join("")}</select></label></div>
-      <div><label>Round<select name="round" id="f-round">${opt("", "All rounds", f.round || "")}
+      <div><label>${esc(L.middle.one)}<select name="round" id="f-round">${opt("", `All ${L.middle.many.toLowerCase()}`, f.round || "")}
         ${rounds.map((r) => `<option value="${r.id}" data-season="${r.season_id || ""}"${f.round === r.id ? " selected" : ""}>${esc(r.name)}${r.season_name ? ` (${esc(r.season_name)})` : ""}</option>`).join("")}</select></label></div>
       <div class="pair"><div><label>From<input type="date" name="from" value="${esc(f.from)}"></label></div>
         <div><label>To<input type="date" name="to" value="${esc(f.to)}"></label></div></div>

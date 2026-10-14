@@ -24,6 +24,7 @@ function normalize(c) {
     })),
     age_groups: c.age_groups || [], presets: c.presets || [], locations: c.locations || [],
     family_names: c.family_names || "initial",
+    app_labels: c.app_labels || require("./config").DEFAULT_CATALOG.app_labels,
   };
 }
 

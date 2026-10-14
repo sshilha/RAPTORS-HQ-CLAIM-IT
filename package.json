@@ -1,6 +1,6 @@
 {
-  "name": "raptors-training-scheduler",
-  "version": "0.1.0",
+  "name": "raptors-sign-ups",
+  "version": "0.2.0",
   "private": true,
   "description": "Chippewa Valley Raptors Training Scheduler",
   "main": "server.js",
@@ -14,7 +14,8 @@
   "dependencies": {
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
+    "pdf-parse": "1.1.1",
     "pg": "^8.13.1",
-    "pdf-parse": "1.1.1"
+    "qrcode": "^1.5.4"
   }
 }

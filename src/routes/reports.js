@@ -26,7 +26,7 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 function readFilters(q) {
   return {
     report: REPORTS[q.report] ? q.report : "sessions",
-    season: int(q.season), round: int(q.round),
+    schedule: int(q.schedule), season: int(q.season), round: int(q.round),
     from: isDate(str(q.from)) ? str(q.from) : "", to: isDate(str(q.to)) ? str(q.to) : "",
     activity: ACTIVITIES.includes(q.activity) ? q.activity : "",
     age: AGE_GROUPS.includes(q.age) ? q.age : "",
@@ -39,6 +39,7 @@ function readFilters(q) {
 function where(f, ageScope, params = []) {
   const w = [];
   const add = (sql, val) => { params.push(val); w.push(sql.replace("?", `$${params.length}`)); };
+  if (f.schedule) add("rd.schedule_id = ?", f.schedule);
   if (f.season) add("se.id = ?", f.season);
   if (f.round) add("rd.id = ?", f.round);
   if (f.from) add(`(s.starts_at AT TIME ZONE '${TZ}')::date >= ?::date`, f.from);
@@ -187,8 +188,9 @@ function toCsv(columns, rows, totals) {
 }
 
 router.get("/", wrap(async (req, res) => {
-  const seasons = (await query(`SELECT id, name, completed_at FROM seasons ORDER BY starts_on DESC`)).rows;
-  const rounds = (await query(`SELECT rd.id, rd.name, rd.season_id, se.name AS season_name FROM rounds rd
+  const schedules = (await query(`SELECT * FROM schedules ORDER BY sort, id`)).rows;
+  const seasons = (await query(`SELECT id, name, completed_at, schedule_id FROM seasons ORDER BY starts_on DESC`)).rows;
+  const rounds = (await query(`SELECT rd.id, rd.name, rd.season_id, rd.schedule_id, se.name AS season_name FROM rounds rd
     LEFT JOIN seasons se ON se.id=rd.season_id ORDER BY rd.starts_on DESC`)).rows;
   const q = { ...req.query };
   if (!Object.keys(req.query).length && seasons[0]) q.season = String(seasons[0].id); // default: latest season
@@ -202,7 +204,8 @@ router.get("/", wrap(async (req, res) => {
     res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${name}"` });
     return res.send(toCsv(out.columns, out.rows, totals));
   }
-  res.send(v.reportsPage({ user: req.user, f, reports: REPORTS, seasons, rounds, out, totals }));
+  const sc = schedules.find((x) => x.id === f.schedule) || (f.season && schedules.find((x) => x.id === (seasons.find((y) => y.id === f.season) || {}).schedule_id)) || schedules[0];
+  res.send(v.reportsPage({ user: req.user, f, reports: REPORTS, seasons, rounds, out, totals, schedules, L: require("../schedules").labels(sc) }));
 }));
 
 module.exports = router;

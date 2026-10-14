@@ -27,6 +27,7 @@ router.post("/:id/*", wrap(async (req, res, next) => {
 }));
 
 const openSeasons = async () => (await query(`SELECT * FROM seasons WHERE completed_at IS NULL ORDER BY starts_on DESC`)).rows;
+// (seasons offered when moving a round are limited to its own schedule in the view)
 const seasonOk = async (id) => !id || (await query(`SELECT 1 FROM seasons WHERE id=$1 AND completed_at IS NULL`, [id])).rowCount > 0;
 
 const getRound = async (id, db = { query }) => (await db.query(`SELECT * FROM rounds WHERE id=$1`, [id])).rows[0];
@@ -65,13 +66,15 @@ router.post("/", wrap(async (req, res) => {
       return (await R.copyRound(db, src, { name, starts_on: s, ends_on: e, season_id: seasonId, offsetDays: offset, shiftRules: false })).round.id;
     }
     return (await db.query(
-      `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits)
-       VALUES ($1,$2,$3,$4,'Turn Two Athletics',$5,$6) RETURNING id`,
-      [name, s, e, seasonId, JSON.stringify(R.readDefaults({})), JSON.stringify(R.defaultLimits())])).rows[0].id;
+      `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits, schedule_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE((SELECT schedule_id FROM seasons WHERE id=$4), $8, (SELECT min(id) FROM schedules))) RETURNING id`,
+      [name, s, e, seasonId, require("../config").LOCATIONS[0] || null, JSON.stringify(R.readDefaults({})), JSON.stringify(R.defaultLimits()),
+       int(req.body.schedule_id) || null])).rows[0].id;
   });
+  const L = require("../schedules").labels(await require("../schedules").forRound(id));
   go(res, dest(req, `/admin/rounds/${id}`, { id }), { ok: src
-    ? "Round created as a copy. Check its limits, unlock period, and booking dates, then publish."
-    : "Round created. Next: add its times and sessions, then schedule them on the calendar." });
+    ? `${L.middle.one} created as a copy. Check its limits, unlock period, and booking dates, then publish.`
+    : `${L.middle.one} created. Next: add its times and ${L.activity.many.toLowerCase()}, then put them on the calendar.` });
 }));
 
 // ---------- builder ----------
@@ -93,7 +96,8 @@ router.get("/:id", wrap(async (req, res) => {
      WHERE p.round_id=$1 AND s.canceled_at IS NULL ORDER BY s.starts_at, p.activity`, [round.id])).rows;
   const season = round.season_id ? (await query(`SELECT * FROM seasons WHERE id=$1`, [round.season_id])).rows[0] : null;
   res.send(v.builderPage({ user: req.user, flash: flashFrom(req), round, types, sessions, last: req.query,
-    season, seasons: await openSeasons(), readonly: !!season?.completed_at }));
+    season, seasons: (await openSeasons()).filter((x) => x.schedule_id === round.schedule_id), readonly: !!season?.completed_at,
+    schedule: await require("../schedules").forRound(round.id) }));
 }));
 
 router.post("/:id/settings", wrap(async (req, res) => {
@@ -119,16 +123,36 @@ router.post("/:id/settings", wrap(async (req, res) => {
 // ---------- limits (per activity) ----------
 router.post("/:id/limits", wrap(async (req, res) => {
   const id = int(req.params.id);
-  const limits = R.readLimits(req.body);
+  const cur = await getRound(id);
+  const limits = R.readLimits(req.body, cur && cur.activity_limits);
   const unlock = R.readUnlock(req.body);
   await tx(async (db) => {
     const round = (await db.query(
-      `UPDATE rounds SET activity_limits=$2, unlock_hours=$3 WHERE id=$1 RETURNING *`,
-      [id, JSON.stringify(limits), unlock])).rows[0];
+      `UPDATE rounds SET activity_limits=$2, unlock_hours=$3, waitlist=$4 WHERE id=$1 RETURNING *`,
+      [id, JSON.stringify(limits), unlock, !!req.body.waitlist])).rows[0];
     await R.syncPrograms(db, round);
   });
   const summary = Object.entries(limits).map(([a, n]) => `${a} ${n == null ? "unlimited" : n}`).join(", ");
-  go(res, dest(req, `/admin/rounds/${id}#limits`), { ok: `Limits saved: ${summary}. Open spots unlock ${R.unlockLabel(unlock)}${unlock == null ? "" : " each session"}.` });
+  go(res, dest(req, `/admin/rounds/${id}#limits`), { ok: `Limits saved: ${summary}. Open spots unlock ${R.unlockLabel(unlock)}${unlock == null ? "" : " each session"}. Waitlist ${req.body.waitlist ? "on" : "off"}.` });
+}));
+
+// ---------- who signs up ----------
+router.post("/:id/mode", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const mode = ["roster", "family", "public"].includes(req.body.signup_mode) ? req.body.signup_mode : "roster";
+  await query(`UPDATE rounds SET signup_mode=$2 WHERE id=$1`, [id, mode]);
+  const SC = require("../schedules");
+  go(res, dest(req, `/admin/rounds/${id}#who`), { ok: `Who signs up: ${SC.MODES[mode][0]}.` +
+    (mode === "public" ? " Share the link below once it's published." : "") });
+}));
+
+router.get("/:id/qr.svg", wrap(async (req, res) => {
+  const r = await getRound(int(req.params.id));
+  if (!r) return res.status(404).end();
+  const { APP_URL } = require("../config");
+  const base = APP_URL || `${req.protocol}://${req.get("host")}`;
+  const svg = await require("qrcode").toString(`${base}/s/${r.share_token}`, { type: "svg", margin: 1, color: { dark: "#0c192e" } });
+  res.set("Content-Type", "image/svg+xml").send(svg);
 }));
 
 // ---------- times ----------
@@ -156,18 +180,21 @@ function readType(b) {
   let ages = [].concat(b.ages || []).filter((g) => AGE_GROUPS.includes(g));
   if (activity && !ages.length && ALL_AGES_ACTIVITIES.includes(activity)) ages = [...AGE_GROUPS];
   const spots = int(b.spots);
-  return { activity, ages, spots: spots && spots <= 200 ? spots : null, coach: str(b.coach) || null, block: R.cleanBlock(b.block) };
+  return { activity, ages, spots: spots && spots <= 200 ? spots : null, coach: str(b.coach) || null, block: R.cleanBlock(b.block),
+    waitlist: R.readWaitlist(b.waitlist) };
 }
 
 router.post("/:id/types", wrap(async (req, res) => {
   const id = int(req.params.id);
   const t = readType(req.body);
+  const rr = await getRound(id);
+  if (t.activity && !t.ages.length && rr && rr.signup_mode !== "roster") t.ages = [...AGE_GROUPS]; // open sheets: groups optional
   if (!t.activity || !t.ages.length || !t.spots) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Choose an activity, at least one age group, and the number of spots." });
   const round = await getRound(id);
   const exists = (await query(`SELECT 1 FROM programs WHERE round_id=$1 AND activity=$2 AND age_groups=$3::text[]`,
     [id, t.activity, R.sortAges(t.ages)])).rowCount;
   if (exists) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: `${R.typeLabel(t.activity, t.ages)} is already set up in this round. Change its spots in the list.` });
-  await R.ensureProgram({ query }, round, t.activity, t.ages, { capacity: t.spots, coach: t.coach, block: t.block });
+  await R.ensureProgram({ query }, round, t.activity, t.ages, { capacity: t.spots, coach: t.coach, block: t.block, waitlist: t.waitlist });
   go(res, dest(req, `/admin/rounds/${id}#setup`), { ok: `Added ${R.typeLabel(t.activity, t.ages)}, ` +
     (t.block ? `${t.spots} spots per ${t.block}-minute block.` : `${t.spots} spots.`) });
 }));
@@ -179,8 +206,8 @@ router.post("/:id/types/:pid", wrap(async (req, res) => {
   const coach = str(req.body.coach) || null;
   const p = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [pid, id])).rows[0];
   if (!p) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Session not found." });
-  await query(`UPDATE programs SET default_capacity=$2, default_coach=$3, block_minutes=$4 WHERE id=$1`,
-    [pid, spots, coach, R.cleanBlock(req.body.block)]);
+  await query(`UPDATE programs SET default_capacity=$2, default_coach=$3, block_minutes=$4, waitlist=$5 WHERE id=$1`,
+    [pid, spots, coach, R.cleanBlock(req.body.block), R.readWaitlist(req.body.waitlist)]);
 
   // Apply to everything already scheduled; never drop below who's already reserved
   const sess = (await query(
@@ -239,7 +266,8 @@ router.post("/:id/schedule", wrap(async (req, res) => {
       [id, JSON.stringify(R.addSlots(round, [{ start, end }]))]);
   });
   if (b.slot === "custom") keep.slot = `${start}-${end}`;
-  back({ ok: `Scheduled ${plural(added, "session")}` + (tried > added ? `. Skipped ${tried - added} already on the calendar.` : ".") });
+  const SL = require("../schedules").labels(await require("../schedules").forRound(id)).slot;
+  back({ ok: `Scheduled ${added} ${(added === 1 ? SL.one : SL.many).toLowerCase()}` + (tried > added ? `. Skipped ${tried - added} already on the calendar.` : ".") });
 }));
 
 router.post("/:id/copy-day", wrap(async (req, res) => {

@@ -143,6 +143,20 @@ router.post("/presets/remove", wrap(async (req, res) => {
   back(res, "presets", { ok: "Shortcut removed." });
 }));
 
+// ---------- app-wide labels ----------
+router.post("/labels", wrap(async (req, res) => {
+  const c = catalog.current();
+  const b = req.body;
+  const one = (k, d) => clean(b[`${k}_one`], 24) || d;
+  const p1 = one("participant", "Athlete"), g1 = one("group", "Group");
+  c.app_labels = {
+    app_name: clean(b.app_name, 40) || "Sign-Ups", org_name: clean(b.org_name, 60),
+    participant: [p1, clean(b.participant_many, 24) || `${p1}s`], group: [g1, clean(b.group_many, 24) || `${g1}s`],
+  };
+  await catalog.save(c);
+  back(res, "labels", { ok: `Saved. The app is now "${c.app_labels.app_name}", with ${c.app_labels.participant[1].toLowerCase()} in ${c.app_labels.group[1].toLowerCase()}.` });
+}));
+
 // ---------- family view ----------
 router.post("/family", wrap(async (req, res) => {
   const c = catalog.current();

@@ -62,6 +62,11 @@ function limitFor(round, activity) {
   const m = ACTIVITY_META[activity];
   return m ? (m.default_limit == null ? null : m.default_limit) : (round && round.priority_limit) || 2;
 }
+// Does a full session take a waitlist? Session setting wins; otherwise the round's (default off)
+const waitlistOn = (program, round) =>
+  program.waitlist != null ? !!program.waitlist : !!(round && round.waitlist);
+const readWaitlist = (v) => (v === "on" ? true : v === "off" ? false : null);
+
 // A session is unlocked (open to any athlete) when it was unlocked by hand, or once it's within
 // the round's unlock period before it starts. unlock_hours NULL = never unlocks automatically.
 function isUnlocked(session, round) {
@@ -80,8 +85,14 @@ function readUnlock(body) {
   return body.unlock_unit === "hours" ? n : n * 24;
 }
 const unlockLabel = (h) => (h == null ? "never automatically" : h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"} before` : `${h} hour${h === 1 ? "" : "s"} before`);
-function readLimits(body) {
+// Reads the limits a form showed (marked has_i); activities the form didn't show keep their value
+function readLimits(body, existing) {
+  const anyMarked = ACTIVITIES.some((a, i) => body[`has_${i}`]);
   return Object.fromEntries(ACTIVITIES.map((a, i) => {
+    if (anyMarked && !body[`has_${i}`]) {
+      const prev = existing && Object.prototype.hasOwnProperty.call(existing, a) ? existing[a] : limitFor({ activity_limits: existing }, a);
+      return [a, prev == null ? null : prev];
+    }
     if (body[`unl_${i}`]) return [a, null];
     const n = parseInt(body[`lim_${i}`], 10);
     return [a, n >= 1 && n <= 50 ? n : 1];
@@ -114,11 +125,11 @@ async function ensureProgram(db, round, activity, ages, opts = {}) {
   const d = defaultsFor(round, activity);
   return (await db.query(
     `INSERT INTO programs (round_id, name, activity, age_groups, priority_limit, priority_ends_at, booking_opens_at,
-       cancel_hours, default_capacity, default_coach, block_minutes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+       cancel_hours, default_capacity, default_coach, block_minutes, waitlist)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
     [round.id, programName(round.name, activity, a), activity, a, round.priority_limit, round.priority_ends_at,
      round.booking_opens_at, round.cancel_hours, opts.capacity || d.capacity, opts.coach ?? d.coach,
-     opts.block !== undefined ? cleanBlock(opts.block) : d.block])).rows[0];
+     opts.block !== undefined ? cleanBlock(opts.block) : d.block, opts.waitlist ?? null])).rows[0];
 }
 
 async function syncPrograms(db, round) {
@@ -180,12 +191,13 @@ async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetD
   const shift = (col) => `CASE WHEN $7::boolean THEN ${col} + ($2::int * interval '1 day') END`;
   const round = (await db.query(
     `INSERT INTO rounds (name, starts_on, ends_on, season_id, booking_opens_at, priority_ends_at, priority_limit,
-       cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours)
+       cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours, waitlist, schedule_id, signup_mode)
      SELECT $3, $4, $5, $6, ${shift("booking_opens_at")}, ${shift("priority_ends_at")}, priority_limit,
-       cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours FROM rounds WHERE id=$1 RETURNING *`,
+       cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours, waitlist,
+       COALESCE((SELECT schedule_id FROM seasons WHERE id=$6), schedule_id), signup_mode FROM rounds WHERE id=$1 RETURNING *`,
     [src.id, offsetDays, name, starts_on, ends_on, season_id, !!shiftRules])).rows[0];
   for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows)
-    await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach, block: p.block_minutes });
+    await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach, block: p.block_minutes, waitlist: p.waitlist });
   const sess = (await db.query(
     `SELECT p.activity, p.age_groups, s.capacity, s.coach, s.location, s.notes,
        to_char((s.starts_at AT TIME ZONE 'America/Chicago')::date + $2::int, 'YYYY-MM-DD') AS date,
@@ -199,7 +211,7 @@ async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetD
 }
 
 module.exports = {
-  BLOCK_CHOICES, cleanBlock, blocksFor, defaultLimits, limitFor, isUnlocked, unlocksAt, readUnlock, unlockLabel, readLimits, normalizeLimits,
+  waitlistOn, readWaitlist, BLOCK_CHOICES, cleanBlock, blocksFor, defaultLimits, limitFor, isUnlocked, unlocksAt, readUnlock, unlockLabel, readLimits, normalizeLimits,
   copyRound,
   sortAges, agesLabel, typeLabel, programName, isAllAges, defaultsFor, readDefaults, normalizeDefaults,
   addSlots, ensureProgram, syncPrograms, schedule, addSession,

@@ -27,9 +27,23 @@ function settingsPage({ user, flash, c, usage }) {
   return page({
     title: "Settings", tab: "settings", user, flash, xwide: true,
     body: `<section class="panel">
-      <h1>Settings</h1>
+      <h1>Activities &amp; groups</h1>
       <p class="muted tight">The building blocks every season uses: what you offer, who it's for, and where. Keep it simple or get as detailed as you like.</p>
-      <nav class="jump"><a href="#activities">Activities</a><a href="#groups">Groups</a><a href="#presets">Group shortcuts</a><a href="#locations">Locations</a><a href="#family">Family view</a></nav>
+      <nav class="jump"><a href="#labels">Names &amp; labels</a><a href="#activities">Activities</a><a href="#groups">Groups</a><a href="#presets">Group shortcuts</a><a href="#locations">Locations</a><a href="#family">Family view</a></nav>
+    </section>
+
+    <section class="panel" id="labels">
+      <h2 class="banner">Names &amp; labels</h2>
+      <p class="fine">What the whole app calls itself and the people in it. Each schedule names its own levels (like Season › Round) under Schedule.</p>
+      <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
+        <div><label>App name<input name="app_name" required maxlength="40" value="${esc((c.app_labels || {}).app_name)}" placeholder="Raptors Sign-Ups"></label></div>
+        <div><label>Organization<input name="org_name" maxlength="60" value="${esc((c.app_labels || {}).org_name)}" placeholder="Chippewa Valley Raptors"></label></div>
+        <div class="pair"><div><label>Participant (one)<input name="participant_one" required maxlength="24" value="${esc(((c.app_labels || {}).participant || [])[0])}" placeholder="Athlete"></label></div>
+          <div><label>Participants (many)<input name="participant_many" maxlength="24" value="${esc(((c.app_labels || {}).participant || [])[1])}" placeholder="Athletes"></label></div></div>
+        <div class="pair"><div><label>Group (one)<input name="group_one" required maxlength="24" value="${esc(((c.app_labels || {}).group || [])[0])}" placeholder="Group"></label></div>
+          <div><label>Groups (many)<input name="group_many" maxlength="24" value="${esc(((c.app_labels || {}).group || [])[1])}" placeholder="Groups"></label></div></div>
+        <div class="full"><button class="btn-ghost" type="submit">Save labels</button></div>
+      </form>
     </section>
 
     <section class="panel" id="activities">

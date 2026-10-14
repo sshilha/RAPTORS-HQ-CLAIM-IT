@@ -17,6 +17,7 @@ const DEFAULT_CATALOG = {
   ],
   locations: ["Turn Two Athletics"],
   family_names: "initial", // what families see of who's going: "full", "initial" (Ava S.), or "off"
+  app_labels: { app_name: "Raptors Training", org_name: "Chippewa Valley Raptors", participant: ["Athlete", "Athletes"], group: ["Group", "Groups"] },
 };
 
 const AGE_GROUPS = [];          // ordered group names
@@ -29,6 +30,7 @@ const PRESETS = [];             // [{ name, ages }]
 const LOCATIONS = [];
 const CATALOG = { current: null };
 const FAMILY = { names: "initial" };
+const LABELS = { app_name: "Raptors Training", org_name: "Chippewa Valley Raptors", participant: "Athlete", participants: "Athletes", group: "Group", groups: "Groups" };
 
 const refill = (arr, items) => arr.splice(0, arr.length, ...items);
 const reset = (obj, entries) => { for (const k of Object.keys(obj)) delete obj[k]; Object.assign(obj, Object.fromEntries(entries)); };
@@ -44,13 +46,19 @@ function apply(catalog) {
   refill(PRESETS, catalog.presets.filter((p) => p.ages.length));
   refill(LOCATIONS, catalog.locations);
   FAMILY.names = ["full", "initial", "off"].includes(catalog.family_names) ? catalog.family_names : "initial";
+  const al = catalog.app_labels || DEFAULT_CATALOG.app_labels;
+  Object.assign(LABELS, {
+    app_name: al.app_name || "Raptors Training", org_name: al.org_name || "",
+    participant: (al.participant || [])[0] || "Athlete", participants: (al.participant || [])[1] || "Athletes",
+    group: (al.group || [])[0] || "Group", groups: (al.group || [])[1] || "Groups",
+  });
 }
 apply(DEFAULT_CATALOG);
 
 module.exports = {
   TZ: "America/Chicago",
   AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ACTIVITY_COLORS, ACTIVITY_META, ALL_AGES_ACTIVITIES, PRESETS, LOCATIONS,
-  CATALOG, DEFAULT_CATALOG, FAMILY, apply,
+  CATALOG, DEFAULT_CATALOG, FAMILY, LABELS, apply,
   APP_URL: (() => {
     const u = (process.env.APP_URL || "").trim().replace(/\/$/, "");
     return u && !/^https?:\/\//.test(u) ? `https://${u}` : u; // tolerate a missing https://

@@ -22,6 +22,7 @@ app.use("/admin/settings", require("./routes/settings"));
 app.use("/admin/day", require("./routes/roster"));
 app.use("/admin/reports", require("./routes/reports"));
 app.use("/admin", require("./routes/admin"));
+app.use("/s", require("./routes/public")); // public sign-up sheets (no account needed)
 app.use(require("./routes/parent"));
 
 app.use((req, res) => res.status(404).send(errorPage("That page doesn't exist.")));
@@ -33,6 +34,7 @@ app.use((err, req, res, next) => {
 async function start() {
   await migrate();
   await require("./catalog").load(); // activities, age groups, shortcuts, locations
+  await require("./schedules").ensureDefault(); // existing data becomes the first schedule
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => console.log(`Raptors Training running on port ${PORT}`));

@@ -3,7 +3,10 @@ const { page } = require("./admin");
 const { AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ACTIVITY_COLORS, ALL_AGES_ACTIVITIES, ACTIVITY_META, PRESETS, LOCATIONS } = require("../config");
 const { inputParts } = require("../time");
 const { typeLabel, defaultsFor, isUnlocked, limitFor } = require("../rounds");
-const { blockSelect, spotsLabel, limitsForm, limitsScript } = require("./partials");
+const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox } = require("./partials");
+const SC = require("../schedules");
+const { LABELS } = require("../config");
+let L = SC.labels(null), ACTS = [];
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -142,14 +145,15 @@ function timesPanel(r) {
 
 function sessionsPanel(r, types) {
   return `<section class="panel step">
-    <h2><span class="step-n">2</span> Sessions</h2>
+    <h2><span class="step-n">2</span> ${esc(L.activity.many)}</h2>
     <p class="fine">Each session is an activity for a group, with the number of spots players can claim.</p>
     ${types.length ? `<div class="table-wrap"><table class="types">
-      <thead><tr><th>Session</th><th>Spots</th><th>Split into</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
+      <thead><tr><th>Session</th><th>Spots</th><th>Split into</th><th>Waitlist</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
       <tbody>${types.map((t) => `<tr>
         <td>${swatch(t.activity)}<strong>${esc(typeLabel(t.activity, t.age_groups))}</strong></td>
         <td><input form="type-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
         <td>${blockSelect("block", t.block_minutes, `form="type-${t.id}" aria-label="Split into blocks"`)}</td>
+        <td>${waitlistSelect(t.waitlist, r, `form="type-${t.id}" aria-label="Waitlist"`)}</td>
         <td><input form="type-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
         <td>${t.scheduled}</td>
         <td><div class="row-actions">
@@ -160,9 +164,9 @@ function sessionsPanel(r, types) {
       : `<p class="muted">No sessions yet. Add the activity and group combinations this round offers.</p>`}
 
     <form method="post" action="/admin/rounds/${r.id}/types" class="type-add">
-      <h3>Add a session</h3>
+      <h3>Add a ${esc(L.activity.one.toLowerCase())}</h3>
       <fieldset class="checks"><legend>Activity</legend>
-        ${ACTIVE_ACTIVITIES.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
+        ${ACTS.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
       </fieldset>
       <fieldset class="checks"><legend>Group</legend>
         ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${g}"> ${g}</label>`).join("")}
@@ -174,6 +178,7 @@ function sessionsPanel(r, types) {
       <div class="inline-add">
         <label>Spots<input type="number" name="spots" min="1" max="200" required placeholder="10"></label>
         <label>Split into${blockSelect("block", null)}</label>
+        <label>Waitlist${waitlistSelect(null, r)}</label>
         <label>Coach<input name="coach" placeholder="Optional"></label>
         <button class="btn-small" type="submit">Add session</button>
       </div>
@@ -211,7 +216,7 @@ function schedulePanel(r, types, last) {
             <div><label>End<input type="time" name="end_time"></label></div></div>
         </fieldset>
 
-        <fieldset class="checks stack-list"><legend>Sessions at this time</legend>
+        <fieldset class="checks stack-list"><legend>${esc(L.activity.many)} at this time</legend>
           ${types.map((t) => `<label class="act wide" style="--c:${ACTIVITY_COLORS[t.activity]}"><input type="checkbox" name="types" value="${t.id}"${lastTypes.includes(String(t.id)) ? " checked" : ""}>
             ${esc(typeLabel(t.activity, t.age_groups))} <span class="fine-inline">${spotsLabel(t.default_capacity || defaultsFor(r, t.activity).capacity, t.block_minutes)}</span></label>`).join("")}
         </fieldset>
@@ -230,7 +235,8 @@ function schedulePanel(r, types, last) {
     </aside>`;
 }
 
-function builderPage({ user, flash, round, types, sessions, last = {}, season, seasons = [], readonly }) {
+function builderPage({ user, flash, round, types, sessions, last = {}, season, seasons = [], readonly, schedule }) {
+  L = SC.labels(schedule); ACTS = SC.activitiesFor(schedule, { activeOnly: true });
   const r = round;
   const total = sessions.length;
   const taken = sessions.reduce((n, s) => n + s.taken, 0);
@@ -239,13 +245,13 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     body: `<a class="back" href="${season ? `/admin/seasons/${season.id}` : "/admin/rounds"}">${season ? esc(season.name) : "All rounds"}</a>
   <section class="panel">
     <div class="athlete-head">
-      <div><h1>${esc(r.name)}</h1><p class="muted tight">${esc(niceRange(r.starts_on, r.ends_on))}. ${total} scheduled, ${taken} spots claimed. <a href="#settings">Round settings</a></p></div>
+      <div><h1>${esc(r.name)}</h1><p class="muted tight">${esc(niceRange(r.starts_on, r.ends_on))}. ${total} ${esc(L.slot.many.toLowerCase())} scheduled, ${taken} spots claimed. <a href="#settings">${esc(L.middle.one)} settings</a></p></div>
       <div class="head-actions">${statusPill(r)}
         <form method="post" action="/admin/rounds/${r.id}/publish" ${r.published_at ? `onsubmit="return confirm('Hide this round from families? Their reservations are kept.')"` : ""}>
-          <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide from families" : "Publish round"}</button></form></div>
+          <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide" : `Publish ${esc(L.middle.one.toLowerCase())}`}</button></form></div>
     </div>
     ${readonly ? `<p class="rule">Part of a completed season: read-only and hidden from families. <a href="/admin/reports?round=${r.id}">Run reports for this round</a>.</p>`
-      : r.published_at ? "" : `<p class="rule">Draft: families can't see this round yet. Set up times and sessions, schedule them on the calendar, then publish.</p>`}
+      : r.published_at ? "" : `<p class="rule">Draft: nobody can see this ${esc(L.middle.one.toLowerCase())} yet. Set up times and ${esc(L.activity.many.toLowerCase())}, put them on the calendar, then publish.</p>`}
   </section>
 
   <div class="setup" id="setup">${timesPanel(r)}${readonly ? `<fieldset disabled class="plain">${sessionsPanel(r, types)}</fieldset>` : sessionsPanel(r, types)}</div>
@@ -256,16 +262,22 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
       <p class="fine">Click days to select them. Click a scheduled session to see its roster. Numbers show spots claimed out of spots available.</p>
       ${grid(r, sessions)}
     </section>
-    ${readonly ? `<aside class="panel add-panel keep-visible"><h2>Read-only</h2><p class="muted">This season is completed. Reopen it from the season's page to make changes.</p></aside>` : schedulePanel(r, types, last)}
+    ${readonly ? `<aside class="panel add-panel keep-visible"><h2>Read-only</h2><p class="muted">This ${esc(L.top.one.toLowerCase())} is completed. Reopen it to make changes.</p></aside>` : schedulePanel(r, types, last)}
   </div>
 
   <section class="panel" id="limits">
-    <h2>Limits per athlete</h2>
-    ${limitsForm(r, { readonly })}
+    <h2>Limits per ${esc(LABELS.participant.toLowerCase())}</h2>
+    ${limitsForm(r, { readonly, activities: SC.activitiesFor(schedule) })}
+  </section>
+
+  <section class="panel" id="who">
+    <h2>Who signs up</h2>
+    ${modeForm(r, { readonly })}
+    ${r.signup_mode === "public" ? shareBox(r) : ""}
   </section>
 
   <section class="panel" id="settings">
-    <h2>Round settings</h2>
+    <h2>${esc(L.middle.one)} settings</h2>
     <form method="post" action="/admin/rounds/${r.id}/settings" class="grid-form keep"><fieldset class="plain grid-form full"${readonly ? " disabled" : ""}>
       <div><label>Name<input name="name" required value="${esc(r.name)}"></label></div>
       <div><label>Season<select name="season_id">

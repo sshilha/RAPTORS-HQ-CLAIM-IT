@@ -11,8 +11,10 @@ const { wrap, flashFrom, go, int, str } = require("./util");
 const router = express.Router();
 router.use(auth.requireUser);
 
+// The family's participants: themselves (if set up) first, then their kids
 const myAthletes = async (userId) => (await query(
-  `SELECT a.* FROM athletes a JOIN parent_athletes pa ON pa.athlete_id=a.id WHERE pa.user_id=$1 ORDER BY a.first_name`, [userId])).rows;
+  `SELECT a.* FROM athletes a JOIN parent_athletes pa ON pa.athlete_id=a.id WHERE pa.user_id=$1
+   ORDER BY (a.self_user_id IS NULL), a.first_name`, [userId])).rows;
 
 // Only send families back to their own pages
 const safeBack = (req, fallback) => {
@@ -21,12 +23,29 @@ const safeBack = (req, fallback) => {
 };
 const localDate = (ts) => inputParts(ts).date;
 
+// Are there sheets open to signed-in families (so a parent could sign themselves up)?
+const openSheetsExist = async () => (await query(
+  `SELECT 1 FROM rounds r LEFT JOIN seasons se ON se.id=r.season_id
+   WHERE r.signup_mode IN ('family','public') AND r.published_at IS NOT NULL AND se.completed_at IS NULL AND r.ends_on >= CURRENT_DATE LIMIT 1`)).rowCount > 0;
+
+router.post("/me", wrap(async (req, res) => {
+  const first = str(req.body.first_name).slice(0, 40), last = str(req.body.last_name).slice(0, 40);
+  if (!first || !last) return go(res, "/dashboard", { err: "Enter your first and last name." });
+  let me = (await query(`SELECT id FROM athletes WHERE self_user_id=$1`, [req.user.id])).rows[0];
+  if (!me) {
+    me = (await query(`INSERT INTO athletes (first_name, last_name, self_user_id) VALUES ($1,$2,$3) RETURNING id`, [first, last, req.user.id])).rows[0];
+    await query(`INSERT INTO parent_athletes (user_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, me.id]);
+  }
+  go(res, `/dashboard?a=${me.id}`, { ok: `You're set up, ${first}. Pick a day to sign up.` });
+}));
+
 router.get("/dashboard", wrap(async (req, res) => {
   const athletes = await myAthletes(req.user.id);
   const admin = auth.isAdmin(req.user);
-  if (!athletes.length) return res.send(v.dashboardPage({ user: req.user, athletes, admin, flash: flashFrom(req) }));
+  const canSelf = !athletes.some((a) => a.self_user_id) && (await openSheetsExist());
+  if (!athletes.length) return res.send(v.dashboardPage({ user: req.user, athletes, admin, canSelf, flash: flashFrom(req) }));
   const athlete = athletes.find((a) => a.id === int(req.query.a)) || athletes[0];
-  const programs = athlete.age_group ? await booking.bookingOptions(athlete) : [];
+  const programs = await booking.bookingOptions(athlete);
   const reservations = (await booking.parentReservations(req.user.id)).filter((r) => r.athlete_id === athlete.id);
 
   // Month to show: the one asked for, else this month, else the month of the next session
@@ -36,7 +55,7 @@ router.get("/dashboard", wrap(async (req, res) => {
     const days = programs.flatMap((p) => p.sessions.map((s) => localDate(s.starts_at))).sort();
     month = days.some((d) => d.startsWith(today.slice(0, 7))) || !days.length ? today.slice(0, 7) : days[0].slice(0, 7);
   }
-  res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, flash: flashFrom(req) }));
+  res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, canSelf, flash: flashFrom(req) }));
 }));
 
 router.get("/athletes/:id/book", (req, res) => res.redirect(`/dashboard?a=${int(req.params.id)}`));
@@ -46,7 +65,7 @@ router.get("/athletes/:id/day/:date", wrap(async (req, res) => {
   const athlete = athletes.find((a) => a.id === int(req.params.id));
   const date = str(req.params.date);
   if (!athlete || !isDate(date)) return go(res, "/dashboard", { err: "That page isn't available." });
-  const programs = athlete.age_group ? await booking.bookingOptions(athlete) : [];
+  const programs = await booking.bookingOptions(athlete);
   const days = [...new Set(programs.flatMap((p) => p.sessions.map((s) => localDate(s.starts_at))))].sort();
   // Who's going: names only (never contact details), as set under Settings → Family view
   const going = {};

@@ -1,7 +1,7 @@
 const express = require("express");
 const auth = require("../auth");
 const { sendEmail, shell } = require("../email");
-const { APP_URL } = require("../config");
+const { APP_URL, LABELS } = require("../config");
 const v = require("../views/auth");
 const { wrap } = require("./util");
 
@@ -23,11 +23,11 @@ router.post("/login", wrap(async (req, res) => {
     if (!process.env.RESEND_API_KEY) console.log(`[login link] ${email}: ${link}`);
     else await sendEmail({
       to: email,
-      subject: "Your Raptors Training sign-in link",
-      html: shell("Sign in to Raptors Training",
+      subject: `Your ${LABELS.app_name} sign-in link`,
+      html: shell(`Sign in to ${LABELS.app_name}`,
         `<p style="color:#5b6b7a">This link works once and expires in ${auth.LOGIN_TOKEN_MINUTES} minutes. If you didn't request it, ignore this email.</p>`,
         { href: link, label: "Sign in" }),
-      text: `Sign in to Raptors Training: ${link}\n\nThis link works once and expires in ${auth.LOGIN_TOKEN_MINUTES} minutes.`,
+      text: `Sign in to ${LABELS.app_name}: ${link}\n\nThis link works once and expires in ${auth.LOGIN_TOKEN_MINUTES} minutes.`,
     });
   } catch (err) {
     console.error("Login email failed:", err.message);
