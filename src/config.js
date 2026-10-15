@@ -17,7 +17,7 @@ const DEFAULT_CATALOG = {
   ],
   locations: ["Turn Two Athletics"],
   family_names: "initial", // what families see of who's going: "full", "initial" (Ava S.), or "off"
-  app_labels: { app_name: "Raptors Training", org_name: "Chippewa Valley Raptors", participant: ["Athlete", "Athletes"], group: ["Group", "Groups"] },
+  app_labels: { app_name: "Raptors Claim It", app_short: "Claim It", org_name: "Chippewa Valley Raptors", participant: ["Athlete", "Athletes"], group: ["Group", "Groups"] },
 };
 
 const AGE_GROUPS = [];          // ordered group names
@@ -30,7 +30,7 @@ const PRESETS = [];             // [{ name, ages }]
 const LOCATIONS = [];
 const CATALOG = { current: null };
 const FAMILY = { names: "initial" };
-const LABELS = { app_name: "Raptors Training", org_name: "Chippewa Valley Raptors", participant: "Athlete", participants: "Athletes", group: "Group", groups: "Groups" };
+const LABELS = { app_name: "Raptors Claim It", app_short: "Claim It", org_name: "Chippewa Valley Raptors", participant: "Athlete", participants: "Athletes", group: "Group", groups: "Groups" };
 
 const refill = (arr, items) => arr.splice(0, arr.length, ...items);
 const reset = (obj, entries) => { for (const k of Object.keys(obj)) delete obj[k]; Object.assign(obj, Object.fromEntries(entries)); };
@@ -48,7 +48,7 @@ function apply(catalog) {
   FAMILY.names = ["full", "initial", "off"].includes(catalog.family_names) ? catalog.family_names : "initial";
   const al = catalog.app_labels || DEFAULT_CATALOG.app_labels;
   Object.assign(LABELS, {
-    app_name: al.app_name || "Raptors Training", org_name: al.org_name || "",
+    app_name: al.app_name || "Raptors Claim It", app_short: al.app_short || al.app_name || "Claim It", org_name: al.org_name || "",
     participant: (al.participant || [])[0] || "Athlete", participants: (al.participant || [])[1] || "Athletes",
     group: (al.group || [])[0] || "Group", groups: (al.group || [])[1] || "Groups",
   });

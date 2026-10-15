@@ -67,7 +67,7 @@ const builders = {
       columns: [
         { key: "day", label: "Date" }, { key: "time", label: "Time" }, { key: "round", label: "Round" },
         { key: "session", label: "Session" }, { key: "coach", label: "Coach" },
-        { key: "capacity", label: "Spots", num: true }, { key: "reserved", label: "Reserved", num: true },
+        { key: "capacity", label: "Spots", num: true }, { key: "reserved", label: "Claimed", num: true },
         { key: "waitlisted", label: "Waitlisted", num: true }, { key: "canceled", label: "Cancellations", num: true },
         { key: "fill", label: "Fill %", num: true, pct: true },
       ],
@@ -94,7 +94,7 @@ const builders = {
     return {
       columns: [
         { key: "session", label: "Session" }, { key: "sessions", label: "Times offered", num: true },
-        { key: "capacity", label: "Total spots", num: true }, { key: "reserved", label: "Reserved", num: true },
+        { key: "capacity", label: "Total spots", num: true }, { key: "reserved", label: "Claimed", num: true },
         { key: "fill", label: "Fill %", num: true, pct: true }, { key: "athletes", label: "Different athletes", num: true },
         { key: "waitlisted", label: "Waitlisted", num: true }, { key: "canceled", label: "Cancellations", num: true },
       ],
@@ -133,7 +133,7 @@ const builders = {
     return {
       columns: [
         { key: "athlete", label: "Athlete" }, { key: "age_group", label: "Age group" }, { key: "team", label: "Team" },
-        { key: "parents", label: "Parent emails" }, { key: "reserved", label: "Sessions reserved", num: true },
+        { key: "parents", label: "Parent emails" }, { key: "reserved", label: "Spots claimed", num: true },
         ...ACTIVITIES.map((a) => ({ key: `a_${a}`, label: a, num: true })),
         { key: "waitlisted", label: "Waitlisted", num: true }, { key: "canceled", label: "Canceled", num: true },
       ],
@@ -161,7 +161,7 @@ const builders = {
        LEFT JOIN users bu ON bu.id=x.booked_by
        WHERE s.canceled_at IS NULL ${sql} ${statusSql}
        ORDER BY s.starts_at, p.activity, x.created_at`, params)).rows;
-    const label = { confirmed: "Reserved", waitlisted: "Waitlisted", canceled: "Canceled" };
+    const label = { confirmed: "Claimed", waitlisted: "Waitlisted", canceled: "Canceled" };
     return {
       columns: [
         { key: "day", label: "Date" }, { key: "time", label: "Time" }, { key: "round", label: "Round" },

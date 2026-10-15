@@ -46,7 +46,7 @@ function gateLayout({ title, body, flash }) {
 
 function bottomNav(tab, admin) {
   const items = [
-    ["home", "/dashboard", "🏠", "My Sign-Ups"],
+    ["home", "/dashboard", "🏠", "My Claims"],
     ...(admin ? [["reports", "/admin/reports", "📊", "Reports"], ["settings", "/admin/setup", "🛠️", "Settings"]] : []),
   ];
   const active = SETTINGS_AREA.includes(tab) ? "settings" : tab || "home";
@@ -80,7 +80,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   <div class="appbar-inner${w}">
     <a class="brand" href="/dashboard">
       <img class="appbar-logo" src="/raptors-logo.png" alt="">
-      <span class="brand-text"><span class="brand-mark">${esc(LABELS.app_name)}</span><span class="brand-org">${esc(LABELS.org_name)}</span></span>
+      <span class="brand-text"><span class="brand-mark"><span class="bm-long">${esc(LABELS.app_name)}</span><span class="bm-short">${esc(LABELS.app_short)}</span></span><span class="brand-org">${esc(LABELS.org_name)}</span></span>
     </a>
     <span class="spacer"></span>
     <div class="who"><b>${esc(user.email)}</b>

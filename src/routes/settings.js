@@ -150,7 +150,8 @@ router.post("/labels", wrap(async (req, res) => {
   const one = (k, d) => clean(b[`${k}_one`], 24) || d;
   const p1 = one("participant", "Athlete"), g1 = one("group", "Group");
   c.app_labels = {
-    app_name: clean(b.app_name, 40) || "Sign-Ups", org_name: clean(b.org_name, 60),
+    app_name: clean(b.app_name, 40) || "Raptors Claim It", app_short: clean(b.app_short, 20) || clean(b.app_name, 20) || "Claim It",
+    org_name: clean(b.org_name, 60),
     participant: [p1, clean(b.participant_many, 24) || `${p1}s`], group: [g1, clean(b.group_many, 24) || `${g1}s`],
   };
   await catalog.save(c);

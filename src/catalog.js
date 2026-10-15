@@ -7,7 +7,15 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 async function load() {
   await query(`CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   const row = (await query(`SELECT value FROM app_settings WHERE key='catalog'`)).rows[0];
-  if (row) config.apply(normalize(row.value));
+  if (row) {
+    const c = normalize(row.value);
+    // The app was renamed to Raptors Claim It; upgrade the old default names (custom names are kept)
+    if (["Raptors Training", "Raptors Sign-Ups", "Sign-Ups"].includes(c.app_labels.app_name)) {
+      c.app_labels = { ...c.app_labels, app_name: "Raptors Claim It", app_short: "Claim It" };
+      await query(`UPDATE app_settings SET value=$1, updated_at=now() WHERE key='catalog'`, [JSON.stringify(c)]);
+    }
+    config.apply(c);
+  }
   else {
     await query(`INSERT INTO app_settings (key, value) VALUES ('catalog', $1)`, [JSON.stringify(config.DEFAULT_CATALOG)]);
     config.apply(clone(config.DEFAULT_CATALOG));

@@ -15,7 +15,7 @@ function slotAction(r, s) {
   if (opensLater(s)) return `<span class="btn-small" aria-disabled="true">Opens ${esc(fmtDateTime(s.booking_opens_at))}</span>`;
   const wl = s.program_waitlist != null ? s.program_waitlist : r.waitlist;
   if (open <= 0 && !wl) return `<button class="btn-small" disabled>Full</button>`;
-  return `<a class="${open > 0 ? "btn-small" : "btn-small secondary"}" href="/s/${r.share_token}/${s.id}">${open > 0 ? "Sign up" : "Join waitlist"}</a>`;
+  return `<a class="${open > 0 ? "btn-small" : "btn-small secondary"}" href="/s/${r.share_token}/${s.id}">${open > 0 ? "Claim it" : "Join waitlist"}</a>`;
 }
 
 function sheetPage({ user, round: r, slots, flash }) {
@@ -27,8 +27,8 @@ function sheetPage({ user, round: r, slots, flash }) {
       <p class="label-like">${esc(r.schedule_name || "")}</p>
       <h1>${esc(r.name)}</h1>
       ${r.location ? `<p class="muted tight">${esc(r.location)}</p>` : ""}
-      ${user ? `<p class="fine">Signed in as ${esc(user.email)}. Your sign-ups also show under <a href="/dashboard">My Sign-Ups</a>.</p>`
-        : `<p class="fine">Pick a time and enter a name and email. No account needed. Already signed up? <a href="/">Sign in</a> with your email to see or cancel.</p>`}
+      ${user ? `<p class="fine">Signed in as ${esc(user.email)}. Your spots also show under <a href="/dashboard">My Claims</a>.</p>`
+        : `<p class="fine">Pick a time, tap <b>Claim it</b>, and enter a name and email. No account needed. Already claimed a spot? <a href="/">Sign in</a> with your email to see or give it up.</p>`}
     </section>
     ${days.length ? days.map((d) => `<section class="panel pub-day">
       <h2 class="banner">${esc(longDay(d))}</h2>
@@ -49,7 +49,7 @@ function sheetPage({ user, round: r, slots, flash }) {
 
 function formPage({ user, round: r, slot: s, values = {}, err }) {
   return pub({
-    title: `Sign up · ${r.name}`, user, flash: { err },
+    title: `Claim a spot · ${r.name}`, user, flash: { err },
     body: `<a class="back" href="/s/${r.share_token}">All times</a>
     <section class="panel">
       <p class="label-like">${esc(r.name)}</p>
@@ -61,7 +61,7 @@ function formPage({ user, round: r, slot: s, values = {}, err }) {
         <label>Your email<input type="email" name="email" required value="${esc(values.email)}" autocomplete="email" inputmode="email"></label>
         <p class="fine">Name the person who's coming (you, or your child). We'll email the confirmation here.</p>
         <div class="hp" aria-hidden="true"><label>Leave blank<input name="website" tabindex="-1" autocomplete="off"></label></div>
-        <button class="btn" type="submit">Sign up</button>
+        <button class="btn" type="submit">Claim it</button>
       </form>
     </section>`,
   });
@@ -71,10 +71,10 @@ function donePage({ user, round: r, slot: s, values, status }) {
   return pub({
     title: "Signed up", user,
     body: `<section class="panel done-card">
-      <h1>${status === "confirmed" ? "You're signed up!" : "You're on the waitlist"}</h1>
+      <h1>${status === "confirmed" ? "Spot claimed!" : "You're on the waitlist"}</h1>
       <p class="lede"><strong>${esc(values.first_name)} ${esc(values.last_name)}</strong>, ${esc(longDay(s.day))}, ${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))} (${esc(typeLabel(s.activity, s.age_groups))}).</p>
-      <p>We emailed a confirmation to <strong>${esc(values.email)}</strong>. To see or cancel your sign-ups, <a href="/">sign in</a> with that email.</p>
-      <p><a class="btn-small" href="/s/${r.share_token}">Sign up for another time</a></p>
+      <p>We emailed a confirmation to <strong>${esc(values.email)}</strong>. To see or give up your spots, <a href="/">sign in</a> with that email.</p>
+      <p><a class="btn-small" href="/s/${r.share_token}">Claim another spot</a></p>
     </section>`,
   });
 }

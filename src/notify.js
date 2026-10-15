@@ -30,13 +30,13 @@ function details(r) {
   return { html: `<p style="line-height:1.6">${lines.map(esc).join("<br>")}</p>`, text: lines.join("\n") };
 }
 
-const button = { href: `${APP_URL}/dashboard`, label: "View my sign-ups" };
+const button = { href: `${APP_URL}/dashboard`, label: "View my claims" };
 
 const templates = {
   confirmed: (r) => ({
-    subject: `Reserved: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
-    heading: `${r.first_name} is reserved`,
-    extra: `You can cancel online until ${fmtDateTime(cancelDeadline(r.starts_at, r.cancel_hours))}. Canceling opens the spot for another athlete.`,
+    subject: `Claimed: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
+    heading: `Spot claimed for ${r.first_name}!`,
+    extra: `You can cancel online until ${fmtDateTime(cancelDeadline(r.starts_at, r.cancel_hours))}. Giving it up lets someone else claim it.`,
   }),
   waitlisted: (r) => ({
     subject: `Waitlisted: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
@@ -44,19 +44,19 @@ const templates = {
     extra: `If a spot opens, ${r.first_name} moves in automatically and you'll get an email.`,
   }),
   promoted: (r) => ({
-    subject: `Spot opened: ${r.first_name} is now reserved for ${r.program_name}`,
-    heading: `A spot opened. ${r.first_name} is reserved`,
-    extra: `${r.first_name} moved off the waitlist. If you can't make it, cancel online so the next athlete gets the spot.`,
+    subject: `Spot opened: claimed for ${r.first_name}, ${r.program_name}`,
+    heading: `A spot opened and it's claimed for ${r.first_name}`,
+    extra: `${r.first_name} moved off the waitlist. If you can't make it, give the spot up online so someone else can claim it.`,
   }),
   canceled: (r) => ({
-    subject: `Canceled: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
-    heading: `${r.first_name}'s reservation is canceled`,
-    extra: `The spot is now open for another athlete.`,
+    subject: `Spot given up: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
+    heading: `${r.first_name}'s spot was given up`,
+    extra: `The spot is open for someone else to claim.`,
   }),
   sessionCanceled: (r) => ({
     subject: `Session canceled: ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
-    heading: `This training session was canceled`,
-    extra: `${r.first_name}'s reservation was removed. It doesn't count against priority reservations.`,
+    heading: `This time was canceled`,
+    extra: `${r.first_name}'s spot was removed, and it doesn't count against any limits.`,
   }),
 };
 

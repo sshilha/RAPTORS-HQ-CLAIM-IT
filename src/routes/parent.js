@@ -92,7 +92,7 @@ router.post("/athletes/:id/book", wrap(async (req, res) => {
     const r = await booking.reserve({ userId: req.user.id, athleteId, sessionId: int(req.body.session_id) });
     notify(r.status, r.reservationId);
     go(res, back, { ok: r.status === "confirmed"
-      ? "Reserved. A confirmation email is on its way."
+      ? "Spot claimed! A confirmation email is on its way."
       : "That one is full, so you're on the waitlist. If a spot opens, you'll move in automatically and get an email." });
   } catch (e) {
     if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
@@ -108,7 +108,7 @@ router.post("/reservations/:id/cancel", wrap(async (req, res) => {
     const r = await booking.cancelReservation({ userId: req.user.id, reservationId: id });
     notify("canceled", id);
     r.promoted.forEach((pid) => notify("promoted", pid));
-    go(res, back, { ok: r.wasStatus === "confirmed" ? "Canceled. The spot is open for another athlete." : "Removed from the waitlist." });
+    go(res, back, { ok: r.wasStatus === "confirmed" ? "Spot given up. It's open for someone else now." : "Removed from the waitlist." });
   } catch (e) {
     if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
     throw e;

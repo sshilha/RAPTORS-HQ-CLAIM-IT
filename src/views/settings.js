@@ -36,7 +36,8 @@ function settingsPage({ user, flash, c, usage }) {
       <h2 class="banner">Names &amp; labels</h2>
       <p class="fine">What the whole app calls itself and the people in it. Each schedule names its own levels (like Season › Round) under Schedule.</p>
       <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
-        <div><label>App name<input name="app_name" required maxlength="40" value="${esc((c.app_labels || {}).app_name)}" placeholder="Raptors Sign-Ups"></label></div>
+        <div class="pair"><div><label>App name<input name="app_name" required maxlength="40" value="${esc((c.app_labels || {}).app_name)}" placeholder="Raptors Claim It"></label></div>
+          <div><label>Short name<input name="app_short" maxlength="20" value="${esc((c.app_labels || {}).app_short)}" placeholder="Claim It"></label><span class="fine">Used on small screens.</span></div></div>
         <div><label>Organization<input name="org_name" maxlength="60" value="${esc((c.app_labels || {}).org_name)}" placeholder="Chippewa Valley Raptors"></label></div>
         <div class="pair"><div><label>Participant (one)<input name="participant_one" required maxlength="24" value="${esc(((c.app_labels || {}).participant || [])[0])}" placeholder="Athlete"></label></div>
           <div><label>Participants (many)<input name="participant_many" maxlength="24" value="${esc(((c.app_labels || {}).participant || [])[1])}" placeholder="Athletes"></label></div></div>

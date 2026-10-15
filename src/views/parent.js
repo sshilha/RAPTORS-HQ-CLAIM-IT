@@ -45,12 +45,12 @@ function usagePanel(programs, { title = "This round" } = {}) {
 function cancelControl(r, back) {
   const deadline = cancelDeadline(r.starts_at, r.cancel_hours);
   const canCancel = r.status === "waitlisted" || new Date() < deadline;
-  if (!canCancel) return `<span class="fine">Online cancellation closed. Contact your coach.</span>`;
+  if (!canCancel) return `<span class="fine">Too late to give it up online. Contact your coach.</span>`;
   return `<form method="post" action="/reservations/${r.id}/cancel"
-      onsubmit="return confirm('${r.status === "confirmed" ? "Cancel this reservation? The spot will open for another athlete." : "Leave the waitlist?"}')">
+      onsubmit="return confirm('${r.status === "confirmed" ? "Give up this spot? It will open for someone else." : "Leave the waitlist?"}')">
       <input type="hidden" name="return_to" value="${esc(back)}">
-      <button class="btn-ghost" type="submit">${r.status === "confirmed" ? "Cancel" : "Leave waitlist"}</button>
-    </form>${r.status === "confirmed" ? `<span class="fine">Cancel by ${esc(fmtDateTime(deadline))}</span>` : ""}`;
+      <button class="btn-ghost" type="submit">${r.status === "confirmed" ? "Give it up" : "Leave waitlist"}</button>
+    </form>${r.status === "confirmed" ? `<span class="fine">Give it up by ${esc(fmtDateTime(deadline))}</span>` : ""}`;
 }
 
 function athleteTabs(athletes, current, hrefFor) {
@@ -78,7 +78,7 @@ function monthGrid(athlete, month, byDay, today) {
       continue;
     }
     cells.push(`<a class="cal-day has${info.mine ? " mine" : ""}${key === today ? " today" : ""}" href="/athletes/${athlete.id}/day/${key}"
-        aria-label="${esc(longDay(key))}: ${info.activities.size} activit${info.activities.size === 1 ? "y" : "ies"}${info.mine ? `, ${info.mine} reserved` : ""}">
+        aria-label="${esc(longDay(key))}: ${info.activities.size} activit${info.activities.size === 1 ? "y" : "ies"}${info.mine ? `, ${info.mine} claimed` : ""}">
       <span class="cal-num">${d.getUTCDate()}</span>
       ${info.mine ? `<span class="cal-mine" aria-hidden="true">✓${info.mine > 1 ? info.mine : ""}</span>` : ""}
       <span class="cal-dots">${[...info.activities].map(dot).join("")}</span>
@@ -96,7 +96,7 @@ function shiftMonth(month, n) {
 
 const selfCard = () => `<section class="panel self-card">
   <h2 class="banner">Sign up yourself</h2>
-  <p class="muted">Some sign-ups (like volunteer shifts) are for adults. Add yourself once, then you'll find a "Me" tab here.</p>
+  <p class="muted">Some spots (like volunteer shifts) are for adults. Add yourself once, then you'll find a "Me" tab here.</p>
   <form method="post" action="/me" class="inline-add">
     <label>First name<input name="first_name" required maxlength="40" autocomplete="given-name"></label>
     <label>Last name<input name="last_name" required maxlength="40" autocomplete="family-name"></label>
@@ -104,7 +104,7 @@ const selfCard = () => `<section class="panel self-card">
   </form></section>`;
 
 function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash, canSelf }) {
-  if (!athletes.length) return layout({ title: "My sign-ups", user, admin, flash, tab: "home",
+  if (!athletes.length) return layout({ title: "My claims", user, admin, flash, tab: "home",
     body: `<section class="panel"><h1>Welcome to ${esc(LABELS.app_name)}</h1>
       <div class="empty"><p>No ${esc(LABELS.participants.toLowerCase())} are linked to this email yet.</p>
         <p class="muted">If you signed in with a different email than the one you gave us, sign out and try that one. Otherwise, contact us and we'll link your ${esc(LABELS.participant.toLowerCase())}.</p></div></section>
@@ -127,7 +127,7 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
   const nextDay = [...byDay.keys()].filter((k) => k >= today).sort()[0];
 
   return layout({
-    title: "My sign-ups", user, admin, flash, tab: "home",
+    title: "My claims", user, admin, flash, tab: "home",
     body: `${athleteTabs(athletes, athlete, (a) => `/dashboard?a=${a.id}&m=${month}`)}
     <section class="panel athlete">
       <div class="athlete-head"><h1>${esc(athlete.first_name)} ${esc(athlete.last_name)}</h1>
@@ -140,9 +140,9 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
         <a class="month-nav" href="${href(shiftMonth(month, 1))}" aria-label="Next month">›</a>
       </div>
       ${monthGrid(athlete, month, byDay, today)}
-      <div class="pcal-legend">${activities.map((a) => `<span>${dot(a)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Reserved</span></div>
-      ${byDay.size ? `<p class="fine">Tap a day to see its sessions and reserve.${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
-        : `<div class="empty"><p>Nothing open to sign up for right now.</p><p class="muted">New sign-ups show up here as soon as they're posted.</p></div>`}`}
+      <div class="pcal-legend">${activities.map((a) => `<span>${dot(a)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Claimed</span></div>
+      ${byDay.size ? `<p class="fine">Tap a day to see what's open and claim a spot.${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
+        : `<div class="empty"><p>Nothing open to claim right now.</p><p class="muted">New spots show up here as soon as they're posted.</p></div>`}`}
     </section>
 
     <section class="panel">
@@ -151,9 +151,9 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
         <a class="res-main res-link" href="/athletes/${athlete.id}/day/${localDate(r.starts_at)}">
           <div class="res-when">${esc(fmtRange(r.starts_at, r.ends_at))}</div>
           <div class="res-what">${esc(r.program_name)}${r.location ? `, ${esc(r.location)}` : ""}</div></a>
-        <div class="res-side">${r.status === "confirmed" ? `<span class="pill ok">Reserved</span>` : `<span class="pill wait">Waitlist #${r.wait_pos}</span>`}
+        <div class="res-side">${r.status === "confirmed" ? `<span class="pill ok">Claimed</span>` : `<span class="pill wait">Waitlist #${r.wait_pos}</span>`}
           ${cancelControl(r, `/dashboard?a=${athlete.id}&m=${month}`)}</div></li>`).join("")}</ul>`
-        : `<p class="muted">Nothing reserved yet. Pick a day on the calendar to get started.</p>`}
+        : `<p class="muted">Nothing claimed yet. Pick a day on the calendar to get started.</p>`}
     </section>
     ${canSelf ? selfCard() : ""}`,
   });
@@ -168,9 +168,9 @@ function actionFor(p, s, athlete, back, compact) {
   const open = s.capacity - s.confirmed;
   if (s.my_status) {
     const r = { id: s.my_id, status: s.my_status, starts_at: s.starts_at, cancel_hours: p.cancel_hours };
-    return `${s.my_status === "confirmed" ? `<span class="pill ok">Reserved</span>` : `<span class="pill wait">Waitlist #${s.my_pos}</span>`}
-      ${compact ? `<form method="post" action="/reservations/${s.my_id}/cancel" onsubmit="return confirm('Cancel this spot?')">
-          <input type="hidden" name="return_to" value="${esc(back)}"><button class="link-dark sm" type="submit">Cancel</button></form>` : cancelControl(r, back)}`;
+    return `${s.my_status === "confirmed" ? `<span class="pill ok">Claimed</span>` : `<span class="pill wait">Waitlist #${s.my_pos}</span>`}
+      ${compact ? `<form method="post" action="/reservations/${s.my_id}/cancel" onsubmit="return confirm('Give up this spot?')">
+          <input type="hidden" name="return_to" value="${esc(back)}"><button class="link-dark sm" type="submit">Give it up</button></form>` : cancelControl(r, back)}`;
   }
   if (!bookingOpen(p)) return `<button class="btn-small" disabled>${compact ? "Soon" : `Opens ${esc(fmtDateTime(p.booking_opens_at))}`}</button>`;
   if (open <= 0 && !p.waitlistOn) return `<button class="btn-small" disabled>Full</button>`;
@@ -178,7 +178,7 @@ function actionFor(p, s, athlete, back, compact) {
     (s.unlocksAt ? `<span class="fine unlock-hint">${compact ? `Opens ${esc(fmtDay(s.unlocksAt))}` : `Opens to all ${esc(fmtDateTime(s.unlocksAt))}`}</span>` : "");
   return `<form method="post" action="/athletes/${athlete.id}/book">
       <input type="hidden" name="session_id" value="${s.id}"><input type="hidden" name="return_to" value="${esc(back)}">
-      <button class="${open > 0 ? "btn-small" : "btn-small secondary"}" type="submit">${open > 0 ? "Reserve" : compact ? "Waitlist" : "Join waitlist"}</button>
+      <button class="${open > 0 ? "btn-small" : "btn-small secondary"}" type="submit">${open > 0 ? "Claim it" : compact ? "Waitlist" : "Join waitlist"}</button>
     </form>`;
 }
 

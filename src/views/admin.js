@@ -89,7 +89,7 @@ const programPage = ({ user, program: p, sessions, flash, readonly }) => page({
     <div class="athlete-head"><h1>${esc(p.name)}</h1>${programStatus(p)}</div>
     <h2>Sessions</h2>
     ${sessions.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>When</th><th>Location</th><th>Coach</th><th>Reserved</th><th>Waitlist</th></tr></thead>
+      <thead><tr><th>When</th><th>Location</th><th>Coach</th><th>Claimed</th><th>Waitlist</th></tr></thead>
       <tbody>${sessions.map((s) => `<tr class="${s.canceled_at ? "struck" : ""}">
         <td><a href="/admin/sessions/${s.id}">${esc(fmtRange(s.starts_at, s.ends_at))}</a>${s.canceled_at ? ` <span class="pill">Canceled</span>` : ""}</td>
         <td>${esc(s.location || "")}</td><td>${esc(s.coach || "")}</td>
@@ -148,7 +148,7 @@ const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist,
     <div class="athlete-head"><h1>${esc(fmtRange(s.starts_at, s.ends_at))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>
     <p class="muted">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</p>
     ${lockPanel(s, p, round)}
-    <h2>Reserved (${confirmed.length} of ${s.capacity})</h2>${rosterRows(confirmed, "ok")}
+    <h2>Claimed (${confirmed.length} of ${s.capacity})</h2>${rosterRows(confirmed, "ok")}
     <h2>Waitlist</h2>${rosterRows(waitlist, "wait")}
   </section>
   ${s.canceled_at ? "" : `<section class="panel">

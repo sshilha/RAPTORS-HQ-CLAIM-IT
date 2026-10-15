@@ -24,7 +24,7 @@ function reportsPage({ user, f, reports, seasons, rounds, out, totals, schedules
         <div><label>To<input type="date" name="to" value="${esc(f.to)}"></label></div></div>
       <div><label>Activity<select name="activity">${opt("", "All activities", f.activity)}${ACTIVITIES.map((a) => opt(a, a, f.activity)).join("")}</select></label></div>
       <div><label>Age group<select name="age">${opt("", "All age groups", f.age)}${AGE_GROUPS.map((a) => opt(a, a, f.age)).join("")}</select></label></div>
-      ${f.report === "reservations" ? `<div><label>Status<select name="status">${opt("", "All", f.status)}${opt("confirmed", "Reserved", f.status)}${opt("waitlisted", "Waitlisted", f.status)}${opt("canceled", "Canceled", f.status)}</select></label></div>` : ""}
+      ${f.report === "reservations" ? `<div><label>Status<select name="status">${opt("", "All", f.status)}${opt("confirmed", "Claimed", f.status)}${opt("waitlisted", "Waitlisted", f.status)}${opt("canceled", "Canceled", f.status)}</select></label></div>` : ""}
       ${f.report === "athletes" ? `<div class="align-end"><label class="check"><input type="checkbox" name="zero" value="1"${f.zero ? " checked" : ""}> Include athletes with no reservations</label></div>` : ""}
       <div class="full actions">
         <button class="btn-small" type="submit">Run report</button>

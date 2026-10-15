@@ -732,3 +732,5 @@ table.levels input { padding: 8px 10px; min-width: 120px; }
 a.btn-small.secondary { color: var(--navy); }
 .done-card h1 { color: var(--lime-dark); }
 .self-card { margin-top: 14px; }
+.bm-short { display: none; }
+@media (max-width: 420px) { .bm-long { display: none; } .bm-short { display: inline; } }

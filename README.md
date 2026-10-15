@@ -1,7 +1,9 @@
-# Raptors Sign-Ups
+# Raptors Claim It
 
-A general sign-up tool (think SignUpGenius) for the Chippewa Valley Raptors: training,
-concessions and volunteer shifts, events, anything with times and spots.
+**Claim It** for short. Sign-ups for the Chippewa Valley Raptors: training, concessions and
+volunteer shifts, events, anything with times and spots. Families see what's open and tap
+**Claim it**; "My Claims" shows what they've got. Rename it under Settings → Activities &
+groups → Names & labels (app name and short name).
 
 ## Schedules and levels
 
