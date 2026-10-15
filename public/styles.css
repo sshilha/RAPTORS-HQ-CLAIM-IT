@@ -784,3 +784,26 @@ select[multiple] { padding: 6px; }
 .copy-form .mode-opt { flex: none; }
 label .fine { text-transform: none; letter-spacing: normal; font-weight: 400; color: var(--muted); }
 .sc-main { flex: 1; }
+
+/* ---------- tags ---------- */
+.tag-boxes { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.tag-box { display: inline-flex; align-items: center; gap: 4px; font: 600 12px var(--body); text-transform: none; letter-spacing: normal;
+  color: var(--muted); border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 8px 2px 4px; cursor: pointer; }
+.tag-box input { width: 14px; height: 14px; margin: 0; accent-color: var(--navy); }
+.tag-box.on { color: var(--navy); border-color: var(--navy); background: #eef3ff; }
+.tag-filter { border-style: dashed !important; }
+.bulk-tag { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.bulk-tag select { width: auto; padding: 7px 8px; }
+.bulk-tag .label-like { margin: 0; }
+.only-for { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.only-label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.depth-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0 4px; }
+.depth-form select { width: auto; }
+.claim-pill { display: inline-block; margin-top: 4px; font-size: 11px; }
+.people-row td { background: var(--paper); }
+.items-panel { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.items-panel .title-in { flex: 1; min-width: 200px; }
+.item-add { margin-top: 8px; }
+.main-round > summary .r-name { font-size: 20px; }
+.items-list { margin: 14px 0; display: flex; flex-direction: column; gap: 12px; }
+.item-group h3.banner { font-size: 18px; }

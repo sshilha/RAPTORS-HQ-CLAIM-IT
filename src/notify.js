@@ -1,6 +1,6 @@
 const { query } = require("./db");
 const { sendEmail, shell } = require("./email");
-const { fmtRange, fmtDateTime } = require("./time");
+const { fmtRange, fmtDateTime, itemLabel } = require("./time");
 const { APP_URL } = require("./config");
 const { cancelDeadline } = require("./booking");
 
@@ -8,7 +8,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 
 async function loadReservation(id) {
   const { rows } = await query(
-    `SELECT r.*, a.first_name, a.last_name, s.starts_at, s.ends_at, s.location, s.coach, s.notes,
+    `SELECT r.*, a.first_name, a.last_name, s.starts_at, s.ends_at, s.location, s.coach, s.notes, s.title,
             p.name AS program_name, p.cancel_hours,
             ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS emails
      FROM reservations r JOIN athletes a ON a.id=r.athlete_id
@@ -22,7 +22,7 @@ async function loadReservation(id) {
 function details(r) {
   const lines = [
     `${r.program_name}`,
-    fmtRange(r.starts_at, r.ends_at),
+    itemLabel(r),
     r.location && `Location: ${r.location}`,
     r.coach && `Coach: ${r.coach}`,
     r.notes,
@@ -34,12 +34,13 @@ const button = { href: `${APP_URL}/dashboard`, label: "View my claims" };
 
 const templates = {
   confirmed: (r) => ({
-    subject: `Claimed: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
+    subject: `Claimed: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
     heading: `Spot claimed for ${r.first_name}!`,
-    extra: `You can cancel online until ${fmtDateTime(cancelDeadline(r.starts_at, r.cancel_hours))}. Giving it up lets someone else claim it.`,
+    extra: r.starts_at ? `You can cancel online until ${fmtDateTime(cancelDeadline(r.starts_at, r.cancel_hours))}. Giving it up lets someone else claim it.`
+      : "Can't make it? Give it up online so someone else can claim it.",
   }),
   waitlisted: (r) => ({
-    subject: `Waitlisted: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
+    subject: `Waitlisted: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
     heading: `${r.first_name} is on the waitlist`,
     extra: `If a spot opens, ${r.first_name} moves in automatically and you'll get an email.`,
   }),
@@ -49,12 +50,12 @@ const templates = {
     extra: `${r.first_name} moved off the waitlist. If you can't make it, give the spot up online so someone else can claim it.`,
   }),
   canceled: (r) => ({
-    subject: `Spot given up: ${r.first_name}, ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
+    subject: `Spot given up: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
     heading: `${r.first_name}'s spot was given up`,
     extra: `The spot is open for someone else to claim.`,
   }),
   sessionCanceled: (r) => ({
-    subject: `Session canceled: ${r.program_name} ${fmtRange(r.starts_at, r.ends_at)}`,
+    subject: `Canceled: ${r.program_name}: ${itemLabel(r)}`,
     heading: `This time was canceled`,
     extra: `${r.first_name}'s spot was removed, and it doesn't count against any limits.`,
   }),

@@ -19,8 +19,8 @@ const REPORTS = {
 
 const BASE = `FROM training_sessions s JOIN programs p ON p.id=s.program_id
   LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id`;
-const DAY = `to_char(s.starts_at AT TIME ZONE '${TZ}', 'Dy Mon FMDD, YYYY')`;
-const TIME = `to_char(s.starts_at AT TIME ZONE '${TZ}', 'FMHH12:MI AM') || '–' || to_char(s.ends_at AT TIME ZONE '${TZ}', 'FMHH12:MI AM')`;
+const DAY = `coalesce(to_char(s.starts_at AT TIME ZONE '${TZ}', 'Dy Mon FMDD, YYYY'), 'Anytime')`;
+const TIME = `coalesce(to_char(s.starts_at AT TIME ZONE '${TZ}', 'FMHH12:MI AM') || '–' || to_char(s.ends_at AT TIME ZONE '${TZ}', 'FMHH12:MI AM'), s.title, '')`;
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
 function readFilters(q) {
@@ -54,12 +54,12 @@ function where(f, ageScope, params = []) {
 async function sessionRows(f) {
   const { sql, params } = where(f, "session");
   return (await query(
-    `SELECT s.id, ${DAY} AS day, ${TIME} AS time, rd.name AS round, p.activity, p.age_groups, s.coach, s.location, s.capacity,
+    `SELECT s.id, ${DAY} AS day, ${TIME} AS time, rd.name AS round, p.activity, p.age_groups, p.required_tags, s.coach, s.location, s.capacity,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS reserved,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='waitlisted') AS waitlisted,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='canceled') AS canceled,
        ARRAY(SELECT x.athlete_id FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS athletes
-     ${BASE} WHERE s.canceled_at IS NULL ${sql} ORDER BY s.starts_at, p.activity`, params)).rows;
+     ${BASE} WHERE s.canceled_at IS NULL ${sql} ORDER BY s.starts_at NULLS LAST, p.activity`, params)).rows;
 }
 
 const builders = {
@@ -73,7 +73,7 @@ const builders = {
         { key: "waitlisted", label: "Waitlisted", num: true }, { key: "canceled", label: "Cancellations", num: true },
         { key: "fill", label: "Fill %", num: true, pct: true },
       ],
-      rows: rows.map((r) => ({ ...r, session: typeLabel(r.activity, r.age_groups), fill: pct(r.reserved, r.capacity), link: `/admin/sessions/${r.id}` })),
+      rows: rows.map((r) => ({ ...r, session: typeLabel(r.activity, r.age_groups, r.required_tags), fill: pct(r.reserved, r.capacity), link: `/admin/sessions/${r.id}` })),
       totals: (rs) => ({ capacity: sum(rs, "capacity"), reserved: sum(rs, "reserved"), waitlisted: sum(rs, "waitlisted"),
         canceled: sum(rs, "canceled"), fill: pct(sum(rs, "reserved"), sum(rs, "capacity")) }),
     };
@@ -169,7 +169,7 @@ const builders = {
        JOIN programs p ON p.id=s.program_id LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
        LEFT JOIN users bu ON bu.id=x.booked_by
        WHERE s.canceled_at IS NULL ${sql} ${statusSql}
-       ORDER BY s.starts_at, p.activity, x.created_at`, params)).rows;
+       ORDER BY s.starts_at NULLS LAST, p.activity, x.created_at`, params)).rows;
     const label = { confirmed: "Claimed", waitlisted: "Waitlisted", canceled: "Canceled" };
     return {
       columns: [
@@ -178,7 +178,7 @@ const builders = {
         { key: "statusText", label: "Status" }, { key: "parents", label: "Parent emails" },
         { key: "booked_by", label: "Booked by" }, { key: "booked_at", label: "Booked" }, { key: "canceled_at", label: "Canceled" },
       ],
-      rows: rows.map((r) => ({ ...r, session: typeLabel(r.activity, r.age_groups), athlete: `${r.last_name}, ${r.first_name}`,
+      rows: rows.map((r) => ({ ...r, session: typeLabel(r.activity, r.age_groups, r.required_tags), athlete: `${r.last_name}, ${r.first_name}`,
         parents: r.emails.join(", "), statusText: label[r.status] + (r.promoted && r.status !== "waitlisted" ? " (from waitlist)" : "") +
           (r.counted ? "" : " (open spot)"),
         link: `/admin/sessions/${r.sid}` })),

@@ -24,7 +24,7 @@ function settingsNav(tab, user) {
   const L = SC.labels(sched.sc);
   return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sched.sc.name)}</span>
       ${sched.sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>
-    <nav class="settings-tabs no-print" aria-label="${esc(sched.sc.name)}">${SCHEDULE_TABS.map(([k, href, label]) =>
+    <nav class="settings-tabs no-print" aria-label="${esc(sched.sc.name)}">${SCHEDULE_TABS.filter(([k]) => k !== "activities" || SC.depthOf(sched.sc) > 1).map(([k, href, label]) =>
       `<a href="${href(sched.sc)}"${k === cur[0] ? ' aria-current="page"' : ""}>${esc(label(L))}</a>`).join("")}</nav>`;
 }
 const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsNav(opts.tab, opts.user) + opts.body });
@@ -78,8 +78,15 @@ const programsPage = ({ user, programs, flash }) => page({
 });
 
 function sessionFields(s = {}, { create } = {}) {
+  if (s.id && !s.starts_at) return `
+  <div class="full"><label for="s-title">Name</label><input id="s-title" name="title" required maxlength="80" value="${esc(s.title)}"></div>
+  <input type="hidden" name="undated" value="1">
+  <div><label for="s-loc">Location</label><input id="s-loc" name="location" value="${esc(s.location)}"></div>
+  <div><label for="s-coach">Contact</label><input id="s-coach" name="coach" value="${esc(s.coach)}"></div>
+  <div><label for="s-cap">Spots</label><input id="s-cap" type="number" min="1" max="500" name="capacity" required value="${s.capacity ?? 1}"></div>
+  <div class="full"><label for="s-notes">Notes (optional)</label><input id="s-notes" name="notes" value="${esc(s.notes)}"></div>`;
   const st = inputParts(s.starts_at), en = inputParts(s.ends_at);
-  return `
+  return `${s.title ? `<div class="full"><label for="s-title">Name</label><input id="s-title" name="title" maxlength="80" value="${esc(s.title)}"></div>` : ""}
   <div><label for="s-date">Date</label><input id="s-date" type="date" name="date" required value="${st.date}"></div>
   <div class="pair"><div><label for="s-st">Start</label><input id="s-st" type="time" name="start_time" required value="${st.time}"></div>
     <div><label for="s-en">End</label><input id="s-en" type="time" name="end_time" required value="${en.time}"></div></div>
@@ -101,7 +108,7 @@ const programPage = ({ user, program: p, sessions, flash, readonly }) => page({
     ${sessions.length ? `<div class="table-wrap"><table>
       <thead><tr><th>When</th><th>Location</th><th>Coach</th><th>Claimed</th><th>Waitlist</th></tr></thead>
       <tbody>${sessions.map((s) => `<tr class="${s.canceled_at ? "struck" : ""}">
-        <td><a href="/admin/sessions/${s.id}">${esc(fmtRange(s.starts_at, s.ends_at))}</a>${s.canceled_at ? ` <span class="pill">Canceled</span>` : ""}</td>
+        <td><a href="/admin/sessions/${s.id}">${esc(require("../time").itemLabel(s))}</a>${s.canceled_at ? ` <span class="pill">Canceled</span>` : ""}</td>
         <td>${esc(s.location || "")}</td><td>${esc(s.coach || "")}</td>
         <td>${s.confirmed} / ${s.capacity}</td><td>${s.waitlisted}</td></tr>`).join("")}</tbody></table></div>`
       : `<p class="muted">No sessions yet. Add one below.</p>`}
@@ -155,7 +162,7 @@ const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist,
   title: "Session", tab: "rounds", user, flash, readonly,
   body: `<a class="back" href="${p.round_id ? `/admin/rounds/${p.round_id}` : `/admin/programs/${p.id}`}">${p.round_id ? "Back to round calendar" : esc(p.name)}</a>
   <section class="panel">
-    <div class="athlete-head"><h1>${esc(fmtRange(s.starts_at, s.ends_at))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>
+    <div class="athlete-head"><h1>${esc(require("../time").itemLabel(s))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>
     <p class="muted">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</p>
     ${lockPanel(s, p, round)}
     <h2>Claimed (${confirmed.length} of ${s.capacity})</h2>${rosterRows(confirmed, "ok")}
@@ -203,6 +210,9 @@ const athletePage = ({ user, athlete: a, parents, memberships, schedules, claims
       <div class="res-side member-row">
         <form method="post" action="/admin/athletes/${a.id}/membership" class="inline-group">
           <input type="hidden" name="schedule_id" value="${m.schedule_id}">${gsel(m, m.group_name).replace("<select", `<select onchange="this.form.submit()"`)}</form>
+        ${(m.board_tags || []).length ? `<form method="post" action="/admin/members/${a.id}/tags?s=${m.schedule_id}" class="tag-boxes">
+          <input type="hidden" name="return_to" value="/admin/athletes/${a.id}">
+          ${m.board_tags.map((t) => `<label class="tag-box${(m.tags || []).includes(t) ? " on" : ""}"><input type="checkbox" name="tags" value="${esc(t)}"${(m.tags || []).includes(t) ? " checked" : ""} onchange="this.form.submit()"> ${esc(t)}</label>`).join("")}</form>` : ""}
         <form method="post" action="/admin/athletes/${a.id}/membership/${m.schedule_id}/remove"><button class="x" type="submit" aria-label="Remove from ${esc(m.name)}">×</button></form>
       </div></li>`).join("")}</ul>` : `<p class="muted">Not in any schedule yet.</p>`}
     ${notIn.length ? `<div class="add-member">${notIn.map((sc) => `<form method="post" action="/admin/athletes/${a.id}/membership" class="inline-add">

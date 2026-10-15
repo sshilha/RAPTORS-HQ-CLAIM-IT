@@ -4,6 +4,8 @@ const { fmtRange, fmtDateTime, fmtDay, fmtTime, inputParts } = require("../time"
 const { cancelDeadline, bookingOpen } = require("../booking");
 const { ACTIVITIES, LABELS, colorFor } = require("../config");
 const SC = require("../schedules");
+const { typeLabel } = require("../rounds");
+const { itemLabel } = require("../time");
 
 const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -26,6 +28,8 @@ function usagePanel(programs, { title = "This round" } = {}) {
     if (!g.items.has(p.activity)) g.items.set(p.activity, { activity: p.activity, sid: p.schedule_id, limit: p.limitsOn ? p.limit : null, used: p.used });
     groups.set(key, g);
   }
+  // Only boards/rounds that actually limit something are worth showing
+  for (const [k, g] of groups) if (![...g.items.values()].some((i) => i.limit != null)) groups.delete(k);
   if (!groups.size) return "";
   return `<section class="usage">${[...groups.values()].map((g) => {
     const items = [...g.items.values()].sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity));
@@ -43,14 +47,14 @@ function usagePanel(programs, { title = "This round" } = {}) {
 }
 
 function cancelControl(r, back) {
-  const deadline = cancelDeadline(r.starts_at, r.cancel_hours);
-  const canCancel = r.status === "waitlisted" || new Date() < deadline;
+  const deadline = r.starts_at ? cancelDeadline(r.starts_at, r.cancel_hours) : null; // undated items: no deadline
+  const canCancel = r.status === "waitlisted" || !deadline || new Date() < deadline;
   if (!canCancel) return `<span class="fine">Too late to give it up online. Contact your coach.</span>`;
   return `<form method="post" action="/reservations/${r.id}/cancel"
       onsubmit="return confirm('${r.status === "confirmed" ? "Give up this spot? It will open for someone else." : "Leave the waitlist?"}')">
       <input type="hidden" name="return_to" value="${esc(back)}">
       <button class="btn-ghost" type="submit">${r.status === "confirmed" ? "Give it up" : "Leave waitlist"}</button>
-    </form>${r.status === "confirmed" ? `<span class="fine">Give it up by ${esc(fmtDateTime(deadline))}</span>` : ""}`;
+    </form>${r.status === "confirmed" && deadline ? `<span class="fine">Give it up by ${esc(fmtDateTime(deadline))}</span>` : ""}`;
 }
 
 function athleteTabs(athletes, current, hrefFor) {
@@ -103,6 +107,19 @@ const selfCard = () => `<section class="panel self-card">
     <button class="btn-small" type="submit">Add me</button>
   </form></section>`;
 
+// Claimable things with no date: a simple list, grouped by what they are
+function itemsList(programs, athlete, back) {
+  const groups = programs.map((p) => ({ p, items: p.sessions.filter((s) => !s.starts_at) })).filter((g) => g.items.length);
+  if (!groups.length) return "";
+  return `<div class="items-list" id="items">${groups.map(({ p, items }) => `<div class="item-group">
+    <h3 class="banner">${esc(require("../config").metaFor(p.activity, p.schedule_id).item_list ? p.schedule_name || p.activity
+      : `${p.schedule_name ? `${p.schedule_name} › ` : ""}${p.section ? `${p.section} › ` : ""}${typeLabel(p.activity, p.age_groups, p.required_tags)}`)}</h3>
+    <ul class="sess-list">${items.map((s) => { const open = s.capacity - s.confirmed; return `<li class="sess${s.my_status ? " mine" : ""}${open > 0 ? "" : " full"}">
+      <div class="sess-main"><div class="sess-time">${esc(s.title || "Spot")}</div>
+        <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div></div>
+      <div class="sess-side">${actionFor(p, s, athlete, back)}</div></li>`; }).join("")}</ul></div>`).join("")}</div>`;
+}
+
 function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash, canSelf }) {
   if (!athletes.length) return layout({ title: "My claims", user, admin, flash, tab: "home",
     body: `<section class="panel"><h1>Welcome to ${esc(LABELS.app_name)}</h1>
@@ -113,6 +130,7 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
   const today = inputParts(new Date()).date;
   const byDay = new Map();
   for (const p of programs) for (const s of p.sessions) {
+    if (!s.starts_at) continue; // undated items are listed below the calendar
     const k = localDate(s.starts_at);
     const info = byDay.get(k) || { activities: new Map(), mine: 0 };
     info.activities.set(`${p.schedule_id}|${p.activity}`, [p.activity, p.schedule_id]);
@@ -142,15 +160,16 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
       </div>
       ${monthGrid(athlete, month, byDay, today)}
       <div class="pcal-legend">${activities.map(([a, sid]) => `<span>${dot(a, sid)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Claimed</span></div>
+      ${itemsList(programs, athlete, `/dashboard?a=${athlete.id}&m=${month}`)}
       ${byDay.size ? `<p class="fine">Tap a day to see what's open and claim a spot.${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
-        : `<div class="empty"><p>Nothing open to claim right now.</p><p class="muted">New spots show up here as soon as they're posted.</p></div>`}`}
+        : programs.some((p) => p.sessions.some((s) => !s.starts_at)) ? "" : `<div class="empty"><p>Nothing open to claim right now.</p><p class="muted">New spots show up here as soon as they're posted.</p></div>`}`}
     </section>
 
     <section class="panel">
       <h2 class="banner">Upcoming for ${athlete.self_user_id ? "you" : esc(athlete.first_name)}</h2>
       ${mine.length ? `<ul class="res-list">${mine.map((r) => `<li class="res">
-        <a class="res-main res-link" href="/athletes/${athlete.id}/day/${localDate(r.starts_at)}">
-          <div class="res-when">${esc(fmtRange(r.starts_at, r.ends_at))}</div>
+        <a class="res-main res-link" href="${r.starts_at ? `/athletes/${athlete.id}/day/${localDate(r.starts_at)}` : `/dashboard?a=${athlete.id}#items`}">
+          <div class="res-when">${esc(itemLabel(r))}</div>
           <div class="res-what">${esc(r.program_name)}${r.location ? `, ${esc(r.location)}` : ""}</div></a>
         <div class="res-side">${r.status === "confirmed" ? `<span class="pill ok">Claimed</span>` : `<span class="pill wait">Waitlist #${r.wait_pos}</span>`}
           ${cancelControl(r, `/dashboard?a=${athlete.id}&m=${month}`)}</div></li>`).join("")}</ul>`
@@ -223,7 +242,7 @@ function blockGrid(p, list, athlete, back, going, showNames) {
 
 function dayPage({ user, athletes, athlete, programs, date, prevDay, nextDay, admin, flash, going = {}, showNames = () => true }) {
   const back = `/athletes/${athlete.id}/day/${date}`;
-  const todays = programs.map((p) => ({ ...p, today: p.sessions.filter((s) => localDate(s.starts_at) === date) })).filter((p) => p.today.length)
+  const todays = programs.map((p) => ({ ...p, today: p.sessions.filter((s) => s.starts_at && localDate(s.starts_at) === date) })).filter((p) => p.today.length)
     .sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity) || a.today[0].starts_at - b.today[0].starts_at);
   const relevant = programs.filter((p) => todays.some((t) => (t.round_id && t.round_id === p.round_id) || t.id === p.id));
   return layout({
@@ -240,7 +259,7 @@ function dayPage({ user, athletes, athlete, programs, date, prevDay, nextDay, ad
       ${admin ? `<p class="admin-hint"><a href="/admin/day/${date}">👥 Who's signed up this day</a> <span class="fine-inline">(admins only)</span></p>` : ""}
       ${usagePanel(relevant)}
       ${todays.length ? todays.map((p) => `<div class="program">
-        <h2 class="banner">${esc(p.round_id ? p.name.replace(new RegExp(`^${p.round_name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+`), "") : p.name)}</h2>
+        <h2 class="banner">${esc(p.round_id ? (p.section ? `${p.section} › ` : "") + typeLabel(p.activity, p.age_groups, p.required_tags) : p.name)}</h2>
         ${p.block_minutes ? blockGrid(p, p.today, athlete, back, going, showNames) : `<ul class="sess-list">${p.today.map((s) => sessionCard(p, s, athlete, back, going, showNames)).join("")}</ul>`}
       </div>`).join("") : `<div class="empty"><p>No training for ${esc(athlete.first_name)} on this day.</p></div>`}
     </section>`,

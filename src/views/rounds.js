@@ -5,10 +5,10 @@ let SID = null; // schedule of the page being drawn (colors are per schedule)
 const ACTIVITY_COLORS = new Proxy({}, { get: (_, name) => colorFor(String(name), SID) });
 const { inputParts } = require("../time");
 const { typeLabel, defaultsFor, isUnlocked, limitFor } = require("../rounds");
-const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox } = require("./partials");
+const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox, onlyFor } = require("./partials");
 const SC = require("../schedules");
 const { LABELS } = require("../config");
-let L = SC.labels(null), ACTS = [], GROUPS = [], PRESETS_SC = [];
+let L = SC.labels(null), ACTS = [], GROUPS = [], PRESETS_SC = [], BTAGS = [], DEPTH = 3, TYPES = [];
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -106,11 +106,11 @@ function grid(round, sessions) {
         <div class="day-head"><span class="day-num">${label}</span>
           ${list.length ? `<span class="day-tools"><a class="who-btn" href="/admin/day/${key}" title="Who's signed up" aria-label="Who's signed up on ${esc(nice(key))}">👥</a><button type="button" class="copy-btn" data-copy="${key}" data-count="${list.length}" title="Copy this day to other days">Copy</button></span>` : ""}</div>
         ${groupBlocks(list).map((s) => s.blocks ? `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
-          <a href="/admin/day/${key}#p${s.program_id}" title="See who's signed up for each block">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
+          <a href="/admin/day/${key}#p${s.program_id}" title="See who's signed up for each block">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups, s.required_tags))}
             <span class="blocks-n">${s.blocks} blocks</span> <span class="spots-n">${s.taken}/${s.capacity}</span>${s.open ? `<span class="lock-ic" title="Unlocked: open to all athletes">🔓</span>` : ""}</a>
           ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/day-blocks/delete"><input type="hidden" name="program_id" value="${s.program_id}"><input type="hidden" name="date" value="${key}"><button type="submit" class="x" title="Remove these blocks" aria-label="Remove these blocks">×</button></form>`}
         </div>` : `<div class="chip-s" style="--c:${ACTIVITY_COLORS[s.activity]}">
-          <a href="/admin/sessions/${s.id}" title="Open roster and edit">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups))}
+          <a href="/admin/sessions/${s.id}" title="Open roster and edit">${esc(shortRange(s.start, s.end))} ${esc(typeLabel(s.activity, s.age_groups, s.required_tags))}
             <span class="spots-n">${s.taken}/${s.capacity}</span>${s.open ? `<span class="lock-ic" title="Unlocked: open to all athletes">🔓</span>` : ""}</a>
           ${s.taken ? "" : `<form method="post" action="/admin/rounds/${round.id}/sessions/${s.id}/delete"><button type="submit" class="x" title="Remove from calendar" aria-label="Remove from calendar">×</button></form>`}
         </div>`).join("")}
@@ -147,12 +147,13 @@ function sessionsPanel(r, types) {
     <h2><span class="step-n">2</span> ${esc(L.activity.many)}</h2>
     <p class="fine">Each session is an activity for a group, with the number of spots players can claim.</p>
     ${types.length ? `<div class="table-wrap"><table class="types">
-      <thead><tr><th>Session</th><th>Spots</th><th>Split into</th><th>Waitlist</th><th>Coach</th><th>On calendar</th><th></th></tr></thead>
+      <thead><tr><th>Session</th><th>Spots</th><th>Split into</th><th>Waitlist</th>${BTAGS.length ? "<th>Only for</th>" : ""}<th>Coach</th><th>On calendar</th><th></th></tr></thead>
       <tbody>${types.map((t) => `<tr>
-        <td>${swatch(t.activity)}<strong>${esc(typeLabel(t.activity, t.age_groups))}</strong></td>
+        <td>${swatch(t.activity)}<strong>${t.section ? `${esc(t.section)} › ` : ""}${esc(typeLabel(t.activity, t.age_groups, t.required_tags))}</strong></td>
         <td><input form="type-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
         <td>${blockSelect("block", t.block_minutes, `form="type-${t.id}" aria-label="Split into blocks"`)}</td>
         <td>${waitlistSelect(t.waitlist, r, `form="type-${t.id}" aria-label="Waitlist"`)}</td>
+        ${BTAGS.length ? `<td>${onlyFor(BTAGS, t.required_tags || [], `type-${t.id}`)}</td>` : ""}
         <td><input form="type-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
         <td>${t.scheduled}</td>
         <td><div class="row-actions">
@@ -164,6 +165,8 @@ function sessionsPanel(r, types) {
 
     <form method="post" action="/admin/rounds/${r.id}/types" class="type-add">
       <h3>Add ${esc(SC.an(L.activity.one))}</h3>
+      ${SC.depthOf({ depth: DEPTH }) === 4 ? `<label>${esc(L.section.one)}<input name="section" required maxlength="40" list="round-sections"></label>
+        <datalist id="round-sections">${[...new Set(TYPES.map((t) => t.section).filter(Boolean))].map((x) => `<option value="${esc(x)}">`).join("")}</datalist>` : ""}
       <fieldset class="checks"><legend>Activity</legend>
         ${ACTS.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
       </fieldset>
@@ -178,6 +181,7 @@ function sessionsPanel(r, types) {
         <label>Spots<input type="number" name="spots" min="1" max="200" required placeholder="10"></label>
         <label>Split into${blockSelect("block", null)}</label>
         <label>Waitlist${waitlistSelect(null, r)}</label>
+        ${BTAGS.length ? `<label>Only for${onlyFor(BTAGS, [])}</label>` : ""}
         <label>Coach<input name="coach" placeholder="Optional"></label>
         <button class="btn-small" type="submit">Add session</button>
       </div>
@@ -217,7 +221,7 @@ function schedulePanel(r, types, last) {
 
         <fieldset class="checks stack-list"><legend>${esc(L.activity.many)} at this time</legend>
           ${types.map((t) => `<label class="act wide" style="--c:${ACTIVITY_COLORS[t.activity]}"><input type="checkbox" name="types" value="${t.id}"${lastTypes.includes(String(t.id)) ? " checked" : ""}>
-            ${esc(typeLabel(t.activity, t.age_groups))} <span class="fine-inline">${spotsLabel(t.default_capacity || defaultsFor(r, t.activity).capacity, t.block_minutes)}</span></label>`).join("")}
+            ${t.section ? `${esc(t.section)} › ` : ""}${esc(typeLabel(t.activity, t.age_groups, t.required_tags))} <span class="fine-inline">${spotsLabel(t.default_capacity || defaultsFor(r, t.activity).capacity, t.block_minutes)}</span></label>`).join("")}
         </fieldset>
         <button class="btn wide-btn" type="submit" id="add-btn" disabled>Select days first</button>`
         : `<p class="muted">Add this round's sessions (step 2) first. Then select days here and schedule them.</p>`}
@@ -236,7 +240,8 @@ function schedulePanel(r, types, last) {
 
 function builderPage({ user, flash, round, types, sessions, last = {}, season, seasons = [], readonly, schedule }) {
   L = SC.labels(schedule); ACTS = SC.activitiesFor(schedule, { activeOnly: true }); SID = schedule && schedule.id;
-  GROUPS = SC.groupsFor(schedule); PRESETS_SC = SC.presetsFor(schedule);
+  GROUPS = SC.groupsFor(schedule); PRESETS_SC = SC.presetsFor(schedule); BTAGS = (schedule && schedule.tags) || [];
+  DEPTH = SC.depthOf(schedule); TYPES = types || [];
   const r = round;
   const total = sessions.length;
   const taken = sessions.reduce((n, s) => n + s.taken, 0);
@@ -245,7 +250,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     body: `<a class="back" href="${season ? `/admin/seasons/${season.id}` : "/admin/rounds"}">${season ? esc(season.name) : "All rounds"}</a>
   <section class="panel">
     <div class="athlete-head">
-      <div><h1>${esc(r.name)}</h1><p class="muted tight">${esc(niceRange(r.starts_on, r.ends_on))}. ${total} ${esc(L.slot.many.toLowerCase())} scheduled, ${taken} spots claimed. <a href="#settings">${esc(L.middle.one)} settings</a></p></div>
+      <div><h1>${esc(r.is_main ? (schedule && schedule.name) || r.name : r.name)}</h1><p class="muted tight">${esc(niceRange(r.starts_on, r.ends_on))}. ${total} ${esc(L.slot.many.toLowerCase())} scheduled, ${taken} spots claimed. <a href="#settings">${esc(L.middle.one)} settings</a></p></div>
       <div class="head-actions">${statusPill(r)}
         <form method="post" action="/admin/rounds/${r.id}/publish" ${r.published_at ? `onsubmit="return confirm('Hide this round from families? Their reservations are kept.')"` : ""}>
           <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide" : `Publish ${esc(L.middle.one.toLowerCase())}`}</button></form></div>

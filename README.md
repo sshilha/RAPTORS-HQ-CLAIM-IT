@@ -28,6 +28,17 @@ boards only). **Copy** makes a new board from an existing one: settings always; 
 participants, and the calendar (open seasons and rounds shifted to a new first day, as drafts)
 as chosen. Each one is called a **Claim Board** by default (changeable under ⚙ App).
 
+**Levels.** Each Claim Board has 1–4 levels that you name (Claim Board settings); the last level
+is what people claim, with a number of spots:
+- 1 level: a simple list (e.g. Task: "Bring a case of water", 6 spots).
+- 2 levels: e.g. Area › Shift (Beer Garden › Sat 9–11).
+- 3 levels: e.g. Round › Activity › Session (Winter Training).
+- 4 levels: e.g. Day › Area › Station › Shift.
+Boards with 1–2 levels keep their rules (who signs up, limits, unlocking, waitlist, publish) on the
+board's Setup page. Anything claimable can have a date and time, or be an undated item with a name;
+undated items show as a list on My Claims and the public page, and have no give-it-up deadline.
+The number of levels can change only while the board is empty.
+
 A **Claim Board is the season or event itself**, e.g. "Winter Training 2026–27" or "2027 Arctic
 Rumble Volunteering". Next year, **Copy** it (the name bumps to 2027–28 automatically).
 **Archive** hides it from families and makes it read-only (reports still work); **Reopen** unlocks it.
@@ -38,7 +49,10 @@ Rumble Volunteering". Next year, **Copy** it (the name bumps to 2027–28 automa
   there. A person exists once in the app and can be in several schedules with a different group in each.
 - **Activities:** the schedule's own types. Different schedules can reuse a name (each has its own
   color, spots, limit, and settings).
-- **Groups:** the schedule's own groups and shortcuts.
+- **Groups & tags:** the board's own groups, shortcuts, and **tags** (e.g. Catcher, Pitcher). People
+  get tags on the Athletes tab (per row, or check several and Add tag). Set **Only for** on an
+  activity in a round (e.g. Catching · Catcher only): only people with that tag can claim it, and
+  everyone else doesn't see it. Labels show the full rule ("Catching 12U–18U · Catcher only").
 - **Settings:** name, level words, locations, family view (who's going: full names, first name +
   last initial, or hidden), archive/restore, delete (when empty). Archiving hides the board from
   families without deleting anything.

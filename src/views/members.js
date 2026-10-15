@@ -10,6 +10,7 @@ function groupSelect(sc, value, attrs = "") {
 function membersPage({ user, flash, sc, members, others, group, total }) {
   const L = SC.labels(sc);
   const groups = SC.groupsFor(sc);
+  const tags = sc.tags || [];
   const back = `/admin/members?s=${sc.id}${group ? `&g=${encodeURIComponent(group)}` : ""}`;
   return page({
     title: `${L.participant.many} · ${sc.name}`, tab: "members", user, flash,
@@ -20,21 +21,35 @@ function membersPage({ user, flash, sc, members, others, group, total }) {
       ${groups.length ? `<nav class="chip-filter" aria-label="Filter by ${esc(L.group.one.toLowerCase())}">
         <a href="/admin/members?s=${sc.id}"${!group ? ' aria-current="page"' : ""}>All</a>
         ${groups.map((g) => `<a href="/admin/members?s=${sc.id}&g=${encodeURIComponent(g)}"${group === g ? ' aria-current="page"' : ""}>${esc(g)}</a>`).join("")}
-        <a href="/admin/members?s=${sc.id}&g=none"${group === "none" ? ' aria-current="page"' : ""}>No ${esc(L.group.one.toLowerCase())}</a></nav>` : ""}
+        <a href="/admin/members?s=${sc.id}&g=none"${group === "none" ? ' aria-current="page"' : ""}>No ${esc(L.group.one.toLowerCase())}</a>
+        ${(sc.tags || []).map((t) => `<a class="tag-filter" href="/admin/members?s=${sc.id}&g=${encodeURIComponent("tag:" + t)}"${group === "tag:" + t ? ' aria-current="page"' : ""}>🏷 ${esc(t)}</a>`).join("")}</nav>` : ""}
       ${members.length ? `<div class="table-wrap"><table>
-        <thead><tr><th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th><th>Emails</th><th>Also in</th><th></th></tr></thead>
+        <thead><tr>${tags.length ? `<th><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th>` : ""}<th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th>${tags.length ? "<th>Tags</th>" : ""}<th>Emails</th><th>Also in</th><th></th></tr></thead>
         <tbody>${members.map((a) => `<tr>
+          ${tags.length ? `<td><input type="checkbox" class="pick" name="athlete_id" value="${a.id}" form="bulk" aria-label="Select ${esc(a.first_name)}"></td>` : ""}
           <td><a href="/admin/athletes/${a.id}">${esc(a.last_name)}, ${esc(a.first_name)}</a>${a.self_user_id ? ` <span class="fine-inline">adult</span>` : ""}</td>
           <td><form method="post" action="/admin/members/${a.id}?s=${sc.id}" class="inline-group">
             <input type="hidden" name="return_to" value="${esc(back)}">
             ${groupSelect(sc, a.group_name, `onchange="this.form.submit()" aria-label="${esc(L.group.one)}"`)}
             <noscript><button class="btn-ghost">Save</button></noscript></form></td>
+          ${tags.length ? `<td><form method="post" action="/admin/members/${a.id}/tags?s=${sc.id}" class="tag-boxes">
+            <input type="hidden" name="return_to" value="${esc(back)}">
+            ${tags.map((t) => `<label class="tag-box${(a.tags || []).includes(t) ? " on" : ""}"><input type="checkbox" name="tags" value="${esc(t)}"${(a.tags || []).includes(t) ? " checked" : ""} onchange="this.form.submit()"> ${esc(t)}</label>`).join("")}
+            <noscript><button class="btn-ghost">Save</button></noscript></form></td>` : ""}
           <td>${a.emails.length ? esc(a.emails.join(", ")) : `<span class="fine">None</span>`}</td>
           <td>${a.other_schedules.length ? esc(a.other_schedules.join(", ")) : ""}</td>
           <td><form method="post" action="/admin/members/${a.id}/remove?s=${sc.id}" onsubmit="return confirm('Remove ${esc(a.first_name)} from ${esc(sc.name)}?')">
             <input type="hidden" name="return_to" value="${esc(back)}"><button class="x" type="submit" aria-label="Remove from ${esc(sc.name)}">×</button></form></td>
         </tr>`).join("")}</tbody></table></div>`
         : `<p class="muted">${group ? "No one in this filter." : `No ${esc(L.participant.many.toLowerCase())} yet. Add them below.`}</p>`}
+      ${tags.length && members.length ? `<form id="bulk" method="post" action="/admin/members/bulk-tag?s=${sc.id}" class="bulk-tag">
+        <input type="hidden" name="return_to" value="${esc(back)}">
+        <span class="label-like">Checked people:</span>
+        <select name="tag" required aria-label="Tag">${tags.map((t) => `<option>${esc(t)}</option>`).join("")}</select>
+        <button class="btn-ghost" type="submit" name="mode" value="add">Add tag</button>
+        <button class="btn-ghost" type="submit" name="mode" value="remove">Remove tag</button>
+      </form>` : ""}
+      ${tags.length ? "" : `<p class="fine">Need tags like Catcher or Pitcher? Add them on the ${esc(L.group.many)} tab.</p>`}
     </section>
 
     <div class="settings-2" id="add">

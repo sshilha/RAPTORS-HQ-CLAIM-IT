@@ -6,7 +6,7 @@ const SC = require("../schedules");
 
 const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const longDay = (iso) => { const [y, m, d] = iso.split("-").map(Number); const dt = new Date(Date.UTC(y, m - 1, d)); return `${DAYS[dt.getUTCDay()]}, ${MON[m - 1]} ${d}`; };
+const longDay = (iso) => { if (!iso) return "Anytime"; const [y, m, d] = iso.split("-").map(Number); const dt = new Date(Date.UTC(y, m - 1, d)); return `${DAYS[dt.getUTCDay()]}, ${MON[m - 1]} ${d}`; };
 const pub = (o) => layout({ ...o, pub: true });
 const opensLater = (s) => s.booking_opens_at && new Date(s.booking_opens_at) > new Date();
 
@@ -36,8 +36,8 @@ function sheetPage({ user, round: r, slots, flash }) {
         const open = s.capacity - s.confirmed;
         return `<li class="sess${open > 0 ? "" : " full"}" style="--c:${colorFor(s.activity, r.schedule_id)}">
           <div class="sess-main">
-            <div class="sess-time"><span class="dot" style="background:var(--c)"></span> ${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}</div>
-            <div class="sess-meta">${esc(typeLabel(s.activity, s.age_groups))}${s.coach ? `, ${esc(s.coach)}` : ""}</div>
+            <div class="sess-time"><span class="dot" style="background:var(--c)"></span> ${esc(s.starts_at ? `${fmtTime(s.starts_at)}–${fmtTime(s.ends_at)}${s.title ? `, ${s.title}` : ""}` : s.title || "Spot")}</div>
+            <div class="sess-meta">${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : esc(typeLabel(s.activity, s.age_groups, s.required_tags))}${s.coach ? `${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : ", "}${esc(s.coach)}` : ""}</div>
             <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div>
             ${s.going && s.going.length ? `<div class="going"><span>Going:</span> ${s.going.map(esc).join(", ")}</div>` : ""}
           </div>
@@ -54,7 +54,7 @@ function formPage({ user, round: r, slot: s, values = {}, err }) {
     <section class="panel">
       <p class="label-like">${esc(r.name)}</p>
       <h1>${esc(longDay(s.day))}</h1>
-      <p class="lede"><strong>${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}</strong> · ${esc(typeLabel(s.activity, s.age_groups))}${r.location ? ` · ${esc(r.location)}` : ""}</p>
+      <p class="lede"><strong>${esc(s.starts_at ? `${fmtTime(s.starts_at)}–${fmtTime(s.ends_at)}` : s.title || "Spot")}</strong> · ${esc(typeLabel(s.activity, s.age_groups, s.required_tags))}${r.location ? ` · ${esc(r.location)}` : ""}</p>
       <form method="post" action="/s/${r.share_token}/${s.id}" class="stack">
         <div class="pair"><div><label>First name<input name="first_name" required maxlength="40" value="${esc(values.first_name)}" autocomplete="given-name"></label></div>
           <div><label>Last name<input name="last_name" required maxlength="40" value="${esc(values.last_name)}" autocomplete="family-name"></label></div></div>
@@ -72,7 +72,7 @@ function donePage({ user, round: r, slot: s, values, status }) {
     title: "Signed up", user,
     body: `<section class="panel done-card">
       <h1>${status === "confirmed" ? "Spot claimed!" : "You're on the waitlist"}</h1>
-      <p class="lede"><strong>${esc(values.first_name)} ${esc(values.last_name)}</strong>, ${esc(longDay(s.day))}, ${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))} (${esc(typeLabel(s.activity, s.age_groups))}).</p>
+      <p class="lede"><strong>${esc(values.first_name)} ${esc(values.last_name)}</strong>, ${esc(s.starts_at ? `${longDay(s.day)}, ${fmtTime(s.starts_at)}–${fmtTime(s.ends_at)}` : s.title || "Anytime")}${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : ` (${esc(typeLabel(s.activity, s.age_groups, s.required_tags))})`}.</p>
       <p>We emailed a confirmation to <strong>${esc(values.email)}</strong>. To see or give up your spots, <a href="/">sign in</a> with that email.</p>
       <p><a class="btn-small" href="/s/${r.share_token}">Claim another spot</a></p>
     </section>`,

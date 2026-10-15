@@ -25,11 +25,11 @@ router.get("/", wrap(async (req, res) => {
   const { sc } = req.sched;
   const group = str(req.query.g);
   const members = (await query(
-    `SELECT a.*, m.group_name, m.created_at AS joined,
+    `SELECT a.*, m.group_name, m.tags, m.created_at AS joined,
        ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id ORDER BY u.email) AS emails,
        ARRAY(SELECT s2.name FROM schedule_members m2 JOIN schedules s2 ON s2.id=m2.schedule_id WHERE m2.athlete_id=a.id AND m2.schedule_id<>$1 ORDER BY s2.sort, s2.id) AS other_schedules
      FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
-     WHERE m.schedule_id=$1 AND ($2 = '' OR coalesce(m.group_name,'') = $2)
+     WHERE m.schedule_id=$1 AND ($2 = '' OR coalesce(m.group_name,'') = $2 OR ($2 LIKE 'tag:%' AND substr($2, 5) = ANY(m.tags)))
      ORDER BY m.group_name NULLS LAST, a.last_name, a.first_name`, [sc.id, group === "none" ? "" : group])).rows;
   const others = (await query(
     `SELECT a.id, a.first_name, a.last_name, a.self_user_id FROM athletes a
@@ -62,6 +62,24 @@ router.post("/add", wrap(async (req, res) => {
   if (!ids.length) return go(res, home(sc, "#add"), { err: "Pick at least one person." });
   for (const id of ids) await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [sc.id, id, group]);
   go(res, home(sc), { ok: `Added ${ids.length} ${ids.length === 1 ? "person" : "people"} to ${sc.name}${group ? ` in ${group}` : ""}.` });
+}));
+
+// Tags: one person's set, or one tag on/off for many people
+router.post("/bulk-tag", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  const ids = [].concat(req.body.athlete_id || []).map(int).filter(Boolean);
+  const tag = str(req.body.tag);
+  if (!ids.length || !(sc.tags || []).includes(tag)) return go(res, dest(req, home(sc)), { err: "Check some people and pick a tag." });
+  const on = req.body.mode !== "remove";
+  await require("../groups").bulkTag(sc.id, ids, tag, on);
+  go(res, dest(req, home(sc)), { ok: `${on ? "Tagged" : "Untagged"} ${ids.length} ${ids.length === 1 ? "person" : "people"} ${on ? "as" : "from"} ${tag}.` });
+}));
+
+router.post("/:athleteId/tags", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  const tags = [].concat(req.body.tags || []).filter((t) => (sc.tags || []).includes(t));
+  await require("../groups").setMemberTags(sc.id, int(req.params.athleteId), tags);
+  go(res, dest(req, home(sc)), { ok: "Tags saved." });
 }));
 
 router.post("/:athleteId", wrap(async (req, res) => {

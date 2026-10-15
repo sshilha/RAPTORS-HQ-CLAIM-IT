@@ -14,11 +14,11 @@ function card(sc, archived) {
     <a class="sc-main" href="/admin/setup?s=${sc.id}">
       <div class="sc-head"><span class="sc-name">${esc(sc.name)}</span>
         ${archived ? `<span class="pill">Archived</span>` : sc.live ? `<span class="pill ok">Live</span>` : `<span class="pill">Not live</span>`}</div>
-      <div class="sc-levels">${esc(L.middle.many)} › ${esc(L.activity.many)} › ${esc(L.slot.many)}</div>
+      <div class="sc-levels">${SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ")}</div>
       <div class="sc-stats">
-        <span><b>${sc.sheets}</b> ${esc(low(sc.sheets === 1 ? L.middle.one : L.middle.many))}</span>
+        ${SC.depthOf(sc) >= 3 ? `<span><b>${sc.sheets}</b> ${esc(low(sc.sheets === 1 ? L.middle.one : L.middle.many))}</span>` : `<span><b>${sc.items}</b> ${esc(low(sc.items === 1 ? L.slot.one : L.slot.many))}</span>`}
         <span><b>${sc.members}</b> ${esc(low(sc.members === 1 ? L.participant.one : L.participant.many))}</span>
-        <span><b>${sc.activities}</b> ${esc(low(sc.activities === 1 ? L.activity.one : L.activity.many))}</span>
+        ${SC.depthOf(sc) > 1 ? `<span><b>${sc.activities}</b> ${esc(low(sc.activities === 1 ? L.activity.one : L.activity.many))}</span>` : ""}
         ${archived ? "" : `<span><b>${sc.claimed}</b> upcoming spot${sc.claimed === 1 ? "" : "s"} claimed</span>`}
       </div>
       ${archived ? `<div class="sc-next">Archived ${esc(new Date(sc.archived_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}</div>`
@@ -26,6 +26,7 @@ function card(sc, archived) {
     </a>
     <div class="sc-actions">
       <a class="btn-small" href="/admin/setup?s=${sc.id}">${archived ? "View" : "Open"}</a>
+      <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">Settings</a>
       <a class="btn-ghost" href="/admin/setup/schedules/${sc.id}/copy">Copy</a>
       <form method="post" action="/admin/setup/schedules/${sc.id}/archive?s=${sc.id}"
         ${archived ? "" : `onsubmit="return confirm('Archive ${esc(sc.name)}? Families won\\'t see anything in it. Nothing is deleted, and you can reopen it any time.')"`}>

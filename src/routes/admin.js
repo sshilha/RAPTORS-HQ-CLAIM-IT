@@ -143,6 +143,20 @@ router.get("/sessions/:id", wrap(async (req, res) => {
 router.post("/sessions/:id", wrap(async (req, res) => {
   const id = int(req.params.id);
   const back = `/admin/sessions/${id}`;
+  if (req.body.undated) { // an item with no date: name, spots, and details
+    const cap = int(req.body.capacity), title = str(req.body.title).slice(0, 80);
+    if (!title || !(cap >= 1 && cap <= 500)) return go(res, back, { err: "Enter a name and spots." });
+    try {
+      const promoted = await booking.updateSessionCapacity(id, { capacity: cap, apply: (db) => db.query(
+        `UPDATE training_sessions SET title=$2, capacity=$3, location=$4, coach=$5, notes=$6 WHERE id=$1`,
+        [id, title, cap, str(req.body.location) || null, str(req.body.coach) || null, str(req.body.notes) || null]) });
+      promoted.forEach((pid) => notify("promoted", pid));
+      return go(res, back, { ok: promoted.length ? `Saved. ${promoted.length} moved off the waitlist.` : "Saved." });
+    } catch (e) {
+      if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
+      throw e;
+    }
+  }
   const { s, err } = parseSession(req.body);
   if (err) return go(res, back, { err });
   try {
@@ -268,7 +282,7 @@ router.get("/athletes/:id", wrap(async (req, res) => {
   const parents = (await query(
     `SELECT u.* FROM users u JOIN parent_athletes pa ON pa.user_id=u.id WHERE pa.athlete_id=$1 ORDER BY u.email`, [athlete.id])).rows;
   const memberships = (await query(
-    `SELECT m.*, sc.name, sc.labels, sc.groups FROM schedule_members m JOIN schedules sc ON sc.id=m.schedule_id
+    `SELECT m.*, sc.name, sc.labels, sc.groups, sc.tags AS board_tags FROM schedule_members m JOIN schedules sc ON sc.id=m.schedule_id
      WHERE m.athlete_id=$1 ORDER BY sc.sort, sc.id`, [athlete.id])).rows;
   const claims = (await query(
     `SELECT count(*) FILTER (WHERE x.status='confirmed')::int AS claimed FROM reservations x WHERE x.athlete_id=$1`, [athlete.id])).rows[0].claimed;

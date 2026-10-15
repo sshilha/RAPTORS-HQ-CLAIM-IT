@@ -21,11 +21,12 @@ const usable = (r) => r && r.signup_mode === "public" && r.published_at && !r.se
 
 async function slots(roundId, mode = "initial") {
   const rows = (await query(
-    `SELECT s.*, p.activity, p.age_groups, p.block_minutes, p.waitlist AS program_waitlist, p.booking_opens_at,
+    `SELECT s.*, p.activity, p.age_groups, p.required_tags, p.block_minutes, p.waitlist AS program_waitlist, p.booking_opens_at,
        to_char(s.starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS day,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS confirmed
      FROM training_sessions s JOIN programs p ON p.id=s.program_id
-     WHERE p.round_id=$1 AND s.canceled_at IS NULL AND s.starts_at > now() ORDER BY s.starts_at, p.activity`, [roundId])).rows;
+     WHERE p.round_id=$1 AND s.canceled_at IS NULL AND (s.starts_at IS NULL OR s.starts_at > now())
+     ORDER BY s.starts_at NULLS FIRST, p.activity, s.title, s.id`, [roundId])).rows;
   if (mode !== "off" && rows.length) {
     const names = (await query(
       `SELECT x.session_id, a.first_name, a.last_name FROM reservations x JOIN athletes a ON a.id=x.athlete_id

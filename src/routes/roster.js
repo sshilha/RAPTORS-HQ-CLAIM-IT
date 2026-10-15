@@ -15,7 +15,7 @@ router.get("/:date", wrap(async (req, res) => {
   if (!isDate(date)) return go(res, "/admin/setup", { err: "That date isn't valid." });
   const sessions = (await query(
     `SELECT s.id, s.starts_at, s.ends_at, s.capacity, s.coach, s.location, s.notes, s.unlocked_at,
-       p.id AS program_id, p.activity, p.age_groups, p.block_minutes, p.name AS program_name,
+       p.id AS program_id, p.activity, p.age_groups, p.required_tags, p.block_minutes, p.name AS program_name,
        rd.id AS round_id, rd.name AS round_name, rd.schedule_id, rd.unlock_hours, rd.activity_limits, rd.priority_limit,
        (se.completed_at IS NOT NULL OR EXISTS (SELECT 1 FROM schedules x WHERE x.id=rd.schedule_id AND x.archived_at IS NOT NULL)) AS locked
      FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds rd ON rd.id=p.round_id

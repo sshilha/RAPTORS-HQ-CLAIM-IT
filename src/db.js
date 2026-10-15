@@ -180,6 +180,19 @@ async function migrate() {
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS locations TEXT[] NOT NULL DEFAULT '{}';
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS family_names TEXT NOT NULL DEFAULT 'initial';
     -- App-wide administrators (in addition to the ADMIN_EMAILS variable)
+    -- Tags (e.g. Catcher, Pitcher): defined per board, given to members, required by activities
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE schedule_members ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS required_tags TEXT[] NOT NULL DEFAULT '{}';
+    -- Flexible levels: a board has 1-4 levels; the last is what gets claimed.
+    -- Boards with 1-2 levels keep their rules on one built-in round (is_main). Level 2 of a 4-level
+    -- board groups activities into sections. Claimable items may have no date (title + spots).
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS depth INTEGER NOT NULL DEFAULT 3;
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS is_main BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS section TEXT;
+    ALTER TABLE training_sessions ALTER COLUMN starts_at DROP NOT NULL;
+    ALTER TABLE training_sessions ALTER COLUMN ends_at DROP NOT NULL;
+    ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS title TEXT;
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,

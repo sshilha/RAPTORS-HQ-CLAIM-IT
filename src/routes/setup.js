@@ -11,6 +11,7 @@ router.use(auth.requireUser, auth.requireAdmin);
 
 router.get("/", wrap(async (req, res) => {
   const schedule = req.sched.sc;
+  await SC.ensureStructure(schedule);
   const rounds = (await query(
     `SELECT r.*,
        (SELECT count(*)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id
@@ -30,6 +31,13 @@ router.get("/", wrap(async (req, res) => {
        (SELECT count(*)::int FROM training_sessions s WHERE s.program_id=p.id AND s.canceled_at IS NULL AND s.starts_at > now()) AS upcoming
      FROM programs p WHERE p.round_id IS NULL ORDER BY p.archived, p.name`)).rows;
   for (const r of rounds) r.types = types.filter((t) => t.round_id === r.id);
+  const items = (await query(
+    `SELECT s.*, p.round_id, p.activity, p.age_groups, p.required_tags, p.section,
+       (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS claimed,
+       (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='waitlisted') AS waitlisted
+     FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
+     WHERE r.schedule_id=$1 AND s.starts_at IS NULL AND s.canceled_at IS NULL ORDER BY p.activity, s.id`, [schedule.id])).rows;
+  for (const r of rounds) r.items = items.filter((i) => i.round_id === r.id);
   res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedule, rounds, standalone }));
 }));
 
@@ -37,7 +45,8 @@ router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: r
 
 router.get("/schedule", wrap(async (req, res) => {
   const sc = req.sched.sc;
-  const counts = (await query(`SELECT (SELECT count(*) FROM rounds WHERE schedule_id=$1) AS items,
+  const counts = (await query(`SELECT (SELECT count(*) FROM rounds WHERE schedule_id=$1 AND NOT is_main)
+      + (SELECT count(*) FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=$1) AS items,
     (SELECT count(*) FROM schedule_members WHERE schedule_id=$1) AS members`, [sc.id])).rows[0];
   res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, counts: { items: Number(counts.items), members: Number(counts.members) } }));
 }));
@@ -48,21 +57,42 @@ const clean = (x, n = 24) => str(x).replace(/\s+/g, " ").slice(0, n);
 router.post("/schedules", wrap(async (req, res) => {
   const name = clean(req.body.name, 40);
   if (!name) return go(res, "/admin/setup/new", { err: "Enter a name for the schedule." });
-  const labels = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
+  const { depth = 3, ...labels } = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
   const src = int(req.body.copy_groups) ? await SC.get(int(req.body.copy_groups)) : null;
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
-  const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-    [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : [])]);
+  const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets, depth) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+    [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth]);
   await SC.refreshGroups();
+  await SC.ensureStructure(await SC.get(rows[0].id));
   const L = SC.labels({ labels });
-  go(res, `/admin/settings/activities?s=${rows[0].id}`, { ok: `Created ${name}. Next: add its ${L.activity.many.toLowerCase()} here, then its ${L.group.many.toLowerCase()} and ${L.participant.many.toLowerCase()}.` });
+  go(res, depth === 1 ? `/admin/setup?s=${rows[0].id}` : `/admin/settings/activities?s=${rows[0].id}`, { ok: depth === 1
+    ? `Created ${name}. Add its ${L.slot.many.toLowerCase()} below.`
+    : `Created ${name}. Next: add its ${L.activity.many.toLowerCase()} here, then its ${L.group.many.toLowerCase()} and ${L.participant.many.toLowerCase()}.` });
+}));
+
+// Number of levels: only while the board is empty (nothing to restructure)
+router.post("/schedules/:id/depth", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const depth = Math.min(4, Math.max(1, int(req.body.depth) || 3));
+  const used = (await query(`SELECT
+      (SELECT count(*) FROM rounds WHERE schedule_id=$1 AND NOT is_main) +
+      (SELECT count(*) FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=$1) AS n`, [id])).rows[0].n;
+  if (Number(used)) return go(res, `/admin/setup/schedule?s=${id}`, { err: "This board already has things in it, so its levels can't change." });
+  await query(`DELETE FROM rounds WHERE schedule_id=$1 AND is_main`, [id]); // rebuilt below if needed
+  const c = require("../catalog").current();
+  if (c.activities.some((a) => a.schedule_id === id && a.item_list)) { c.activities = c.activities.filter((a) => !(a.schedule_id === id && a.item_list)); await require("../catalog").save(c); }
+  await query(`UPDATE schedules SET depth=$2 WHERE id=$1`, [id, depth]);
+  await SC.ensureStructure(await SC.get(id));
+  go(res, `/admin/setup/schedule?s=${id}`, { ok: `Now ${depth} level${depth === 1 ? "" : "s"}. Name them below.` });
 }));
 
 router.post("/schedules/:id", wrap(async (req, res) => {
   const id = int(req.params.id);
   const b = req.body;
-  const labels = {};
+  const prev = (await SC.get(id)).labels || {};
+  const labels = { ...prev };
   for (const k of Object.keys(SC.DEFAULT_LABELS)) {
+    if (b[`${k}_one`] === undefined) continue; // levels this board doesn't use keep their words
     const one = clean(b[`${k}_one`]) || SC.DEFAULT_LABELS[k][0];
     labels[k] = [one, clean(b[`${k}_many`]) || `${one}s`];
   }
@@ -70,7 +100,10 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   // program names include the level words, so refresh them
   const R = require("../rounds");
   for (const r of (await query(`SELECT * FROM rounds WHERE schedule_id=$1`, [id])).rows) await R.syncPrograms({ query }, r);
-  go(res, `/admin/setup/schedule?s=${id}`, { ok: `Saved. ${labels.top[0]} › ${labels.middle[0]} › ${labels.activity[0]} › ${labels.slot[0]}, with ${labels.participant[1].toLowerCase()} in ${labels.group[1].toLowerCase()}.` });
+  const sc2 = await SC.get(id);
+  await SC.ensureStructure(sc2); // a 1-level board's built-in activity follows the level name
+  const L2 = SC.labels(sc2);
+  go(res, `/admin/setup/schedule?s=${id}`, { ok: `Saved. ${SC.levelKeys(sc2).map((k) => L2[k].many).join(" › ")}, with ${L2.participant.many.toLowerCase()} in ${L2.group.many.toLowerCase()}.` });
 }));
 
 // ---------- a board's locations + family view ----------

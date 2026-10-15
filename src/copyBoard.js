@@ -8,10 +8,10 @@ const catalog = require("./catalog");
 async function copyBoard(src, { name, activities = true, groups = true, members = false, calendar = false, startOn = null }) {
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
   const board = (await query(
-    `INSERT INTO schedules (name, labels, groups, presets, locations, family_names, sort)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    `INSERT INTO schedules (name, labels, groups, presets, locations, family_names, sort, tags, depth)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
     [name, JSON.stringify(src.labels || {}), groups ? src.groups || [] : [], JSON.stringify(groups ? src.presets || [] : []),
-     src.locations || [], src.family_names || "initial", sort])).rows[0];
+     src.locations || [], src.family_names || "initial", sort, groups ? src.tags || [] : [], SC.depthOf(src)])).rows[0];
 
   // Activities are per board: duplicate this board's entries (needed before the calendar is copied)
   if (activities || calendar) {
@@ -28,8 +28,8 @@ async function copyBoard(src, { name, activities = true, groups = true, members 
     await db.query("BEGIN");
     if (members) {
       out.members = (await db.query(
-        `INSERT INTO schedule_members (schedule_id, athlete_id, group_name)
-         SELECT $1, athlete_id, CASE WHEN $3 THEN group_name END FROM schedule_members WHERE schedule_id=$2`,
+        `INSERT INTO schedule_members (schedule_id, athlete_id, group_name, tags)
+         SELECT $1, athlete_id, CASE WHEN $3 THEN group_name END, CASE WHEN $3 THEN tags ELSE '{}' END FROM schedule_members WHERE schedule_id=$2`,
         [board.id, src.id, !!groups])).rowCount;
     }
     if (calendar) {
@@ -51,6 +51,7 @@ async function copyBoard(src, { name, activities = true, groups = true, members 
     await query(`DELETE FROM schedules WHERE id=$1`, [board.id]);
     throw e;
   } finally { db.release(); }
+  await SC.ensureStructure(await SC.get(board.id)); // built-in round for 1-2 level boards (if the calendar didn't bring one)
   return out;
 }
 

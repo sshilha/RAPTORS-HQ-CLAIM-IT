@@ -54,7 +54,7 @@ async function promoteWaitlist(db, sessionId) {
       `UPDATE reservations SET status='confirmed', promoted_at=now()
        WHERE id = (
          SELECT w.id FROM reservations w JOIN training_sessions s ON s.id=w.session_id
-         WHERE w.session_id=$1 AND w.status='waitlisted' AND s.canceled_at IS NULL AND s.starts_at > now()
+         WHERE w.session_id=$1 AND w.status='waitlisted' AND s.canceled_at IS NULL AND (s.starts_at IS NULL OR s.starts_at > now())
            AND (SELECT count(*) FROM reservations c WHERE c.session_id=$1 AND c.status='confirmed') < s.capacity
          ORDER BY w.created_at, w.id LIMIT 1
        ) RETURNING id`,
@@ -71,7 +71,7 @@ async function reserve({ userId, athleteId, sessionId }) {
 
     // Lock the session row so two families can't take the last spot at once
     const { rows } = await db.query(
-      `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at, p.activity, p.round_id,
+      `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at, p.activity, p.round_id, p.required_tags,
               r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours,
               p.waitlist AS program_waitlist, r.waitlist AS round_waitlist, r.signup_mode, r.schedule_id,
               p.booking_opens_at,
@@ -85,7 +85,7 @@ async function reserve({ userId, athleteId, sessionId }) {
     const s = rows[0];
     if (!s || s.archived) throw new BookingError("That session isn't available.");
     if (s.canceled_at) throw new BookingError("That session was canceled.");
-    if (new Date(s.starts_at) <= new Date()) throw new BookingError("That session has already started.");
+    if (s.starts_at && new Date(s.starts_at) <= new Date()) throw new BookingError("That one has already started.");
     if (!bookingOpen(s)) throw new BookingError("Booking for this program hasn't opened yet.");
 
     const a = (await db.query(`SELECT * FROM athletes WHERE id=$1`, [athleteId])).rows[0];
@@ -97,6 +97,12 @@ async function reserve({ userId, athleteId, sessionId }) {
       const group = m ? m.group_name : a.age_group;
       if (!m && s.schedule_id) throw new BookingError(`${a.first_name} isn't on this schedule's roster.`);
       if (s.age_groups.length && !s.age_groups.includes(group)) throw new BookingError(`${a.first_name} isn't eligible for ${s.program_name}.`);
+    }
+    // Tag rules ("Catcher only") apply on every kind of sheet
+    if ((s.required_tags || []).length) {
+      const m = (await db.query(`SELECT tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [s.schedule_id, athleteId])).rows[0];
+      if (!m || !m.tags.some((t) => s.required_tags.includes(t)))
+        throw new BookingError(`${a.first_name} can't claim this one. It's only for: ${s.required_tags.join(" or ")}.`);
     }
 
     const dup = await db.query(
@@ -214,7 +220,7 @@ async function cancelReservation({ userId, reservationId, admin = false }) {
     if (!r || r.status === "canceled") throw new BookingError("That reservation was already canceled.");
     if (r.season_done) throw new BookingError("That Claim Board is archived, so its spots can't be changed.");
     if (!admin && !(await isParentOf(db, userId, r.athlete_id))) throw new BookingError("That reservation isn't yours.");
-    if (!admin && r.status === "confirmed" && new Date() > cancelDeadline(r.starts_at, r.cancel_hours))
+    if (!admin && r.status === "confirmed" && r.starts_at && new Date() > cancelDeadline(r.starts_at, r.cancel_hours))
       throw new BookingError(`Online cancellation closed ${r.cancel_hours} hours before the session. Contact your coach.`);
 
     await db.query(
@@ -256,7 +262,7 @@ async function updateSessionCapacity(sessionId, fields) {
 
 async function parentReservations(userId) {
   const { rows } = await query(
-    `SELECT r.id, r.status, r.athlete_id, r.created_at, s.starts_at, s.ends_at, s.location, s.coach,
+    `SELECT r.id, r.status, r.athlete_id, r.created_at, s.starts_at, s.ends_at, s.location, s.coach, s.title,
             p.name AS program_name, p.cancel_hours,
             (SELECT count(*)::int FROM reservations w WHERE w.session_id=r.session_id AND w.status='waitlisted'
                AND (w.created_at, w.id) <= (r.created_at, r.id)) AS wait_pos
@@ -265,9 +271,9 @@ async function parentReservations(userId) {
      JOIN programs p ON p.id=s.program_id
      JOIN parent_athletes pa ON pa.athlete_id=r.athlete_id AND pa.user_id=$1
      LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
-     WHERE r.status<>'canceled' AND s.canceled_at IS NULL AND s.ends_at > now() AND se.completed_at IS NULL
+     WHERE r.status<>'canceled' AND s.canceled_at IS NULL AND (s.ends_at IS NULL OR s.ends_at > now()) AND se.completed_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM schedules x WHERE x.id=rd.schedule_id AND x.archived_at IS NOT NULL)
-     ORDER BY s.starts_at`,
+     ORDER BY s.starts_at NULLS LAST, s.title`,
     [userId]
   );
   return rows;
@@ -284,6 +290,7 @@ async function bookingOptions(athlete) {
        AND (r.signup_mode IN ('family','public')
          OR (r.id IS NOT NULL AND m.athlete_id IS NOT NULL AND (cardinality(p.age_groups) = 0 OR m.group_name = ANY(p.age_groups)))
          OR (r.id IS NULL AND $1 = ANY(p.age_groups) AND NOT $2::boolean))
+       AND (cardinality(p.required_tags) = 0 OR (m.tags IS NOT NULL AND m.tags && p.required_tags))
      ORDER BY r.starts_on NULLS LAST, p.activity, p.name`,
     [athlete.age_group || "", !!athlete.self_user_id, athlete.id]
   )).rows;
@@ -298,8 +305,8 @@ async function bookingOptions(athlete) {
           AND (w.created_at, w.id) <= (my.created_at, my.id)) AS my_pos
      FROM training_sessions s
      LEFT JOIN reservations my ON my.session_id=s.id AND my.athlete_id=$2 AND my.status<>'canceled'
-     WHERE s.program_id = ANY($1) AND s.canceled_at IS NULL AND s.starts_at > now()
-     ORDER BY s.starts_at`,
+     WHERE s.program_id = ANY($1) AND s.canceled_at IS NULL AND (s.starts_at IS NULL OR s.starts_at > now())
+     ORDER BY s.starts_at NULLS LAST, s.title, s.id`,
     [programs.map((p) => p.id), athlete.id]
   )).rows;
 

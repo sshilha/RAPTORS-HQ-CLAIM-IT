@@ -68,4 +68,42 @@ async function savePresets(sc, presets) {
   await query(`UPDATE schedules SET presets=$2 WHERE id=$1`, [sc.id, JSON.stringify(presets)]);
 }
 
-module.exports = { usage, add, rename, remove, move, savePresets };
+// ---- tags (multi-valued, e.g. Catcher, Pitcher) ----
+async function tagUsage(scheduleId, name) {
+  return (await query(`SELECT
+    (SELECT count(*)::int FROM schedule_members WHERE schedule_id=$1 AND $2 = ANY(tags)) AS members,
+    (SELECT count(*)::int FROM programs WHERE id IN (${programsIn}) AND $2 = ANY(required_tags)) AS programs`, [scheduleId, name])).rows[0];
+}
+async function addTag(sc, name) {
+  await query(`UPDATE schedules SET tags = array_append(tags, $2) WHERE id=$1 AND NOT ($2 = ANY(tags))`, [sc.id, name]);
+}
+async function syncNames(db, sc) {
+  const R = require("./rounds");
+  for (const r of (await db.query(`SELECT * FROM rounds WHERE schedule_id=$1`, [sc.id])).rows) await R.syncPrograms(db, r);
+}
+async function renameTag(sc, from, to) {
+  return tx(async (db) => {
+    await db.query(`UPDATE schedules SET tags = array_replace(tags, $2, $3) WHERE id=$1`, [sc.id, from, to]);
+    await db.query(`UPDATE schedule_members SET tags = array_replace(tags, $2, $3) WHERE schedule_id=$1`, [sc.id, from, to]);
+    await db.query(`UPDATE programs SET required_tags = array_replace(required_tags, $2, $3) WHERE id IN (${programsIn})`, [sc.id, from, to]);
+    await syncNames(db, sc);
+  });
+}
+// Removing a tag also removes it as a requirement, which opens those activities up
+async function removeTag(sc, name) {
+  return tx(async (db) => {
+    await db.query(`UPDATE schedules SET tags = array_remove(tags, $2) WHERE id=$1`, [sc.id, name]);
+    await db.query(`UPDATE schedule_members SET tags = array_remove(tags, $2) WHERE schedule_id=$1`, [sc.id, name]);
+    await db.query(`UPDATE programs SET required_tags = array_remove(required_tags, $2) WHERE id IN (${programsIn})`, [sc.id, name]);
+    await syncNames(db, sc);
+  });
+}
+async function setMemberTags(scheduleId, athleteId, tags) {
+  await query(`UPDATE schedule_members SET tags=$3 WHERE schedule_id=$1 AND athlete_id=$2`, [scheduleId, athleteId, tags]);
+}
+async function bulkTag(scheduleId, athleteIds, tag, on) {
+  if (on) await query(`UPDATE schedule_members SET tags = array_append(tags, $3) WHERE schedule_id=$1 AND athlete_id = ANY($2) AND NOT ($3 = ANY(tags))`, [scheduleId, athleteIds, tag]);
+  else await query(`UPDATE schedule_members SET tags = array_remove(tags, $3) WHERE schedule_id=$1 AND athlete_id = ANY($2)`, [scheduleId, athleteIds, tag]);
+}
+
+module.exports = { usage, add, rename, remove, move, savePresets, tagUsage, addTag, renameTag, removeTag, setMemberTags, bulkTag };

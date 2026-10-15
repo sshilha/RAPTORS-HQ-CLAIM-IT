@@ -53,6 +53,14 @@ function limitsForm(round, { returnTo, readonly, compact, activities } = {}) {
   </form>`;
 }
 
+// "Only for" tags on an activity (blank = everyone who fits the groups)
+function onlyFor(boardTags, chosen = [], formId) {
+  if (!boardTags || !boardTags.length) return "";
+  const f = formId ? ` form="${formId}"` : "";
+  return `<span class="only-for"><input type="hidden" name="tags_shown" value="1"${f}>${boardTags.map((t) =>
+    `<label class="tag-box${chosen.includes(t) ? " on" : ""}"><input type="checkbox" name="only_tags" value="${esc(t)}"${f}${chosen.includes(t) ? " checked" : ""}> ${esc(t)}</label>`).join("")}</span>`;
+}
+
 // Who can sign up for a sheet
 function modeForm(round, { returnTo, readonly } = {}) {
   const { MODES } = require("../schedules");
@@ -119,4 +127,4 @@ document.querySelectorAll(".unlock-never").forEach(function (c) {
 });
 </script>`;
 
-module.exports = { swatch, blockSelect, spotsLabel, limitsTable, limitsForm, limitsScript, unlockFields, waitlistSelect, modeForm, shareBox };
+module.exports = { onlyFor, swatch, blockSelect, spotsLabel, limitsTable, limitsForm, limitsScript, unlockFields, waitlistSelect, modeForm, shareBox };

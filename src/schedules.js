@@ -9,6 +9,7 @@ const DEFAULT_LABELS = {
   middle: ["Round", "Rounds"],
   activity: ["Activity", "Activities"],
   slot: ["Session", "Sessions"],
+  section: ["Section", "Sections"],
   participant: ["Athlete", "Athletes"],
   group: ["Group", "Groups"],
 };
@@ -21,11 +22,20 @@ const LEVELS = [
   ["group", "Group", "How participants are sorted, so sheets can be limited to certain groups.", "12U / Team / Level"],
 ];
 
+// Which engine pieces a board's levels use (the last one is always what gets claimed)
+const LEVEL_KEYS = { 1: ["slot"], 2: ["activity", "slot"], 3: ["middle", "activity", "slot"], 4: ["middle", "section", "activity", "slot"] };
+const depthOf = (sc) => Math.min(4, Math.max(1, parseInt((sc && sc.depth) || 3, 10) || 3));
+const levelKeys = (sc) => LEVEL_KEYS[depthOf(sc)];
+
 const PRESET_LABELS = {
-  training: { ...DEFAULT_LABELS },
-  volunteer: { top: ["Term", "Terms"], middle: ["Event", "Events"], activity: ["Role", "Roles"], slot: ["Shift", "Shifts"],
+  training: { ...DEFAULT_LABELS, depth: 3 },
+  volunteer: { depth: 2, activity: ["Area", "Areas"], slot: ["Shift", "Shifts"], middle: ["Round", "Rounds"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
-  weekly: { top: ["Year", "Years"], middle: ["Week", "Weeks"], activity: ["Activity", "Activities"], slot: ["Slot", "Slots"],
+  list: { depth: 1, slot: ["Item", "Items"], activity: ["Item", "Items"], middle: ["Round", "Rounds"],
+    participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
+  event: { depth: 4, middle: ["Day", "Days"], section: ["Area", "Areas"], activity: ["Station", "Stations"], slot: ["Shift", "Shifts"],
+    participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
+  weekly: { depth: 3, middle: ["Week", "Weeks"], activity: ["Activity", "Activities"], slot: ["Slot", "Slots"],
     participant: ["Member", "Members"], group: ["Group", "Groups"] },
 };
 
@@ -76,6 +86,37 @@ async function current(req, res) {
   const sc = list.find((x) => x.id === want) || list[0];
   if (res && sc && String(sc.id) !== (req.cookies && req.cookies.rt_sched)) res.cookie("rt_sched", String(sc.id), { sameSite: "lax", maxAge: 365 * 864e5 });
   return { list, sc };
+}
+
+// Boards with 1-2 levels keep their rules on one built-in round; a 1-level board's items all sit
+// under one built-in activity named after the level ("Tasks")
+async function mainRound(sc) {
+  return (await query(`SELECT * FROM rounds WHERE schedule_id=$1 AND is_main ORDER BY id LIMIT 1`, [sc.id])).rows[0] || null;
+}
+async function ensureStructure(sc) {
+  const depth = depthOf(sc);
+  if (depth >= 3) return null;
+  let r = await mainRound(sc);
+  if (!r) {
+    const R = require("./rounds");
+    r = (await query(
+      `INSERT INTO rounds (name, starts_on, ends_on, location, activity_defaults, activity_limits, schedule_id, is_main)
+       VALUES ($1, CURRENT_DATE, CURRENT_DATE + 730, $2, '{}', '{}', $3, true) RETURNING *`,
+      [sc.name, (sc.locations || [])[0] || null, sc.id])).rows[0];
+    void R;
+  }
+  if (depth === 1) {
+    const catalog = require("./catalog");
+    const c = catalog.current();
+    const name = labels(sc).slot.many;
+    let a = c.activities.find((x) => x.schedule_id === sc.id && x.item_list);
+    if (!a) {
+      a = { name, color: "#5fb3b3", all_ages: true, default_spots: 1, default_block: null, default_limit: null, aliases: [], active: true, schedule_id: sc.id, item_list: true };
+      c.activities.push(a); await catalog.save(c);
+    } else if (a.name !== name) await catalog.renameActivity(a.name, name, { ...a, schedule_id: sc.id });
+    await require("./rounds").ensureProgram({ query }, r, name, [], {});
+  }
+  return r;
 }
 
 async function refreshGroups() {
@@ -150,6 +191,6 @@ async function ensureDefault() {
 }
 
 module.exports = {
-  an, entriesFor, metaJson, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
+  LEVEL_KEYS, depthOf, levelKeys, mainRound, ensureStructure, an, entriesFor, metaJson, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
   all, get, forRound, forSeason, forProgram, current, refreshGroups, ensureDefault,
 };

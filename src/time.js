@@ -4,8 +4,10 @@ const fmtDay = (d) =>
   new Date(d).toLocaleDateString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric" });
 const fmtTime = (d) =>
   new Date(d).toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
-const fmtDateTime = (d) => `${fmtDay(d)} at ${fmtTime(d)}`;
-const fmtRange = (a, b) => `${fmtDay(a)}, ${fmtTime(a)}–${fmtTime(b)}`;
+const fmtDateTime = (d) => (d ? `${fmtDay(d)} at ${fmtTime(d)}` : "");
+const fmtRange = (a, b) => (a ? `${fmtDay(a)}, ${fmtTime(a)}–${fmtTime(b)}` : "Anytime");
+// What a claimable item is called: its title and/or its date + time
+const itemLabel = (s) => [s.title, s.starts_at ? fmtRange(s.starts_at, s.ends_at) : ""].filter(Boolean).join(", ") || "Anytime";
 
 // Values for <input type="date|time|datetime-local"> in Central time
 function inputParts(d) {
@@ -28,4 +30,4 @@ const isLocal = (s) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s);
 // SQL fragment that turns a Central-time "YYYY-MM-DD HH:MM" param into timestamptz
 const localSql = (n) => `($${n}::timestamp AT TIME ZONE '${TZ}')`;
 
-module.exports = { fmtDay, fmtTime, fmtDateTime, fmtRange, inputParts, isDate, isTime, isLocal, localSql };
+module.exports = { itemLabel, fmtDay, fmtTime, fmtDateTime, fmtRange, inputParts, isDate, isTime, isLocal, localSql };

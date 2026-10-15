@@ -8,7 +8,7 @@ const MON = ["January", "February", "March", "April", "May", "June", "July", "Au
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const longDay = (iso) => { const [y, m, d] = iso.split("-").map(Number); const dt = new Date(Date.UTC(y, m - 1, d)); return `${DAYS[dt.getUTCDay()]}, ${MON[m - 1]} ${d}, ${y}`; };
 
-const sessionLabel = (s) => `${fmtTime(s.starts_at)} ${typeLabel(s.activity, s.age_groups)}`;
+const sessionLabel = (s) => `${fmtTime(s.starts_at)} ${typeLabel(s.activity, s.age_groups, s.required_tags)}`;
 
 function person(p, i, waitlist, ctx) {
   const { s, date, sessions } = ctx;
@@ -103,7 +103,7 @@ function rosterPage({ user, flash, date, sessions, athletes, prev, next }) {
     </section>
     ${cards.map((c) => `<section class="panel who-card" id="${c.blocks ? `p${c.program_id}` : `s${c.id}`}" style="--c:${colorFor(c.activity, c.schedule_id)}">
       <div class="who-head">
-        <div><h2>${esc(typeLabel(c.activity, c.age_groups))}${c.blocks ? "" : lockMark(c)}</h2>
+        <div><h2>${esc(typeLabel(c.activity, c.age_groups, c.required_tags))}${c.blocks ? "" : lockMark(c)}</h2>
           <p class="muted tight">${esc(fmtTime(c.starts_at))}–${esc(fmtTime((c.blocks ? c.blocks[c.blocks.length - 1] : c).ends_at))}${c.round_name ? ` · ${esc(c.round_name)}` : ""}${c.location ? ` · ${esc(c.location)}` : ""}${c.coach ? ` · Coach ${esc(c.coach)}` : ""}</p></div>
         ${c.blocks ? `<span class="pill">${c.blocks.reduce((n, b) => n + b.booked.length, 0)}/${c.blocks.reduce((n, b) => n + b.capacity, 0)}</span>`
           : `<span class="pill${c.booked.length >= c.capacity ? " wait" : " ok"}">${c.booked.length}/${c.capacity}</span>`}

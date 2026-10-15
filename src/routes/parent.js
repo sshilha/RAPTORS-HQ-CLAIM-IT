@@ -56,7 +56,7 @@ router.get("/dashboard", wrap(async (req, res) => {
   let month = /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null;
   if (!month) {
     const today = inputParts(new Date()).date;
-    const days = programs.flatMap((p) => p.sessions.map((s) => localDate(s.starts_at))).sort();
+    const days = programs.flatMap((p) => p.sessions.filter((s) => s.starts_at).map((s) => localDate(s.starts_at))).sort();
     month = days.some((d) => d.startsWith(today.slice(0, 7))) || !days.length ? today.slice(0, 7) : days[0].slice(0, 7);
   }
   res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, canSelf, flash: flashFrom(req) }));

@@ -32,7 +32,7 @@ function normalize(c) {
       name: String(a.name), color: a.color || "#8899aa", all_ages: !!a.all_ages,
       default_spots: a.default_spots || 8, default_block: a.default_block || null,
       default_limit: a.default_limit === null || a.default_limit === undefined ? null : a.default_limit,
-      aliases: a.aliases || [], active: a.active !== false, schedule_id: a.schedule_id || null,
+      aliases: a.aliases || [], active: a.active !== false, schedule_id: a.schedule_id || null, item_list: !!a.item_list,
     })),
     age_groups: c.age_groups || [], presets: c.presets || [], locations: c.locations || [],
     family_names: c.family_names || "initial",

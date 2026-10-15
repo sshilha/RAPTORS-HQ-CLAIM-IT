@@ -35,17 +35,19 @@ function readActivity(b) {
 const { query } = require("../db");
 async function boardRows() {
   const rows = (await query(`SELECT sc.*,
-      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id) AS sheets,
+      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id AND NOT r.is_main) AS sheets,
+      (SELECT count(*)::int FROM training_sessions t JOIN programs p ON p.id=t.program_id JOIN rounds r ON r.id=p.round_id
+         WHERE r.schedule_id=sc.id AND t.canceled_at IS NULL) AS items,
       (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL AND r.ends_on >= CURRENT_DATE) AS live_sheets,
       (SELECT count(*)::int FROM schedule_members m WHERE m.schedule_id=sc.id) AS members,
       (SELECT count(*)::int FROM reservations x JOIN training_sessions t ON t.id=x.session_id JOIN programs p ON p.id=t.program_id
          JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=sc.id AND x.status='confirmed' AND t.starts_at > now()) AS claimed,
-      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id) AS items,
+      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id AND NOT r.is_main) AS item_rounds,
       (SELECT to_char(min(t.starts_at) AT TIME ZONE 'America/Chicago', 'Dy, Mon FMDD at FMHH12:MI AM') FROM training_sessions t
          JOIN programs p ON p.id=t.program_id JOIN rounds r ON r.id=p.round_id
          WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL AND t.canceled_at IS NULL AND t.starts_at > now()) AS next
     FROM schedules sc ORDER BY sc.sort, sc.id`)).rows;
-  for (const r of rows) { r.live = r.live_sheets > 0 && !r.archived_at; r.activities = SC.activitiesFor(r).length; r.empty = r.items === 0; }
+  for (const r of rows) { r.live = r.live_sheets > 0 && !r.archived_at; r.activities = SC.activitiesFor(r).length; r.empty = r.item_rounds === 0 && r.items === 0; }
   return rows;
 }
 
@@ -169,6 +171,7 @@ router.get("/groups", wrap(async (req, res) => {
   const { sc } = req.sched;
   const usage = {};
   for (const g of SC.groupsFor(sc)) usage[g] = await G.usage(sc.id, g);
+  for (const t of sc.tags || []) usage[`tag:${t}`] = await G.tagUsage(sc.id, t);
   res.send(v.groupsPage({ user: req.user, flash: flashFrom(req), sc, usage }));
 }));
 
@@ -206,6 +209,30 @@ router.post("/groups/remove", wrap(async (req, res) => {
   const r = await G.remove(sc, name);
   if (r.blocked) return go(res, grps(sc, "#groups"), { err: `${r.blocked} session setup${r.blocked === 1 ? " is" : "s are"} only for ${name}. Remove ${r.blocked === 1 ? "it" : "them"} from the ${SC.labels(sc).middle.one.toLowerCase()} first.` });
   go(res, grps(sc, "#groups"), { ok: `Removed ${name}. Anyone who was in it now has no ${SC.labels(sc).group.one.toLowerCase()} here.` });
+}));
+
+// ---------- a board's tags ----------
+const tagName = (s) => clean(s, 30).replace(/,/g, "");
+router.post("/tags", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  const name = tagName(req.body.name);
+  if (!name) return go(res, grps(sc, "#tags"), { err: "Enter a tag name." });
+  if ((sc.tags || []).some((t) => same(t, name))) return go(res, grps(sc, "#tags"), { err: `${name} already exists.` });
+  await G.addTag(sc, name);
+  go(res, grps(sc, "#tags"), { ok: `Added tag ${name}. Give it to people on the ${SC.labels(sc).participant.many} tab, and require it on ${SC.labels(sc).activity.many.toLowerCase()} that need it.` });
+}));
+router.post("/tags/rename", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  const from = str(req.body.original), to = tagName(req.body.name);
+  if (!to || from === to) return go(res, grps(sc, "#tags"), {});
+  if ((sc.tags || []).some((t) => same(t, to) && t !== from)) return go(res, grps(sc, "#tags"), { err: `${to} already exists.` });
+  await G.renameTag(sc, from, to);
+  go(res, grps(sc, "#tags"), { ok: `Renamed ${from} to ${to} on people and ${SC.labels(sc).activity.many.toLowerCase()}.` });
+}));
+router.post("/tags/remove", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  await G.removeTag(sc, str(req.body.name));
+  go(res, grps(sc, "#tags"), { ok: `Removed ${str(req.body.name)}. Anything that required it is open to everyone now.` });
 }));
 
 router.post("/presets", wrap(async (req, res) => {

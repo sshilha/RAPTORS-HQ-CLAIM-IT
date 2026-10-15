@@ -63,7 +63,7 @@ function groupsPage({ user, flash, sc, usage }) {
   const groups = SC.groupsFor(sc), presets = SC.presetsFor(sc);
   return page({
     title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash,
-    body: `${intro(sc, L.group.many, `How ${esc(sc.name)}'s ${esc(L.participant.many.toLowerCase())} are sorted. ${esc(SC.an(L.group.one).replace(/^a/, "A"))} can be an age (12U), a team, a level, or anything else. "Roster only" sign-ups can be limited to certain ${esc(L.group.many.toLowerCase())}.`)}
+    body: `${intro(sc, `${L.group.many} & tags`, `How ${esc(sc.name)}'s ${esc(L.participant.many.toLowerCase())} are sorted. ${esc(SC.an(L.group.one).replace(/^a/, "A"))} can be an age (12U), a team, a level, or anything else. "Roster only" sign-ups can be limited to certain ${esc(L.group.many.toLowerCase())}.`)}
     <div class="settings-2">
     <section class="panel" id="groups">
       <h2 class="banner">${esc(L.group.many)}</h2>
@@ -76,6 +76,20 @@ function groupsPage({ user, flash, sc, usage }) {
         <form method="post" action="/admin/settings/groups/remove${q}" onsubmit="return confirm('Remove ${esc(g)}?${u.members ? ` ${u.members} will have no ${esc(L.group.one.toLowerCase())}.` : ""}')"><input type="hidden" name="name" value="${esc(g)}"><button class="x" type="submit" aria-label="Remove ${esc(g)}">×</button></form>
       </li>`; }).join("")}</ul>` : `<p class="muted">None yet.</p>`}
       <form method="post" action="/admin/settings/groups${q}" class="inline-add"><label>New ${esc(L.group.one.toLowerCase())}<input name="name" maxlength="30" required placeholder="e.g. 12U, Varsity, Adults"></label>
+        <button class="btn-small" type="submit">Add</button></form>
+    </section>
+
+    <section class="panel" id="tags">
+      <h2 class="banner">Tags</h2>
+      <p class="fine">Extra labels on people, like Catcher or Pitcher. A person can have several. Require a tag on ${esc(SC.an(L.activity.one))} (e.g. Catching) and only people with that tag can claim it; everyone else won't see it.</p>
+      ${(sc.tags || []).length ? `<ul class="list-edit">${sc.tags.map((t) => { const u = usage[`tag:${t}`] || {}; return `<li>
+        <form method="post" action="/admin/settings/tags/rename${q}" class="inline-edit">
+          <input type="hidden" name="original" value="${esc(t)}"><input name="name" value="${esc(t)}" maxlength="30" aria-label="Tag name">
+          <button class="btn-ghost" type="submit">Rename</button></form>
+        <span class="fine">${pl(u.members || 0, L.participant.one.toLowerCase())}, required by ${u.programs || 0}</span>
+        <form method="post" action="/admin/settings/tags/remove${q}" onsubmit="return confirm('Remove the ${esc(t)} tag? Anything that required it opens to everyone.')"><input type="hidden" name="name" value="${esc(t)}"><button class="x" type="submit" aria-label="Remove ${esc(t)}">×</button></form>
+      </li>`; }).join("")}</ul>` : `<p class="muted">No tags yet.</p>`}
+      <form method="post" action="/admin/settings/tags${q}" class="inline-add"><label>New tag<input name="name" maxlength="30" required placeholder="e.g. Catcher"></label>
         <button class="btn-small" type="submit">Add</button></form>
     </section>
 
