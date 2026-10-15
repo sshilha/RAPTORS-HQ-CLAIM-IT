@@ -273,7 +273,7 @@ async function parentReservations(userId) {
      LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
      WHERE r.status<>'canceled' AND s.canceled_at IS NULL AND (s.ends_at IS NULL OR s.ends_at > now()) AND se.completed_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM schedules x WHERE x.id=rd.schedule_id AND x.archived_at IS NOT NULL)
-     ORDER BY s.starts_at NULLS LAST, s.title`,
+     ORDER BY s.starts_at NULLS LAST, s.id`,
     [userId]
   );
   return rows;
@@ -282,7 +282,7 @@ async function parentReservations(userId) {
 async function bookingOptions(athlete) {
   const programs = (await query(
     `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours, r.waitlist AS round_waitlist,
-       r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name, sc.family_names
+       r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name, sc.family_names, sc.pick_mode
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      LEFT JOIN schedules sc ON sc.id=r.schedule_id
      LEFT JOIN schedule_members m ON m.schedule_id=r.schedule_id AND m.athlete_id=$3
@@ -306,7 +306,7 @@ async function bookingOptions(athlete) {
      FROM training_sessions s
      LEFT JOIN reservations my ON my.session_id=s.id AND my.athlete_id=$2 AND my.status<>'canceled'
      WHERE s.program_id = ANY($1) AND s.canceled_at IS NULL AND (s.starts_at IS NULL OR s.starts_at > now())
-     ORDER BY s.starts_at NULLS LAST, s.title, s.id`,
+     ORDER BY s.starts_at NULLS LAST, s.id`,
     [programs.map((p) => p.id), athlete.id]
   )).rows;
 

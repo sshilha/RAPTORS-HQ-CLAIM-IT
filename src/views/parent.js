@@ -120,7 +120,42 @@ function itemsList(programs, athlete, back) {
       <div class="sess-side">${actionFor(p, s, athlete, back)}</div></li>`; }).join("")}</ul></div>`).join("")}</div>`;
 }
 
-function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash, canSelf }) {
+// The month as a day-by-day list, with a Claim button on each session
+function monthList(programs, athlete, month, back) {
+  const days = new Map();
+  const add = (d, e) => { if (!days.has(d)) days.set(d, []); days.get(d).push(e); };
+  for (const p of programs) {
+    const dated = p.sessions.filter((s) => s.starts_at && localDate(s.starts_at).startsWith(month));
+    if (p.block_minutes) { // split sessions (e.g. Cage Time): one row per day, pick a time on the day page
+      const byDay = new Map();
+      for (const s of dated) { const d = localDate(s.starts_at); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(s); }
+      for (const [d, list] of byDay) add(d, { p, blocks: list, at: list[0].starts_at });
+    } else for (const s of dated) add(d0(s), { p, s, at: s.starts_at });
+  }
+  function d0(s) { return localDate(s.starts_at); }
+  if (!days.size) return `<div class="empty"><p>Nothing to claim this month.</p></div>`;
+  return `<div class="month-list">${[...days.keys()].sort().map((d) => `<div class="ml-day">
+    <h3 class="ml-date"><a href="/athletes/${athlete.id}/day/${d}">${esc(longDay(d))}</a></h3>
+    <ul class="sess-list">${days.get(d).sort((a, b) => new Date(a.at) - new Date(b.at)).map((e) => {
+      const label = (e.p.section ? `${e.p.section} › ` : "") + typeLabel(e.p.activity, e.p.age_groups, e.p.required_tags);
+      if (e.blocks) {
+        const openBlocks = e.blocks.filter((s) => s.capacity - s.confirmed > 0).length;
+        const mine = e.blocks.some((s) => s.my_status);
+        return `<li class="sess${mine ? " mine" : ""}" style="--c:${colorFor(e.p.activity, e.p.schedule_id)}">
+          <div class="sess-main"><div class="sess-time"><span class="dot" style="background:var(--c)"></span> ${esc(fmtTime(e.blocks[0].starts_at))}–${esc(fmtTime(e.blocks[e.blocks.length - 1].ends_at))}</div>
+            <div class="sess-meta">${esc(label)}</div><div class="spots">${openBlocks} of ${e.blocks.length} times open</div></div>
+          <div class="sess-side">${mine ? `<span class="pill ok">Claimed</span>` : ""}<a class="btn-small" href="/athletes/${athlete.id}/day/${d}#p${e.p.id}">Pick a time</a></div></li>`;
+      }
+      const s = e.s, open = s.capacity - s.confirmed;
+      return `<li class="sess${s.my_status ? " mine" : ""}${open > 0 ? "" : " full"}" style="--c:${colorFor(e.p.activity, e.p.schedule_id)}">
+        <div class="sess-main"><div class="sess-time"><span class="dot" style="background:var(--c)"></span> ${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}${s.title ? `, ${esc(s.title)}` : ""}</div>
+          <div class="sess-meta">${esc(label)}${s.location ? `, ${esc(s.location)}` : ""}</div>
+          <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div></div>
+        <div class="sess-side">${actionFor(e.p, s, athlete, back)}</div></li>`;
+    }).join("")}</ul></div>`).join("")}</div>`;
+}
+
+function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash, canSelf, view = "cal", canSwitch = false }) {
   if (!athletes.length) return layout({ title: "My claims", user, admin, flash, tab: "home",
     body: `<section class="panel"><h1>Welcome to ${esc(LABELS.app_name)}</h1>
       <div class="empty"><p>No ${esc(LABELS.participants.toLowerCase())} are linked to this email yet.</p>
@@ -153,15 +188,18 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
         ${(athlete.groups || []).length ? `<span class="chip">${esc(athlete.groups.join(", "))}</span>` : ""}</div>
       ${!athlete.on_roster && !athlete.self_user_id && !programs.length ? `<p class="muted">${esc(athlete.first_name)} isn't on a schedule's roster yet, so nothing is shown. Contact us to fix this.</p>` : `
       ${usagePanel(programs)}
-      <div class="month-head">
+      ${byDay.size || !programs.some((p) => p.sessions.some((x) => !x.starts_at)) ? `<div class="month-head">
         ${month > curMonth ? `<a class="month-nav" href="${href(shiftMonth(month, -1))}" aria-label="Previous month">‹</a>` : `<span class="month-nav off" aria-hidden="true">‹</span>`}
         <h2>${MON[m - 1]} ${y}</h2>
         <a class="month-nav" href="${href(shiftMonth(month, 1))}" aria-label="Next month">›</a>
       </div>
-      ${monthGrid(athlete, month, byDay, today)}
-      <div class="pcal-legend">${activities.map(([a, sid]) => `<span>${dot(a, sid)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Claimed</span></div>
+      ${canSwitch ? `<nav class="view-switch" aria-label="View">
+        <a href="${href(month)}&v=cal"${view === "cal" ? ' aria-current="page"' : ""}>📅 Calendar</a>
+        <a href="${href(month)}&v=list"${view === "list" ? ' aria-current="page"' : ""}>☰ List</a></nav>` : ""}
+      ${view === "list" ? monthList(programs, athlete, month, `${href(month)}&v=list`) : monthGrid(athlete, month, byDay, today)}
+      <div class="pcal-legend">${activities.map(([a, sid]) => `<span>${dot(a, sid)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Claimed</span></div>` : ""}
       ${itemsList(programs, athlete, `/dashboard?a=${athlete.id}&m=${month}`)}
-      ${byDay.size ? `<p class="fine">Tap a day to see what's open and claim a spot.${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
+      ${byDay.size ? `<p class="fine">${view === "list" ? "Tap a date to see who's going." : "Tap a day to see what's open and claim a spot."}${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
         : programs.some((p) => p.sessions.some((s) => !s.starts_at)) ? "" : `<div class="empty"><p>Nothing open to claim right now.</p><p class="muted">New spots show up here as soon as they're posted.</p></div>`}`}
     </section>
 

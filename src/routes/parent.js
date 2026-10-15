@@ -59,7 +59,12 @@ router.get("/dashboard", wrap(async (req, res) => {
     const days = programs.flatMap((p) => p.sessions.filter((s) => s.starts_at).map((s) => localDate(s.starts_at))).sort();
     month = days.some((d) => d.startsWith(today.slice(0, 7))) || !days.length ? today.slice(0, 7) : days[0].slice(0, 7);
   }
-  res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, canSelf, flash: flashFrom(req) }));
+  // Calendar or list: boards set to "Both" let families switch; their choice is remembered
+  let view = ["cal", "list"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.rt_view === "list" ? "list" : "cal";
+  if (req.query.v) res.cookie("rt_view", view, { sameSite: "lax", maxAge: 365 * 864e5 });
+  const canSwitch = programs.some((p) => p.pick_mode === "both" && p.sessions.some((s) => s.starts_at));
+  if (!canSwitch) view = "cal";
+  res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, canSelf, flash: flashFrom(req), view, canSwitch }));
 }));
 
 router.get("/athletes/:id/book", (req, res) => res.redirect(`/dashboard?a=${int(req.params.id)}`));

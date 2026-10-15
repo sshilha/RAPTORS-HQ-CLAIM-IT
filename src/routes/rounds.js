@@ -55,7 +55,14 @@ router.get("/", wrap(async (req, res) => {
 }));
 
 router.post("/", wrap(async (req, res) => {
-  const name = str(req.body.name), s = str(req.body.starts_on), e = str(req.body.ends_on);
+  const name = str(req.body.name);
+  let s = str(req.body.starts_on), e = str(req.body.ends_on);
+  // List-only boards don't use dates: rounds just run from today for two years
+  const board = int(req.body.schedule_id) ? await require("../schedules").get(int(req.body.schedule_id)) : null;
+  if (board && !require("../schedules").usesCalendar(board) && !s && !e) {
+    const d = (await query(`SELECT to_char(CURRENT_DATE, 'YYYY-MM-DD') AS a, to_char(CURRENT_DATE + 730, 'YYYY-MM-DD') AS b`)).rows[0];
+    s = d.a; e = d.b;
+  }
   const seasonId = int(req.body.season_id) || null;
   if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, dest(req, "/admin/rounds", { id: "new" }), { err: "Enter a round name and a first day on or before the last day." });
   if (!(await seasonOk(seasonId))) return go(res, dest(req, "/admin/rounds", { id: "new" }), { err: "Pick an open season." });
@@ -76,7 +83,9 @@ router.post("/", wrap(async (req, res) => {
   const L = require("../schedules").labels(await require("../schedules").forRound(id));
   go(res, dest(req, `/admin/rounds/${id}`, { id }), { ok: src
     ? `${L.middle.one} created as a copy. Check its limits, unlock period, and booking dates, then publish.`
-    : `${L.middle.one} created. Next: add its times and ${L.activity.many.toLowerCase()}, then put them on the calendar.` });
+    : require("../schedules").usesCalendar(await require("../schedules").forRound(id))
+      ? `${L.middle.one} created. Next: add its times and ${L.activity.many.toLowerCase()}, then put them on the calendar.`
+      : `${L.middle.one} created. Next: add its ${L.activity.many.toLowerCase()}, then its ${L.slot.many.toLowerCase()}.` });
 }));
 
 // ---------- builder ----------

@@ -24,6 +24,8 @@ const LEVELS = [
 
 // Which engine pieces a board's levels use (the last one is always what gets claimed)
 const LEVEL_KEYS = { 1: ["slot"], 2: ["activity", "slot"], 3: ["middle", "activity", "slot"], 4: ["middle", "section", "activity", "slot"] };
+const pickMode = (sc) => (sc && ["list", "calendar", "both"].includes(sc.pick_mode) ? sc.pick_mode : sc && sc.use_calendar === false ? "list" : "calendar");
+const usesCalendar = (sc) => !sc || pickMode(sc) !== "list";
 const depthOf = (sc) => Math.min(4, Math.max(1, parseInt((sc && sc.depth) || 3, 10) || 3));
 const levelKeys = (sc) => LEVEL_KEYS[depthOf(sc)];
 
@@ -31,7 +33,7 @@ const PRESET_LABELS = {
   training: { ...DEFAULT_LABELS, depth: 3 },
   volunteer: { depth: 2, activity: ["Area", "Areas"], slot: ["Shift", "Shifts"], middle: ["Round", "Rounds"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
-  list: { depth: 1, slot: ["Item", "Items"], activity: ["Item", "Items"], middle: ["Round", "Rounds"],
+  list: { depth: 1, calendar: false, slot: ["Item", "Items"], activity: ["Item", "Items"], middle: ["Round", "Rounds"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
   event: { depth: 4, middle: ["Day", "Days"], section: ["Area", "Areas"], activity: ["Station", "Stations"], slot: ["Shift", "Shifts"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
@@ -84,6 +86,7 @@ async function current(req, res) {
   const list = await all();
   const want = parseInt((req.query && req.query.s) || (req.body && req.body.s) || (req.cookies && req.cookies.rt_sched), 10);
   const sc = list.find((x) => x.id === want) || list[0];
+  if (sc) sc.member_count = (await query(`SELECT count(*)::int AS n FROM schedule_members WHERE schedule_id=$1`, [sc.id])).rows[0].n;
   if (res && sc && String(sc.id) !== (req.cookies && req.cookies.rt_sched)) res.cookie("rt_sched", String(sc.id), { sameSite: "lax", maxAge: 365 * 864e5 });
   return { list, sc };
 }
@@ -191,6 +194,6 @@ async function ensureDefault() {
 }
 
 module.exports = {
-  LEVEL_KEYS, depthOf, levelKeys, mainRound, ensureStructure, an, entriesFor, metaJson, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
+  LEVEL_KEYS, pickMode, usesCalendar, depthOf, levelKeys, mainRound, ensureStructure, an, entriesFor, metaJson, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
   all, get, forRound, forSeason, forProgram, current, refreshGroups, ensureDefault,
 };

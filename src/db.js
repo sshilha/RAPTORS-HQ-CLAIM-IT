@@ -188,6 +188,11 @@ async function migrate() {
     -- Boards with 1-2 levels keep their rules on one built-in round (is_main). Level 2 of a 4-level
     -- board groups activities into sections. Claimable items may have no date (title + spots).
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS depth INTEGER NOT NULL DEFAULT 3;
+    -- List-only boards: no calendar, dates, or times (items are just named, with spots)
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS use_calendar BOOLEAN NOT NULL DEFAULT true;
+    -- How families pick: 'list', 'calendar', or 'both' (they can switch between calendar and list)
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pick_mode TEXT;
+    UPDATE schedules SET pick_mode = CASE WHEN use_calendar THEN 'calendar' ELSE 'list' END WHERE pick_mode IS NULL;
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS is_main BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS section TEXT;
     ALTER TABLE training_sessions ALTER COLUMN starts_at DROP NOT NULL;

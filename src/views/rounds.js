@@ -259,6 +259,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
       : r.published_at ? "" : `<p class="rule">Draft: nobody can see this ${esc(L.middle.one.toLowerCase())} yet. Set up times and ${esc(L.activity.many.toLowerCase())}, put them on the calendar, then publish.</p>`}
   </section>
 
+  ${!SC.usesCalendar(schedule) ? `<p class="rule">This board picks from a list (no calendar). Add and edit its ${esc(L.slot.many.toLowerCase())} on the board page. This page holds the rest of its settings.</p>` : `
   <div class="setup" id="setup">${timesPanel(r)}${readonly ? `<fieldset disabled class="plain">${sessionsPanel(r, types)}</fieldset>` : sessionsPanel(r, types)}</div>
 
   <div class="builder">
@@ -267,12 +268,12 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
       <p class="fine">Click days to select them. Click a scheduled session to see its roster. Numbers show spots claimed out of spots available.</p>
       ${grid(r, sessions)}
     </section>
-    ${readonly ? `<aside class="panel add-panel keep-visible"><h2>Read-only</h2><p class="muted">This ${esc(L.top.one.toLowerCase())} is completed. Reopen it to make changes.</p></aside>` : schedulePanel(r, types, last)}
-  </div>
+    ${readonly ? `<aside class="panel add-panel keep-visible"><h2>Read-only</h2><p class="muted">This Claim Board is archived. Reopen it to make changes.</p></aside>` : schedulePanel(r, types, last)}
+  </div>`}
 
   <section class="panel" id="limits">
     <h2>Limits per ${esc(L.participant.one.toLowerCase())}</h2>
-    ${limitsForm(r, { readonly, activities: SC.activitiesFor(schedule) })}
+    ${limitsForm(r, { readonly, activities: SC.activitiesFor(schedule), listOnly: !SC.usesCalendar(schedule) })}
   </section>
 
   <section class="panel" id="who">

@@ -4,13 +4,17 @@ const { fmtRange, fmtDateTime, inputParts } = require("../time");
 const { priorityActive } = require("../booking");
 const { limitFor, isUnlocked, unlocksAt } = require("../rounds");
 
-// Settings navigation: schedule pills (+ New, ⚙ App), then the current schedule's tabs
-const SCHEDULE_TABS = [
-  ["setup", (sc) => `/admin/setup?s=${sc.id}`, () => "Setup", ["setup", "seasons", "rounds", "programs", "import"]],
-  ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, ["members", "athletes"]],
-  ["activities", (sc) => `/admin/settings/activities?s=${sc.id}`, (L) => L.activity.many, ["activities"]],
-  ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => L.group.many, ["groups"]],
-  ["schedule", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => `${require("../config").LABELS.schedule} settings`, ["schedule"]],
+// Two areas per board:
+//  - the board itself (Open): rounds/items/calendar, with just a breadcrumb
+//  - its Settings (from the card): numbered steps in the order you'd set things up
+const BOARD_AREA = ["setup", "seasons", "rounds", "programs", "import"];
+const STEPS = [
+  ["structure", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => "Name & structure", () => "", ["schedule"]],
+  ["activities", (sc) => `/admin/settings/activities?s=${sc.id}`, (L) => L.activity.many, (sc, SC) => String(SC.activitiesFor(sc).length), ["activities"]],
+  ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => `${L.group.many} & tags`, (sc) => `${(sc.groups || []).length}${(sc.tags || []).length ? ` · ${(sc.tags || []).length} tag${(sc.tags || []).length === 1 ? "" : "s"}` : ""}`, ["groups"]],
+  ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, (sc) => String(sc.member_count ?? ""), ["members", "athletes"]],
+  ["more", (sc) => `/admin/setup/schedule/more?s=${sc.id}`, () => "Locations & family view", (sc) => String((sc.locations || []).length ? (sc.locations || []).length + " location" + ((sc.locations || []).length === 1 ? "" : "s") : ""), ["schedule-more"]],
+  ["archive", (sc) => `/admin/setup/schedule/archive?s=${sc.id}`, () => "Archive or delete", (sc) => (sc.archived_at ? "Archived" : ""), ["schedule-archive"]],
 ];
 function settingsNav(tab, user) {
   const sched = user && user.sched;
@@ -18,14 +22,21 @@ function settingsNav(tab, user) {
   if (tab === "home" || !sched || !sched.sc) return "";
   const homeLink = `<a class="crumb" href="/admin/settings">← All ${esc(LABELS.schedules.toLowerCase())}</a>`;
   if (tab === "settings") return `<nav class="crumbs no-print">${homeLink}</nav>`;
-  const cur = SCHEDULE_TABS.find((t) => t[3].includes(tab));
-  if (!cur) return "";
+  const sc = sched.sc;
+  if (BOARD_AREA.includes(tab)) return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sc.name)}</span>
+      ${sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>`;
   const SC = require("../schedules");
-  const L = SC.labels(sched.sc);
-  return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sched.sc.name)}</span>
-      ${sched.sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>
-    <nav class="settings-tabs no-print" aria-label="${esc(sched.sc.name)}">${SCHEDULE_TABS.filter(([k]) => k !== "activities" || SC.depthOf(sched.sc) > 1).map(([k, href, label]) =>
-      `<a href="${href(sched.sc)}"${k === cur[0] ? ' aria-current="page"' : ""}>${esc(label(L))}</a>`).join("")}</nav>`;
+  const L = SC.labels(sc);
+  const steps = STEPS.filter(([k]) => k !== "activities" || SC.depthOf(sc) > 1);
+  const cur = steps.find((t) => t[4].includes(tab));
+  if (!cur) return "";
+  return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sc.name)}</span><span class="crumb-sub">Settings</span>
+      <a class="btn-small crumb-open" href="/admin/setup?s=${sc.id}">Open board</a></nav>
+    <nav class="steps no-print" aria-label="Settings for ${esc(sc.name)}">${steps.map(([k, href, label, count], i) => {
+      const c = count(sc, SC);
+      return `<a href="${href(sc)}"${k === cur[0] ? ' aria-current="step"' : ""}><span class="step-num">${i + 1}</span>
+        <span class="step-text">${esc(label(L))}${c ? `<span class="step-count">${esc(c)}</span>` : ""}</span></a>`;
+    }).join("")}</nav>`;
 }
 const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsNav(opts.tab, opts.user) + opts.body });
 

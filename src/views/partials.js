@@ -39,16 +39,17 @@ function limitsCards(round, activities) {
   }).join("")}</div></div>`;
 }
 
-function limitsForm(round, { returnTo, readonly, compact, activities } = {}) {
+function limitsForm(round, { returnTo, readonly, compact, activities, listOnly } = {}) {
   return `<form method="post" action="/admin/rounds/${round.id}/limits" class="limits-form${compact ? " compact" : ""}">
     ${returnTo ? `<input type="hidden" name="return_to" value="${esc(returnTo)}">` : ""}
     <fieldset class="plain"${readonly ? " disabled" : ""}>
     ${compact ? limitsCards(round, activities) : limitsTable(round, activities)}
-    <div class="limits-foot">${unlockFields(round)}
+    <div class="limits-foot">${listOnly ? `<input type="hidden" name="unlock_never" value="1">` : unlockFields(round)}
       <label class="check waitlist-check"><input type="checkbox" name="waitlist" value="1"${round && round.waitlist ? " checked" : ""}> Use a waitlist when sessions fill up</label>
       ${readonly ? "" : `<button class="btn-ghost" type="submit">Save limits</button>`}
     </div>
-    <p class="fine">Sessions are locked to these limits. Inside the unlock period, or when you unlock a session by hand, any athlete can take its open spots, and those spots don't use up the athlete's limit. With the waitlist off, full sessions simply show "Full"; each session can override this.</p>
+    <p class="fine">${listOnly ? `Each person can claim up to these limits. With the waitlist off, full items simply show "Full".`
+      : `Sessions are locked to these limits. Inside the unlock period, or when you unlock a session by hand, any athlete can take its open spots, and those spots don't use up the athlete's limit. With the waitlist off, full sessions simply show "Full"; each session can override this.`}</p>
     </fieldset>
   </form>`;
 }

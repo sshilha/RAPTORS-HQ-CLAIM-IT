@@ -16,7 +16,7 @@ function membersPage({ user, flash, sc, members, others, group, total }) {
     title: `${L.participant.many} · ${sc.name}`, tab: "members", user, flash,
     body: `<section class="panel">
       <div class="athlete-head"><div><h1>${esc(L.participant.many)}</h1>
-        <p class="muted tight">${total} in ${esc(sc.name)}. These are the people who can use this schedule's "roster only" sign-ups. Family and public sign-ups are open to anyone.</p></div>
+        <p class="muted tight">${total} in ${esc(sc.name)}. Only needed if something on this board is <b>roster only</b> (or uses tags like Catcher): these are the people allowed to claim it. Boards open to signed-in families or anyone with the link can skip this step.</p></div>
         <a class="btn-small" href="#add">+ Add</a></div>
       ${groups.length ? `<nav class="chip-filter" aria-label="Filter by ${esc(L.group.one.toLowerCase())}">
         <a href="/admin/members?s=${sc.id}"${!group ? ' aria-current="page"' : ""}>All</a>
@@ -49,7 +49,7 @@ function membersPage({ user, flash, sc, members, others, group, total }) {
         <button class="btn-ghost" type="submit" name="mode" value="add">Add tag</button>
         <button class="btn-ghost" type="submit" name="mode" value="remove">Remove tag</button>
       </form>` : ""}
-      ${tags.length ? "" : `<p class="fine">Need tags like Catcher or Pitcher? Add them on the ${esc(L.group.many)} tab.</p>`}
+      ${tags.length ? "" : `<p class="fine">Need tags like Catcher or Pitcher? Add them in the ${esc(L.group.many)} &amp; tags step.</p>`}
     </section>
 
     <div class="settings-2" id="add">

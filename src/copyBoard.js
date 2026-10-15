@@ -8,10 +8,10 @@ const catalog = require("./catalog");
 async function copyBoard(src, { name, activities = true, groups = true, members = false, calendar = false, startOn = null }) {
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
   const board = (await query(
-    `INSERT INTO schedules (name, labels, groups, presets, locations, family_names, sort, tags, depth)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    `INSERT INTO schedules (name, labels, groups, presets, locations, family_names, sort, tags, depth, use_calendar, pick_mode)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [name, JSON.stringify(src.labels || {}), groups ? src.groups || [] : [], JSON.stringify(groups ? src.presets || [] : []),
-     src.locations || [], src.family_names || "initial", sort, groups ? src.tags || [] : [], SC.depthOf(src)])).rows[0];
+     src.locations || [], src.family_names || "initial", sort, groups ? src.tags || [] : [], SC.depthOf(src), SC.usesCalendar(src), SC.pickMode(src)])).rows[0];
 
   // Activities are per board: duplicate this board's entries (needed before the calendar is copied)
   if (activities || calendar) {

@@ -19,12 +19,13 @@ const swatch = (a) => `<span class="swatch" style="background:${colorFor(a, CUR.
 // Items without a date (and titled ones), with spots and who's claimed
 function itemsPanel(r, locked, L) {
   const depth = SC.depthOf(CUR);
+  const listOnly = !SC.usesCalendar(CUR);
   const items = r.items || [];
   const types = (r.types || []).filter((t) => depth > 1 || true);
   const pick = depth > 1 && types.length > 1;
   const anchor = `items-${r.id}`;
   return `<div class="items-panel" id="${anchor}">
-    <p class="label-like">${esc(L.slot.many)} without a date</p>
+    <p class="label-like">${listOnly ? esc(L.slot.many) : `${esc(L.slot.many)} without a date`}</p>
     ${items.length ? `<table class="types compact items"><thead><tr>${depth > 1 ? `<th>${esc(L.activity.one)}</th>` : ""}<th>${esc(L.slot.one)}</th><th>Spots</th><th>Claimed</th><th></th></tr></thead>
       <tbody>${items.map((it) => `<tr>
         ${depth > 1 ? `<td>${swatch(it.activity)}${it.section ? `${esc(it.section)} › ` : ""}${esc(typeLabel(it.activity, it.age_groups, it.required_tags))}</td>` : ""}
@@ -48,6 +49,7 @@ function itemsPanel(r, locked, L) {
 function roundBlock(r, locked, L, acts) {
   const anchor = `round-${r.id}`;
   const depth = SC.depthOf(CUR);
+  const listOnly = !SC.usesCalendar(CUR);
   const slots = r.time_slots || [];
   return `<details class="round${r.is_main ? " main-round" : ""}" id="${anchor}"${r.is_main ? " open" : ""}>
     <summary>
@@ -60,7 +62,7 @@ function roundBlock(r, locked, L, acts) {
     </summary>
     <div class="round-body">
       <div class="round-actions">
-        <a class="btn-small" href="/admin/rounds/${r.id}">Open calendar</a>
+        ${listOnly ? "" : `<a class="btn-small" href="/admin/rounds/${r.id}">Open calendar</a>`}
         ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/publish">${back(anchor)}
           <button class="btn-ghost" type="submit">${r.published_at ? "Hide" : r.is_main ? "Publish" : `Publish ${esc(L.middle.one.toLowerCase())}`}</button></form>`}
         <a class="link-dark" href="/admin/rounds/${r.id}#settings">${r.is_main ? "More settings" : `${esc(L.middle.one)} settings`}</a>
@@ -74,10 +76,10 @@ function roundBlock(r, locked, L, acts) {
       </div>
       <div class="round-limits">
         <p class="label-like">Limits per ${esc(L.participant.one.toLowerCase())}</p>
-        ${limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts })}
+        ${limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts, listOnly })}
       </div>
-      <div class="round-grid">
-        <div>
+      <div class="round-grid${listOnly ? " list-only" : ""}">
+        <div${listOnly ? " hidden" : ""}>
           <p class="label-like">Times</p>
           ${slots.length ? `<ul class="slot-list">${slots.map((t) => `<li><span>${esc(shortRange(t.start, t.end))}</span>
             ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/slots/remove">${back(anchor)}<input type="hidden" name="slot" value="${t.start}-${t.end}">
@@ -90,12 +92,12 @@ function roundBlock(r, locked, L, acts) {
 
         <div${depth === 1 ? ' hidden' : ""}>
           <p class="label-like">${esc(L.activity.many)} offered</p>
-          ${r.types.length ? `<table class="types compact"><thead><tr><th>${esc(L.activity.one)}</th><th>Spots</th><th>Split into</th><th>Waitlist</th>${(CUR.tags || []).length ? "<th>Only for</th>" : ""}<th>Coach</th><th>On calendar</th><th></th></tr></thead>
+          ${r.types.length ? `<table class="types compact"><thead><tr><th>${esc(L.activity.one)}</th><th>Spots</th>${listOnly ? "" : "<th>Split into</th>"}<th>Waitlist</th>${(CUR.tags || []).length ? "<th>Only for</th>" : ""}<th>Coach</th><th>On calendar</th><th></th></tr></thead>
             <tbody>${r.types.map((t) => `<tr>
               <td>${swatch(t.activity)}<strong>${t.section ? `${esc(t.section)} › ` : ""}${esc(typeLabel(t.activity, t.age_groups, t.required_tags))}</strong></td>
-              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td><td>${t.block_minutes ? `${t.block_minutes} min` : "Whole"}</td><td>${t.waitlist == null ? "Round default" : t.waitlist ? "On" : "Off"}</td>${(CUR.tags || []).length ? `<td>${esc((t.required_tags || []).join(", ") || "Everyone")}</td>` : ""}<td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
+              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td>${listOnly ? "" : `<td>${t.block_minutes ? `${t.block_minutes} min` : "Whole"}</td>`}<td>${t.waitlist == null ? "Round default" : t.waitlist ? "On" : "Off"}</td>${(CUR.tags || []).length ? `<td>${esc((t.required_tags || []).join(", ") || "Everyone")}</td>` : ""}<td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
               <td><input form="st-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
-              <td>${blockSelect("block", t.block_minutes, `form="st-${t.id}" aria-label="Split into blocks"`)}</td>
+              ${listOnly ? "" : `<td>${blockSelect("block", t.block_minutes, `form="st-${t.id}" aria-label="Split into blocks"`)}</td>`}
               <td>${waitlistSelect(t.waitlist, r, `form="st-${t.id}" aria-label="Waitlist"`)}</td>
               ${(CUR.tags || []).length ? `<td>${onlyFor(CUR.tags, t.required_tags || [], `st-${t.id}`)}</td>` : ""}
               <td><input form="st-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
@@ -113,7 +115,7 @@ function roundBlock(r, locked, L, acts) {
             <span class="ages">${SC.groupsFor(CUR).map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}
               ${SC.presetsFor(CUR).map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}</span>
             <input type="number" name="spots" min="1" max="200" required placeholder="Spots" aria-label="Spots" class="spots-in">
-            ${blockSelect("block", null, 'aria-label="Split into blocks" class="block-in"')}
+            ${listOnly ? "" : blockSelect("block", null, 'aria-label="Split into blocks" class="block-in"')}
             ${waitlistSelect(null, r, 'aria-label="Waitlist" class="block-in"')}
             ${(CUR.tags || []).length ? `<span class="only-label">Only for:</span>${onlyFor(CUR.tags, [])}` : ""}
             <input name="coach" placeholder="Coach (optional)" aria-label="Coach" class="coach-in">
@@ -133,8 +135,8 @@ function newRoundForm(seasonId, allRounds, first, L) {
       <input type="hidden" name="season_id" value="${seasonId || ""}">
       <input type="hidden" name="schedule_id" value="${CUR.id}">
       <label>Name<input name="name" required placeholder="${esc(L.middle.one)} 1"></label>
-      <label>First day<input type="date" name="starts_on" required></label>
-      <label>Last day<input type="date" name="ends_on" required></label>
+      ${SC.usesCalendar(CUR) ? `<label>First day<input type="date" name="starts_on" required></label>
+      <label>Last day<input type="date" name="ends_on" required></label>` : ""}
       <label>Start from<select name="copy_from"><option value="">Empty</option>
         ${allRounds.map((r) => `<option value="${r.id}">Copy of ${esc(r.name)} (${esc(niceRange(r.starts_on, r.ends_on))})</option>`).join("")}</select></label>
       <button class="btn-small" type="submit">Add ${esc(L.middle.one.toLowerCase())}</button>
@@ -171,13 +173,13 @@ const LEVEL_INFO = {
   group: () => ["How people are sorted, so things can be limited to certain groups.", "12U, Team, Level"],
 };
 
-function scheduleSettingsPage({ user, flash, sc, counts }) {
+function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   const L = SC.labels(sc);
-  return page({
-    title: `Settings · ${sc.name}`, tab: "schedule", user, flash,
-    body: `<section class="panel">
-      <h1>${esc(require("../config").LABELS.schedule)} settings</h1>
-      <p class="muted tight">What ${esc(sc.name)} is called, and what it calls each level.</p>
+  const tab = { structure: "schedule", more: "schedule-more", archive: "schedule-archive" }[part] || "schedule";
+  const sections = {
+    structure: `<section class="panel">
+      <h1>Name &amp; structure</h1>
+      <p class="muted tight">The board's name, how many levels it has, and what each level is called. The last level is what people claim.</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/depth?s=${sc.id}" class="depth-form">
         <label>Levels under the board<select name="depth"${counts.items ? " disabled" : ""}>
           ${[1, 2, 3, 4].map((n) => `<option value="${n}"${SC.depthOf(sc) === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select></label>
@@ -185,7 +187,12 @@ function scheduleSettingsPage({ user, flash, sc, counts }) {
           : `<button class="btn-ghost" type="submit">Change</button><span class="fine">The last level is always what people claim.</span>`}
       </form>
       <form method="post" action="/admin/setup/schedules/${sc.id}?s=${sc.id}" class="sched-form">
-        <label class="w-wide">Name<input name="name" required value="${esc(sc.name)}" maxlength="40"></label>
+        <label class="w-wide">Name<input name="name" required value="${esc(sc.name)}" maxlength="60"></label>
+        <fieldset class="checks pick-mode"><legend>How people pick</legend>
+          <label class="mode-opt"><input type="radio" name="pick" value="list"${SC.pickMode(sc) === "list" ? " checked" : ""}><span><b>From a list</b><span class="fine">No dates or times. Good when everything happens on one day: put the day in the board's name, and times in an item's name if needed.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="pick" value="calendar"${SC.pickMode(sc) === "calendar" ? " checked" : ""}><span><b>On a calendar</b><span class="fine">${esc(L.slot.many)} have dates and times, and families pick days on a calendar. Undated items can still be added too.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="pick" value="both"${SC.pickMode(sc) === "both" ? " checked" : ""}><span><b>Both: families choose</b><span class="fine">Dates and times, and families can switch between a calendar and a day-by-day list. The app remembers their choice.</span></span></label>
+        </fieldset>
         <div class="table-wrap"><table class="levels">
           <thead><tr><th>Level</th><th>What it is</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
           <tbody>${SC.levelKeys(sc).map((k, i, all) => { const info = LEVEL_INFO[k](i === all.length - 1); return `<tr>
@@ -201,6 +208,9 @@ function scheduleSettingsPage({ user, flash, sc, counts }) {
         <div class="sched-actions"><button class="btn-small" type="submit">Save</button></div>
       </form>
     </section>
+`,
+    more: `<section class="panel"><h1>Locations &amp; family view</h1>
+      <p class="muted tight">Where things happen, and how much families see of who's going.</p></section>
     <div class="settings-2">
     <section class="panel" id="locations">
       <h2 class="banner">Locations</h2>
@@ -222,6 +232,9 @@ function scheduleSettingsPage({ user, flash, sc, counts }) {
     </section>
     </div>
 
+`,
+    archive: `<section class="panel"><h1>Archive or delete</h1>
+      <p class="muted tight">When ${esc(sc.name)} is over, archive it: it's hidden from families and read-only, and its reports stay. Delete is only for empty boards.</p></section>
     <section class="panel">
       <h2>${sc.archived_at ? "Archived" : "Archive"}</h2>
       <p class="muted">${sc.archived_at ? `Families can't see anything in ${esc(sc.name)}. Restore it to make it active again.`
@@ -234,6 +247,10 @@ function scheduleSettingsPage({ user, flash, sc, counts }) {
       <form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete the ${esc(sc.name)} schedule?')">
         <button class="btn-ghost danger" type="submit"${counts.items ? " disabled" : ""}>Delete ${esc(sc.name)}</button></form>
     </section>`,
+  };
+  return page({
+    title: `Settings · ${sc.name}`, tab, user, flash,
+    body: sections[part] || sections.structure,
   });
 }
 
@@ -247,7 +264,7 @@ function newSchedulePage({ user, flash, schedules }) {
       <a class="back" href="/admin/settings">All</a>
       <p class="lede">Each one is a sign-up space for a period or an event, like <b>Winter Training 2026–27</b> or <b>2027 Arctic Rumble Volunteering</b>, with its own rounds, activities, groups, and people. Pick a name and a naming style; you can rename every level afterward. To start from last year's, use <b>Copy</b> on its card instead.</p>
       <form method="post" action="/admin/setup/schedules" class="stack">
-        <label>Name<input name="name" required maxlength="40" placeholder="e.g. Winter Training 2026–27 or 2027 Arctic Rumble Volunteering"></label>
+        <label>Name<input name="name" required maxlength="60" placeholder="e.g. Winter Training 2026–27 or 2027 Arctic Rumble Volunteering"></label>
         <fieldset class="checks stack-list"><legend>Structure</legend>
           ${[["list", "Item list (1 level)"], ["volunteer", "Areas and shifts (2 levels)"], ["training", "Training (3 levels)"], ["event", "Event days (4 levels)"]].map(([k, t], i) =>
             `<label class="mode-opt"><input type="radio" name="preset" value="${k}"${k === "training" ? " checked" : ""}><span><b>${t}</b><span class="fine">${esc(line(PRE[k]))}</span></span></label>`).join("")}
@@ -274,9 +291,11 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
     body: `<section class="panel">
       <div class="athlete-head">
         <div><h1>${esc(sc.name)}</h1>
-          <p class="muted tight">${SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ")}. ${depth >= 3
+          <p class="muted tight">${SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ")}. ${depth >= 3 && SC.usesCalendar(sc)
             ? `Open ${esc(SC.an(L.middle.one))}'s calendar to put ${esc(L.slot.many.toLowerCase())} on days.`
-            : `Add ${esc(L.slot.many.toLowerCase())} without a date below, or open the calendar to put them on days.`}</p></div>
+            : depth >= 3 ? `Add ${esc(L.slot.many.toLowerCase())} inside each ${esc(L.middle.one.toLowerCase())}. People pick from a list (no calendar).`
+            : SC.usesCalendar(sc) ? `Add ${esc(L.slot.many.toLowerCase())} without a date below, or open the calendar to put them on days.`
+            : `Add ${esc(L.slot.many.toLowerCase())} below. People pick from a list (no calendar).`}</p></div>
         ${locked ? `<span class="pill">Archived: read-only</span>` : depth >= 3 ? `<div class="head-actions"><a class="btn-ghost" href="/admin/import?s=${sc.id}">Import vendor schedule</a></div>` : ""}
       </div>
       ${locked ? `<p class="rule">This Claim Board is archived: hidden from families and read-only. Reopen it from Settings to make changes.</p>` : ""}

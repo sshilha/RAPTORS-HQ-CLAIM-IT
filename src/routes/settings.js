@@ -219,7 +219,7 @@ router.post("/tags", wrap(async (req, res) => {
   if (!name) return go(res, grps(sc, "#tags"), { err: "Enter a tag name." });
   if ((sc.tags || []).some((t) => same(t, name))) return go(res, grps(sc, "#tags"), { err: `${name} already exists.` });
   await G.addTag(sc, name);
-  go(res, grps(sc, "#tags"), { ok: `Added tag ${name}. Give it to people on the ${SC.labels(sc).participant.many} tab, and require it on ${SC.labels(sc).activity.many.toLowerCase()} that need it.` });
+  go(res, grps(sc, "#tags"), { ok: `Added tag ${name}. Give it to people in the ${SC.labels(sc).participant.many} step, and require it on ${SC.labels(sc).activity.many.toLowerCase()} that need it.` });
 }));
 router.post("/tags/rename", wrap(async (req, res) => {
   const { sc } = req.sched;

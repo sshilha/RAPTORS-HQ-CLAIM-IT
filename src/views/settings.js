@@ -30,7 +30,7 @@ function activitiesPage({ user, flash, sc, list, usage }) {
   const q = `?s=${sc.id}`;
   return page({
     title: `${L.activity.many} · ${sc.name}`, tab: "activities", user, flash, xwide: true,
-    body: `${intro(sc, L.activity.many, `What people can claim in ${esc(sc.name)}. Defaults fill in when you add one to ${esc(SC.an(L.middle.one))}; each ${esc(L.middle.one.toLowerCase())} can still change them. "All groups" makes it open to every ${esc(L.group.one.toLowerCase())} (like Cage Time). Import codes are the short names a vendor schedule uses (e.g. "D" for Defense).`)}
+    body: `${intro(sc, L.activity.many, `The kinds of things people claim in ${esc(sc.name)} (you'll add the actual ${esc(L.slot.many.toLowerCase())} when you open the board). Defaults fill in when you add one to ${esc(SC.an(L.middle.one))}; each ${esc(L.middle.one.toLowerCase())} can still change them. "All groups" makes it open to every ${esc(L.group.one.toLowerCase())} (like Cage Time). Import codes are the short names a vendor schedule uses (e.g. "D" for Defense).`)}
     <section class="panel" id="activities">
       <div class="table-wrap"><table class="settings-table">
         <thead><tr><th></th><th>Name</th><th>Color</th><th>Spots</th><th>Split into</th><th>Limit per ${esc(L.participant.one.toLowerCase())}</th><th>Who</th><th>Import codes</th><th>Status</th><th></th></tr></thead>
@@ -63,7 +63,7 @@ function groupsPage({ user, flash, sc, usage }) {
   const groups = SC.groupsFor(sc), presets = SC.presetsFor(sc);
   return page({
     title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash,
-    body: `${intro(sc, `${L.group.many} & tags`, `How ${esc(sc.name)}'s ${esc(L.participant.many.toLowerCase())} are sorted. ${esc(SC.an(L.group.one).replace(/^a/, "A"))} can be an age (12U), a team, a level, or anything else. "Roster only" sign-ups can be limited to certain ${esc(L.group.many.toLowerCase())}.`)}
+    body: `${intro(sc, `${L.group.many} & tags`, `Optional. How ${esc(sc.name)}'s ${esc(L.participant.many.toLowerCase())} are sorted. ${esc(SC.an(L.group.one).replace(/^a/, "A"))} can be an age (12U), a team, a level, or anything else. "Roster only" sign-ups can be limited to certain ${esc(L.group.many.toLowerCase())}.`)}
     <div class="settings-2">
     <section class="panel" id="groups">
       <h2 class="banner">${esc(L.group.many)}</h2>

@@ -26,7 +26,7 @@ async function slots(roundId, mode = "initial") {
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS confirmed
      FROM training_sessions s JOIN programs p ON p.id=s.program_id
      WHERE p.round_id=$1 AND s.canceled_at IS NULL AND (s.starts_at IS NULL OR s.starts_at > now())
-     ORDER BY s.starts_at NULLS FIRST, p.activity, s.title, s.id`, [roundId])).rows;
+     ORDER BY s.starts_at NULLS FIRST, p.activity, s.id`, [roundId])).rows;
   if (mode !== "off" && rows.length) {
     const names = (await query(
       `SELECT x.session_id, a.first_name, a.last_name FROM reservations x JOIN athletes a ON a.id=x.athlete_id

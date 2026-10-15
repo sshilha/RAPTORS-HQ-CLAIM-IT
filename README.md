@@ -39,11 +39,22 @@ board's Setup page. Anything claimable can have a date and time, or be an undate
 undated items show as a list on My Claims and the public page, and have no give-it-up deadline.
 The number of levels can change only while the board is empty.
 
+**How people pick** (Name & structure): **From a list** (no calendar, dates, or times; put the
+day in the board's name and times in item names if needed), **On a calendar**, or **Both**
+(families switch between the calendar and a day-by-day list with Claim buttons; their choice is
+remembered). New item-list
+boards start as lists. Items appear in the order you add them.
+
 A **Claim Board is the season or event itself**, e.g. "Winter Training 2026–27" or "2027 Arctic
 Rumble Volunteering". Next year, **Copy** it (the name bumps to 2027–28 automatically).
 **Archive** hides it from families and makes it read-only (reports still work); **Reopen** unlocks it.
 
-**Inside a Claim Board** (click its card; "← All" goes back), each with its own data:
+**Open** (on the card) shows the board itself: its rounds or items, calendar, and rules.
+**Settings** (on the card) walks through setup as numbered steps: 1 Name & structure,
+2 Activities (skipped for 1-level boards), 3 Groups & tags, 4 People, 5 Locations & family
+view, 6 Archive or delete. Steps 3–4 are only needed for roster-only claims or tag rules.
+
+**What each part holds:**
 - **Setup:** its rounds (or events/weeks), times, calendar, import.
 - **Participants** (named per schedule): who can use its "roster only" sign-ups and their group
   there. A person exists once in the app and can be in several schedules with a different group in each.
