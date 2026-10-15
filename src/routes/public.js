@@ -4,7 +4,7 @@ const { query } = require("../db");
 const auth = require("../auth");
 const booking = require("../booking");
 const { notify } = require("../notify");
-const { FAMILY, TZ } = require("../config");
+const { TZ } = require("../config");
 const v = require("../views/public");
 const { wrap, int, str } = require("./util");
 
@@ -12,25 +12,26 @@ const router = express.Router();
 
 async function sheet(token) {
   return (await query(
-    `SELECT r.*, sc.labels AS schedule_labels, sc.name AS schedule_name, se.completed_at AS season_done, sc.archived_at AS schedule_archived
+    `SELECT r.*, sc.labels AS schedule_labels, sc.name AS schedule_name, se.completed_at AS season_done, sc.archived_at AS schedule_archived,
+       coalesce(sc.family_names, 'initial') AS family_names
      FROM rounds r LEFT JOIN schedules sc ON sc.id=r.schedule_id LEFT JOIN seasons se ON se.id=r.season_id
      WHERE r.share_token=$1`, [token])).rows[0];
 }
 const usable = (r) => r && r.signup_mode === "public" && r.published_at && !r.season_done && !r.schedule_archived;
 
-async function slots(roundId) {
+async function slots(roundId, mode = "initial") {
   const rows = (await query(
     `SELECT s.*, p.activity, p.age_groups, p.block_minutes, p.waitlist AS program_waitlist, p.booking_opens_at,
        to_char(s.starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS day,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS confirmed
      FROM training_sessions s JOIN programs p ON p.id=s.program_id
      WHERE p.round_id=$1 AND s.canceled_at IS NULL AND s.starts_at > now() ORDER BY s.starts_at, p.activity`, [roundId])).rows;
-  if (FAMILY.names !== "off" && rows.length) {
+  if (mode !== "off" && rows.length) {
     const names = (await query(
       `SELECT x.session_id, a.first_name, a.last_name FROM reservations x JOIN athletes a ON a.id=x.athlete_id
        WHERE x.session_id = ANY($1) AND x.status='confirmed' ORDER BY x.created_at`, [rows.map((r) => r.id)])).rows;
     for (const r of rows) r.going = names.filter((n) => n.session_id === r.id)
-      .map((n) => (FAMILY.names === "full" ? `${n.first_name} ${n.last_name}` : `${n.first_name} ${(n.last_name || "").slice(0, 1)}.`));
+      .map((n) => (mode === "full" ? `${n.first_name} ${n.last_name}` : `${n.first_name} ${(n.last_name || "").slice(0, 1)}.`));
   }
   return rows;
 }
@@ -38,7 +39,7 @@ async function slots(roundId) {
 router.get("/:token", wrap(async (req, res) => {
   const r = await sheet(str(req.params.token));
   if (!usable(r)) return res.status(404).send(v.closedPage({ user: req.user }));
-  res.send(v.sheetPage({ user: req.user, round: r, slots: await slots(r.id), flash: { ok: req.query.ok, err: req.query.err } }));
+  res.send(v.sheetPage({ user: req.user, round: r, slots: await slots(r.id, r.family_names), flash: { ok: req.query.ok, err: req.query.err } }));
 }));
 
 async function loadSlot(r, sid) {

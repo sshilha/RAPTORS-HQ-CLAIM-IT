@@ -10,10 +10,14 @@ async function load() {
   if (row) {
     const c = normalize(row.value);
     // The app was renamed to Raptors Claim It; upgrade the old default names (custom names are kept)
+    let upgraded = false;
     if (["Raptors Training", "Raptors Sign-Ups", "Sign-Ups"].includes(c.app_labels.app_name)) {
-      c.app_labels = { ...c.app_labels, app_name: "Raptors Claim It", app_short: "Claim It" };
-      await query(`UPDATE app_settings SET value=$1, updated_at=now() WHERE key='catalog'`, [JSON.stringify(c)]);
+      c.app_labels = { ...c.app_labels, app_name: "Raptors Claim It", app_short: "Claim It" }; upgraded = true;
     }
+    // Each sign-up space is a "Claim Board" now (unless it's been renamed to something else)
+    const sl = (c.app_labels.schedule || [])[0];
+    if (!sl || sl === "Schedule") { c.app_labels = { ...c.app_labels, schedule: ["Claim Board", "Claim Boards"] }; upgraded = true; }
+    if (upgraded) await query(`UPDATE app_settings SET value=$1, updated_at=now() WHERE key='catalog'`, [JSON.stringify(c)]);
     config.apply(c);
   }
   else {
@@ -33,6 +37,8 @@ function normalize(c) {
     age_groups: c.age_groups || [], presets: c.presets || [], locations: c.locations || [],
     family_names: c.family_names || "initial",
     app_labels: c.app_labels || require("./config").DEFAULT_CATALOG.app_labels,
+    board_settings_moved: !!c.board_settings_moved,
+    seasons_flattened: !!c.seasons_flattened,
   };
 }
 

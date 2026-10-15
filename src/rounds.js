@@ -158,11 +158,12 @@ async function schedule(db, round, program, { date, start, end, capacity, coach,
   const d = defaultsFor(round, program.activity);
   let made = 0;
   for (const [bs, be] of blocksFor(program, start, end)) {
+    // "Already on the calendar" means the same activity, groups, and start time in this board
     const dup = await db.query(
-      `SELECT 1 FROM training_sessions s JOIN programs p ON p.id=s.program_id
+      `SELECT 1 FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
        WHERE s.canceled_at IS NULL AND NOT p.archived AND p.activity=$1 AND p.age_groups=$2::text[]
-         AND s.starts_at = ($3::timestamp AT TIME ZONE 'America/Chicago')`,
-      [program.activity, program.age_groups, `${date} ${bs}`]);
+         AND s.starts_at = ($3::timestamp AT TIME ZONE 'America/Chicago') AND r.schedule_id IS NOT DISTINCT FROM $4`,
+      [program.activity, program.age_groups, `${date} ${bs}`, round.schedule_id]);
     if (dup.rowCount) continue;
     await db.query(
       `INSERT INTO training_sessions (program_id, starts_at, ends_at, location, coach, capacity, notes)
@@ -183,7 +184,7 @@ async function addSession(db, round, s) {
 
 // Copy a round's times, sessions (with spots), and schedule into a new round, shifted by offsetDays.
 // Booking dates shift by the same amount so a copied season keeps its rhythm.
-async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetDays, shiftRules }) {
+async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetDays, shiftRules, schedule_id }) {
   // $7 decides whether booking dates shift with the round or start blank
   const shift = (col) => `CASE WHEN $7::boolean THEN ${col} + ($2::int * interval '1 day') END`;
   const round = (await db.query(
@@ -191,8 +192,8 @@ async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetD
        cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours, waitlist, schedule_id, signup_mode)
      SELECT $3, $4, $5, $6, ${shift("booking_opens_at")}, ${shift("priority_ends_at")}, priority_limit,
        cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours, waitlist,
-       COALESCE((SELECT schedule_id FROM seasons WHERE id=$6), schedule_id), signup_mode FROM rounds WHERE id=$1 RETURNING *`,
-    [src.id, offsetDays, name, starts_on, ends_on, season_id, !!shiftRules])).rows[0];
+       COALESCE((SELECT schedule_id FROM seasons WHERE id=$6), $8, schedule_id), signup_mode FROM rounds WHERE id=$1 RETURNING *`,
+    [src.id, offsetDays, name, starts_on, ends_on, season_id, !!shiftRules, schedule_id || null])).rows[0];
   for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows)
     await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach, block: p.block_minutes, waitlist: p.waitlist });
   const sess = (await db.query(

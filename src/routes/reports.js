@@ -202,8 +202,9 @@ router.get("/", wrap(async (req, res) => {
   const rounds = (await query(`SELECT rd.id, rd.name, rd.season_id, rd.schedule_id, se.name AS season_name FROM rounds rd
     LEFT JOIN seasons se ON se.id=rd.season_id ORDER BY rd.starts_on DESC`)).rows;
   const q = { ...req.query };
-  if (!Object.keys(req.query).length && seasons[0]) q.season = String(seasons[0].id); // default: latest season
-  if (q.round && !q.season) { const r = rounds.find((x) => x.id === int(q.round)); if (r?.season_id) q.season = String(r.season_id); }
+  // default: the first active board; a chosen round implies its board
+  if (!Object.keys(req.query).length) { const first = schedules.find((x) => !x.archived_at); if (first) q.schedule = String(first.id); }
+  if (q.round && !q.schedule) { const r = rounds.find((x) => x.id === int(q.round)); if (r?.schedule_id) q.schedule = String(r.schedule_id); }
   const f = readFilters(q);
   const out = await builders[f.report](f);
   const totals = out.totals ? out.totals(out.rows) : null;

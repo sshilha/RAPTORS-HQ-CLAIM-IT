@@ -176,6 +176,15 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_members_athlete ON schedule_members(athlete_id);
     -- Archived schedules are hidden from families and listed separately in Settings
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+    -- Each Claim Board has its own locations and family view
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS locations TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS family_names TEXT NOT NULL DEFAULT 'initial';
+    -- App-wide administrators (in addition to the ADMIN_EMAILS variable)
+    CREATE TABLE IF NOT EXISTS app_admins (
+      email      TEXT PRIMARY KEY,
+      added_by   TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS waitlist BOOLEAN;
     -- Spots taken from unlocked sessions don't use up an athlete's limit
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS counts_toward_limit BOOLEAN NOT NULL DEFAULT true;

@@ -33,26 +33,38 @@ function readActivity(b) {
 
 // ---------- Settings home: active schedules ----------
 const { query } = require("../db");
-router.get("/", wrap(async (req, res) => {
+async function boardRows() {
   const rows = (await query(`SELECT sc.*,
-      (SELECT count(*)::int FROM seasons s WHERE s.schedule_id=sc.id AND s.completed_at IS NULL) AS open_top,
-      (SELECT count(*)::int FROM rounds r LEFT JOIN seasons s ON s.id=r.season_id WHERE r.schedule_id=sc.id AND s.completed_at IS NULL) AS sheets,
-      (SELECT count(*)::int FROM rounds r LEFT JOIN seasons s ON s.id=r.season_id WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL
-         AND s.completed_at IS NULL AND r.ends_on >= CURRENT_DATE) AS live_sheets,
+      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id) AS sheets,
+      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL AND r.ends_on >= CURRENT_DATE) AS live_sheets,
       (SELECT count(*)::int FROM schedule_members m WHERE m.schedule_id=sc.id) AS members,
       (SELECT count(*)::int FROM reservations x JOIN training_sessions t ON t.id=x.session_id JOIN programs p ON p.id=t.program_id
          JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=sc.id AND x.status='confirmed' AND t.starts_at > now()) AS claimed,
+      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id) AS items,
       (SELECT to_char(min(t.starts_at) AT TIME ZONE 'America/Chicago', 'Dy, Mon FMDD at FMHH12:MI AM') FROM training_sessions t
          JOIN programs p ON p.id=t.program_id JOIN rounds r ON r.id=p.round_id
          WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL AND t.canceled_at IS NULL AND t.starts_at > now()) AS next
     FROM schedules sc ORDER BY sc.sort, sc.id`)).rows;
-  for (const r of rows) { r.live = r.live_sheets > 0 && !r.archived_at; r.activities = SC.activitiesFor(r).length; }
+  for (const r of rows) { r.live = r.live_sheets > 0 && !r.archived_at; r.activities = SC.activitiesFor(r).length; r.empty = r.items === 0; }
+  return rows;
+}
+
+router.get("/", wrap(async (req, res) => {
+  const rows = await boardRows();
   res.send(require("../views/home").homePage({ user: req.user, flash: flashFrom(req),
-    active: rows.filter((r) => !r.archived_at), archived: rows.filter((r) => r.archived_at) }));
+    active: rows.filter((r) => !r.archived_at), archivedCount: rows.filter((r) => r.archived_at).length }));
+}));
+
+router.get("/archived", wrap(async (req, res) => {
+  const rows = await boardRows();
+  res.send(require("../views/home").archivedPage({ user: req.user, flash: flashFrom(req), archived: rows.filter((r) => r.archived_at) }));
 }));
 
 // ---------- ⚙ App ----------
-router.get("/app", wrap(async (req, res) => res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current() }))));
+router.get("/app", wrap(async (req, res) => {
+  const admins = (await require("../db").query(`SELECT a.*, u.last_login_at FROM app_admins a LEFT JOIN users u ON u.email=a.email ORDER BY a.email`)).rows;
+  res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins() }));
+}));
 
 router.post("/labels", wrap(async (req, res) => {
   const c = catalog.current();
@@ -65,27 +77,30 @@ router.post("/labels", wrap(async (req, res) => {
   go(res, app("labels"), { ok: `Saved. The app is now "${c.app_labels.app_name}".` });
 }));
 
-router.post("/family", wrap(async (req, res) => {
-  const c = catalog.current();
-  c.family_names = ["full", "initial", "off"].includes(req.body.family_names) ? req.body.family_names : "initial";
-  await catalog.save(c);
-  go(res, app("family"), { ok: { full: "Families now see full names of who's going.", initial: "Families now see first names and last initials of who's going.", off: "Families no longer see who's going." }[c.family_names] });
+// ---------- administrators ----------
+const { query: q } = require("../db");
+router.post("/admins", wrap(async (req, res) => {
+  const email = auth.normalizeEmail(req.body.email);
+  if (!auth.isValidEmail(email)) return go(res, app("admins"), { err: "Enter a valid email." });
+  await q(`INSERT INTO app_admins (email, added_by) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [email, req.user.email]);
+  await auth.findOrCreateUser(email);
+  await auth.loadAdmins();
+  const { sendEmail, shell } = require("../email");
+  const { APP_URL, LABELS } = require("../config");
+  sendEmail({ to: email, subject: `You're an administrator for ${LABELS.app_name}`,
+    html: shell(`You're an administrator`, `<p>${req.user.email} added you as an administrator for ${LABELS.app_name}. Sign in with this email to manage Claim Boards, people, and reports.</p>`,
+      { href: `${APP_URL}/`, label: "Sign in" }),
+    text: `${req.user.email} added you as an administrator for ${LABELS.app_name}. Sign in with this email: ${APP_URL}/` }).catch((e) => console.error("admin email:", e.message));
+  go(res, app("admins"), { ok: `${email} is now an administrator. They've been emailed.` });
 }));
 
-router.post("/locations", wrap(async (req, res) => {
-  const c = catalog.current();
-  const name = clean(req.body.name, 80);
-  if (!name) return go(res, app("locations"), { err: "Enter a location." });
-  if (!c.locations.some((l) => same(l, name))) c.locations.push(name);
-  await catalog.save(c);
-  go(res, app("locations"), { ok: `Added ${name}.` });
-}));
-
-router.post("/locations/remove", wrap(async (req, res) => {
-  const c = catalog.current();
-  c.locations = c.locations.filter((l) => l !== str(req.body.name));
-  await catalog.save(c);
-  go(res, app("locations"), { ok: "Location removed. Sessions that already use it keep it." });
+router.post("/admins/remove", wrap(async (req, res) => {
+  const email = auth.normalizeEmail(req.body.email);
+  if (email === req.user.email && !auth.envAdmins().includes(email))
+    return go(res, app("admins"), { err: "You can't remove yourself. Ask another administrator." });
+  await q(`DELETE FROM app_admins WHERE email=$1`, [email]);
+  await auth.loadAdmins();
+  go(res, app("admins"), { ok: `${email} is no longer an administrator.` });
 }));
 
 // ---------- a schedule's activities ----------

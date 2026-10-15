@@ -8,6 +8,8 @@ const { wrap, flashFrom, go, int, str, dest } = require("./util");
 
 const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
+// Seasons were folded into Claim Boards; old links land on Settings
+router.get(["/", "/:id"], (req, res) => res.redirect("/admin/settings"));
 
 const getSeason = async (id) => (await query(`SELECT * FROM seasons WHERE id=$1`, [id])).rows[0];
 const STATS = `

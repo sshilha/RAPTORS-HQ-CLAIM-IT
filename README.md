@@ -12,7 +12,6 @@ names its own levels under Settings → Schedule → Schedule settings:
 
 | Level | What it is | e.g. |
 |---|---|---|
-| Top level | Groups everything for a period; complete it to archive read-only | Season, Term, Year |
 | Sheet level | One sign-up sheet with its own dates, rules, limits, and who signs up | Round, Event, Week |
 | Type | What people sign up for, with default spots and limits | Activity, Role, Item |
 | Slot | One bookable time with spots, whole or split into blocks | Session, Shift, Slot |
@@ -22,21 +21,31 @@ organization, participant, group) are under Settings → Activities & groups →
 
 ## Settings layout
 
-**Settings home:** **⚙ App** (app-wide settings), **+ New** (create a schedule), then a card for
-each active schedule (live status, counts, next session). Archived ones are listed below and
-can be restored. What each one is called (Schedule, Season, Claim…) is set under ⚙ App.
+**Settings home:** **⚙ App** (app-wide settings), **+ New** (create one), then a card for each
+active Claim Board (live status, counts, next session) with **Open**, **Copy**, and **Archive**.
+**View archived** lists archived boards with **View**, **Copy**, **Reopen**, and **Delete** (empty
+boards only). **Copy** makes a new board from an existing one: settings always; activities, groups,
+participants, and the calendar (open seasons and rounds shifted to a new first day, as drafts)
+as chosen. Each one is called a **Claim Board** by default (changeable under ⚙ App).
 
-**Inside a schedule** (click its card; "← All" goes back), each with its own data:
-- **Setup:** top levels, sheets, times, calendar, import.
+A **Claim Board is the season or event itself**, e.g. "Winter Training 2026–27" or "2027 Arctic
+Rumble Volunteering". Next year, **Copy** it (the name bumps to 2027–28 automatically).
+**Archive** hides it from families and makes it read-only (reports still work); **Reopen** unlocks it.
+
+**Inside a Claim Board** (click its card; "← All" goes back), each with its own data:
+- **Setup:** its rounds (or events/weeks), times, calendar, import.
 - **Participants** (named per schedule): who can use its "roster only" sign-ups and their group
   there. A person exists once in the app and can be in several schedules with a different group in each.
 - **Activities:** the schedule's own types. Different schedules can reuse a name (each has its own
   color, spots, limit, and settings).
 - **Groups:** the schedule's own groups and shortcuts.
-- **Settings:** name, level words, archive/restore, delete (when empty). Archiving hides the
-  schedule from families without deleting anything.
+- **Settings:** name, level words, locations, family view (who's going: full names, first name +
+  last initial, or hidden), archive/restore, delete (when empty). Archiving hides the board from
+  families without deleting anything.
 
-**⚙ App:** app name and short name, organization, what schedules are called, locations, family view.
+**⚙ App:** app name and short name, organization, what each board is called, and
+**Administrators** (add or remove app-wide admins; anyone in the `ADMIN_EMAILS` variable is a
+built-in admin that can't be removed in the app, so you can't lock yourself out).
 
 ## Who signs up (per sheet)
 

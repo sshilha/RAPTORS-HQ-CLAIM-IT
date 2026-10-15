@@ -202,7 +202,7 @@ function sessionCard(p, s, athlete, back, going, showNames) {
       <div class="sess-meta">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</div>
       ${s.notes ? `<div class="sess-meta">${esc(s.notes)}</div>` : ""}
       <div class="spots">${spots}${s.unlocked && open > 0 && !s.my_status ? ` <span class="pill open-all">Open to all</span>` : ""}</div>
-      ${showNames ? goingLine(going[s.id], athlete) : ""}
+      ${showNames(p.id) ? goingLine(going[s.id], athlete) : ""}
     </div>
     <div class="sess-side">${actionFor(p, s, athlete, back)}</div>
   </li>`;
@@ -215,13 +215,13 @@ function blockGrid(p, list, athlete, back, going, showNames) {
       return `<div class="block${s.my_status ? " mine" : open > 0 ? "" : " full"}">
         <div class="block-time">${esc(fmtTime(s.starts_at))}</div>
         <div class="block-open">${s.my_status ? "&nbsp;" : open > 0 ? `${open} open${s.unlocked ? " · all" : ""}` : "Full"}</div>
-        ${showNames ? goingLine(going[s.id], athlete, true) : ""}
+        ${showNames(p.id) ? goingLine(going[s.id], athlete, true) : ""}
         ${actionFor(p, s, athlete, back, true)}
       </div>`;
     }).join("")}</div>`;
 }
 
-function dayPage({ user, athletes, athlete, programs, date, prevDay, nextDay, admin, flash, going = {}, showNames }) {
+function dayPage({ user, athletes, athlete, programs, date, prevDay, nextDay, admin, flash, going = {}, showNames = () => true }) {
   const back = `/athletes/${athlete.id}/day/${date}`;
   const todays = programs.map((p) => ({ ...p, today: p.sessions.filter((s) => localDate(s.starts_at) === date) })).filter((p) => p.today.length)
     .sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity) || a.today[0].starts_at - b.today[0].starts_at);

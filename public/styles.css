@@ -764,10 +764,23 @@ select[multiple] { padding: 6px; }
 .sc-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; color: var(--muted); }
 .sc-stats b { color: var(--navy); font-size: 16px; }
 .sc-next { font-size: 14px; color: var(--navy); background: var(--paper); border-radius: 6px; padding: 6px 8px; }
-.sc-open { margin-top: auto; align-self: flex-end; font: 700 16px var(--display); text-transform: uppercase; color: var(--lime-dark); }
 .archived { margin-top: 18px; }
 .archived summary { cursor: pointer; font-weight: 700; color: var(--navy-2); }
 .crumbs { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
 .crumb { text-decoration: none; font-weight: 700; font-size: 14px; color: var(--navy-2); background: #fff; border: 1.5px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .crumb:hover { border-color: var(--navy); }
 .crumb-name { font: 900 24px var(--display); text-transform: uppercase; color: var(--navy); letter-spacing: .4px; }
+
+/* ---------- board cards with actions ---------- */
+.sched-card { padding: 0; }
+.sc-main { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px 10px; text-decoration: none; color: inherit; }
+.sc-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 18px 14px; border-top: 1px solid var(--line); }
+.sc-actions form { margin: 0; }
+.sc-actions .btn-small { min-width: 0; padding: 8px 14px; font-size: 15px; text-decoration: none; }
+.sc-actions .btn-ghost { padding: 7px 12px; }
+.sched-card.is-archived { border-top-color: var(--lgray); background: #fbfbfd; }
+.archived-link { margin: 18px 4px 0; }
+.archived-link a { font-weight: 700; color: var(--navy-2); }
+.copy-form .mode-opt { flex: none; }
+label .fine { text-transform: none; letter-spacing: normal; font-weight: 400; color: var(--muted); }
+.sc-main { flex: 1; }

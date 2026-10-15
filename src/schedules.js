@@ -14,7 +14,6 @@ const DEFAULT_LABELS = {
 };
 
 const LEVELS = [
-  ["top", "Top level", "Groups everything for a period. Complete it to archive it read-only.", "Season / Term / Year"],
   ["middle", "Sheet level", "One sign-up sheet: its own dates, booking rules, limits, and who can sign up.", "Round / Event / Week"],
   ["activity", "Type", "What people sign up for, with default spots and limits.", "Activity / Role / Item"],
   ["slot", "Slot", "One bookable time with spots, whole or split into blocks.", "Session / Shift / Slot"],
@@ -123,6 +122,30 @@ async function ensureDefault() {
     SELECT $1, a.id, a.age_group FROM athletes a WHERE a.self_user_id IS NULL AND a.age_group IS NOT NULL
     ON CONFLICT DO NOTHING`, [first.id]);
   await query(`UPDATE athletes SET age_group = NULL WHERE age_group IS NOT NULL`);
+  // Seasons were folded into Claim Boards (the board is the season now):
+  // open seasons dissolve (their rounds stay in the board); completed ones become archived boards
+  if (!c.seasons_flattened) {
+    const { copyBoard } = require("./copyBoard");
+    for (const s of (await query(`SELECT * FROM seasons WHERE completed_at IS NOT NULL ORDER BY starts_on`)).rows) {
+      const src = await get(s.schedule_id);
+      if (!src) continue;
+      const out = await copyBoard(src, { name: s.name === src.name ? `${s.name} (archived)` : s.name, activities: true, groups: true, members: true });
+      await query(`UPDATE rounds SET schedule_id=$2 WHERE season_id=$1`, [s.id, out.board.id]);
+      await query(`UPDATE schedules SET archived_at=$2 WHERE id=$1`, [out.board.id, s.completed_at]);
+    }
+    await query(`UPDATE rounds SET season_id=NULL WHERE season_id IS NOT NULL`);
+    await query(`DELETE FROM seasons`);
+    const c2 = catalog.current(); c2.seasons_flattened = true; await catalog.save(c2);
+    Object.assign(c, c2);
+  }
+
+  // Locations and family view used to be app-wide: every existing board gets them (one time)
+  if (!c.board_settings_moved) {
+    await query(`UPDATE schedules SET locations=$1 WHERE cardinality(locations)=0`, [c.locations || []]);
+    await query(`UPDATE schedules SET family_names=$1`, [c.family_names || "initial"]);
+    c.board_settings_moved = true;
+    await catalog.save(c);
+  }
   await refreshGroups();
 }
 

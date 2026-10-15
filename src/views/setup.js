@@ -145,6 +145,27 @@ function scheduleSettingsPage({ user, flash, sc, counts }) {
         <div class="sched-actions"><button class="btn-small" type="submit">Save</button></div>
       </form>
     </section>
+    <div class="settings-2">
+    <section class="panel" id="locations">
+      <h2 class="banner">Locations</h2>
+      <p class="fine">Suggested when you set a ${esc(L.middle.one.toLowerCase())}'s location. The first one is the default for new ${esc(L.middle.many.toLowerCase())}.</p>
+      ${(sc.locations || []).length ? `<ul class="slot-list">${sc.locations.map((l) => `<li><span>${esc(l)}</span>
+        <form method="post" action="/admin/setup/schedules/${sc.id}/locations/remove?s=${sc.id}"><input type="hidden" name="name" value="${esc(l)}"><button class="x" type="submit" aria-label="Remove ${esc(l)}">×</button></form></li>`).join("")}</ul>`
+        : `<p class="muted">None yet.</p>`}
+      <form method="post" action="/admin/setup/schedules/${sc.id}/locations?s=${sc.id}" class="inline-add"><label>New location<input name="name" maxlength="80" required placeholder="e.g. Turn Two Athletics"></label>
+        <button class="btn-small" type="submit">Add</button></form>
+    </section>
+    <section class="panel" id="family">
+      <h2 class="banner">Family view</h2>
+      <p class="fine">On a day's page, families can see who's going to each ${esc(L.slot.one.toLowerCase())}, so friends can claim spots together. They never see emails or other contact details.</p>
+      <form method="post" action="/admin/setup/schedules/${sc.id}/family?s=${sc.id}" class="stack-list checks">
+        ${[["initial", "First name and last initial", "Ava S."], ["full", "Full names", "Ava Smith"], ["off", "Don't show who's going", "Only spots open"]].map(([k, l, ex]) =>
+          `<label class="radio-row"><input type="radio" name="family_names" value="${k}"${(sc.family_names || "initial") === k ? " checked" : ""}> ${l} <span class="fine-inline">${ex}</span></label>`).join("")}
+        <div><button class="btn-ghost" type="submit">Save</button></div>
+      </form>
+    </section>
+    </div>
+
     <section class="panel">
       <h2>${sc.archived_at ? "Archived" : "Archive"}</h2>
       <p class="muted">${sc.archived_at ? `Families can't see anything in ${esc(sc.name)}. Restore it to make it active again.`
@@ -162,15 +183,15 @@ function scheduleSettingsPage({ user, flash, sc, counts }) {
 
 function newSchedulePage({ user, flash, schedules }) {
   const PRE = SC.PRESET_LABELS;
-  const line = (l) => `${l.top[0]} › ${l.middle[0]} › ${l.activity[0]} › ${l.slot[0]} · ${l.participant[1]} in ${l.group[1]}`;
+  const line = (l) => `${l.middle[1]} › ${l.activity[1]} › ${l.slot[1]} · ${l.participant[1]} in ${l.group[1]}`;
   return page({
     title: "New", tab: "home", user, flash,
     body: `<section class="panel">
       <h1>New ${esc(require("../config").LABELS.schedule.toLowerCase())}</h1>
       <a class="back" href="/admin/settings">All</a>
-      <p class="lede">Each one is its own sign-up space with its own activities, groups, people, and calendar, like Training or Concessions. Start with a name and a naming style; you can rename every level afterward.</p>
+      <p class="lede">Each one is a sign-up space for a period or an event, like <b>Winter Training 2026–27</b> or <b>2027 Arctic Rumble Volunteering</b>, with its own rounds, activities, groups, and people. Pick a name and a naming style; you can rename every level afterward. To start from last year's, use <b>Copy</b> on its card instead.</p>
       <form method="post" action="/admin/setup/schedules" class="stack">
-        <label>Name<input name="name" required maxlength="40" placeholder="e.g. Concessions"></label>
+        <label>Name<input name="name" required maxlength="40" placeholder="e.g. Winter Training 2026–27 or 2027 Arctic Rumble Volunteering"></label>
         <fieldset class="checks stack-list"><legend>Naming style</legend>
           ${[["training", "Training"], ["volunteer", "Volunteer shifts"], ["weekly", "Weekly sign-ups"]].map(([k, t], i) =>
             `<label class="mode-opt"><input type="radio" name="preset" value="${k}"${i === 0 ? " checked" : ""}><span><b>${t}</b><span class="fine">${esc(line(PRE[k]))}</span></span></label>`).join("")}
@@ -184,62 +205,35 @@ function newSchedulePage({ user, flash, schedules }) {
   });
 }
 
-function setupPage({ user, flash, schedule: sc, seasons, rounds, standalone }) {
+function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
   CUR = sc;
   const L = SC.labels(sc);
   const acts = SC.activitiesFor(sc, { activeOnly: true });
-  const open = seasons.filter((s) => !s.completed_at);
-  const done = seasons.filter((s) => s.completed_at);
-  const loose = rounds.filter((r) => !r.season_id);
-  const allRounds = [...rounds].reverse();
+  const locked = !!sc.archived_at;
+  const sorted = [...rounds].sort((x, y) => String(x.starts_on).localeCompare(String(y.starts_on)));
   return page({
     title: sc.name, tab: "setup", user, flash, xwide: true,
     body: `<section class="panel">
       <div class="athlete-head">
         <div><h1>${esc(sc.name)}</h1>
-          <p class="muted tight">${esc(L.top.one)} › ${esc(L.middle.one)} › ${esc(L.activity.one)} › ${esc(L.slot.one)}. Open ${esc(SC.an(L.middle.one))}'s calendar to put ${esc(L.slot.many.toLowerCase())} on days.</p></div>
-        <div class="head-actions"><a class="btn-small" href="/admin/import?s=${sc.id}">Import vendor schedule</a></div>
+          <p class="muted tight">${esc(L.middle.many)} › ${esc(L.activity.many)} › ${esc(L.slot.many)}. Open a ${esc(L.middle.one.toLowerCase())}'s calendar to put ${esc(L.slot.many.toLowerCase())} on days.</p></div>
+        ${locked ? `<span class="pill">Archived: read-only</span>` : `<div class="head-actions"><a class="btn-ghost" href="/admin/import?s=${sc.id}">Import vendor schedule</a></div>`}
       </div>
+      ${locked ? `<p class="rule">This Claim Board is archived: hidden from families and read-only. Reopen it from Settings to make changes.</p>` : ""}
     </section>
-
-    ${open.length ? open.map((s, i) => seasonBlock(s, rounds.filter((r) => r.season_id === s.id), allRounds, i === 0, L, acts)).join("")
-      : `<section class="panel"><p class="rule">No open ${esc(L.top.one.toLowerCase())}. Open one below to get started.</p></section>`}
-
-    ${loose.length ? `<section class="panel" id="season-none">
-      <h2 class="season-title">${esc(L.middle.many)} not in ${esc(SC.an(L.top.one))}</h2>
-      <p class="muted tight">Add these to ${esc(SC.an(L.top.one))} from its Settings page.</p>
-      <div class="rounds">${loose.map((r) => roundBlock(r, false, L, acts)).join("")}</div>
-    </section>` : ""}
 
     <section class="panel">
-      <details class="add-round" id="season-new"${open.length ? "" : " open"}><summary>Open a new ${esc(L.top.one.toLowerCase())}</summary>
-        <form method="post" action="/admin/seasons" class="inline-add wrap">
-          <input type="hidden" name="return_to" value="${home()}#season-{id}">
-          <input type="hidden" name="schedule_id" value="${sc.id}">
-          <label>Name<input name="name" required placeholder="${esc(sc.name)} 2026–27"></label>
-          <label>First day<input type="date" name="starts_on" required></label>
-          <label>Last day<input type="date" name="ends_on" required></label>
-          <label>Start from<select name="copy_from"><option value="">Empty</option>
-            ${seasons.map((s) => `<option value="${s.id}">Copy of ${esc(s.name)}</option>`).join("")}</select></label>
-          <button class="btn-small" type="submit">Open ${esc(L.top.one.toLowerCase())}</button>
-        </form>
-        <p class="fine">A copy brings every ${esc(L.middle.one.toLowerCase())}, time, ${esc(L.activity.one.toLowerCase())}, spots, and the calendar, shifted to the new first day.</p>
-      </details>
+      <h2 class="season-title">${esc(L.middle.many)}</h2>
+      <div class="rounds">${sorted.length ? sorted.map((r) => roundBlock(r, locked, L, acts)).join("") : `<p class="muted">No ${esc(L.middle.many.toLowerCase())} yet. Add the first one below.</p>`}</div>
+      ${locked ? "" : newRoundForm(null, [...rounds].reverse(), true, L)}
     </section>
-
-    ${done.length ? `<section class="panel">
-      <details class="add-round"><summary>Completed ${esc(L.top.many.toLowerCase())} (${done.length})</summary>
-        ${done.map((s) => seasonBlock(s, rounds.filter((r) => r.season_id === s.id), allRounds, false, L, acts)).join("")}
-      </details>
-    </section>` : ""}
 
     ${standalone.length ? `<section class="panel">
       <details class="add-round"><summary>Standalone programs (${standalone.length})</summary>
-        <p class="fine">One-off programs outside a round. <a href="/admin/programs">Manage them here</a>.</p>
+        <p class="fine">One-off programs from before ${esc(L.middle.many.toLowerCase())}. <a href="/admin/programs">Manage them here</a>.</p>
         <ul class="plain-list">${standalone.map((p) => `<li><a href="/admin/programs/${p.id}">${esc(p.name)}</a> <span class="fine-inline">${p.archived ? "archived" : `${p.upcoming} upcoming`}</span></li>`).join("")}</ul>
       </details>
     </section>` : ""}
-
     <script>
     (function () {
       // Open whatever the last action pointed at

@@ -5,7 +5,7 @@ const booking = require("../booking");
 const { notify } = require("../notify");
 const { inputParts, isDate } = require("../time");
 const v = require("../views/parent");
-const { FAMILY } = require("../config");
+
 const { wrap, flashFrom, go, int, str } = require("./util");
 
 const router = express.Router();
@@ -71,19 +71,24 @@ router.get("/athletes/:id/day/:date", wrap(async (req, res) => {
   if (!athlete || !isDate(date)) return go(res, "/dashboard", { err: "That page isn't available." });
   const programs = await booking.bookingOptions(athlete);
   const days = [...new Set(programs.flatMap((p) => p.sessions.map((s) => localDate(s.starts_at))))].sort();
-  // Who's going: names only (never contact details), as set under Settings → Family view
+  // Who's going: names only (never contact details), per each Claim Board's family view setting
   const going = {};
   const ids = programs.flatMap((p) => p.sessions.filter((s) => localDate(s.starts_at) === date).map((s) => s.id));
-  if (FAMILY.names !== "off" && ids.length) {
+  if (ids.length) {
     const rows = (await query(
-      `SELECT x.session_id, a.id, a.first_name, a.last_name FROM reservations x JOIN athletes a ON a.id=x.athlete_id
+      `SELECT x.session_id, a.id, a.first_name, a.last_name, coalesce(sc.family_names, 'initial') AS mode
+       FROM reservations x JOIN athletes a ON a.id=x.athlete_id JOIN training_sessions s ON s.id=x.session_id
+       JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN schedules sc ON sc.id=r.schedule_id
        WHERE x.session_id = ANY($1) AND x.status='confirmed' ORDER BY x.created_at, x.id`, [ids])).rows;
-    for (const r of rows) (going[r.session_id] = going[r.session_id] || []).push({
-      id: r.id, name: FAMILY.names === "full" ? `${r.first_name} ${r.last_name}` : `${r.first_name} ${(r.last_name || "").slice(0, 1)}.`,
-    });
+    for (const r of rows) {
+      if (r.mode === "off") continue;
+      (going[r.session_id] = going[r.session_id] || []).push({
+        id: r.id, name: r.mode === "full" ? `${r.first_name} ${r.last_name}` : `${r.first_name} ${(r.last_name || "").slice(0, 1)}.`,
+      });
+    }
   }
   res.send(v.dayPage({
-    user: req.user, athletes, athlete, programs, date, going, showNames: FAMILY.names !== "off",
+    user: req.user, athletes, athlete, programs, date, going, showNames: (pid) => (programs.find((p) => p.id === pid) || {}).family_names !== "off",
     prevDay: days.filter((d) => d < date).pop(), nextDay: days.find((d) => d > date),
     admin: auth.isAdmin(req.user), flash: flashFrom(req),
   }));

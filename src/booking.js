@@ -203,7 +203,8 @@ async function adminMove({ adminId, reservationId, toSessionId, overCapacity }) 
 async function cancelReservation({ userId, reservationId, admin = false }) {
   return tx(async (db) => {
     const { rows } = await db.query(
-      `SELECT r.*, s.starts_at, s.id AS sid, p.cancel_hours, se.completed_at AS season_done
+      `SELECT r.*, s.starts_at, s.id AS sid, p.cancel_hours,
+         (se.completed_at IS NOT NULL OR EXISTS (SELECT 1 FROM schedules x WHERE x.id=rd.schedule_id AND x.archived_at IS NOT NULL)) AS season_done
        FROM reservations r JOIN training_sessions s ON s.id=r.session_id JOIN programs p ON p.id=s.program_id
        LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
        WHERE r.id=$1 FOR UPDATE OF r, s`,
@@ -211,7 +212,7 @@ async function cancelReservation({ userId, reservationId, admin = false }) {
     );
     const r = rows[0];
     if (!r || r.status === "canceled") throw new BookingError("That reservation was already canceled.");
-    if (r.season_done) throw new BookingError("That season is completed, so its reservations can't be changed.");
+    if (r.season_done) throw new BookingError("That Claim Board is archived, so its spots can't be changed.");
     if (!admin && !(await isParentOf(db, userId, r.athlete_id))) throw new BookingError("That reservation isn't yours.");
     if (!admin && r.status === "confirmed" && new Date() > cancelDeadline(r.starts_at, r.cancel_hours))
       throw new BookingError(`Online cancellation closed ${r.cancel_hours} hours before the session. Contact your coach.`);
@@ -275,7 +276,7 @@ async function parentReservations(userId) {
 async function bookingOptions(athlete) {
   const programs = (await query(
     `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours, r.waitlist AS round_waitlist,
-       r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name
+       r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name, sc.family_names
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      LEFT JOIN schedules sc ON sc.id=r.schedule_id
      LEFT JOIN schedule_members m ON m.schedule_id=r.schedule_id AND m.athlete_id=$3

@@ -111,10 +111,16 @@ function requireUser(req, res, next) {
   next();
 }
 
+// Admins come from the ADMIN_EMAILS variable (a safety net that can't be removed in the app)
+// plus anyone added under Settings → ⚙ App → Administrators
+const envAdmins = () => (process.env.ADMIN_EMAILS || "").split(",").map(normalizeEmail).filter(Boolean);
+const dbAdmins = new Set();
+async function loadAdmins() {
+  dbAdmins.clear();
+  for (const r of (await query(`SELECT email FROM app_admins`)).rows) dbAdmins.add(r.email);
+}
 function isAdmin(user) {
-  const admins = (process.env.ADMIN_EMAILS || "")
-    .split(",").map(normalizeEmail).filter(Boolean);
-  return !!user && admins.includes(user.email);
+  return !!user && (envAdmins().includes(user.email) || dbAdmins.has(user.email));
 }
 
 function requireAdmin(req, res, next) {
@@ -128,6 +134,7 @@ async function cleanupExpired() {
 }
 
 module.exports = {
+  envAdmins, loadAdmins,
   LOGIN_TOKEN_MINUTES, normalizeEmail, isValidEmail, findOrCreateUser,
   createLoginToken, peekLoginToken, consumeLoginToken, createSession,
   destroySession, loadUser, requireUser, requireAdmin, isAdmin, cleanupExpired,

@@ -18,7 +18,7 @@ const DEFAULT_CATALOG = {
   locations: ["Turn Two Athletics"],
   family_names: "initial", // what families see of who's going: "full", "initial" (Ava S.), or "off"
   app_labels: { app_name: "Raptors Claim It", app_short: "Claim It", org_name: "Chippewa Valley Raptors", participant: ["Athlete", "Athletes"], group: ["Group", "Groups"],
-    schedule: ["Schedule", "Schedules"] },
+    schedule: ["Claim Board", "Claim Boards"] },
 };
 
 const AGE_GROUPS = [];          // every group name across all schedules (each schedule has its own list)
@@ -32,7 +32,7 @@ const PRESETS = [];             // [{ name, ages }]
 const LOCATIONS = [];
 const CATALOG = { current: null };
 const FAMILY = { names: "initial" };
-const LABELS = { schedule: "Schedule", schedules: "Schedules", app_name: "Raptors Claim It", app_short: "Claim It", org_name: "Chippewa Valley Raptors", participant: "Athlete", participants: "Athletes", group: "Group", groups: "Groups" };
+const LABELS = { schedule: "Claim Board", schedules: "Claim Boards", app_name: "Raptors Claim It", app_short: "Claim It", org_name: "Chippewa Valley Raptors", participant: "Athlete", participants: "Athletes", group: "Group", groups: "Groups" };
 
 const refill = (arr, items) => arr.splice(0, arr.length, ...items);
 const reset = (obj, entries) => { for (const k of Object.keys(obj)) delete obj[k]; Object.assign(obj, Object.fromEntries(entries)); };
@@ -58,7 +58,7 @@ function apply(catalog) {
     app_name: al.app_name || "Raptors Claim It", app_short: al.app_short || al.app_name || "Claim It", org_name: al.org_name || "",
     participant: (al.participant || [])[0] || "Athlete", participants: (al.participant || [])[1] || "Athletes",
     group: (al.group || [])[0] || "Group", groups: (al.group || [])[1] || "Groups",
-    schedule: (al.schedule || [])[0] || "Schedule", schedules: (al.schedule || [])[1] || "Schedules",
+    schedule: (al.schedule || [])[0] || "Claim Board", schedules: (al.schedule || [])[1] || "Claim Boards",
   });
 }
 apply(DEFAULT_CATALOG);

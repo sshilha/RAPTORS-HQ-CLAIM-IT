@@ -99,44 +99,40 @@ function groupsPage({ user, flash, sc, usage }) {
   });
 }
 
-function appPage({ user, flash, c }) {
+function appPage({ user, flash, c, admins, envAdmins }) {
   const al = c.app_labels || {};
+  const { fmtDateTime } = require("../time");
   return page({
     title: "App settings", tab: "settings", user, flash,
     body: `<section class="panel"><h1>App settings</h1>
-      <p class="muted tight">Things that apply across the whole app. Each one's own activities, groups, people, and level names live inside it.</p>
-      <nav class="jump"><a href="#labels">Name</a><a href="#locations">Locations</a><a href="#family">Family view</a></nav></section>
+      <p class="muted tight">Things that apply across the whole app. Everything else lives inside each ${esc((al.schedule || ["Claim Board"])[0])}.</p>
+      <nav class="jump"><a href="#labels">Name</a><a href="#admins">Administrators</a></nav></section>
     <section class="panel" id="labels">
       <h2 class="banner">App name</h2>
       <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
         <div><label>App name<input name="app_name" required maxlength="40" value="${esc(al.app_name)}" placeholder="Raptors Claim It"></label></div>
         <div><label>Short name<input name="app_short" maxlength="20" value="${esc(al.app_short)}" placeholder="Claim It"></label><span class="fine">Used on small screens.</span></div>
         <div class="full"><label>Organization<input name="org_name" maxlength="60" value="${esc(al.org_name)}" placeholder="Chippewa Valley Raptors"></label></div>
-        <div class="pair"><div><label>Call each one a<input name="schedule_one" required maxlength="24" value="${esc((al.schedule || [])[0] || "Schedule")}" placeholder="Schedule"></label></div>
-          <div><label>Plural<input name="schedule_many" maxlength="24" value="${esc((al.schedule || [])[1] || "Schedules")}" placeholder="Schedules"></label></div></div>
-        <div class="fine">What the sign-up spaces are called in Settings, e.g. Schedule, Season, or Claim.</div>
+        <div class="pair"><div><label>Call each one a<input name="schedule_one" required maxlength="24" value="${esc((al.schedule || [])[0] || "Claim Board")}" placeholder="Claim Board"></label></div>
+          <div><label>Plural<input name="schedule_many" maxlength="24" value="${esc((al.schedule || [])[1] || "Claim Boards")}" placeholder="Claim Boards"></label></div></div>
         <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
       </form>
     </section>
-    <div class="settings-2">
-    <section class="panel" id="locations">
-      <h2 class="banner">Locations</h2>
-      <p class="fine">Suggested when you set a location. Removing one doesn't change anything that already uses it.</p>
-      <ul class="slot-list">${c.locations.map((l) => `<li><span>${esc(l)}</span>
-        <form method="post" action="/admin/settings/locations/remove"><input type="hidden" name="name" value="${esc(l)}"><button class="x" type="submit" aria-label="Remove ${esc(l)}">×</button></form></li>`).join("")}</ul>
-      <form method="post" action="/admin/settings/locations" class="inline-add"><label>New location<input name="name" maxlength="80" required placeholder="e.g. CVTC Fieldhouse"></label>
+    <section class="panel" id="admins">
+      <h2 class="banner">Administrators</h2>
+      <p class="fine">Administrators can open Settings and Reports and manage every ${esc((al.schedule || ["Claim Board"])[0])}. They sign in with their email like everyone else.</p>
+      <ul class="res-list">
+        ${envAdmins.map((e) => `<li class="res"><div class="res-main"><div class="res-when">${esc(e)}${e === user.email ? " (you)" : ""}</div>
+          <div class="res-what">Set on the server (ADMIN_EMAILS in Railway), so it can't be removed here.</div></div>
+          <div class="res-side"><span class="pill">Built-in</span></div></li>`).join("")}
+        ${admins.filter((a) => !envAdmins.includes(a.email)).map((a) => `<li class="res"><div class="res-main"><div class="res-when">${esc(a.email)}${a.email === user.email ? " (you)" : ""}</div>
+          <div class="res-what">Added ${a.added_by ? `by ${esc(a.added_by)} ` : ""}${esc(fmtDateTime(a.created_at))}. ${a.last_login_at ? `Last signed in ${esc(fmtDateTime(a.last_login_at))}.` : "Hasn't signed in yet."}</div></div>
+          <div class="res-side">${a.email === user.email ? "" : `<form method="post" action="/admin/settings/admins/remove" onsubmit="return confirm('Remove ${esc(a.email)} as an administrator?')">
+            <input type="hidden" name="email" value="${esc(a.email)}"><button class="btn-ghost danger" type="submit">Remove</button></form>`}</div></li>`).join("")}
+      </ul>
+      <form method="post" action="/admin/settings/admins" class="inline-add"><label>Add an administrator<input type="email" name="email" required placeholder="name@example.com"></label>
         <button class="btn-small" type="submit">Add</button></form>
-    </section>
-    <section class="panel" id="family">
-      <h2 class="banner">Family view</h2>
-      <p class="fine">On a day's page, families can see who's going to each time, so friends can claim spots together. They never see emails or other contact details.</p>
-      <form method="post" action="/admin/settings/family" class="stack-list checks">
-        ${[["initial", "First name and last initial", "Ava S."], ["full", "Full names", "Ava Smith"], ["off", "Don't show who's going", "Only spots open"]].map(([k, l, ex]) =>
-          `<label class="radio-row"><input type="radio" name="family_names" value="${k}"${(c.family_names || "initial") === k ? " checked" : ""}> ${l} <span class="fine-inline">${ex}</span></label>`).join("")}
-        <div><button class="btn-ghost" type="submit">Save</button></div>
-      </form>
-    </section>
-    </div>`,
+    </section>`,
   });
 }
 

@@ -108,7 +108,7 @@ function rosterPage({ user, flash, date, sessions, athletes, prev, next }) {
         ${c.blocks ? `<span class="pill">${c.blocks.reduce((n, b) => n + b.booked.length, 0)}/${c.blocks.reduce((n, b) => n + b.capacity, 0)}</span>`
           : `<span class="pill${c.booked.length >= c.capacity ? " wait" : " ok"}">${c.booked.length}/${c.capacity}</span>`}
       </div>
-      ${c.locked ? `<p class="rule no-print">Completed season: read-only.</p>` : ""}
+      ${c.locked ? `<p class="rule no-print">Archived Claim Board: read-only.</p>` : ""}
       ${c.blocks ? `<div class="who-blocks">${c.blocks.map((b) => `<div class="who-block" id="s${b.id}">
           <div class="who-block-head"><b>${esc(fmtTime(b.starts_at))}</b>${lockMark(b)} <span>${b.booked.length}/${b.capacity}</span>
             <a class="link-dark sm no-print" href="/admin/sessions/${b.id}">Manage</a></div>

@@ -29,13 +29,9 @@ const uploadPage = ({ user, flash, v = {}, seasons = [], schedules = [] }) => {
         <textarea id="text" name="text" rows="6" placeholder="November 3&#10;4:30-6pm-Hitting-8/10U&#10;November 4&#10;6-7:30pm-Hitting-8/10U">${esc(v.text)}</textarea></div>
       <div><label for="sched">Schedule</label><select id="sched" name="schedule_id">
         ${schedules.map((x) => `<option value="${x.id}"${String(v.schedule_id) === String(x.id) ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select></div>
-      <div><label for="season">Season</label><select id="season" name="season_id">
-        ${seasons.map((x) => `<option value="${x.id}"${String(v.season_id) === String(x.id) ? " selected" : ""}>${esc(x.name)}</option>`).join("")}
-        <option value=""${seasons.length ? "" : " selected"}>No season</option></select>
-        ${seasons.length ? "" : `<span class="fine"><a href="/admin/seasons">Open a season</a> first to group these rounds by year.</span>`}</div>
       <div><label for="year">Year of the first date</label><input id="year" name="year" inputmode="numeric" value="${esc(v.year)}" placeholder="Read from the PDF">
         <span class="fine">Leave blank to use the year on the schedule.</span></div>
-      <div><label for="loc">Location</label><input id="loc" name="location" value="${esc(v.location ?? "Turn Two Athletics")}"></div>
+      <div><label for="loc">Location</label><input id="loc" name="location" value="${esc(v.location ?? (((target || {}).locations || [])[0] || ""))}"></div>
       <div class="full"><p class="label-like">Limits per athlete, each round</p>${limitsTable(null, acts)}${unlockFields(null)}
         <label class="check waitlist-check"><input type="checkbox" name="waitlist" value="1"${v.waitlist ? " checked" : ""}> Use a waitlist when sessions fill up</label></div>
       <div><label for="cxl">Cancellation deadline (hours before)</label><input id="cxl" type="number" min="0" max="336" name="cancel_hours" value="${esc(v.cancel_hours ?? 24)}"></div>

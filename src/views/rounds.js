@@ -1,6 +1,6 @@
 const { esc } = require("./layout");
 const { page } = require("./admin");
-const { AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ALL_AGES_ACTIVITIES, LOCATIONS, colorFor } = require("../config");
+const { AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ALL_AGES_ACTIVITIES, colorFor } = require("../config");
 let SID = null; // schedule of the page being drawn (colors are per schedule)
 const ACTIVITY_COLORS = new Proxy({}, { get: (_, name) => colorFor(String(name), SID) });
 const { inputParts } = require("../time");
@@ -65,9 +65,6 @@ const roundsPage = ({ user, flash, rounds, seasons, open, filter, copyable }) =>
       <div><label>Name<input name="name" required placeholder="Round 1"></label></div>
       <div class="pair"><div><label>First day<input type="date" name="starts_on" required></label></div>
         <div><label>Last day<input type="date" name="ends_on" required></label></div></div>
-      <div><label>Season<select name="season_id">
-        ${open.map((x, i) => `<option value="${x.id}"${String(x.id) === filter || (i === 0 && !open.some((o) => String(o.id) === filter)) ? " selected" : ""}>${esc(x.name)}</option>`).join("")}
-        <option value="">No season</option></select></label></div>
       <div><label>Start from
         <select name="copy_from"><option value="">An empty calendar</option>
           ${copyable.map((r) => `<option value="${r.id}">A copy of ${esc(r.name)}${r.season_name ? `, ${esc(r.season_name)}` : ""} (${esc(niceRange(r.starts_on, r.ends_on))})</option>`).join("")}
@@ -283,10 +280,6 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     <h2>${esc(L.middle.one)} settings</h2>
     <form method="post" action="/admin/rounds/${r.id}/settings" class="grid-form keep"><fieldset class="plain grid-form full"${readonly ? " disabled" : ""}>
       <div><label>Name<input name="name" required value="${esc(r.name)}"></label></div>
-      <div><label>Season<select name="season_id">
-        ${season && season.completed_at ? `<option value="${season.id}" selected>${esc(season.name)}</option>` : ""}
-        ${seasons.map((x) => `<option value="${x.id}"${x.id === r.season_id ? " selected" : ""}>${esc(x.name)}</option>`).join("")}
-        <option value=""${r.season_id ? "" : " selected"}>No season</option></select></label></div>
       <div class="pair"><div><label>First day<input type="date" name="starts_on" required value="${esc(r.starts_on)}"></label></div>
         <div><label>Last day<input type="date" name="ends_on" required value="${esc(r.ends_on)}"></label></div></div>
       <div><label>Booking opens<input type="datetime-local" name="booking_opens_at" value="${inputParts(r.booking_opens_at).local}"></label>
@@ -294,7 +287,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
 
       <div><label>Cancellation deadline (hours before)<input type="number" min="0" max="336" name="cancel_hours" value="${r.cancel_hours}"></label></div>
       <div class="full"><label>Location<input name="location" value="${esc(r.location)}" list="locations"></label>
-        <datalist id="locations">${LOCATIONS.map((l) => `<option value="${esc(l)}">`).join("")}</datalist>
+        <datalist id="locations">${((schedule && schedule.locations) || []).map((l) => `<option value="${esc(l)}">`).join("")}</datalist>
         <label class="check"><input type="checkbox" name="apply_location" value="1"> Also change it on sessions already scheduled</label></div>
       ${readonly ? "" : `<div class="full"><button class="btn" type="submit">Save round</button></div>`}
     </fieldset></form>

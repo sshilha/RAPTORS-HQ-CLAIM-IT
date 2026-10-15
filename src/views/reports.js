@@ -5,7 +5,7 @@ const { AGE_GROUPS, ACTIVITIES } = require("../config");
 const opt = (val, label, cur) => `<option value="${esc(val)}"${String(cur) === String(val) ? " selected" : ""}>${esc(label)}</option>`;
 
 function reportsPage({ user, f, reports, seasons, rounds, out, totals, schedules = [], L }) {
-  const qs = new URLSearchParams(Object.entries({ report: f.report, season: f.season || "", round: f.round || "", from: f.from, to: f.to,
+  const qs = new URLSearchParams(Object.entries({ report: f.report, schedule: f.schedule || "", round: f.round || "", from: f.from, to: f.to,
     activity: f.activity, age: f.age, status: f.status, zero: f.zero ? "1" : "" }).filter(([, x]) => x)).toString();
   return page({
     title: "Reports", tab: "reports", user, xwide: true,
@@ -15,11 +15,9 @@ function reportsPage({ user, f, reports, seasons, rounds, out, totals, schedules
       <div class="full"><fieldset class="checks"><legend>Report</legend>
         ${Object.entries(reports).map(([k, l]) => `<label class="radio-row"><input type="radio" name="report" value="${k}"${f.report === k ? " checked" : ""} onchange="this.form.submit()"> ${esc(l)}</label>`).join("")}
       </fieldset></div>
-      ${schedules.length > 1 ? `<div><label>Schedule<select name="schedule">${opt("", "All schedules", f.schedule || "")}${schedules.map((x) => opt(x.id, x.name, f.schedule || "")).join("")}</select></label></div>` : ""}
-      <div><label>${esc(L.top.one)}<select name="season" id="f-season">${opt("", `All ${L.top.many.toLowerCase()}`, f.season || "")}
-        ${seasons.map((s) => opt(s.id, s.name + (s.completed_at ? " (completed)" : ""), f.season || "")).join("")}</select></label></div>
+      <div><label>${esc(require("../config").LABELS.schedule)}<select name="schedule" id="f-season">${opt("", `All ${require("../config").LABELS.schedules.toLowerCase()}`, f.schedule || "")}${schedules.map((x) => opt(x.id, x.name + (x.archived_at ? " (archived)" : ""), f.schedule || "")).join("")}</select></label></div>
       <div><label>${esc(L.middle.one)}<select name="round" id="f-round">${opt("", `All ${L.middle.many.toLowerCase()}`, f.round || "")}
-        ${rounds.map((r) => `<option value="${r.id}" data-season="${r.season_id || ""}"${f.round === r.id ? " selected" : ""}>${esc(r.name)}${r.season_name ? ` (${esc(r.season_name)})` : ""}</option>`).join("")}</select></label></div>
+        ${rounds.map((r) => `<option value="${r.id}" data-season="${r.schedule_id || ""}"${f.round === r.id ? " selected" : ""}>${esc(r.name)}</option>`).join("")}</select></label></div>
       <div class="pair"><div><label>From<input type="date" name="from" value="${esc(f.from)}"></label></div>
         <div><label>To<input type="date" name="to" value="${esc(f.to)}"></label></div></div>
       <div><label>Activity<select name="activity">${opt("", "All activities", f.activity)}${ACTIVITIES.map((a) => opt(a, a, f.activity)).join("")}</select></label></div>
@@ -38,7 +36,7 @@ function reportsPage({ user, f, reports, seasons, rounds, out, totals, schedules
 
   <section class="panel report">
     <h2>${esc(reports[f.report])} <span class="h-sub">${out.rows.length} row${out.rows.length === 1 ? "" : "s"}</span></h2>
-    <p class="fine print-only">${esc(describe(f, seasons, rounds))}</p>
+    <p class="fine print-only">${esc(describe(f, schedules, rounds))}</p>
     ${out.note ? `<p class="fine">${esc(out.note)}</p>` : ""}
     ${out.rows.length ? `<div class="table-wrap"><table class="rep">
       <thead><tr>${out.columns.map((c) => `<th class="${c.num ? "n" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead>
@@ -63,9 +61,9 @@ function reportsPage({ user, f, reports, seasons, rounds, out, totals, schedules
   });
 }
 
-function describe(f, seasons, rounds) {
+function describe(f, boards, rounds) {
   const parts = [];
-  const s = seasons.find((x) => x.id === f.season); if (s) parts.push(s.name);
+  const s = boards.find((x) => x.id === f.schedule); if (s) parts.push(s.name);
   const r = rounds.find((x) => x.id === f.round); if (r) parts.push(r.name);
   if (f.from || f.to) parts.push(f.from === f.to ? f.from : `${f.from || "start"} to ${f.to || "end"}`);
   if (f.activity) parts.push(f.activity);

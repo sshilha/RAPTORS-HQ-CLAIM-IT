@@ -35,6 +35,7 @@ const localOrNull = (s) => (isLocal(str(s)) ? str(s).replace("T", " ") : null);
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 // ---------- list + create ----------
+router.get("/", (req, res, next) => (req.query.season ? next() : res.redirect(`/admin/setup?s=${req.sched.sc.id}`)));
 router.get("/", wrap(async (req, res) => {
   const seasons = (await query(`SELECT * FROM seasons ORDER BY starts_on DESC`)).rows;
   const filter = str(req.query.season) || "open";
@@ -68,7 +69,7 @@ router.post("/", wrap(async (req, res) => {
     return (await db.query(
       `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits, schedule_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE((SELECT schedule_id FROM seasons WHERE id=$4), $8, (SELECT min(id) FROM schedules))) RETURNING id`,
-      [name, s, e, seasonId, require("../config").LOCATIONS[0] || null, "{}",
+      [name, s, e, seasonId, ((await require("../schedules").get(int(req.body.schedule_id) || (seasonId && (await require("../schedules").forSeason(seasonId) || {}).id)) || {}).locations || [])[0] || null, "{}",
        JSON.stringify(R.defaultLimits(await require("../schedules").get(int(req.body.schedule_id) || (seasonId && (await require("../schedules").forSeason(seasonId) || {}).id)) || null)),
        int(req.body.schedule_id) || null])).rows[0].id;
   });
@@ -108,10 +109,7 @@ router.post("/:id/settings", wrap(async (req, res) => {
   const b = req.body;
   const name = str(b.name), s = str(b.starts_on), e = str(b.ends_on);
   if (!name || !isDate(s) || !isDate(e) || e < s) return go(res, `/admin/rounds/${id}`, { err: "Enter a name and a start date on or before the end date." });
-  const seasonId = int(b.season_id) || null;
-  if (!(await seasonOk(seasonId))) return go(res, `/admin/rounds/${id}#settings`, { err: "Pick an open season." });
   await tx(async (db) => {
-    await db.query(`UPDATE rounds SET season_id=$2 WHERE id=$1`, [id, seasonId]);
     const round = (await db.query(
       `UPDATE rounds SET name=$2, starts_on=$3, ends_on=$4, booking_opens_at=${localSql(5)},
          cancel_hours=$6, location=$7 WHERE id=$1 RETURNING *`,

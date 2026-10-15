@@ -42,11 +42,11 @@ const openSeasons = async () => (await query(`SELECT * FROM seasons WHERE comple
 const SC = require("../schedules");
 const seasonOpen = async (id) => !id || (await query(`SELECT 1 FROM seasons WHERE id=$1 AND completed_at IS NULL`, [id])).rowCount > 0;
 
-async function classify(rows) {
+async function classify(rows, scheduleId) {
   const existing = new Set((await query(
     `SELECT p.activity, p.age_groups, to_char(s.starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD HH24:MI') AS k
-     FROM training_sessions s JOIN programs p ON p.id=s.program_id
-     WHERE s.canceled_at IS NULL AND NOT p.archived`)).rows.map((r) => `${r.activity}|${r.age_groups.join(",")}|${r.k}`));
+     FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
+     WHERE s.canceled_at IS NULL AND NOT p.archived AND r.schedule_id = $1`, [scheduleId])).rows.map((r) => `${r.activity}|${r.age_groups.join(",")}|${r.k}`));
   const now = inputParts(new Date());
   const nowKey = `${now.date} ${now.time}`;
   const seen = new Set();
@@ -83,7 +83,7 @@ router.post("/preview", wrap(async (req, res) => {
 
   const settings = readSettings(b);
   if (!(await seasonOpen(settings.season_id))) return res.send(v.uploadPage({ user: req.user, v: b, schedules: await SC.all(), seasons: await openSeasons(), flash: { err: "Pick an open season." } }));
-  const rows = await classify(sessions);
+  const rows = await classify(sessions, target.id);
   const rounds = [];
   for (const round of [...new Set(rows.map((r) => r.round))]) {
     const rr = rows.filter((r) => r.round === round);
@@ -91,8 +91,8 @@ router.post("/preview", wrap(async (req, res) => {
     rounds.push({ round, key: roundKey(round), name, first: rr[0].date, last: rr[rr.length - 1].date,
       match: await findRound({ query }, name, rr[0].date, settings.season_id, settings.schedule_id) });
   }
-  const season = settings.season_id ? (await query(`SELECT name FROM seasons WHERE id=$1`, [settings.season_id])).rows[0] : null;
-  res.send(v.previewPage({ user: req.user, rows, rounds, warnings, settings, seasonName: season?.name }));
+  const board = settings.schedule_id ? await SC.get(settings.schedule_id) : null;
+  res.send(v.previewPage({ user: req.user, rows, rounds, warnings, settings, seasonName: board?.name }));
 }));
 
 router.post("/commit", wrap(async (req, res) => {
@@ -104,7 +104,6 @@ router.post("/commit", wrap(async (req, res) => {
     picked.has(String(r.i)) && isDate(r.date) && isTime(r.start) && isTime(r.end) && r.end > r.start &&
     typeof r.activity === "string" && r.activity.length < 60 && Array.isArray(r.ages) && r.ages.every((a) => AGE_GROUPS.includes(a)));
   if (!rows.length) return go(res, "/admin/import", { err: "No sessions were selected." });
-  if (!(await seasonOpen(settings.season_id))) return go(res, "/admin/import", { err: "That season is completed. Pick an open season." });
 
   const local = (name) => { const s = str(req.body[name]); return isLocal(s) ? s.replace("T", " ") : null; };
   const client = await pool.connect();
@@ -142,8 +141,8 @@ router.post("/commit", wrap(async (req, res) => {
   finally { client.release(); }
 
   const msg = `Created ${created} session${created === 1 ? "" : "s"} in ${touched.length} round${touched.length === 1 ? "" : "s"}` +
-    (skipped ? `. Skipped ${skipped} already added` : "") + ". Rounds stay hidden from families until you publish them.";
-  go(res, touched.length === 1 ? `/admin/rounds/${touched[0]}` : "/admin/rounds", { ok: msg });
+    (skipped ? `. Skipped ${skipped} already added` : "") + ". They stay hidden from families until you publish them.";
+  go(res, touched.length === 1 ? `/admin/rounds/${touched[0]}` : `/admin/setup?s=${settings.schedule_id || ""}`, { ok: msg });
 }));
 
 module.exports = router;
