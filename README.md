@@ -22,18 +22,21 @@ organization, participant, group) are under Settings → Activities & groups →
 
 ## Settings layout
 
-Settings starts with your schedules (pills across the top, **+ New** to create one, **⚙ App**
-for app-wide settings). Each schedule has its own tabs:
+**Settings home:** **⚙ App** (app-wide settings), **+ New** (create a schedule), then a card for
+each active schedule (live status, counts, next session). Archived ones are listed below and
+can be restored. What each one is called (Schedule, Season, Claim…) is set under ⚙ App.
 
+**Inside a schedule** (click its card; "← All" goes back), each with its own data:
 - **Setup:** top levels, sheets, times, calendar, import.
-- **Participants** (named per schedule, e.g. Athletes / Volunteers): who can use the schedule's
-  "roster only" sign-ups, and their group there. A person exists once in the app (one login,
-  linked emails) and can belong to several schedules with a different group in each.
-- **Activities** (e.g. Roles): the schedule's own types. Names are unique across the app.
-- **Groups** (e.g. Teams): the schedule's own groups and shortcuts.
-- **Schedule settings:** name and the words for every level, participant, and group.
+- **Participants** (named per schedule): who can use its "roster only" sign-ups and their group
+  there. A person exists once in the app and can be in several schedules with a different group in each.
+- **Activities:** the schedule's own types. Different schedules can reuse a name (each has its own
+  color, spots, limit, and settings).
+- **Groups:** the schedule's own groups and shortcuts.
+- **Settings:** name, level words, archive/restore, delete (when empty). Archiving hides the
+  schedule from families without deleting anything.
 
-**⚙ App:** app name and short name, organization, locations, family view.
+**⚙ App:** app name and short name, organization, what schedules are called, locations, family view.
 
 ## Who signs up (per sheet)
 

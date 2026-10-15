@@ -104,7 +104,7 @@ function appPage({ user, flash, c }) {
   return page({
     title: "App settings", tab: "settings", user, flash,
     body: `<section class="panel"><h1>App settings</h1>
-      <p class="muted tight">Things that apply to every schedule. Each schedule's own ${"activities, groups, people, and level names"} live under its tabs.</p>
+      <p class="muted tight">Things that apply across the whole app. Each one's own activities, groups, people, and level names live inside it.</p>
       <nav class="jump"><a href="#labels">Name</a><a href="#locations">Locations</a><a href="#family">Family view</a></nav></section>
     <section class="panel" id="labels">
       <h2 class="banner">App name</h2>
@@ -112,6 +112,9 @@ function appPage({ user, flash, c }) {
         <div><label>App name<input name="app_name" required maxlength="40" value="${esc(al.app_name)}" placeholder="Raptors Claim It"></label></div>
         <div><label>Short name<input name="app_short" maxlength="20" value="${esc(al.app_short)}" placeholder="Claim It"></label><span class="fine">Used on small screens.</span></div>
         <div class="full"><label>Organization<input name="org_name" maxlength="60" value="${esc(al.org_name)}" placeholder="Chippewa Valley Raptors"></label></div>
+        <div class="pair"><div><label>Call each one a<input name="schedule_one" required maxlength="24" value="${esc((al.schedule || [])[0] || "Schedule")}" placeholder="Schedule"></label></div>
+          <div><label>Plural<input name="schedule_many" maxlength="24" value="${esc((al.schedule || [])[1] || "Schedules")}" placeholder="Schedules"></label></div></div>
+        <div class="fine">What the sign-up spaces are called in Settings, e.g. Schedule, Season, or Claim.</div>
         <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
       </form>
     </section>

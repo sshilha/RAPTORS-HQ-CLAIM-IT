@@ -14,7 +14,11 @@ const t12 = (hhmm) => {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 };
 
-const uploadPage = ({ user, flash, v = {}, seasons = [], schedules = [] }) => page({
+const uploadPage = ({ user, flash, v = {}, seasons = [], schedules = [] }) => {
+  const SC = require("../schedules");
+  const target = schedules.find((x) => String(x.id) === String(v.schedule_id)) || schedules[0];
+  const acts = SC.activitiesFor(target);
+  return page({
   title: "Import schedule", tab: "import", user, flash,
   body: `<section class="panel">
     <h1>Import a vendor schedule</h1>
@@ -32,10 +36,10 @@ const uploadPage = ({ user, flash, v = {}, seasons = [], schedules = [] }) => pa
       <div><label for="year">Year of the first date</label><input id="year" name="year" inputmode="numeric" value="${esc(v.year)}" placeholder="Read from the PDF">
         <span class="fine">Leave blank to use the year on the schedule.</span></div>
       <div><label for="loc">Location</label><input id="loc" name="location" value="${esc(v.location ?? "Turn Two Athletics")}"></div>
-      <div class="full"><p class="label-like">Limits per athlete, each round</p>${limitsTable(null)}${unlockFields(null)}
+      <div class="full"><p class="label-like">Limits per athlete, each round</p>${limitsTable(null, acts)}${unlockFields(null)}
         <label class="check waitlist-check"><input type="checkbox" name="waitlist" value="1"${v.waitlist ? " checked" : ""}> Use a waitlist when sessions fill up</label></div>
       <div><label for="cxl">Cancellation deadline (hours before)</label><input id="cxl" type="number" min="0" max="336" name="cancel_hours" value="${esc(v.cancel_hours ?? 24)}"></div>
-      <div class="full"><p class="label-like">Session defaults by activity</p>${defaultsTable(null)}
+      <div class="full"><p class="label-like">Session defaults by activity</p>${defaultsTable(null, acts)}
         <span class="fine">Used for new rounds. These start from each activity's defaults in Settings.</span></div>
       <input type="hidden" name="pdf_b64" id="pdf_b64">
       <div class="full"><button class="btn" type="submit">Preview sessions</button></div>
@@ -55,6 +59,7 @@ const uploadPage = ({ user, flash, v = {}, seasons = [], schedules = [] }) => pa
   });
   </script>${limitsScript}`,
 });
+};
 
 const ACT_SUMMARY = (d) => Object.entries(d || {}).map(([a, x]) => `${esc(a)} ${x.capacity}`).join(", ");
 

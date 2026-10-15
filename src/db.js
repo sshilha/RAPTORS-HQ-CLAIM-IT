@@ -174,6 +174,8 @@ async function migrate() {
       PRIMARY KEY (schedule_id, athlete_id)
     );
     CREATE INDEX IF NOT EXISTS idx_members_athlete ON schedule_members(athlete_id);
+    -- Archived schedules are hidden from families and listed separately in Settings
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS waitlist BOOLEAN;
     -- Spots taken from unlocked sessions don't use up an athlete's limit
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS counts_toward_limit BOOLEAN NOT NULL DEFAULT true;

@@ -74,6 +74,13 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   go(res, `/admin/setup/schedule?s=${id}`, { ok: `Saved. ${labels.top[0]} › ${labels.middle[0]} › ${labels.activity[0]} › ${labels.slot[0]}, with ${labels.participant[1].toLowerCase()} in ${labels.group[1].toLowerCase()}.` });
 }));
 
+router.post("/schedules/:id/archive", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const { rows } = await query(`UPDATE schedules SET archived_at = CASE WHEN archived_at IS NULL THEN now() ELSE NULL END WHERE id=$1 RETURNING name, archived_at`, [id]);
+  const r = rows[0];
+  go(res, require("./util").dest(req, `/admin/setup/schedule?s=${id}`), { ok: r.archived_at ? `${r.name} archived. Families can't see it anymore.` : `${r.name} restored.` });
+}));
+
 router.post("/schedules/:id/delete", wrap(async (req, res) => {
   const id = int(req.params.id);
   const used = (await query(`SELECT (SELECT count(*) FROM seasons WHERE schedule_id=$1) + (SELECT count(*) FROM rounds WHERE schedule_id=$1) AS n`, [id])).rows[0].n;
@@ -85,7 +92,7 @@ router.post("/schedules/:id/delete", wrap(async (req, res) => {
   await query(`DELETE FROM schedules WHERE id=$1`, [id]);
   res.clearCookie("rt_sched");
   await SC.refreshGroups();
-  go(res, "/admin/setup", { ok: "Schedule deleted." });
+  go(res, "/admin/settings", { ok: "Deleted." });
 }));
 
 module.exports = router;

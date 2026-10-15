@@ -9,7 +9,7 @@ function flashHtml(flash = {}) {
 }
 
 // Everything that lives under Settings in the bottom nav
-const SETTINGS_AREA = ["setup", "seasons", "rounds", "programs", "import", "athletes", "members", "activities", "groups", "schedule", "settings"];
+const SETTINGS_AREA = ["home", "setup", "seasons", "rounds", "programs", "import", "athletes", "members", "activities", "groups", "schedule", "settings"];
 
 function head(title) {
   return `<!DOCTYPE html>
@@ -47,7 +47,7 @@ function gateLayout({ title, body, flash }) {
 function bottomNav(tab, admin) {
   const items = [
     ["home", "/dashboard", "🏠", "My Claims"],
-    ...(admin ? [["reports", "/admin/reports", "📊", "Reports"], ["settings", "/admin/setup", "🛠️", "Settings"]] : []),
+    ...(admin ? [["reports", "/admin/reports", "📊", "Reports"], ["settings", "/admin/settings", "🛠️", "Settings"]] : []),
   ];
   const active = SETTINGS_AREA.includes(tab) ? "settings" : tab || "home";
   return `<nav class="site-nav" aria-label="Main">${items.map(([k, href, icon, label]) =>

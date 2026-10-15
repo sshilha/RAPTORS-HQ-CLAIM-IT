@@ -749,3 +749,25 @@ select[multiple] { padding: 6px; }
 .add-member { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .add-member .am-name { font: 700 16px var(--display); text-transform: uppercase; color: var(--navy); min-width: 120px; }
 .add-member select { width: auto; padding: 8px; }
+
+/* ---------- Settings home ---------- */
+.home-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.home-head .head-actions { display: flex; gap: 8px; }
+.list-title { margin: 22px 2px 10px; }
+.sched-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.sched-card { display: flex; flex-direction: column; gap: 8px; background: #fff; border: 1.5px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px; text-decoration: none; color: var(--ink); border-top: 5px solid var(--lime); transition: border-color .12s, box-shadow .12s; }
+.sched-card:hover { border-color: var(--navy); border-top-color: var(--lime); box-shadow: 0 4px 14px rgba(12, 25, 46, .12); }
+.sc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sc-name { font: 900 26px/1 var(--display); text-transform: uppercase; color: var(--navy); letter-spacing: .4px; }
+.sc-levels { font-size: 13px; color: var(--muted); font-weight: 600; }
+.sc-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; color: var(--muted); }
+.sc-stats b { color: var(--navy); font-size: 16px; }
+.sc-next { font-size: 14px; color: var(--navy); background: var(--paper); border-radius: 6px; padding: 6px 8px; }
+.sc-open { margin-top: auto; align-self: flex-end; font: 700 16px var(--display); text-transform: uppercase; color: var(--lime-dark); }
+.archived { margin-top: 18px; }
+.archived summary { cursor: pointer; font-weight: 700; color: var(--navy-2); }
+.crumbs { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.crumb { text-decoration: none; font-weight: 700; font-size: 14px; color: var(--navy-2); background: #fff; border: 1.5px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.crumb:hover { border-color: var(--navy); }
+.crumb-name { font: 900 24px var(--display); text-transform: uppercase; color: var(--navy); letter-spacing: .4px; }

@@ -2,7 +2,7 @@
 const { esc, layout } = require("./layout");
 const { fmtRange, fmtDateTime, fmtDay, fmtTime, inputParts } = require("../time");
 const { cancelDeadline, bookingOpen } = require("../booking");
-const { ACTIVITY_COLORS, ACTIVITIES, LABELS } = require("../config");
+const { ACTIVITIES, LABELS, colorFor } = require("../config");
 const SC = require("../schedules");
 
 const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -12,7 +12,7 @@ const iso = (dt) => dt.toISOString().slice(0, 10);
 const addDays = (dt, n) => new Date(dt.getTime() + n * 864e5);
 const localDate = (ts) => inputParts(ts).date;
 const longDay = (isoDate) => { const d = parse(isoDate); return `${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getUTCDay()]}, ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
-const dot = (a) => `<span class="dot" style="background:${ACTIVITY_COLORS[a] || "#8d9db6"}"></span>`;
+const dot = (a, sid) => `<span class="dot" style="background:${colorFor(a, sid)}"></span>`;
 
 // ---------- shared pieces ----------
 
@@ -23,7 +23,7 @@ function usagePanel(programs, { title = "This round" } = {}) {
     const key = p.round_id ? `r${p.round_id}` : `p${p.id}`;
     const g = groups.get(key) || { name: p.round_id ? p.round_name : p.name, unlock: p.round_id ? p.unlock_hours : null, items: new Map(),
       level: SC.labels({ labels: p.schedule_labels }).middle.one };
-    if (!g.items.has(p.activity)) g.items.set(p.activity, { activity: p.activity, limit: p.limitsOn ? p.limit : null, used: p.used });
+    if (!g.items.has(p.activity)) g.items.set(p.activity, { activity: p.activity, sid: p.schedule_id, limit: p.limitsOn ? p.limit : null, used: p.used });
     groups.set(key, g);
   }
   if (!groups.size) return "";
@@ -34,7 +34,7 @@ function usagePanel(programs, { title = "This round" } = {}) {
       <div class="usage-title">${esc(groups.size > 1 ? g.name : `This ${g.level.toLowerCase()}: ${g.name}`)}</div>
       <div class="usage-items">${items.map((i) => {
         const done = i.limit != null && i.used >= i.limit;
-        return `<span class="usage-item${done ? " done" : ""}">${dot(i.activity)}<b>${esc(i.activity)}</b>
+        return `<span class="usage-item${done ? " done" : ""}">${dot(i.activity, i.sid)}<b>${esc(i.activity)}</b>
           <span>${i.limit == null ? "Unlimited" : `${Math.min(i.used, i.limit)} of ${i.limit} used`}</span></span>`;
       }).join("")}</div>
       ${full && g.unlock != null ? `<p class="fine">Used up? Spots still open ${g.unlock % 24 === 0 ? `${g.unlock / 24} day${g.unlock === 24 ? "" : "s"}` : `${g.unlock} hour${g.unlock === 1 ? "" : "s"}`} before a session open to everyone, and those don't count against your limit.</p>` : ""}
@@ -81,7 +81,7 @@ function monthGrid(athlete, month, byDay, today) {
         aria-label="${esc(longDay(key))}: ${info.activities.size} activit${info.activities.size === 1 ? "y" : "ies"}${info.mine ? `, ${info.mine} claimed` : ""}">
       <span class="cal-num">${d.getUTCDate()}</span>
       ${info.mine ? `<span class="cal-mine" aria-hidden="true">✓${info.mine > 1 ? info.mine : ""}</span>` : ""}
-      <span class="cal-dots">${[...info.activities].map(dot).join("")}</span>
+      <span class="cal-dots">${[...info.activities.values()].map(([a, sid]) => dot(a, sid)).join("")}</span>
     </a>`);
   }
   return `<div class="pcal"><div class="pcal-dow">${DOW.map((x) => `<span>${x[0]}<i>${x.slice(1)}</i></span>`).join("")}</div>
@@ -114,8 +114,8 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
   const byDay = new Map();
   for (const p of programs) for (const s of p.sessions) {
     const k = localDate(s.starts_at);
-    const info = byDay.get(k) || { activities: new Set(), mine: 0 };
-    info.activities.add(p.activity);
+    const info = byDay.get(k) || { activities: new Map(), mine: 0 };
+    info.activities.set(`${p.schedule_id}|${p.activity}`, [p.activity, p.schedule_id]);
     if (s.my_status) info.mine++;
     byDay.set(k, info);
   }
@@ -123,7 +123,8 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
   const [y, m] = month.split("-").map(Number);
   const href = (mo) => `/dashboard?a=${athlete.id}&m=${mo}`;
   const curMonth = today.slice(0, 7);
-  const activities = [...new Set(programs.map((p) => p.activity))].sort((a, b) => ACTIVITIES.indexOf(a) - ACTIVITIES.indexOf(b));
+  const activities = [...new Map(programs.map((p) => [`${p.schedule_id}|${p.activity}`, [p.activity, p.schedule_id]])).values()]
+    .sort((a, b) => ACTIVITIES.indexOf(a[0]) - ACTIVITIES.indexOf(b[0]));
   const nextDay = [...byDay.keys()].filter((k) => k >= today).sort()[0];
 
   return layout({
@@ -140,7 +141,7 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
         <a class="month-nav" href="${href(shiftMonth(month, 1))}" aria-label="Next month">›</a>
       </div>
       ${monthGrid(athlete, month, byDay, today)}
-      <div class="pcal-legend">${activities.map((a) => `<span>${dot(a)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Claimed</span></div>
+      <div class="pcal-legend">${activities.map(([a, sid]) => `<span>${dot(a, sid)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Claimed</span></div>
       ${byDay.size ? `<p class="fine">Tap a day to see what's open and claim a spot.${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
         : `<div class="empty"><p>Nothing open to claim right now.</p><p class="muted">New spots show up here as soon as they're posted.</p></div>`}`}
     </section>

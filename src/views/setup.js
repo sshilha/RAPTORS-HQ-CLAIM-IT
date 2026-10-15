@@ -1,6 +1,6 @@
 const { esc } = require("./layout");
 const { page } = require("./admin");
-const { AGE_GROUPS, ACTIVE_ACTIVITIES, ACTIVITY_COLORS, ACTIVITY_META, PRESETS, LOCATIONS } = require("../config");
+const { colorFor } = require("../config");
 const { fmtDateTime } = require("../time");
 const { typeLabel, defaultsFor } = require("../rounds");
 const { niceRange, shortRange, statusPill } = require("./rounds");
@@ -14,7 +14,7 @@ const pln = (n, l) => `${n} ${n === 1 ? l.one.toLowerCase() : l.many.toLowerCase
 let CUR = { id: "" };
 const home = () => `/admin/setup?s=${CUR.id}`;
 const back = (anchor) => `<input type="hidden" name="return_to" value="${home()}${anchor ? `#${anchor}` : ""}">`;
-const swatch = (a) => `<span class="swatch" style="background:${ACTIVITY_COLORS[a]}"></span>`;
+const swatch = (a) => `<span class="swatch" style="background:${colorFor(a, CUR.id)}"></span>`;
 
 function roundBlock(r, locked, L, acts) {
   const anchor = `round-${r.id}`;
@@ -129,12 +129,12 @@ function seasonBlock(s, rounds, allRounds, first, L, acts) {
 function scheduleSettingsPage({ user, flash, sc, counts }) {
   const L = SC.labels(sc);
   return page({
-    title: `Schedule settings · ${sc.name}`, tab: "schedule", user, flash,
+    title: `Settings · ${sc.name}`, tab: "schedule", user, flash,
     body: `<section class="panel">
-      <h1>Schedule settings</h1>
+      <h1>${esc(require("../config").LABELS.schedule)} settings</h1>
       <p class="muted tight">What ${esc(sc.name)} is called, and what it calls each level.</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}?s=${sc.id}" class="sched-form">
-        <label class="w-wide">Schedule name<input name="name" required value="${esc(sc.name)}" maxlength="40"></label>
+        <label class="w-wide">Name<input name="name" required value="${esc(sc.name)}" maxlength="40"></label>
         <div class="table-wrap"><table class="levels">
           <thead><tr><th>Level</th><th>What it is</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
           <tbody>${SC.LEVELS.map(([k, name, def, ex]) => `<tr>
@@ -146,7 +146,13 @@ function scheduleSettingsPage({ user, flash, sc, counts }) {
       </form>
     </section>
     <section class="panel">
-      <h2>Delete this schedule</h2>
+      <h2>${sc.archived_at ? "Archived" : "Archive"}</h2>
+      <p class="muted">${sc.archived_at ? `Families can't see anything in ${esc(sc.name)}. Restore it to make it active again.`
+        : `Archiving hides ${esc(sc.name)} from families and moves it to the Archived list in Settings. Nothing is deleted, and you can restore it any time.`}</p>
+      <form method="post" action="/admin/setup/schedules/${sc.id}/archive?s=${sc.id}"><button class="btn-ghost" type="submit">${sc.archived_at ? "Restore" : "Archive"} ${esc(sc.name)}</button></form>
+    </section>
+    <section class="panel">
+      <h2>Delete</h2>
       <p class="muted">${counts.items ? `It has ${counts.items} ${esc(L.top.many.toLowerCase())}/${esc(L.middle.many.toLowerCase())}, so it can't be deleted until those are removed.` : `It's empty, so it can be deleted. ${counts.members ? `Its ${counts.members} ${esc(L.participant.many.toLowerCase())} stay in the app.` : ""}`}</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete the ${esc(sc.name)} schedule?')">
         <button class="btn-ghost danger" type="submit"${counts.items ? " disabled" : ""}>Delete ${esc(sc.name)}</button></form>
@@ -158,10 +164,11 @@ function newSchedulePage({ user, flash, schedules }) {
   const PRE = SC.PRESET_LABELS;
   const line = (l) => `${l.top[0]} › ${l.middle[0]} › ${l.activity[0]} › ${l.slot[0]} · ${l.participant[1]} in ${l.group[1]}`;
   return page({
-    title: "New schedule", tab: "setup", user, flash,
+    title: "New", tab: "home", user, flash,
     body: `<section class="panel">
-      <h1>New schedule</h1>
-      <p class="lede">A schedule is its own sign-up space with its own ${"activities, groups, people, and calendar"}, like Training or Concessions. Start with a name and a naming style; you can rename every level afterward.</p>
+      <h1>New ${esc(require("../config").LABELS.schedule.toLowerCase())}</h1>
+      <a class="back" href="/admin/settings">All</a>
+      <p class="lede">Each one is its own sign-up space with its own activities, groups, people, and calendar, like Training or Concessions. Start with a name and a naming style; you can rename every level afterward.</p>
       <form method="post" action="/admin/setup/schedules" class="stack">
         <label>Name<input name="name" required maxlength="40" placeholder="e.g. Concessions"></label>
         <fieldset class="checks stack-list"><legend>Naming style</legend>
@@ -170,7 +177,7 @@ function newSchedulePage({ user, flash, schedules }) {
         </fieldset>
         ${schedules.length ? `<label>Copy groups and shortcuts from<select name="copy_groups"><option value="">Nothing (start empty)</option>
           ${schedules.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></label>` : ""}
-        <button class="btn" type="submit">Create schedule</button>
+        <button class="btn" type="submit">Create</button>
       </form>
       <p class="fine">Next you'll add its ${"activities, groups, and people"}, then set up the calendar.</p>
     </section>`,
@@ -250,7 +257,7 @@ function setupPage({ user, flash, schedule: sc, seasons, rounds, standalone }) {
         });
       });
       // Picking an activity fills in its defaults from Settings
-      var META = ${JSON.stringify(ACTIVITY_META).replace(/</g, "\\u003c")};
+      var META = ${SC.metaJson(sc)};
       document.querySelectorAll('.quick-type select[name="activity"]').forEach(function (s) {
         s.addEventListener("change", function () {
           var m = META[s.value]; if (!m) return;

@@ -50,11 +50,11 @@ function labels(schedule) {
 }
 
 // This schedule's activities (by ownership), in Settings order
-const activitiesFor = (schedule, { activeOnly = false } = {}) => {
-  const base = activeOnly ? ACTIVE_ACTIVITIES : ACTIVITIES;
-  if (!schedule) return base.slice();
-  return base.filter((a) => (ACTIVITY_META[a] || {}).schedule_id === schedule.id);
-};
+const entriesFor = (schedule, { activeOnly = false } = {}) => ((config.CATALOG.current || {}).activities || [])
+  .filter((a) => (!schedule || a.schedule_id === schedule.id) && (!activeOnly || a.active !== false));
+const activitiesFor = (schedule, opts) => [...new Set(entriesFor(schedule, opts).map((a) => a.name))];
+// For the browser: this schedule's activity defaults, keyed by name
+const metaJson = (schedule) => JSON.stringify(Object.fromEntries(entriesFor(schedule).map((a) => [a.name, a]))).replace(/</g, "\\u003c");
 const groupsFor = (schedule) => (schedule && Array.isArray(schedule.groups) ? schedule.groups : []);
 const presetsFor = (schedule) => (schedule && Array.isArray(schedule.presets) ? schedule.presets.filter((p) => p.ages && p.ages.length) : []);
 
@@ -127,6 +127,6 @@ async function ensureDefault() {
 }
 
 module.exports = {
-  an, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
+  an, entriesFor, metaJson, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
   all, get, forRound, forSeason, forProgram, current, refreshGroups, ensureDefault,
 };

@@ -9,12 +9,12 @@ const MONTH_YEAR_RE = new RegExp(`\\b(${MONTHS.join("|")})\\s+(\\d{4})\\b`, "i")
 // Spaces are stripped first, so "Cage Time 1" arrives as "CageTime1"; age groups are optional
 const SESSION_RE = /^(\d{1,2})(?::(\d{2}))?(am|pm)?-(\d{1,2})(?::(\d{2}))?(am|pm)?-([a-z]+?)\d*(?:-((?:\d{1,2}\/)*\d{1,2})u)?$/i;
 
-// Matches an activity by name (spaces ignored) or by one of its import codes from Settings
-function activityFor(word) {
+// Matches one of the schedule's activities by name (spaces ignored) or by one of its import codes
+function activityFor(word, entries) {
   const w = word.toLowerCase();
   const squash = (x) => String(x).replace(/\s/g, "").toLowerCase();
-  return ACTIVITIES.find((a) => squash(a) === w) ||
-    ACTIVITIES.find((a) => ((ACTIVITY_META[a] || {}).aliases || []).some((x) => squash(x) === w)) || null;
+  const hit = entries.find((a) => squash(a.name) === w) || entries.find((a) => (a.aliases || []).some((x) => squash(x) === w));
+  return hit ? hit.name : null;
 }
 
 const to24 = (h, suffix) => (suffix.toLowerCase() === "am" ? h % 12 : (h % 12) + 12);
@@ -42,7 +42,8 @@ function times(sh, sm, ss, eh, em, es) {
 }
 
 
-function parseSchedule(text, { year, groups } = {}) {
+function parseSchedule(text, { year, groups, activities } = {}) {
+  const ENTRIES = activities && activities.length ? activities : ACTIVITIES.map((n) => ({ ...(ACTIVITY_META[n] || {}), name: n }));
   const GROUPS = groups && groups.length ? groups : AGE_GROUPS;
   const lines = String(text || "").replace(/\r/g, "").split("\n");
   const sessions = [];
@@ -69,10 +70,10 @@ function parseSchedule(text, { year, groups } = {}) {
     const m = compact.match(SESSION_RE);
     if (m) {
       if (!curDate) { warnings.push(`No date found before "${line}"`); continue; }
-      const activity = activityFor(m[7]);
+      const activity = activityFor(m[7], ENTRIES);
       let ages = m[8] ? m[8].split("/").map((n) => `${parseInt(n, 10)}U`) : [];
       if (activity && !ages.length) {
-        if (!ALL_AGES_ACTIVITIES.includes(activity)) { warnings.push(`${curDate.label}: skipped "${line}" (no age group)`); continue; }
+        if (!(ENTRIES.find((e) => e.name === activity) || {}).all_ages) { warnings.push(`${curDate.label}: skipped "${line}" (no age group)`); continue; }
         ages = [...GROUPS];
       }
       const badAges = ages.filter((a) => !GROUPS.includes(a));

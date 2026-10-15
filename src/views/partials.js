@@ -1,10 +1,10 @@
 const { esc } = require("./layout");
 const { APP_URL, LABELS } = require("../config");
-const { ACTIVITIES, ACTIVITY_COLORS } = require("../config");
+const { ACTIVITIES, colorFor } = require("../config");
 const { BLOCK_CHOICES, limitFor } = require("../rounds");
 const { inputParts } = require("../time");
 
-const swatch = (a) => `<span class="swatch" style="background:${ACTIVITY_COLORS[a]}"></span>`;
+const swatch = (a, sid) => `<span class="swatch" style="background:${colorFor(a, sid)}"></span>`;
 
 function blockSelect(name, value, attrs = "") {
   return `<select name="${name}" ${attrs}>
@@ -16,14 +16,13 @@ function blockSelect(name, value, attrs = "") {
 const spotsLabel = (spots, block) => (block ? `${spots} per ${block}-min block` : `${spots} spots`);
 
 // Limits per athlete, per activity, for a round (unlimited = checkbox)
-const shown = (list) => (list && list.length ? ACTIVITIES.filter((a) => list.includes(a)) : ACTIVITIES);
+const shown = (list) => (Array.isArray(list) ? list : ACTIVITIES);
 
 function limitsTable(round, activities) {
   return `<table class="limits"><thead><tr><th>Type</th><th>Per person</th><th>Unlimited</th></tr></thead><tbody>
-    ${shown(activities).map((a) => {
-      const i = ACTIVITIES.indexOf(a);
+    ${shown(activities).map((a, i) => {
       const v = limitFor(round || {}, a);
-      return `<tr><td><input type="hidden" name="has_${i}" value="1">${swatch(a)}<strong>${esc(a)}</strong></td>
+      return `<tr><td><input type="hidden" name="lname_${i}" value="${esc(a)}">${swatch(a, round && round.schedule_id)}<strong>${esc(a)}</strong></td>
         <td><input type="number" name="lim_${i}" min="1" max="50" value="${v ?? 2}" aria-label="${esc(a)} limit" class="lim-n"${v == null ? " disabled" : ""}></td>
         <td><label class="check"><input type="checkbox" name="unl_${i}" value="1" class="lim-unl"${v == null ? " checked" : ""}> Unlimited</label></td></tr>`;
     }).join("")}
@@ -32,13 +31,12 @@ function limitsTable(round, activities) {
 
 // Compact version: one small card per activity (used on the Setup page)
 function limitsCards(round, activities) {
-  return `<div class="limit-cards">${shown(activities).map((a) => {
-    const i = ACTIVITIES.indexOf(a);
+  return `<div class="limit-card-wrap"><div class="limit-cards">${shown(activities).map((a, i) => {
     const v = limitFor(round || {}, a);
-    return `<div class="limit-card" style="--c:${ACTIVITY_COLORS[a]}"><input type="hidden" name="has_${i}" value="1"><span class="lc-name">${esc(a)}</span>
+    return `<div class="limit-card" style="--c:${colorFor(a, round && round.schedule_id)}"><input type="hidden" name="lname_${i}" value="${esc(a)}"><span class="lc-name">${esc(a)}</span>
       <input type="number" name="lim_${i}" min="1" max="50" value="${v ?? 2}" aria-label="${esc(a)} sessions per athlete" class="lim-n"${v == null ? " disabled" : ""}>
       <label class="check"><input type="checkbox" name="unl_${i}" value="1" class="lim-unl"${v == null ? " checked" : ""}> Unlimited</label></div>`;
-  }).join("")}</div>`;
+  }).join("")}</div></div>`;
 }
 
 function limitsForm(round, { returnTo, readonly, compact, activities } = {}) {

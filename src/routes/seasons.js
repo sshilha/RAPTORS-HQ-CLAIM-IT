@@ -59,6 +59,8 @@ router.post("/", wrap(async (req, res) => {
 router.get("/:id", wrap(async (req, res) => {
   const season = (await query(`SELECT se.*, ${STATS} FROM seasons se WHERE se.id=$1`, [int(req.params.id)])).rows[0];
   if (!season) return go(res, "/admin/seasons", { err: "Season not found." });
+  const own = await require("../schedules").forSeason(season.id);
+  if (own) req.user.sched = { ...req.sched, sc: own };
   const rounds = (await query(
     `SELECT r.*,
        (SELECT count(*)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id WHERE p.round_id=r.id AND s.canceled_at IS NULL) AS sessions,

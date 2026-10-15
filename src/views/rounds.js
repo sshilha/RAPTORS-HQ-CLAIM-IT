@@ -1,6 +1,8 @@
 const { esc } = require("./layout");
 const { page } = require("./admin");
-const { AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ACTIVITY_COLORS, ALL_AGES_ACTIVITIES, ACTIVITY_META, PRESETS, LOCATIONS } = require("../config");
+const { AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ALL_AGES_ACTIVITIES, LOCATIONS, colorFor } = require("../config");
+let SID = null; // schedule of the page being drawn (colors are per schedule)
+const ACTIVITY_COLORS = new Proxy({}, { get: (_, name) => colorFor(String(name), SID) });
 const { inputParts } = require("../time");
 const { typeLabel, defaultsFor, isUnlocked, limitFor } = require("../rounds");
 const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox } = require("./partials");
@@ -24,11 +26,11 @@ const shortRange = (s, e) => { const a = hm(s), b = hm(e); return a.ap === b.ap 
 
 const statusPill = (r) => r.published_at ? `<span class="pill ok">Published</span>` : `<span class="pill wait">Draft</span>`;
 
-function defaultsTable(round) {
+function defaultsTable(round, activities) {
   return `<div class="table-wrap"><table class="defaults">
     <thead><tr><th>Activity</th><th>Spots</th><th>Split into</th><th>Coach</th></tr></thead>
-    <tbody>${ACTIVITIES.map((a, i) => { const d = defaultsFor(round || {}, a); return `<tr>
-      <td><span class="swatch" style="background:${ACTIVITY_COLORS[a]}"></span>${esc(a)}</td>
+    <tbody>${(activities || ACTIVITIES).map((a, i) => { const d = defaultsFor(round || {}, a); return `<tr>
+      <td><input type="hidden" name="dname_${i}" value="${esc(a)}"><span class="swatch" style="background:${colorFor(a, round && round.schedule_id)}"></span>${esc(a)}</td>
       <td><input type="number" min="1" max="200" name="cap_${i}" value="${d.capacity}" aria-label="${esc(a)} capacity"></td>
       <td>${blockSelect(`block_${i}`, d.block, `aria-label="${esc(a)} blocks"`)}</td>
       <td><input name="coach_${i}" value="${esc(d.coach)}" aria-label="${esc(a)} coach" placeholder="Optional"></td></tr>`; }).join("")}
@@ -236,7 +238,7 @@ function schedulePanel(r, types, last) {
 }
 
 function builderPage({ user, flash, round, types, sessions, last = {}, season, seasons = [], readonly, schedule }) {
-  L = SC.labels(schedule); ACTS = SC.activitiesFor(schedule, { activeOnly: true });
+  L = SC.labels(schedule); ACTS = SC.activitiesFor(schedule, { activeOnly: true }); SID = schedule && schedule.id;
   GROUPS = SC.groupsFor(schedule); PRESETS_SC = SC.presetsFor(schedule);
   const r = round;
   const total = sessions.length;
@@ -363,7 +365,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
         form.querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = want.indexOf(c.value) >= 0; });
       });
     });
-    var allAges = ${JSON.stringify(ALL_AGES_ACTIVITIES)};
+    var allAges = ${JSON.stringify(SC.entriesFor(schedule).filter((a) => a.all_ages).map((a) => a.name))};
     document.querySelectorAll('.type-add input[name="activity"]').forEach(function (r) {
       r.addEventListener("change", function () {
         if (allAges.indexOf(r.value) >= 0) r.closest("form").querySelectorAll('input[name="ages"]').forEach(function (c) { c.checked = true; });
@@ -372,7 +374,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     document.querySelectorAll('.type-add input[name="activity"]').forEach(function (r) {
       r.addEventListener("change", function () {
         var f = r.closest("form");
-        var m = ${JSON.stringify(ACTIVITY_META).replace(/</g, "\\u003c")}[r.value] || {};
+        var m = ${SC.metaJson(schedule)}[r.value] || {};
         f.querySelector('select[name="block"]').value = m.default_block ? String(m.default_block) : "";
         f.querySelector('input[name="spots"]').placeholder = m.default_spots || "10";
       });

@@ -1,5 +1,5 @@
 const { esc, layout } = require("./layout");
-const { ACTIVITY_COLORS, LABELS } = require("../config");
+const { LABELS, colorFor } = require("../config");
 const { fmtTime, fmtDateTime } = require("../time");
 const { typeLabel } = require("../rounds");
 const SC = require("../schedules");
@@ -34,7 +34,7 @@ function sheetPage({ user, round: r, slots, flash }) {
       <h2 class="banner">${esc(longDay(d))}</h2>
       <ul class="sess-list">${slots.filter((s) => s.day === d).map((s) => {
         const open = s.capacity - s.confirmed;
-        return `<li class="sess${open > 0 ? "" : " full"}" style="--c:${ACTIVITY_COLORS[s.activity] || "#8d9db6"}">
+        return `<li class="sess${open > 0 ? "" : " full"}" style="--c:${colorFor(s.activity, r.schedule_id)}">
           <div class="sess-main">
             <div class="sess-time"><span class="dot" style="background:var(--c)"></span> ${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}</div>
             <div class="sess-meta">${esc(typeLabel(s.activity, s.age_groups))}${s.coach ? `, ${esc(s.coach)}` : ""}</div>

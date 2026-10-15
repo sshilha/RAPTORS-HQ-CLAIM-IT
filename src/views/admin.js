@@ -10,23 +10,22 @@ const SCHEDULE_TABS = [
   ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, ["members", "athletes"]],
   ["activities", (sc) => `/admin/settings/activities?s=${sc.id}`, (L) => L.activity.many, ["activities"]],
   ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => L.group.many, ["groups"]],
-  ["schedule", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => "Schedule settings", ["schedule"]],
+  ["schedule", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => `${require("../config").LABELS.schedule} settings`, ["schedule"]],
 ];
 function settingsNav(tab, user) {
   const sched = user && user.sched;
-  if (!sched || !sched.sc) return "";
+  const { LABELS } = require("../config");
+  if (tab === "home" || !sched || !sched.sc) return "";
+  const homeLink = `<a class="crumb" href="/admin/settings">← All ${esc(LABELS.schedules.toLowerCase())}</a>`;
+  if (tab === "settings") return `<nav class="crumbs no-print">${homeLink}</nav>`;
+  const cur = SCHEDULE_TABS.find((t) => t[3].includes(tab));
+  if (!cur) return "";
   const SC = require("../schedules");
   const L = SC.labels(sched.sc);
-  const appTab = tab === "settings";
-  const cur = SCHEDULE_TABS.find((t) => t[3].includes(tab));
-  if (!cur && !appTab) return "";
-  return `<nav class="sched-tabs no-print" aria-label="Schedules">
-      ${sched.list.map((x) => `<a href="/admin/setup?s=${x.id}"${!appTab && x.id === sched.sc.id ? ' aria-current="page"' : ""}>${esc(x.name)}</a>`).join("")}
-      <a class="new-pill" href="/admin/setup/new">+ New</a>
-      <a class="app-pill" href="/admin/settings"${appTab ? ' aria-current="page"' : ""}>⚙ App</a>
-    </nav>
-    ${appTab ? "" : `<nav class="settings-tabs no-print" aria-label="${esc(sched.sc.name)}">${SCHEDULE_TABS.map(([k, href, label]) =>
-      `<a href="${href(sched.sc)}"${k === cur[0] ? ' aria-current="page"' : ""}>${esc(label(L))}</a>`).join("")}</nav>`}`;
+  return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sched.sc.name)}</span>
+      ${sched.sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>
+    <nav class="settings-tabs no-print" aria-label="${esc(sched.sc.name)}">${SCHEDULE_TABS.map(([k, href, label]) =>
+      `<a href="${href(sched.sc)}"${k === cur[0] ? ' aria-current="page"' : ""}>${esc(label(L))}</a>`).join("")}</nav>`;
 }
 const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsNav(opts.tab, opts.user) + opts.body });
 

@@ -1,7 +1,7 @@
 // Levels: Round -> Times -> Sessions (activity + group + spots) -> scheduled on days.
 // In the database a round's "session" definitions are programs (one per activity + age group);
 // each scheduled occurrence is a training_sessions row.
-const { AGE_GROUPS, ACTIVITIES, ALL_AGES_ACTIVITIES, ACTIVITY_META } = require("./config");
+const { AGE_GROUPS, ACTIVITIES, ALL_AGES_ACTIVITIES, ACTIVITY_META, metaFor } = require("./config");
 
 const sortAges = (ages) => AGE_GROUPS.filter((g) => ages.includes(g));
 // Groups are per schedule; labels show the range of the groups chosen ("12U–18U")
@@ -18,32 +18,29 @@ const programName = (roundName, activity, ages) => `${roundName} ${typeLabel(act
 const BLOCK_CHOICES = [15, 20, 30, 45, 60];
 const cleanBlock = (v) => (BLOCK_CHOICES.includes(parseInt(v, 10)) ? parseInt(v, 10) : null);
 // An activity's own defaults from Settings (spots, blocks, coach)
-const metaDefaults = (a) => { const m = ACTIVITY_META[a] || {}; return { capacity: m.default_spots, block: m.default_block }; };
+const metaDefaults = (a, sid) => { const m = metaFor(a, sid); return { capacity: m.default_spots, block: m.default_block }; };
 
 // Fallback capacity/coach/blocks by activity (used by imports and older data)
 function defaultsFor(round, activity) {
-  const d = ((round && round.activity_defaults) || {})[activity] || metaDefaults(activity);
+  const d = ((round && round.activity_defaults) || {})[activity] || metaDefaults(activity, round && round.schedule_id);
   return { capacity: d.capacity || 8, coach: d.coach || null, block: cleanBlock(d.block) };
 }
 
+// Defaults tables post rows as dname_k (activity name) + cap_k / coach_k / block_k
 function readDefaults(body) {
   const out = {};
-  ACTIVITIES.forEach((a, i) => {
-    const cap = parseInt(body[`cap_${i}`], 10);
-    const fallback = metaDefaults(a);
-    out[a] = {
-      capacity: cap > 0 && cap <= 200 ? cap : fallback.capacity || 8,
-      coach: String(body[`coach_${i}`] || "").trim() || null,
-      block: body[`block_${i}`] !== undefined ? cleanBlock(body[`block_${i}`]) : fallback.block || null,
-    };
-  });
+  for (let k = 0; body[`dname_${k}`] !== undefined; k++) {
+    const a = String(body[`dname_${k}`]);
+    const cap = parseInt(body[`cap_${k}`], 10);
+    out[a] = { capacity: cap > 0 && cap <= 200 ? cap : 8, coach: String(body[`coach_${k}`] || "").trim() || null, block: cleanBlock(body[`block_${k}`]) };
+  }
   return out;
 }
 
 function normalizeDefaults(d = {}) {
   const out = {};
-  for (const a of ACTIVITIES) {
-    const x = d[a] || metaDefaults(a);
+  for (const [a, x0] of Object.entries(d || {})) {
+    const x = x0 || {};
     const cap = parseInt(x.capacity, 10);
     out[a] = { capacity: cap > 0 && cap <= 200 ? cap : 8, coach: x.coach ? String(x.coach).slice(0, 80) : null, block: cleanBlock(x.block) };
   }
@@ -51,18 +48,17 @@ function normalizeDefaults(d = {}) {
 }
 
 // ---- Per-activity limits for a round. null = unlimited. ----
-function defaultLimits() {
-  return Object.fromEntries(ACTIVITIES.map((a) => {
-    const m = ACTIVITY_META[a] || {};
-    return [a, m.default_limit === undefined ? 2 : m.default_limit];
-  }));
+// A new round starts with each of its schedule's activities at that activity's default limit
+function defaultLimits(schedule) {
+  const list = require("./schedules").entriesFor(schedule);
+  return Object.fromEntries(list.map((m) => [m.name, m.default_limit === undefined ? 2 : m.default_limit]));
 }
 function limitFor(round, activity) {
   const l = round && round.activity_limits;
   if (l && Object.prototype.hasOwnProperty.call(l, activity)) return l[activity] == null ? null : Number(l[activity]);
   // Not set on this round (e.g. an activity added later): use the activity's default from Settings
-  const m = ACTIVITY_META[activity];
-  return m ? (m.default_limit == null ? null : m.default_limit) : (round && round.priority_limit) || 2;
+  const m = metaFor(activity, round && round.schedule_id);
+  return m.name ? (m.default_limit == null ? null : m.default_limit) : (round && round.priority_limit) || 2;
 }
 // Does a full session take a waitlist? Session setting wins; otherwise the round's (default off)
 const waitlistOn = (program, round) =>
@@ -87,27 +83,26 @@ function readUnlock(body) {
   return body.unlock_unit === "hours" ? n : n * 24;
 }
 const unlockLabel = (h) => (h == null ? "never automatically" : h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"} before` : `${h} hour${h === 1 ? "" : "s"} before`);
-// Reads the limits a form showed (marked has_i); activities the form didn't show keep their value
+// Limits forms post rows as lname_k (activity name) + lim_k / unl_k; activities not shown keep their value
 function readLimits(body, existing) {
-  const anyMarked = ACTIVITIES.some((a, i) => body[`has_${i}`]);
-  return Object.fromEntries(ACTIVITIES.map((a, i) => {
-    if (anyMarked && !body[`has_${i}`]) {
-      const prev = existing && Object.prototype.hasOwnProperty.call(existing, a) ? existing[a] : limitFor({ activity_limits: existing }, a);
-      return [a, prev == null ? null : prev];
-    }
-    if (body[`unl_${i}`]) return [a, null];
-    const n = parseInt(body[`lim_${i}`], 10);
-    return [a, n >= 1 && n <= 50 ? n : 1];
-  }));
+  const out = { ...(existing || {}) };
+  for (let k = 0; body[`lname_${k}`] !== undefined; k++) {
+    const a = String(body[`lname_${k}`]);
+    if (body[`unl_${k}`]) { out[a] = null; continue; }
+    const n = parseInt(body[`lim_${k}`], 10);
+    out[a] = n >= 1 && n <= 50 ? n : 1;
+  }
+  return out;
 }
+
 function normalizeLimits(l) {
-  if (!l) return defaultLimits();
-  return Object.fromEntries(ACTIVITIES.map((a) => {
-    const v = l[a];
-    if (v == null) return [a, Object.prototype.hasOwnProperty.call(l, a) ? null : (ACTIVITY_META[a] ? ACTIVITY_META[a].default_limit ?? null : 2)];
+  const out = {};
+  for (const [a, v] of Object.entries(l || {})) {
+    if (v == null) { out[a] = null; continue; }
     const n = parseInt(v, 10);
-    return [a, n >= 1 && n <= 50 ? n : 2];
-  }));
+    out[a] = n >= 1 && n <= 50 ? n : 2;
+  }
+  return out;
 }
 
 // Time slots stored on the round, kept sorted and unique

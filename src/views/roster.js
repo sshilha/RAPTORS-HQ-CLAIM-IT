@@ -1,6 +1,6 @@
 const { esc } = require("./layout");
 const { page } = require("./admin");
-const { ACTIVITY_COLORS } = require("../config");
+const { colorFor } = require("../config");
 const { fmtTime } = require("../time");
 const { typeLabel, limitFor, isUnlocked } = require("../rounds");
 
@@ -72,7 +72,7 @@ function addForm(s, { date, athletes }) {
 }
 
 const lockMark = (s) => {
-  const round = { unlock_hours: s.unlock_hours, activity_limits: s.activity_limits, priority_limit: s.priority_limit };
+  const round = { unlock_hours: s.unlock_hours, activity_limits: s.activity_limits, priority_limit: s.priority_limit, schedule_id: s.schedule_id };
   return s.round_id && limitFor(round, s.activity) != null && isUnlocked(s, round) ? ` <span title="Unlocked: open to all athletes">🔓</span>` : "";
 };
 
@@ -101,7 +101,7 @@ function rosterPage({ user, flash, date, sessions, athletes, prev, next }) {
       <h1>Who's signed up</h1>
       <p class="muted tight"><strong>${esc(longDay(date))}</strong>. ${sessions.length ? `${cards.length} session${cards.length === 1 ? "" : "s"}, ${total} spot${total === 1 ? "" : "s"} claimed by ${athleteCount} athlete${athleteCount === 1 ? "" : "s"}.` : "No sessions on this day."}</p>
     </section>
-    ${cards.map((c) => `<section class="panel who-card" id="${c.blocks ? `p${c.program_id}` : `s${c.id}`}" style="--c:${ACTIVITY_COLORS[c.activity] || "#8d9db6"}">
+    ${cards.map((c) => `<section class="panel who-card" id="${c.blocks ? `p${c.program_id}` : `s${c.id}`}" style="--c:${colorFor(c.activity, c.schedule_id)}">
       <div class="who-head">
         <div><h2>${esc(typeLabel(c.activity, c.age_groups))}${c.blocks ? "" : lockMark(c)}</h2>
           <p class="muted tight">${esc(fmtTime(c.starts_at))}–${esc(fmtTime((c.blocks ? c.blocks[c.blocks.length - 1] : c).ends_at))}${c.round_name ? ` · ${esc(c.round_name)}` : ""}${c.location ? ` · ${esc(c.location)}` : ""}${c.coach ? ` · Coach ${esc(c.coach)}` : ""}</p></div>

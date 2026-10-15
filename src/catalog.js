@@ -45,11 +45,12 @@ async function save(next, db = { query }) {
 const current = () => clone(config.CATALOG.current);
 
 // How much data refers to an activity / age group (used to block unsafe removals)
-async function activityUsage(name) {
-  const r = (await query(`SELECT
-      (SELECT count(*)::int FROM programs WHERE activity=$1) AS programs,
-      (SELECT count(*)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id WHERE p.activity=$1) AS sessions`, [name])).rows[0];
-  return r;
+// How much of one schedule's data uses an activity
+async function activityUsage(name, sid) {
+  return (await query(`SELECT
+      (SELECT count(*)::int FROM programs p JOIN rounds r ON r.id=p.round_id WHERE p.activity=$1 AND r.schedule_id=$2) AS programs,
+      (SELECT count(*)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
+         WHERE p.activity=$1 AND r.schedule_id=$2) AS sessions`, [name, sid])).rows[0];
 }
 async function groupUsage(name) {
   return (await query(`SELECT
@@ -64,9 +65,9 @@ async function inTx(fn) {
   finally { c.release(); }
 }
 
-// Rename a JSON key in every round's limits/defaults
-async function renameRoundKeys(db, from, to) {
-  const rounds = (await db.query(`SELECT id, activity_limits, activity_defaults FROM rounds`)).rows;
+// Rename a JSON key in one schedule's rounds' limits/defaults
+async function renameRoundKeys(db, from, to, sid) {
+  const rounds = (await db.query(`SELECT id, activity_limits, activity_defaults FROM rounds WHERE schedule_id=$1`, [sid])).rows;
   for (const r of rounds) {
     const fix = (o) => {
       if (!o || !Object.prototype.hasOwnProperty.call(o, from)) return o;
@@ -84,14 +85,16 @@ async function renamePrograms(db) {
   for (const r of rounds) await R.syncPrograms(db, r);
 }
 
+// Rename/update one schedule's activity; only that schedule's data is touched
 async function renameActivity(from, to, patch) {
+  const sid = patch.schedule_id;
   return inTx(async (db) => {
     const next = current();
-    const a = next.activities.find((x) => x.name === from);
+    const a = next.activities.find((x) => x.name === from && x.schedule_id === sid);
     Object.assign(a, patch, { name: to });
     if (from !== to) {
-      await db.query(`UPDATE programs SET activity=$2 WHERE activity=$1`, [from, to]);
-      await renameRoundKeys(db, from, to);
+      await db.query(`UPDATE programs SET activity=$2 WHERE activity=$1 AND round_id IN (SELECT id FROM rounds WHERE schedule_id=$3)`, [from, to, sid]);
+      await renameRoundKeys(db, from, to, sid);
     }
     await save(next, db);
     if (from !== to) await renamePrograms(db);

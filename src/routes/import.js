@@ -76,7 +76,8 @@ router.post("/preview", wrap(async (req, res) => {
 
   const year = int(b.year);
   const target = await SC.get(int(b.schedule_id)) || (await SC.all())[0];
-  const { sessions, warnings } = parseSchedule(text, { year: year && year > 2000 ? year : undefined, groups: SC.groupsFor(target) });
+  const { sessions, warnings } = parseSchedule(text, { year: year && year > 2000 ? year : undefined,
+    groups: SC.groupsFor(target), activities: SC.entriesFor(target) });
   if (!sessions.length) return res.send(v.uploadPage({ user: req.user, v: b, schedules: await SC.all(), seasons: await openSeasons(),
     flash: { err: "No sessions found. Lines should look like 6-7:30pm-Hitting-12/14/16/18U, under a date like November 4." } }));
 
@@ -101,7 +102,7 @@ router.post("/commit", wrap(async (req, res) => {
   const picked = new Set([].concat(req.body.row || []).map(String));
   const rows = (payload.rows || []).filter((r) =>
     picked.has(String(r.i)) && isDate(r.date) && isTime(r.start) && isTime(r.end) && r.end > r.start &&
-    ACTIVITIES.includes(r.activity) && Array.isArray(r.ages) && r.ages.length && r.ages.every((a) => AGE_GROUPS.includes(a)));
+    typeof r.activity === "string" && r.activity.length < 60 && Array.isArray(r.ages) && r.ages.every((a) => AGE_GROUPS.includes(a)));
   if (!rows.length) return go(res, "/admin/import", { err: "No sessions were selected." });
   if (!(await seasonOpen(settings.season_id))) return go(res, "/admin/import", { err: "That season is completed. Pick an open season." });
 

@@ -68,7 +68,8 @@ router.post("/", wrap(async (req, res) => {
     return (await db.query(
       `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits, schedule_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE((SELECT schedule_id FROM seasons WHERE id=$4), $8, (SELECT min(id) FROM schedules))) RETURNING id`,
-      [name, s, e, seasonId, require("../config").LOCATIONS[0] || null, JSON.stringify(R.readDefaults({})), JSON.stringify(R.defaultLimits()),
+      [name, s, e, seasonId, require("../config").LOCATIONS[0] || null, "{}",
+       JSON.stringify(R.defaultLimits(await require("../schedules").get(int(req.body.schedule_id) || (seasonId && (await require("../schedules").forSeason(seasonId) || {}).id)) || null)),
        int(req.body.schedule_id) || null])).rows[0].id;
   });
   const L = require("../schedules").labels(await require("../schedules").forRound(id));
@@ -95,6 +96,8 @@ router.get("/:id", wrap(async (req, res) => {
      FROM training_sessions s JOIN programs p ON p.id=s.program_id
      WHERE p.round_id=$1 AND s.canceled_at IS NULL ORDER BY s.starts_at, p.activity`, [round.id])).rows;
   const season = round.season_id ? (await query(`SELECT * FROM seasons WHERE id=$1`, [round.season_id])).rows[0] : null;
+  const own = await require("../schedules").forRound(round.id);
+  if (own) req.user.sched = { ...req.sched, sc: own }; // tabs follow this round's schedule
   res.send(v.builderPage({ user: req.user, flash: flashFrom(req), round, types, sessions, last: req.query,
     season, seasons: (await openSeasons()).filter((x) => x.schedule_id === round.schedule_id), readonly: !!season?.completed_at,
     schedule: await require("../schedules").forRound(round.id) }));
@@ -175,10 +178,10 @@ router.post("/:id/slots/remove", wrap(async (req, res) => {
 }));
 
 // ---------- session definitions (activity + group + spots) ----------
-function readType(b, groups) {
-  const activity = ACTIVITIES.includes(b.activity) ? b.activity : null;
+function readType(b, groups, sid) {
+  const activity = require("../schedules").activitiesFor(sid ? { id: sid } : null).includes(b.activity) ? b.activity : null;
   let ages = [].concat(b.ages || []).filter((g) => groups.includes(g));
-  if (activity && !ages.length && ALL_AGES_ACTIVITIES.includes(activity)) ages = [...groups];
+  if (activity && !ages.length && require("../config").metaFor(activity, sid).all_ages) ages = [...groups];
   const spots = int(b.spots);
   return { activity, ages, spots: spots && spots <= 200 ? spots : null, coach: str(b.coach) || null, block: R.cleanBlock(b.block),
     waitlist: R.readWaitlist(b.waitlist) };
@@ -189,7 +192,7 @@ router.post("/:id/types", wrap(async (req, res) => {
   const rr = await getRound(id);
   const sc = await require("../schedules").forRound(id);
   const groups = require("../schedules").groupsFor(sc);
-  const t = readType(req.body, groups);
+  const t = readType(req.body, groups, sc && sc.id);
   const openSheet = rr && rr.signup_mode !== "roster";
   if (t.activity && !t.ages.length && openSheet) t.ages = [...groups]; // open sheets: groups optional
   if (!t.activity || !t.spots || (!t.ages.length && !(openSheet || !groups.length))) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Choose what it is, at least one group, and the number of spots." });

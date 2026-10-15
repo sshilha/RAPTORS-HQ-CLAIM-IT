@@ -28,7 +28,9 @@ const localDate = (ts) => inputParts(ts).date;
 // Are there sheets open to signed-in families (so a parent could sign themselves up)?
 const openSheetsExist = async () => (await query(
   `SELECT 1 FROM rounds r LEFT JOIN seasons se ON se.id=r.season_id
-   WHERE r.signup_mode IN ('family','public') AND r.published_at IS NOT NULL AND se.completed_at IS NULL AND r.ends_on >= CURRENT_DATE LIMIT 1`)).rowCount > 0;
+   JOIN schedules sc ON sc.id=r.schedule_id
+   WHERE r.signup_mode IN ('family','public') AND r.published_at IS NOT NULL AND se.completed_at IS NULL AND sc.archived_at IS NULL
+     AND r.ends_on >= CURRENT_DATE LIMIT 1`)).rowCount > 0;
 
 router.post("/me", wrap(async (req, res) => {
   const first = str(req.body.first_name).slice(0, 40), last = str(req.body.last_name).slice(0, 40);

@@ -35,7 +35,7 @@ function parseProgram(b) {
 const programParams = (p) => [p.name, p.activity, p.age_groups, p.description, p.priority_limit,
   p.priority_ends_at, p.booking_opens_at, p.cancel_hours];
 
-router.get("/", (req, res) => res.redirect("/admin/setup"));
+router.get("/", (req, res) => res.redirect("/admin/settings"));
 
 // Completed seasons are read-only
 const lockGuard = (check, back) => wrap(async (req, res, next) => {
@@ -133,6 +133,8 @@ router.get("/sessions/:id", wrap(async (req, res) => {
      FROM reservations r JOIN athletes a ON a.id=r.athlete_id
      WHERE r.session_id=$1 AND r.status<>'canceled' ORDER BY r.created_at, r.id`, [session.id])).rows;
   const round = program.round_id ? (await query(`SELECT * FROM rounds WHERE id=$1`, [program.round_id])).rows[0] : null;
+  const own = round && await require("../schedules").get(round.schedule_id);
+  if (own) req.user.sched = { ...req.sched, sc: own };
   res.send(v.sessionPage(view(req, { session, program, round, readonly: await locks.sessionLocked(session.id),
     confirmed: roster.filter((r) => r.status === "confirmed"),
     waitlist: roster.filter((r) => r.status === "waitlisted") })));

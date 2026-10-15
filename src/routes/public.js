@@ -12,11 +12,11 @@ const router = express.Router();
 
 async function sheet(token) {
   return (await query(
-    `SELECT r.*, sc.labels AS schedule_labels, sc.name AS schedule_name, se.completed_at AS season_done
+    `SELECT r.*, sc.labels AS schedule_labels, sc.name AS schedule_name, se.completed_at AS season_done, sc.archived_at AS schedule_archived
      FROM rounds r LEFT JOIN schedules sc ON sc.id=r.schedule_id LEFT JOIN seasons se ON se.id=r.season_id
      WHERE r.share_token=$1`, [token])).rows[0];
 }
-const usable = (r) => r && r.signup_mode === "public" && r.published_at && !r.season_done;
+const usable = (r) => r && r.signup_mode === "public" && r.published_at && !r.season_done && !r.schedule_archived;
 
 async function slots(roundId) {
   const rows = (await query(

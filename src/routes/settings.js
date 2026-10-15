@@ -16,7 +16,7 @@ const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 const COLORS = ["#93c47d", "#7fa7d9", "#f6cf55", "#d0503f", "#9a85cc", "#5fb3b3", "#e69a4a", "#c27ba0", "#8d9db6", "#6aa84f"];
 const acts = (sc) => `/admin/settings/activities?s=${sc.id}`;
 const grps = (sc, anchor = "") => `/admin/settings/groups?s=${sc.id}${anchor}`;
-const app = (anchor) => `/admin/settings#${anchor}`;
+const app = (anchor) => `/admin/settings/app#${anchor}`;
 
 function readActivity(b) {
   const spots = int(b.default_spots), block = int(b.default_block), limit = int(b.default_limit);
@@ -30,17 +30,37 @@ function readActivity(b) {
     active: !b.hidden,
   };
 }
-const ownerName = async (id) => ((await SC.get(id)) || {}).name || "another schedule";
+
+// ---------- Settings home: active schedules ----------
+const { query } = require("../db");
+router.get("/", wrap(async (req, res) => {
+  const rows = (await query(`SELECT sc.*,
+      (SELECT count(*)::int FROM seasons s WHERE s.schedule_id=sc.id AND s.completed_at IS NULL) AS open_top,
+      (SELECT count(*)::int FROM rounds r LEFT JOIN seasons s ON s.id=r.season_id WHERE r.schedule_id=sc.id AND s.completed_at IS NULL) AS sheets,
+      (SELECT count(*)::int FROM rounds r LEFT JOIN seasons s ON s.id=r.season_id WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL
+         AND s.completed_at IS NULL AND r.ends_on >= CURRENT_DATE) AS live_sheets,
+      (SELECT count(*)::int FROM schedule_members m WHERE m.schedule_id=sc.id) AS members,
+      (SELECT count(*)::int FROM reservations x JOIN training_sessions t ON t.id=x.session_id JOIN programs p ON p.id=t.program_id
+         JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=sc.id AND x.status='confirmed' AND t.starts_at > now()) AS claimed,
+      (SELECT to_char(min(t.starts_at) AT TIME ZONE 'America/Chicago', 'Dy, Mon FMDD at FMHH12:MI AM') FROM training_sessions t
+         JOIN programs p ON p.id=t.program_id JOIN rounds r ON r.id=p.round_id
+         WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL AND t.canceled_at IS NULL AND t.starts_at > now()) AS next
+    FROM schedules sc ORDER BY sc.sort, sc.id`)).rows;
+  for (const r of rows) { r.live = r.live_sheets > 0 && !r.archived_at; r.activities = SC.activitiesFor(r).length; }
+  res.send(require("../views/home").homePage({ user: req.user, flash: flashFrom(req),
+    active: rows.filter((r) => !r.archived_at), archived: rows.filter((r) => r.archived_at) }));
+}));
 
 // ---------- ⚙ App ----------
-router.get("/", wrap(async (req, res) => res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current() }))));
+router.get("/app", wrap(async (req, res) => res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current() }))));
 
 router.post("/labels", wrap(async (req, res) => {
   const c = catalog.current();
   const b = req.body;
+  const one = clean(b.schedule_one, 24) || "Schedule";
   c.app_labels = { ...(c.app_labels || {}),
     app_name: clean(b.app_name, 40) || "Raptors Claim It", app_short: clean(b.app_short, 20) || clean(b.app_name, 20) || "Claim It",
-    org_name: clean(b.org_name, 60) };
+    org_name: clean(b.org_name, 60), schedule: [one, clean(b.schedule_many, 24) || `${one}s`] };
   await catalog.save(c);
   go(res, app("labels"), { ok: `Saved. The app is now "${c.app_labels.app_name}".` });
 }));
@@ -74,7 +94,7 @@ router.get("/activities", wrap(async (req, res) => {
   const c = catalog.current();
   const list = c.activities.filter((a) => a.schedule_id === sc.id);
   const usage = {};
-  for (const a of list) usage[a.name] = await catalog.activityUsage(a.name);
+  for (const a of list) usage[a.name] = await catalog.activityUsage(a.name, sc.id);
   res.send(v.activitiesPage({ user: req.user, flash: flashFrom(req), sc, list, usage }));
 }));
 
@@ -84,8 +104,8 @@ router.post("/activities", wrap(async (req, res) => {
   const name = clean(req.body.name);
   const L = SC.labels(sc);
   if (!name) return go(res, acts(sc), { err: `Enter a name for the ${L.activity.one.toLowerCase()}.` });
-  const taken = c.activities.find((a) => same(a.name, name));
-  if (taken) return go(res, acts(sc), { err: `"${name}" is already used in ${taken.schedule_id === sc.id ? "this schedule" : await ownerName(taken.schedule_id)}. Names need to be unique across the app.` });
+  // Names only need to be unique within a schedule; other schedules can use the same name
+  if (c.activities.some((a) => a.schedule_id === sc.id && same(a.name, name))) return go(res, acts(sc), { err: `${name} already exists in ${sc.name}.` });
   const a = { name, ...readActivity(req.body), schedule_id: sc.id };
   if (!req.body.color) a.color = COLORS.find((x) => !c.activities.some((y) => y.color === x)) || COLORS[c.activities.length % COLORS.length];
   c.activities.push(a);
@@ -98,7 +118,7 @@ router.post("/activities/update", wrap(async (req, res) => {
   const c = catalog.current();
   const from = str(req.body.original), to = clean(req.body.name) || from;
   if (!c.activities.some((a) => a.name === from && a.schedule_id === sc.id)) return go(res, acts(sc), { err: "Not found in this schedule." });
-  if (!same(from, to) && c.activities.some((a) => same(a.name, to))) return go(res, acts(sc), { err: `"${to}" is already used. Names need to be unique across the app.` });
+  if (!same(from, to) && c.activities.some((a) => a.schedule_id === sc.id && same(a.name, to))) return go(res, acts(sc), { err: `${to} already exists in ${sc.name}.` });
   await catalog.renameActivity(from, to, { ...readActivity(req.body), schedule_id: sc.id });
   go(res, acts(sc), { ok: from === to ? `Saved ${to}.` : `Renamed ${from} to ${to} everywhere it's used.` });
 }));
@@ -122,7 +142,7 @@ router.post("/activities/remove", wrap(async (req, res) => {
   const { sc } = req.sched;
   const c = catalog.current();
   const name = str(req.body.name);
-  const u = await catalog.activityUsage(name);
+  const u = await catalog.activityUsage(name, sc.id);
   if (u.programs) return go(res, acts(sc), { err: `${name} is on ${u.sessions} scheduled time${u.sessions === 1 ? "" : "s"}, so it can't be removed. Hide it instead to stop offering it.` });
   c.activities = c.activities.filter((a) => !(a.name === name && a.schedule_id === sc.id));
   await catalog.save(c);
