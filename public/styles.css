@@ -734,3 +734,18 @@ a.btn-small.secondary { color: var(--navy); }
 .self-card { margin-top: 14px; }
 .bm-short { display: none; }
 @media (max-width: 420px) { .bm-long { display: none; } .bm-short { display: inline; } }
+
+/* ---------- schedule-scoped settings ---------- */
+.sched-tabs .new-pill { border-style: dashed; color: var(--navy-2); }
+.sched-tabs .app-pill { margin-left: auto; }
+.chip-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.chip-filter a { text-decoration: none; font: 700 14px var(--display); text-transform: uppercase; padding: 5px 10px; border-radius: 6px;
+  border: 1.5px solid var(--line); color: var(--navy); background: #fff; }
+.chip-filter a[aria-current="page"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+.inline-group { margin: 0; }
+.inline-group select { width: auto; padding: 6px 8px; font-size: 14px; }
+select[multiple] { padding: 6px; }
+.member-row { flex-direction: row !important; align-items: center; gap: 6px; }
+.add-member { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.add-member .am-name { font: 700 16px var(--display); text-transform: uppercase; color: var(--navy); min-width: 120px; }
+.add-member select { width: auto; padding: 8px; }

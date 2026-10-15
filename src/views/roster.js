@@ -52,15 +52,18 @@ function addForm(s, { date, athletes }) {
   const inIds = new Set([...s.booked, ...s.waiting].map((p) => p.athlete_id));
   const pool = athletes.filter((a) => !inIds.has(a.id));
   if (!pool.length) return "";
-  const fits = pool.filter((a) => s.age_groups.includes(a.age_group));
-  const rest = pool.filter((a) => !s.age_groups.includes(a.age_group));
-  const opt = (a) => `<option value="${a.id}">${esc(a.last_name)}, ${esc(a.first_name)}${a.age_group ? ` (${esc(a.age_group)})` : ""}</option>`;
+  // "fits" = on this schedule's roster, in one of the session's groups
+  const grp = (a) => (a.mem && Object.prototype.hasOwnProperty.call(a.mem, String(s.schedule_id)) ? a.mem[String(s.schedule_id)] : null);
+  const fit = (a) => grp(a) !== null && (!s.age_groups.length || s.age_groups.includes(grp(a)));
+  const fits = pool.filter(fit);
+  const rest = pool.filter((a) => !fit(a));
+  const opt = (a) => `<option value="${a.id}">${esc(a.last_name)}, ${esc(a.first_name)}${grp(a) ? ` (${esc(grp(a))})` : ""}</option>`;
   return `<details class="add-who no-print"><summary>+ Add athlete</summary>
     <form method="post" action="/admin/sessions/${s.id}/add">
       <input type="hidden" name="return_to" value="/admin/day/${date}#s${s.id}">
       <select name="athlete_id" required aria-label="Athlete"><option value="">Choose athlete…</option>
-        ${fits.length ? `<optgroup label="In this session's groups">${fits.map(opt).join("")}</optgroup>` : ""}
-        ${rest.length ? `<optgroup label="Other groups">${rest.map(opt).join("")}</optgroup>` : ""}</select>
+        ${fits.length ? `<optgroup label="On the roster for this">${fits.map(opt).join("")}</optgroup>` : ""}
+        ${rest.length ? `<optgroup label="Everyone else">${rest.map(opt).join("")}</optgroup>` : ""}</select>
       <label class="check"><input type="checkbox" name="over" value="1"> Add anyway if full (adds a spot)</label>
       <button class="btn-small" type="submit">Add</button>
     </form>

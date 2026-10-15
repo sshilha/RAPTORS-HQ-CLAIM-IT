@@ -4,20 +4,31 @@ const { fmtRange, fmtDateTime, inputParts } = require("../time");
 const { priorityActive } = require("../booking");
 const { limitFor, isUnlocked, unlocksAt } = require("../rounds");
 
-// Tabs across the top of every Settings page
-const { LABELS } = require("../config");
-const SETTINGS_TABS = [
-  ["schedule", "/admin/setup", "Schedule", ["setup", "seasons", "rounds", "programs", "import"]],
-  ["athletes", "/admin/athletes", () => esc(LABELS.participants), ["athletes"]],
-  ["lists", "/admin/settings", `<span class="t-long">Activities &amp; groups</span><span class="t-short">Activities</span>`, ["settings"]],
+// Settings navigation: schedule pills (+ New, ⚙ App), then the current schedule's tabs
+const SCHEDULE_TABS = [
+  ["setup", (sc) => `/admin/setup?s=${sc.id}`, () => "Setup", ["setup", "seasons", "rounds", "programs", "import"]],
+  ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, ["members", "athletes"]],
+  ["activities", (sc) => `/admin/settings/activities?s=${sc.id}`, (L) => L.activity.many, ["activities"]],
+  ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => L.group.many, ["groups"]],
+  ["schedule", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => "Schedule settings", ["schedule"]],
 ];
-function settingsTabs(tab) {
-  const cur = SETTINGS_TABS.find((t) => t[3].includes(tab));
-  if (!cur) return "";
-  return `<nav class="settings-tabs no-print" aria-label="Settings">${SETTINGS_TABS.map(([k, href, label]) =>
-    `<a href="${href}"${k === cur[0] ? ' aria-current="page"' : ""}>${typeof label === "function" ? label() : label}</a>`).join("")}</nav>`;
+function settingsNav(tab, user) {
+  const sched = user && user.sched;
+  if (!sched || !sched.sc) return "";
+  const SC = require("../schedules");
+  const L = SC.labels(sched.sc);
+  const appTab = tab === "settings";
+  const cur = SCHEDULE_TABS.find((t) => t[3].includes(tab));
+  if (!cur && !appTab) return "";
+  return `<nav class="sched-tabs no-print" aria-label="Schedules">
+      ${sched.list.map((x) => `<a href="/admin/setup?s=${x.id}"${!appTab && x.id === sched.sc.id ? ' aria-current="page"' : ""}>${esc(x.name)}</a>`).join("")}
+      <a class="new-pill" href="/admin/setup/new">+ New</a>
+      <a class="app-pill" href="/admin/settings"${appTab ? ' aria-current="page"' : ""}>⚙ App</a>
+    </nav>
+    ${appTab ? "" : `<nav class="settings-tabs no-print" aria-label="${esc(sched.sc.name)}">${SCHEDULE_TABS.map(([k, href, label]) =>
+      `<a href="${href(sched.sc)}"${k === cur[0] ? ' aria-current="page"' : ""}>${esc(label(L))}</a>`).join("")}</nav>`}`;
 }
-const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsTabs(opts.tab) + opts.body });
+const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsNav(opts.tab, opts.user) + opts.body });
 
 const ageChecks = (selected = []) => `<fieldset class="checks"><legend>Groups</legend>
   ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="age_groups" value="${g}"${selected.includes(g) ? " checked" : ""}> ${g}</label>`).join("")}
@@ -166,60 +177,58 @@ const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist,
 const ageSelect = (val) => `<select name="age_group" required>
   <option value="">Choose…</option>${AGE_GROUPS.map((g) => `<option${g === val ? " selected" : ""}>${g}</option>`).join("")}</select>`;
 
-const athletesPage = ({ user, athletes, flash }) => page({
-  title: LABELS.participants, tab: "athletes", user, flash,
-  body: `<section class="panel">
-    <h1>${esc(LABELS.participants)}</h1>
-    ${athletes.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>${esc(LABELS.participant)}</th><th>${esc(LABELS.group)}</th><th>Team</th><th>Emails</th></tr></thead>
-      <tbody>${athletes.map((a) => `<tr>
-        <td><a href="/admin/athletes/${a.id}">${esc(a.last_name)}, ${esc(a.first_name)}</a></td>
-        <td>${a.self_user_id ? `<span class="fine">Adult (self)</span>` : esc(a.age_group || "None")}</td><td>${esc(a.team || "")}</td>
-        <td>${a.emails.length ? esc(a.emails.join(", ")) : `<span class="fine">None linked</span>`}</td></tr>`).join("")}</tbody></table></div>`
-      : `<p class="muted">No ${esc(LABELS.participants.toLowerCase())} yet. Add one below.</p>`}
-  </section>
-  <section class="panel">
-    <h2>Add ${esc(LABELS.participant.toLowerCase())}</h2>
-    <form method="post" action="/admin/athletes" class="grid-form">
-      <div><label>First name<input name="first_name" required></label></div>
-      <div><label>Last name<input name="last_name" required></label></div>
-      <div><label>${esc(LABELS.group)}${ageSelect()}</label></div>
-      <div><label>Team (optional)<input name="team" placeholder="12U Shilha"></label></div>
-      <div class="full"><label>Parent emails<input name="parent_emails" placeholder="mom@example.com, dad@example.com"></label>
-        <span class="fine">Separate with commas. Each parent signs in with their own email.</span></div>
-      <div class="full"><button class="btn" type="submit">Add ${esc(LABELS.participant.toLowerCase())}</button></div>
-    </form>
-  </section>`,
-});
-
-const athletePage = ({ user, athlete: a, parents, flash }) => page({
+const athletePage = ({ user, athlete: a, parents, memberships, schedules, claims, flash }) => {
+  const SC = require("../schedules");
+  const notIn = schedules.filter((x) => !memberships.some((m) => m.schedule_id === x.id));
+  const gsel = (sc, val) => `<select name="group"><option value="">No ${esc(SC.labels(sc).group.one.toLowerCase())}</option>
+    ${(sc.groups || []).map((g) => `<option${g === val ? " selected" : ""}>${esc(g)}</option>`).join("")}</select>`;
+  return page({
   title: `${a.first_name} ${a.last_name}`, tab: "athletes", user, flash,
-  body: `<a class="back" href="/admin/athletes">All athletes</a>
+  body: `<a class="back" href="/admin/members?s=${user.sched.sc.id}">${esc(SC.labels(user.sched.sc).participant.many)}</a>
   <section class="panel">
     <h1>${esc(a.first_name)} ${esc(a.last_name)}</h1>
+    <p class="muted tight">${a.self_user_id ? "Adult who signs up themselves. " : ""}${claims} spot${claims === 1 ? "" : "s"} claimed.</p>
     <form method="post" action="/admin/athletes/${a.id}" class="grid-form">
       <div><label>First name<input name="first_name" required value="${esc(a.first_name)}"></label></div>
       <div><label>Last name<input name="last_name" required value="${esc(a.last_name)}"></label></div>
-      <div><label>${esc(LABELS.group)}${ageSelect(a.age_group)}</label></div>
       <div><label>Team (optional)<input name="team" value="${esc(a.team)}"></label></div>
-      <div class="full"><button class="btn" type="submit">Save athlete</button></div>
+      <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
     </form>
-    <h2>Parents</h2>
+  </section>
+
+  <section class="panel">
+    <h2>Schedules</h2>
+    <p class="fine">Which schedules this person can use for "roster only" sign-ups, and their group in each.</p>
+    ${memberships.length ? `<ul class="res-list">${memberships.map((m) => `<li class="res">
+      <div class="res-main"><div class="res-when">${esc(m.name)}</div></div>
+      <div class="res-side member-row">
+        <form method="post" action="/admin/athletes/${a.id}/membership" class="inline-group">
+          <input type="hidden" name="schedule_id" value="${m.schedule_id}">${gsel(m, m.group_name).replace("<select", `<select onchange="this.form.submit()"`)}</form>
+        <form method="post" action="/admin/athletes/${a.id}/membership/${m.schedule_id}/remove"><button class="x" type="submit" aria-label="Remove from ${esc(m.name)}">×</button></form>
+      </div></li>`).join("")}</ul>` : `<p class="muted">Not in any schedule yet.</p>`}
+    ${notIn.length ? `<div class="add-member">${notIn.map((sc) => `<form method="post" action="/admin/athletes/${a.id}/membership" class="inline-add">
+      <input type="hidden" name="schedule_id" value="${sc.id}"><span class="am-name">${esc(sc.name)}</span>${gsel(sc, null)}
+      <button class="btn-ghost" type="submit">Add to ${esc(sc.name)}</button></form>`).join("")}</div>` : ""}
+  </section>
+
+  <section class="panel">
+    <h2>Parent or contact emails</h2>
     ${parents.length ? `<ul class="res-list">${parents.map((u) => `<li class="res">
       <div class="res-main"><div class="res-when">${esc(u.email)}</div>
         <div class="res-what">${u.last_login_at ? `Last signed in ${esc(fmtDateTime(u.last_login_at))}` : "Hasn't signed in yet"}</div></div>
       <div class="res-side"><form method="post" action="/admin/athletes/${a.id}/parents/${u.id}/remove">
         <button class="btn-ghost" type="submit">Unlink</button></form></div></li>`).join("")}</ul>`
-      : `<p class="muted">No parents linked.</p>`}
+      : `<p class="muted">No emails linked.</p>`}
     <form method="post" action="/admin/athletes/${a.id}/parents" class="grid-form">
-      <div><label>Add parent email<input name="email" type="email" required></label></div>
-      <div class="align-end"><button class="btn" type="submit">Link parent</button></div>
+      <div><label>Add email<input name="email" type="email" required></label></div>
+      <div class="align-end"><button class="btn-small" type="submit">Link email</button></div>
     </form>
     <form method="post" action="/admin/athletes/${a.id}/delete" class="inline-end"
-          onsubmit="return confirm('Delete ${esc(a.first_name)} and all of their reservations?')">
-      <button class="btn-ghost danger" type="submit">Delete athlete</button>
+          onsubmit="return confirm('Delete ${esc(a.first_name)} from the whole app, including all of their sign-ups?')">
+      <button class="btn-ghost danger" type="submit">Delete person</button>
     </form>
   </section>`,
-});
+  });
+};
 
-module.exports = { page, programsPage, programPage, sessionPage, athletesPage, athletePage };
+module.exports = { page, programsPage, programPage, sessionPage, athletePage };

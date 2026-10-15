@@ -45,7 +45,9 @@ function where(f, ageScope, params = []) {
   if (f.from) add(`(s.starts_at AT TIME ZONE '${TZ}')::date >= ?::date`, f.from);
   if (f.to) add(`(s.starts_at AT TIME ZONE '${TZ}')::date <= ?::date`, f.to);
   if (f.activity) add("p.activity = ?", f.activity);
-  if (f.age) add(ageScope === "athlete" ? "a.age_group = ?" : "? = ANY(p.age_groups)", f.age);
+  if (f.age) add(ageScope === "athlete"
+    ? "EXISTS (SELECT 1 FROM schedule_members mm WHERE mm.athlete_id=a.id AND mm.schedule_id=rd.schedule_id AND mm.group_name = ?)"
+    : "? = ANY(p.age_groups)", f.age);
   return { sql: w.length ? `AND ${w.join(" AND ")}` : "", params };
 }
 
@@ -110,7 +112,9 @@ const builders = {
     const actCols = ACTIVITIES.map((a) => { params.push(a); return `count(*) FILTER (WHERE x.status='confirmed' AND p.activity=$${params.length})::int AS "a_${a}"`; });
     const { sql } = where(f, "athlete", params);
     const rows = (await query(
-      `SELECT a.id, a.first_name, a.last_name, a.age_group, a.team,
+      `SELECT a.id, a.first_name, a.last_name, a.team,
+         (SELECT string_agg(DISTINCT mm.group_name, ', ') FROM schedule_members mm WHERE mm.athlete_id=a.id
+            AND ($${params.length + 1}::int IS NULL OR mm.schedule_id=$${params.length + 1})) AS age_group,
          ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id ORDER BY u.email) AS emails,
          count(*) FILTER (WHERE x.status='confirmed')::int AS reserved, ${actCols.join(", ")},
          count(*) FILTER (WHERE x.status='waitlisted')::int AS waitlisted,
@@ -118,13 +122,17 @@ const builders = {
        FROM reservations x JOIN athletes a ON a.id=x.athlete_id JOIN training_sessions s ON s.id=x.session_id
        JOIN programs p ON p.id=s.program_id LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
        WHERE s.canceled_at IS NULL ${sql}
-       GROUP BY a.id ORDER BY a.last_name, a.first_name`, params)).rows;
+       GROUP BY a.id ORDER BY a.last_name, a.first_name`, [...params, f.schedule || null])).rows;
     if (f.zero) {
       const have = new Set(rows.map((r) => r.id));
       const extra = (await query(
-        `SELECT a.id, a.first_name, a.last_name, a.age_group, a.team,
+        `SELECT a.id, a.first_name, a.last_name, a.team,
+           (SELECT string_agg(DISTINCT mm.group_name, ', ') FROM schedule_members mm WHERE mm.athlete_id=a.id AND ($1::int IS NULL OR mm.schedule_id=$1)) AS age_group,
            ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id ORDER BY u.email) AS emails
-         FROM athletes a ${f.age ? "WHERE a.age_group=$1" : ""} ORDER BY a.last_name, a.first_name`, f.age ? [f.age] : [])).rows
+         FROM athletes a
+         WHERE ($1::int IS NULL OR EXISTS (SELECT 1 FROM schedule_members mm WHERE mm.athlete_id=a.id AND mm.schedule_id=$1
+           AND ($2 = '' OR mm.group_name=$2)))
+         ORDER BY a.last_name, a.first_name`, [f.schedule || null, f.age || ""])).rows
         .filter((a) => !have.has(a.id))
         .map((a) => ({ ...a, reserved: 0, waitlisted: 0, canceled: 0, ...Object.fromEntries(ACTIVITIES.map((x) => [`a_${x}`, 0])) }));
       rows.push(...extra);
@@ -150,7 +158,8 @@ const builders = {
     if (f.status) { params.push(f.status); statusSql = `AND x.status = $${params.length}`; }
     const rows = (await query(
       `SELECT x.id, x.status, ${DAY} AS day, ${TIME} AS time, rd.name AS round, p.activity, p.age_groups,
-         a.first_name, a.last_name, a.age_group, s.id AS sid,
+         a.first_name, a.last_name, s.id AS sid,
+         (SELECT mm.group_name FROM schedule_members mm WHERE mm.athlete_id=a.id AND mm.schedule_id=rd.schedule_id) AS age_group,
          ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id ORDER BY u.email) AS emails,
          bu.email AS booked_by,
          to_char(x.created_at AT TIME ZONE '${TZ}', 'Mon FMDD, YYYY FMHH12:MI AM') AS booked_at,

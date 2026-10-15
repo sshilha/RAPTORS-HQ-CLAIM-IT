@@ -14,10 +14,18 @@ app.use(auth.loadUser);
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use(require("./routes/auth"));
+// Every admin page knows which schedule you're working in (?s=, else your last one)
+app.use("/admin", async (req, res, next) => {
+  try {
+    if (req.user && auth.isAdmin(req.user)) { req.sched = await require("./schedules").current(req, res); req.user.sched = req.sched; }
+    next();
+  } catch (e) { next(e); }
+});
 app.use("/admin/import", require("./routes/import"));
 app.use("/admin/rounds", require("./routes/rounds"));
 app.use("/admin/seasons", require("./routes/seasons"));
 app.use("/admin/setup", require("./routes/setup"));
+app.use("/admin/members", require("./routes/members"));
 app.use("/admin/settings", require("./routes/settings"));
 app.use("/admin/day", require("./routes/roster"));
 app.use("/admin/reports", require("./routes/reports"));
@@ -37,7 +45,7 @@ async function start() {
   await require("./schedules").ensureDefault(); // existing data becomes the first schedule
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, "0.0.0.0", () => console.log(`Raptors Training running on port ${PORT}`));
+  app.listen(PORT, "0.0.0.0", () => console.log(`${require("./config").LABELS.app_name} running on port ${PORT}`));
 }
 
 module.exports = { app, start };

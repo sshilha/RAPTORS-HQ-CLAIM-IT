@@ -42,7 +42,7 @@ function roundBlock(r, locked, L, acts) {
         ${r.signup_mode === "public" ? shareBox(r) : ""}
       </div>
       <div class="round-limits">
-        <p class="label-like">Limits per ${esc(LABELS.participant.toLowerCase())}</p>
+        <p class="label-like">Limits per ${esc(L.participant.one.toLowerCase())}</p>
         ${limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts })}
       </div>
       <div class="round-grid">
@@ -76,8 +76,8 @@ function roundBlock(r, locked, L, acts) {
 
           ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/types" class="quick-type">${back(anchor)}
             <select name="activity" required aria-label="${esc(L.activity.one)}"><option value="">${esc(L.activity.one)}…</option>${acts.map((a) => `<option>${esc(a)}</option>`).join("")}</select>
-            <span class="ages">${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${g}"> ${g}</label>`).join("")}
-              ${PRESETS.map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}</span>
+            <span class="ages">${SC.groupsFor(CUR).map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}
+              ${SC.presetsFor(CUR).map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}</span>
             <input type="number" name="spots" min="1" max="200" required placeholder="Spots" aria-label="Spots" class="spots-in">
             ${blockSelect("block", null, 'aria-label="Split into blocks" class="block-in"')}
             ${waitlistSelect(null, r, 'aria-label="Waitlist" class="block-in"')}
@@ -91,7 +91,7 @@ function roundBlock(r, locked, L, acts) {
 }
 
 function newRoundForm(seasonId, allRounds, first, L) {
-  return `<details class="add-round" id="${first ? "round-new" : `new-round-${seasonId}`}"><summary>Add a ${esc(L.middle.one.toLowerCase())}</summary>
+  return `<details class="add-round" id="${first ? "round-new" : `new-round-${seasonId}`}"><summary>Add ${esc(SC.an(L.middle.one))}</summary>
     <form method="post" action="/admin/rounds" class="inline-add wrap">
       <input type="hidden" name="return_to" value="${home()}#round-{id}">
       <input type="hidden" name="season_id" value="${seasonId || ""}">
@@ -126,31 +126,58 @@ function seasonBlock(s, rounds, allRounds, first, L, acts) {
   </section>`;
 }
 
-function scheduleSettings(sc, L) {
-  const offered = SC.activitiesFor(sc);
-  return `<details class="add-round sched-settings" id="schedule-settings"><summary>Schedule settings: name, level names, and what it offers</summary>
-    <form method="post" action="/admin/setup/schedules/${sc.id}" class="sched-form">
-      <label class="w-wide">Schedule name<input name="name" required value="${esc(sc.name)}" maxlength="40"></label>
-      <div class="table-wrap"><table class="levels">
-        <thead><tr><th>Level</th><th>What it is</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
-        <tbody>${SC.LEVELS.map(([k, name, def, ex]) => `<tr>
-          <td><strong>${esc(name)}</strong></td><td class="def">${esc(def)}<div class="fine">e.g. ${esc(ex)}</div></td>
-          <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required aria-label="${esc(name)} singular"></td>
-          <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required aria-label="${esc(name)} plural"></td></tr>`).join("")}
-        </tbody></table></div>
-      <fieldset class="checks"><legend>${esc(L.activity.many)} this schedule offers</legend>
-        ${ACTIVE_ACTIVITIES.map((a) => `<label class="check"><input type="checkbox" name="acts" value="${esc(a)}"${offered.includes(a) ? " checked" : ""}> ${esc(a)}</label>`).join("")}
-        <span class="fine">Add new ones under Activities &amp; groups.</span>
-      </fieldset>
-      <div class="sched-actions"><button class="btn-small" type="submit">Save schedule</button></div>
-    </form>
-    <form method="post" action="/admin/setup/schedules/${sc.id}/delete" class="inline-end" onsubmit="return confirm('Delete the ${esc(sc.name)} schedule?')">
-      <button class="btn-ghost danger" type="submit">Delete schedule</button><span class="fine">Only possible when it has no ${esc(L.top.many.toLowerCase())} or ${esc(L.middle.many.toLowerCase())}.</span>
-    </form>
-  </details>`;
+function scheduleSettingsPage({ user, flash, sc, counts }) {
+  const L = SC.labels(sc);
+  return page({
+    title: `Schedule settings · ${sc.name}`, tab: "schedule", user, flash,
+    body: `<section class="panel">
+      <h1>Schedule settings</h1>
+      <p class="muted tight">What ${esc(sc.name)} is called, and what it calls each level.</p>
+      <form method="post" action="/admin/setup/schedules/${sc.id}?s=${sc.id}" class="sched-form">
+        <label class="w-wide">Schedule name<input name="name" required value="${esc(sc.name)}" maxlength="40"></label>
+        <div class="table-wrap"><table class="levels">
+          <thead><tr><th>Level</th><th>What it is</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
+          <tbody>${SC.LEVELS.map(([k, name, def, ex]) => `<tr>
+            <td><strong>${esc(name)}</strong></td><td class="def">${esc(def)}<div class="fine">e.g. ${esc(ex)}</div></td>
+            <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required aria-label="${esc(name)} singular"></td>
+            <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required aria-label="${esc(name)} plural"></td></tr>`).join("")}
+          </tbody></table></div>
+        <div class="sched-actions"><button class="btn-small" type="submit">Save</button></div>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>Delete this schedule</h2>
+      <p class="muted">${counts.items ? `It has ${counts.items} ${esc(L.top.many.toLowerCase())}/${esc(L.middle.many.toLowerCase())}, so it can't be deleted until those are removed.` : `It's empty, so it can be deleted. ${counts.members ? `Its ${counts.members} ${esc(L.participant.many.toLowerCase())} stay in the app.` : ""}`}</p>
+      <form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete the ${esc(sc.name)} schedule?')">
+        <button class="btn-ghost danger" type="submit"${counts.items ? " disabled" : ""}>Delete ${esc(sc.name)}</button></form>
+    </section>`,
+  });
 }
 
-function setupPage({ user, flash, schedules, schedule: sc, seasons, rounds, standalone }) {
+function newSchedulePage({ user, flash, schedules }) {
+  const PRE = SC.PRESET_LABELS;
+  const line = (l) => `${l.top[0]} › ${l.middle[0]} › ${l.activity[0]} › ${l.slot[0]} · ${l.participant[1]} in ${l.group[1]}`;
+  return page({
+    title: "New schedule", tab: "setup", user, flash,
+    body: `<section class="panel">
+      <h1>New schedule</h1>
+      <p class="lede">A schedule is its own sign-up space with its own ${"activities, groups, people, and calendar"}, like Training or Concessions. Start with a name and a naming style; you can rename every level afterward.</p>
+      <form method="post" action="/admin/setup/schedules" class="stack">
+        <label>Name<input name="name" required maxlength="40" placeholder="e.g. Concessions"></label>
+        <fieldset class="checks stack-list"><legend>Naming style</legend>
+          ${[["training", "Training"], ["volunteer", "Volunteer shifts"], ["weekly", "Weekly sign-ups"]].map(([k, t], i) =>
+            `<label class="mode-opt"><input type="radio" name="preset" value="${k}"${i === 0 ? " checked" : ""}><span><b>${t}</b><span class="fine">${esc(line(PRE[k]))}</span></span></label>`).join("")}
+        </fieldset>
+        ${schedules.length ? `<label>Copy groups and shortcuts from<select name="copy_groups"><option value="">Nothing (start empty)</option>
+          ${schedules.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></label>` : ""}
+        <button class="btn" type="submit">Create schedule</button>
+      </form>
+      <p class="fine">Next you'll add its ${"activities, groups, and people"}, then set up the calendar.</p>
+    </section>`,
+  });
+}
+
+function setupPage({ user, flash, schedule: sc, seasons, rounds, standalone }) {
   CUR = sc;
   const L = SC.labels(sc);
   const acts = SC.activitiesFor(sc, { activeOnly: true });
@@ -160,33 +187,20 @@ function setupPage({ user, flash, schedules, schedule: sc, seasons, rounds, stan
   const allRounds = [...rounds].reverse();
   return page({
     title: sc.name, tab: "setup", user, flash, xwide: true,
-    body: `<nav class="sched-tabs" aria-label="Schedules">
-      ${schedules.map((x) => `<a href="/admin/setup?s=${x.id}"${x.id === sc.id ? ' aria-current="page"' : ""}>${esc(x.name)}</a>`).join("")}
-      <details class="new-sched"><summary>+ New schedule</summary>
-        <form method="post" action="/admin/setup/schedules" class="inline-add">
-          <label>Name<input name="name" required maxlength="40" placeholder="e.g. Concessions"></label>
-          <label>Start with<select name="preset">
-            <option value="training">Season › Round › Activity › Session</option>
-            <option value="volunteer">Term › Event › Role › Shift</option>
-            <option value="weekly">Year › Week › Activity › Slot</option></select></label>
-          <button class="btn-small" type="submit">Create</button></form>
-        <p class="fine">You can rename every level afterward.</p></details>
-    </nav>
-    <section class="panel">
+    body: `<section class="panel">
       <div class="athlete-head">
         <div><h1>${esc(sc.name)}</h1>
-          <p class="muted tight">${esc(L.top.one)} › ${esc(L.middle.one)} › ${esc(L.activity.one)} › ${esc(L.slot.one)}. Open a ${esc(L.middle.one.toLowerCase())}'s calendar to put ${esc(L.slot.many.toLowerCase())} on days.</p></div>
+          <p class="muted tight">${esc(L.top.one)} › ${esc(L.middle.one)} › ${esc(L.activity.one)} › ${esc(L.slot.one)}. Open ${esc(SC.an(L.middle.one))}'s calendar to put ${esc(L.slot.many.toLowerCase())} on days.</p></div>
         <div class="head-actions"><a class="btn-small" href="/admin/import?s=${sc.id}">Import vendor schedule</a></div>
       </div>
-      ${scheduleSettings(sc, L)}
     </section>
 
     ${open.length ? open.map((s, i) => seasonBlock(s, rounds.filter((r) => r.season_id === s.id), allRounds, i === 0, L, acts)).join("")
       : `<section class="panel"><p class="rule">No open ${esc(L.top.one.toLowerCase())}. Open one below to get started.</p></section>`}
 
     ${loose.length ? `<section class="panel" id="season-none">
-      <h2 class="season-title">${esc(L.middle.many)} not in a ${esc(L.top.one.toLowerCase())}</h2>
-      <p class="muted tight">Add these to a ${esc(L.top.one.toLowerCase())} from its Settings page.</p>
+      <h2 class="season-title">${esc(L.middle.many)} not in ${esc(SC.an(L.top.one))}</h2>
+      <p class="muted tight">Add these to ${esc(SC.an(L.top.one))} from its Settings page.</p>
       <div class="rounds">${loose.map((r) => roundBlock(r, false, L, acts)).join("")}</div>
     </section>` : ""}
 
@@ -251,4 +265,4 @@ function setupPage({ user, flash, schedules, schedule: sc, seasons, rounds, stan
   });
 }
 
-module.exports = { setupPage };
+module.exports = { setupPage, scheduleSettingsPage, newSchedulePage };

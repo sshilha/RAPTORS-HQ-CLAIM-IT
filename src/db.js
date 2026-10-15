@@ -162,6 +162,18 @@ async function migrate() {
     -- A participant can be an adult signing up themselves (linked to their own login)
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS self_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
     CREATE UNIQUE INDEX IF NOT EXISTS uq_self_participant ON athletes(self_user_id) WHERE self_user_id IS NOT NULL;
+
+    -- Each schedule has its own groups, group shortcuts, and members (people who can use it)
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS groups TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS presets JSONB NOT NULL DEFAULT '[]';
+    CREATE TABLE IF NOT EXISTS schedule_members (
+      schedule_id INTEGER NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+      athlete_id  INTEGER NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+      group_name  TEXT,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (schedule_id, athlete_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_members_athlete ON schedule_members(athlete_id);
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS waitlist BOOLEAN;
     -- Spots taken from unlocked sessions don't use up an athlete's limit
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS counts_toward_limit BOOLEAN NOT NULL DEFAULT true;

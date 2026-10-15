@@ -9,7 +9,7 @@ function flashHtml(flash = {}) {
 }
 
 // Everything that lives under Settings in the bottom nav
-const SETTINGS_AREA = ["setup", "seasons", "rounds", "programs", "import", "athletes", "settings"];
+const SETTINGS_AREA = ["setup", "seasons", "rounds", "programs", "import", "athletes", "members", "activities", "groups", "schedule", "settings"];
 
 function head(title) {
   return `<!DOCTYPE html>

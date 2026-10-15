@@ -42,7 +42,8 @@ function times(sh, sm, ss, eh, em, es) {
 }
 
 
-function parseSchedule(text, { year } = {}) {
+function parseSchedule(text, { year, groups } = {}) {
+  const GROUPS = groups && groups.length ? groups : AGE_GROUPS;
   const lines = String(text || "").replace(/\r/g, "").split("\n");
   const sessions = [];
   const warnings = [];
@@ -72,14 +73,14 @@ function parseSchedule(text, { year } = {}) {
       let ages = m[8] ? m[8].split("/").map((n) => `${parseInt(n, 10)}U`) : [];
       if (activity && !ages.length) {
         if (!ALL_AGES_ACTIVITIES.includes(activity)) { warnings.push(`${curDate.label}: skipped "${line}" (no age group)`); continue; }
-        ages = [...AGE_GROUPS];
+        ages = [...GROUPS];
       }
-      const badAges = ages.filter((a) => !AGE_GROUPS.includes(a));
+      const badAges = ages.filter((a) => !GROUPS.includes(a));
       const t = times(+m[1], +(m[2] || 0), m[3], +m[4], +(m[5] || 0), m[6]);
       if (!activity) { warnings.push(`${curDate.label}: unknown activity in "${line}"`); continue; }
       if (badAges.length) { warnings.push(`${curDate.label}: unknown age group ${badAges.join(", ")} in "${line}"`); continue; }
       if (!t) { warnings.push(`${curDate.label}: couldn't read the times in "${line}"`); continue; }
-      const sorted = AGE_GROUPS.filter((g) => ages.includes(g));
+      const sorted = GROUPS.filter((g) => ages.includes(g));
       sessions.push({
         date: curDate.iso, start: t.start, end: t.end, activity, ages: sorted, round,
         program: programName(round ? `Round ${round}` : "Imported", activity, sorted),

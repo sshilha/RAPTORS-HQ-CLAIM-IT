@@ -22,102 +22,33 @@ function activityFields(a = {}, id) {
     <td><input${f} name="aliases" value="${esc((a.aliases || []).join(", "))}" aria-label="Import codes" class="w-alias" placeholder="e.g. D"></td>`;
 }
 
-function settingsPage({ user, flash, c, usage }) {
-  const acts = c.activities;
+const SC = require("../schedules");
+const intro = (sc, what, text) => `<section class="panel"><h1>${esc(what)}</h1><p class="muted tight">${text}</p></section>`;
+
+function activitiesPage({ user, flash, sc, list, usage }) {
+  const L = SC.labels(sc);
+  const q = `?s=${sc.id}`;
   return page({
-    title: "Settings", tab: "settings", user, flash, xwide: true,
-    body: `<section class="panel">
-      <h1>Activities &amp; groups</h1>
-      <p class="muted tight">The building blocks every season uses: what you offer, who it's for, and where. Keep it simple or get as detailed as you like.</p>
-      <nav class="jump"><a href="#labels">Names &amp; labels</a><a href="#activities">Activities</a><a href="#groups">Groups</a><a href="#presets">Group shortcuts</a><a href="#locations">Locations</a><a href="#family">Family view</a></nav>
-    </section>
-
-    <section class="panel" id="labels">
-      <h2 class="banner">Names &amp; labels</h2>
-      <p class="fine">What the whole app calls itself and the people in it. Each schedule names its own levels (like Season › Round) under Schedule.</p>
-      <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
-        <div class="pair"><div><label>App name<input name="app_name" required maxlength="40" value="${esc((c.app_labels || {}).app_name)}" placeholder="Raptors Claim It"></label></div>
-          <div><label>Short name<input name="app_short" maxlength="20" value="${esc((c.app_labels || {}).app_short)}" placeholder="Claim It"></label><span class="fine">Used on small screens.</span></div></div>
-        <div><label>Organization<input name="org_name" maxlength="60" value="${esc((c.app_labels || {}).org_name)}" placeholder="Chippewa Valley Raptors"></label></div>
-        <div class="pair"><div><label>Participant (one)<input name="participant_one" required maxlength="24" value="${esc(((c.app_labels || {}).participant || [])[0])}" placeholder="Athlete"></label></div>
-          <div><label>Participants (many)<input name="participant_many" maxlength="24" value="${esc(((c.app_labels || {}).participant || [])[1])}" placeholder="Athletes"></label></div></div>
-        <div class="pair"><div><label>Group (one)<input name="group_one" required maxlength="24" value="${esc(((c.app_labels || {}).group || [])[0])}" placeholder="Group"></label></div>
-          <div><label>Groups (many)<input name="group_many" maxlength="24" value="${esc(((c.app_labels || {}).group || [])[1])}" placeholder="Groups"></label></div></div>
-        <div class="full"><button class="btn-ghost" type="submit">Save labels</button></div>
-      </form>
-    </section>
-
+    title: `${L.activity.many} · ${sc.name}`, tab: "activities", user, flash, xwide: true,
+    body: `${intro(sc, L.activity.many, `What people can claim in ${esc(sc.name)}. Defaults fill in when you add one to ${esc(SC.an(L.middle.one))}; each ${esc(L.middle.one.toLowerCase())} can still change them. "All groups" makes it open to every ${esc(L.group.one.toLowerCase())} (like Cage Time). Import codes are the short names a vendor schedule uses (e.g. "D" for Defense).`)}
     <section class="panel" id="activities">
-      <h2 class="banner">Activities</h2>
-      <p class="fine">What families can book. Defaults fill in when you add the activity to a round; each round can still change them. "All groups" makes it open to every group (like Cage Time). Import codes are the short names used in the vendor PDF (e.g. "D" for Defense).</p>
       <div class="table-wrap"><table class="settings-table">
-        <thead><tr><th></th><th>Name</th><th>Color</th><th>Spots</th><th>Split into</th><th>Limit per athlete</th><th>Who</th><th>Import codes</th><th>Status</th><th></th></tr></thead>
-        <tbody>${acts.map((a, i) => { const id = `act-${i}`; const u = usage[`a:${a.name}`] || {}; return `<tr class="${a.active ? "" : "struck"}">
-          <td>${moveBtns("/admin/settings/activities/move", a.name, i, acts.length)}</td>
+        <thead><tr><th></th><th>Name</th><th>Color</th><th>Spots</th><th>Split into</th><th>Limit per ${esc(L.participant.one.toLowerCase())}</th><th>Who</th><th>Import codes</th><th>Status</th><th></th></tr></thead>
+        <tbody>${list.map((a, i) => { const id = `act-${i}`; const u = usage[a.name] || {}; return `<tr class="${a.active ? "" : "struck"}">
+          <td>${moveBtns(`/admin/settings/activities/move${q}`, a.name, i, list.length)}</td>
           ${activityFields(a, id)}
           <td><label class="check"><input form="${id}" type="checkbox" name="hidden" value="1"${a.active ? "" : " checked"}> Hidden</label>
-            <div class="fine">${u.sessions ? pl(u.sessions, "session") : "Not used yet"}</div></td>
+            <div class="fine">${u.sessions ? pl(u.sessions, L.slot.one.toLowerCase()) : "Not used yet"}</div></td>
           <td><div class="row-actions">
-            <form id="${id}" method="post" action="/admin/settings/activities/update"><input type="hidden" name="original" value="${esc(a.name)}"><button class="btn-ghost" type="submit">Save</button></form>
-            ${u.programs ? "" : `<form method="post" action="/admin/settings/activities/remove" onsubmit="return confirm('Remove ${esc(a.name)}?')"><input type="hidden" name="name" value="${esc(a.name)}"><button class="x" type="submit" aria-label="Remove">×</button></form>`}
+            <form id="${id}" method="post" action="/admin/settings/activities/update${q}"><input type="hidden" name="original" value="${esc(a.name)}"><button class="btn-ghost" type="submit">Save</button></form>
+            ${u.programs ? "" : `<form method="post" action="/admin/settings/activities/remove${q}" onsubmit="return confirm('Remove ${esc(a.name)}?')"><input type="hidden" name="name" value="${esc(a.name)}"><button class="x" type="submit" aria-label="Remove">×</button></form>`}
           </div></td></tr>`; }).join("")}
           <tr class="add-row"><td></td>${activityFields({}, "act-new")}<td></td>
-            <td><form id="act-new" method="post" action="/admin/settings/activities"><button class="btn-small" type="submit">Add</button></form></td></tr>
+            <td><form id="act-new" method="post" action="/admin/settings/activities${q}"><button class="btn-small" type="submit">Add</button></form></td></tr>
         </tbody></table></div>
-      <p class="fine">Renaming updates every round, session, and limit that uses it. Hidden activities stay on existing sessions and in reports but aren't offered for new ones.</p>
+      ${list.length ? "" : `<p class="muted">No ${esc(L.activity.many.toLowerCase())} yet. Add the first one in the bottom row.</p>`}
+      <p class="fine">Renaming updates every ${esc(L.middle.one.toLowerCase())}, ${esc(L.slot.one.toLowerCase())}, and limit that uses it. Hidden ones stay on existing ${esc(L.slot.many.toLowerCase())} and in reports but aren't offered for new ones.</p>
     </section>
-
-    <div class="settings-2">
-    <section class="panel" id="groups">
-      <h2 class="banner">Groups</h2>
-      <p class="fine">Each athlete belongs to one group. Groups can be ages (10U), levels (Beginner), or anything else.</p>
-      <ul class="list-edit">${c.age_groups.map((g, i) => { const u = usage[`g:${g}`] || {}; return `<li>
-        ${moveBtns("/admin/settings/groups/move", g, i, c.age_groups.length)}
-        <form method="post" action="/admin/settings/groups/rename" class="inline-edit">
-          <input type="hidden" name="original" value="${esc(g)}"><input name="name" value="${esc(g)}" maxlength="30" aria-label="Group name">
-          <button class="btn-ghost" type="submit">Rename</button></form>
-        <span class="fine">${pl(u.athletes || 0, "athlete")}</span>
-        ${u.athletes ? "" : `<form method="post" action="/admin/settings/groups/remove" onsubmit="return confirm('Remove ${esc(g)}?')"><input type="hidden" name="name" value="${esc(g)}"><button class="x" type="submit" aria-label="Remove ${esc(g)}">×</button></form>`}
-      </li>`; }).join("")}</ul>
-      <form method="post" action="/admin/settings/groups" class="inline-add"><label>New group<input name="name" maxlength="30" required placeholder="e.g. 6U or Adult"></label>
-        <button class="btn-small" type="submit">Add group</button></form>
-    </section>
-
-    <section class="panel" id="presets">
-      <h2 class="banner">Group shortcuts</h2>
-      <p class="fine">One-click buttons for picking several groups at once when you add a session.</p>
-      ${c.presets.map((p) => `<form method="post" action="/admin/settings/presets" class="preset-edit">
-        <input type="hidden" name="original" value="${esc(p.name)}">
-        <input name="name" value="${esc(p.name)}" maxlength="30" aria-label="Shortcut name" class="w-name">
-        <span class="ages">${c.age_groups.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"${p.ages.includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("")}</span>
-        <button class="btn-ghost" type="submit">Save</button>
-        <button class="x" type="submit" formaction="/admin/settings/presets/remove" aria-label="Remove shortcut">×</button>
-      </form>`).join("")}
-      <form method="post" action="/admin/settings/presets" class="preset-edit new">
-        <input name="name" maxlength="30" placeholder="New shortcut name" aria-label="New shortcut name" class="w-name" required>
-        <span class="ages">${c.age_groups.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}</span>
-        <button class="btn-small" type="submit">Add</button>
-      </form>
-    </section>
-
-    <section class="panel" id="locations">
-      <h2 class="banner">Locations</h2>
-      <p class="fine">Suggested when you set a round's location. Removing one doesn't change sessions that already use it.</p>
-      <ul class="slot-list">${c.locations.map((l) => `<li><span>${esc(l)}</span>
-        <form method="post" action="/admin/settings/locations/remove"><input type="hidden" name="name" value="${esc(l)}"><button class="x" type="submit" aria-label="Remove ${esc(l)}">×</button></form></li>`).join("")}</ul>
-      <form method="post" action="/admin/settings/locations" class="inline-add"><label>New location<input name="name" maxlength="80" required placeholder="e.g. CVTC Fieldhouse"></label>
-        <button class="btn-small" type="submit">Add location</button></form>
-    </section>
-    <section class="panel" id="family">
-      <h2 class="banner">Family view</h2>
-      <p class="fine">On a day's page, families can see which athletes are going to each session (so friends can sign up together). They never see emails or other contact details.</p>
-      <form method="post" action="/admin/settings/family" class="stack-list checks">
-        ${[["initial", "First name and last initial", "Ava S."], ["full", "Full names", "Ava Smith"], ["off", "Don't show who's going", "Only spots open"]].map(([v, l, ex]) =>
-          `<label class="radio-row"><input type="radio" name="family_names" value="${v}"${(c.family_names || "initial") === v ? " checked" : ""}> ${l} <span class="fine-inline">${ex}</span></label>`).join("")}
-        <div><button class="btn-ghost" type="submit">Save</button></div>
-      </form>
-    </section>
-    </div>
     <script>
     document.querySelectorAll(".lim-unl").forEach(function (c) {
       c.addEventListener("change", function () { c.closest("td").querySelector(".lim-n").disabled = c.checked; });
@@ -126,4 +57,84 @@ function settingsPage({ user, flash, c, usage }) {
   });
 }
 
-module.exports = { settingsPage };
+function groupsPage({ user, flash, sc, usage }) {
+  const L = SC.labels(sc);
+  const q = `?s=${sc.id}`;
+  const groups = SC.groupsFor(sc), presets = SC.presetsFor(sc);
+  return page({
+    title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash,
+    body: `${intro(sc, L.group.many, `How ${esc(sc.name)}'s ${esc(L.participant.many.toLowerCase())} are sorted. ${esc(SC.an(L.group.one).replace(/^a/, "A"))} can be an age (12U), a team, a level, or anything else. "Roster only" sign-ups can be limited to certain ${esc(L.group.many.toLowerCase())}.`)}
+    <div class="settings-2">
+    <section class="panel" id="groups">
+      <h2 class="banner">${esc(L.group.many)}</h2>
+      ${groups.length ? `<ul class="list-edit">${groups.map((g, i) => { const u = usage[g] || {}; return `<li>
+        ${moveBtns(`/admin/settings/groups/move${q}`, g, i, groups.length)}
+        <form method="post" action="/admin/settings/groups/rename${q}" class="inline-edit">
+          <input type="hidden" name="original" value="${esc(g)}"><input name="name" value="${esc(g)}" maxlength="30" aria-label="Name">
+          <button class="btn-ghost" type="submit">Rename</button></form>
+        <span class="fine">${pl(u.members || 0, L.participant.one.toLowerCase())}</span>
+        <form method="post" action="/admin/settings/groups/remove${q}" onsubmit="return confirm('Remove ${esc(g)}?${u.members ? ` ${u.members} will have no ${esc(L.group.one.toLowerCase())}.` : ""}')"><input type="hidden" name="name" value="${esc(g)}"><button class="x" type="submit" aria-label="Remove ${esc(g)}">×</button></form>
+      </li>`; }).join("")}</ul>` : `<p class="muted">None yet.</p>`}
+      <form method="post" action="/admin/settings/groups${q}" class="inline-add"><label>New ${esc(L.group.one.toLowerCase())}<input name="name" maxlength="30" required placeholder="e.g. 12U, Varsity, Adults"></label>
+        <button class="btn-small" type="submit">Add</button></form>
+    </section>
+
+    <section class="panel" id="presets">
+      <h2 class="banner">Shortcuts</h2>
+      <p class="fine">One-click buttons for picking several ${esc(L.group.many.toLowerCase())} at once when you set up ${esc(SC.an(L.middle.one))}.</p>
+      ${presets.map((p) => `<form method="post" action="/admin/settings/presets${q}" class="preset-edit">
+        <input type="hidden" name="original" value="${esc(p.name)}">
+        <input name="name" value="${esc(p.name)}" maxlength="30" aria-label="Shortcut name" class="w-name">
+        <span class="ages">${groups.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"${p.ages.includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("")}</span>
+        <button class="btn-ghost" type="submit">Save</button>
+        <button class="x" type="submit" formaction="/admin/settings/presets/remove${q}" aria-label="Remove shortcut">×</button>
+      </form>`).join("")}
+      ${groups.length ? `<form method="post" action="/admin/settings/presets${q}" class="preset-edit new">
+        <input name="name" maxlength="30" placeholder="New shortcut name" aria-label="New shortcut name" class="w-name" required>
+        <span class="ages">${groups.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}</span>
+        <button class="btn-small" type="submit">Add</button>
+      </form>` : `<p class="muted">Add ${esc(L.group.many.toLowerCase())} first.</p>`}
+    </section>
+    </div>`,
+  });
+}
+
+function appPage({ user, flash, c }) {
+  const al = c.app_labels || {};
+  return page({
+    title: "App settings", tab: "settings", user, flash,
+    body: `<section class="panel"><h1>App settings</h1>
+      <p class="muted tight">Things that apply to every schedule. Each schedule's own ${"activities, groups, people, and level names"} live under its tabs.</p>
+      <nav class="jump"><a href="#labels">Name</a><a href="#locations">Locations</a><a href="#family">Family view</a></nav></section>
+    <section class="panel" id="labels">
+      <h2 class="banner">App name</h2>
+      <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
+        <div><label>App name<input name="app_name" required maxlength="40" value="${esc(al.app_name)}" placeholder="Raptors Claim It"></label></div>
+        <div><label>Short name<input name="app_short" maxlength="20" value="${esc(al.app_short)}" placeholder="Claim It"></label><span class="fine">Used on small screens.</span></div>
+        <div class="full"><label>Organization<input name="org_name" maxlength="60" value="${esc(al.org_name)}" placeholder="Chippewa Valley Raptors"></label></div>
+        <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
+      </form>
+    </section>
+    <div class="settings-2">
+    <section class="panel" id="locations">
+      <h2 class="banner">Locations</h2>
+      <p class="fine">Suggested when you set a location. Removing one doesn't change anything that already uses it.</p>
+      <ul class="slot-list">${c.locations.map((l) => `<li><span>${esc(l)}</span>
+        <form method="post" action="/admin/settings/locations/remove"><input type="hidden" name="name" value="${esc(l)}"><button class="x" type="submit" aria-label="Remove ${esc(l)}">×</button></form></li>`).join("")}</ul>
+      <form method="post" action="/admin/settings/locations" class="inline-add"><label>New location<input name="name" maxlength="80" required placeholder="e.g. CVTC Fieldhouse"></label>
+        <button class="btn-small" type="submit">Add</button></form>
+    </section>
+    <section class="panel" id="family">
+      <h2 class="banner">Family view</h2>
+      <p class="fine">On a day's page, families can see who's going to each time, so friends can claim spots together. They never see emails or other contact details.</p>
+      <form method="post" action="/admin/settings/family" class="stack-list checks">
+        ${[["initial", "First name and last initial", "Ava S."], ["full", "Full names", "Ava Smith"], ["off", "Don't show who's going", "Only spots open"]].map(([k, l, ex]) =>
+          `<label class="radio-row"><input type="radio" name="family_names" value="${k}"${(c.family_names || "initial") === k ? " checked" : ""}> ${l} <span class="fine-inline">${ex}</span></label>`).join("")}
+        <div><button class="btn-ghost" type="submit">Save</button></div>
+      </form>
+    </section>
+    </div>`,
+  });
+}
+
+module.exports = { activitiesPage, groupsPage, appPage };

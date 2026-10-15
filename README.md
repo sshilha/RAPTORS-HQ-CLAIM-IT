@@ -20,6 +20,21 @@ names its own levels under Settings → Schedule → Schedule settings:
 Each schedule also picks which types (activities/roles) it offers. App-wide names (app,
 organization, participant, group) are under Settings → Activities & groups → Names & labels.
 
+## Settings layout
+
+Settings starts with your schedules (pills across the top, **+ New** to create one, **⚙ App**
+for app-wide settings). Each schedule has its own tabs:
+
+- **Setup:** top levels, sheets, times, calendar, import.
+- **Participants** (named per schedule, e.g. Athletes / Volunteers): who can use the schedule's
+  "roster only" sign-ups, and their group there. A person exists once in the app (one login,
+  linked emails) and can belong to several schedules with a different group in each.
+- **Activities** (e.g. Roles): the schedule's own types. Names are unique across the app.
+- **Groups** (e.g. Teams): the schedule's own groups and shortcuts.
+- **Schedule settings:** name and the words for every level, participant, and group.
+
+**⚙ App:** app name and short name, organization, locations, family view.
+
 ## Who signs up (per sheet)
 
 - **Roster only:** linked participants in the sheet's groups (how training works).

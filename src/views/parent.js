@@ -57,7 +57,7 @@ function athleteTabs(athletes, current, hrefFor) {
   if (athletes.length < 2) return "";
   // (adults signing up themselves show as "Me")
   return `<nav class="ath-tabs" aria-label="${esc(LABELS.participants)}">${athletes.map((a) =>
-    `<a href="${hrefFor(a)}"${a.id === current.id ? ' aria-current="page"' : ""}>${a.self_user_id ? "Me" : esc(a.first_name)}${a.age_group ? ` <span>${esc(a.age_group)}</span>` : ""}</a>`).join("")}</nav>`;
+    `<a href="${hrefFor(a)}"${a.id === current.id ? ' aria-current="page"' : ""}>${a.self_user_id ? "Me" : esc(a.first_name)}${(a.groups || []).length ? ` <span>${esc(a.groups.join(", "))}</span>` : ""}</a>`).join("")}</nav>`;
 }
 
 // ---------- calendar (My Training) ----------
@@ -131,8 +131,8 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
     body: `${athleteTabs(athletes, athlete, (a) => `/dashboard?a=${a.id}&m=${month}`)}
     <section class="panel athlete">
       <div class="athlete-head"><h1>${esc(athlete.first_name)} ${esc(athlete.last_name)}</h1>
-        ${athlete.age_group ? `<span class="chip">${esc(athlete.age_group)}</span>` : ""}</div>
-      ${!athlete.age_group && !athlete.self_user_id && !programs.length ? `<p class="muted">${esc(athlete.first_name)} doesn't have a ${esc(LABELS.group.toLowerCase())} yet, so nothing is shown. Contact us to fix this.</p>` : `
+        ${(athlete.groups || []).length ? `<span class="chip">${esc(athlete.groups.join(", "))}</span>` : ""}</div>
+      ${!athlete.on_roster && !athlete.self_user_id && !programs.length ? `<p class="muted">${esc(athlete.first_name)} isn't on a schedule's roster yet, so nothing is shown. Contact us to fix this.</p>` : `
       ${usagePanel(programs)}
       <div class="month-head">
         ${month > curMonth ? `<a class="month-nav" href="${href(shiftMonth(month, -1))}" aria-label="Previous month">‹</a>` : `<span class="month-nav off" aria-hidden="true">‹</span>`}

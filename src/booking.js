@@ -73,7 +73,7 @@ async function reserve({ userId, athleteId, sessionId }) {
     const { rows } = await db.query(
       `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at, p.activity, p.round_id,
               r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours,
-              p.waitlist AS program_waitlist, r.waitlist AS round_waitlist, r.signup_mode,
+              p.waitlist AS program_waitlist, r.waitlist AS round_waitlist, r.signup_mode, r.schedule_id,
               p.booking_opens_at,
               (p.archived OR (p.round_id IS NOT NULL AND r.published_at IS NULL) OR se.completed_at IS NOT NULL) AS archived
        FROM training_sessions s JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id
@@ -88,10 +88,15 @@ async function reserve({ userId, athleteId, sessionId }) {
     if (!bookingOpen(s)) throw new BookingError("Booking for this program hasn't opened yet.");
 
     const a = (await db.query(`SELECT * FROM athletes WHERE id=$1`, [athleteId])).rows[0];
-    // Roster sheets are limited to the session's groups; family and public sheets are open to anyone
+    // Roster sheets: only this schedule's members, in one of the session's groups.
+    // Family and public sheets are open to anyone.
     const openSheet = s.signup_mode === "family" || s.signup_mode === "public";
-    if (!openSheet && (a.self_user_id || !a.age_group || !s.age_groups.includes(a.age_group)))
-      throw new BookingError(`${a.first_name} isn't eligible for ${s.program_name}.`);
+    if (!openSheet) {
+      const m = s.schedule_id ? (await db.query(`SELECT group_name FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [s.schedule_id, athleteId])).rows[0] : null;
+      const group = m ? m.group_name : a.age_group;
+      if (!m && s.schedule_id) throw new BookingError(`${a.first_name} isn't on this schedule's roster.`);
+      if (s.age_groups.length && !s.age_groups.includes(group)) throw new BookingError(`${a.first_name} isn't eligible for ${s.program_name}.`);
+    }
 
     const dup = await db.query(
       `SELECT 1 FROM reservations WHERE session_id=$1 AND athlete_id=$2 AND status<>'canceled'`,
@@ -271,10 +276,13 @@ async function bookingOptions(athlete) {
        r.signup_mode, sc.labels AS schedule_labels, sc.name AS schedule_name
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      LEFT JOIN schedules sc ON sc.id=r.schedule_id
+     LEFT JOIN schedule_members m ON m.schedule_id=r.schedule_id AND m.athlete_id=$3
      WHERE NOT p.archived AND (p.round_id IS NULL OR r.published_at IS NOT NULL) AND se.completed_at IS NULL
-       AND (r.signup_mode IN ('family','public') OR ($1 = ANY(p.age_groups) AND NOT $2::boolean))
+       AND (r.signup_mode IN ('family','public')
+         OR (r.id IS NOT NULL AND m.athlete_id IS NOT NULL AND (cardinality(p.age_groups) = 0 OR m.group_name = ANY(p.age_groups)))
+         OR (r.id IS NULL AND $1 = ANY(p.age_groups) AND NOT $2::boolean))
      ORDER BY r.starts_on NULLS LAST, p.activity, p.name`,
-    [athlete.age_group || "", !!athlete.self_user_id]
+    [athlete.age_group || "", !!athlete.self_user_id, athlete.id]
   )).rows;
   if (!programs.length) return [];
 

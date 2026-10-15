@@ -244,13 +244,8 @@ router.post("/reservations/:id/cancel", wrap(async (req, res) => {
   }
 }));
 
-// ---------- athletes ----------
-function parseAthlete(b) {
-  const a = { first: str(b.first_name), last: str(b.last_name), age: str(b.age_group), team: str(b.team) || null };
-  if (!a.first || !a.last) return { err: "Enter the athlete's first and last name." };
-  if (!AGE_GROUPS.includes(a.age)) return { err: "Choose an age group." };
-  return { a };
-}
+// ---------- people (one record per person; schedules hold their membership + group) ----------
+const SC = require("../schedules");
 
 async function linkParents(athleteId, raw) {
   const emails = String(raw || "").split(/[,;\s]+/).map(auth.normalizeEmail).filter(Boolean);
@@ -262,59 +257,61 @@ async function linkParents(athleteId, raw) {
   return bad;
 }
 
-router.get("/athletes", wrap(async (req, res) => {
-  const athletes = (await query(
-    `SELECT a.*, ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id
-       WHERE pa.athlete_id=a.id ORDER BY u.email) AS emails
-     FROM athletes a ORDER BY a.age_group NULLS FIRST, a.last_name, a.first_name`)).rows;
-  res.send(v.athletesPage(view(req, { athletes })));
-}));
-
-router.post("/athletes", wrap(async (req, res) => {
-  const { a, err } = parseAthlete(req.body);
-  if (err) return go(res, "/admin/athletes", { err });
-  const { rows } = await query(
-    `INSERT INTO athletes (first_name, last_name, age_group, team) VALUES ($1,$2,$3,$4) RETURNING id`,
-    [a.first, a.last, a.age, a.team]);
-  const bad = await linkParents(rows[0].id, req.body.parent_emails);
-  go(res, "/admin/athletes", bad.length
-    ? { err: `Added ${a.first}, but these emails weren't valid: ${bad.join(", ")}` }
-    : { ok: `Added ${a.first} ${a.last}.` });
-}));
+// The list now lives under each schedule's participants tab
+router.get("/athletes", (req, res) => res.redirect(`/admin/members?s=${req.sched.sc.id}`));
 
 router.get("/athletes/:id", wrap(async (req, res) => {
   const athlete = (await query(`SELECT * FROM athletes WHERE id=$1`, [int(req.params.id)])).rows[0];
-  if (!athlete) return go(res, "/admin/athletes", { err: "Athlete not found." });
+  if (!athlete) return go(res, `/admin/members?s=${req.sched.sc.id}`, { err: "Person not found." });
   const parents = (await query(
-    `SELECT u.* FROM users u JOIN parent_athletes pa ON pa.user_id=u.id WHERE pa.athlete_id=$1 ORDER BY u.email`,
-    [athlete.id])).rows;
-  res.send(v.athletePage(view(req, { athlete, parents })));
+    `SELECT u.* FROM users u JOIN parent_athletes pa ON pa.user_id=u.id WHERE pa.athlete_id=$1 ORDER BY u.email`, [athlete.id])).rows;
+  const memberships = (await query(
+    `SELECT m.*, sc.name, sc.labels, sc.groups FROM schedule_members m JOIN schedules sc ON sc.id=m.schedule_id
+     WHERE m.athlete_id=$1 ORDER BY sc.sort, sc.id`, [athlete.id])).rows;
+  const claims = (await query(
+    `SELECT count(*) FILTER (WHERE x.status='confirmed')::int AS claimed FROM reservations x WHERE x.athlete_id=$1`, [athlete.id])).rows[0].claimed;
+  res.send(v.athletePage(view(req, { athlete, parents, memberships, schedules: req.sched.list, claims })));
 }));
 
 router.post("/athletes/:id", wrap(async (req, res) => {
   const id = int(req.params.id);
-  const { a, err } = parseAthlete(req.body);
-  if (err) return go(res, `/admin/athletes/${id}`, { err });
-  await query(`UPDATE athletes SET first_name=$1, last_name=$2, age_group=$3, team=$4 WHERE id=$5`,
-    [a.first, a.last, a.age, a.team, id]);
-  go(res, `/admin/athletes/${id}`, { ok: "Athlete saved." });
+  const first = str(req.body.first_name).slice(0, 40), last = str(req.body.last_name).slice(0, 40);
+  if (!first || !last) return go(res, `/admin/athletes/${id}`, { err: "Enter a first and last name." });
+  await query(`UPDATE athletes SET first_name=$1, last_name=$2, team=$3 WHERE id=$4`, [first, last, str(req.body.team) || null, id]);
+  go(res, `/admin/athletes/${id}`, { ok: "Saved." });
+}));
+
+router.post("/athletes/:id/membership", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const sc = await SC.get(int(req.body.schedule_id));
+  if (!sc) return go(res, `/admin/athletes/${id}`, { err: "Pick a schedule." });
+  const group = SC.groupsFor(sc).includes(str(req.body.group)) ? str(req.body.group) : null;
+  await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name) VALUES ($1,$2,$3)
+    ON CONFLICT (schedule_id, athlete_id) DO UPDATE SET group_name=EXCLUDED.group_name`, [sc.id, id, group]);
+  go(res, `/admin/athletes/${id}`, { ok: `${sc.name}: ${group || "no " + SC.labels(sc).group.one.toLowerCase()}.` });
+}));
+
+router.post("/athletes/:id/membership/:sid/remove", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  await query(`DELETE FROM schedule_members WHERE athlete_id=$1 AND schedule_id=$2`, [id, int(req.params.sid)]);
+  go(res, `/admin/athletes/${id}`, { ok: "Removed from that schedule. Their existing sign-ups are kept." });
 }));
 
 router.post("/athletes/:id/parents", wrap(async (req, res) => {
   const id = int(req.params.id);
   const bad = await linkParents(id, req.body.email);
-  go(res, `/admin/athletes/${id}`, bad.length ? { err: "Enter a valid email." } : { ok: "Parent linked." });
+  go(res, `/admin/athletes/${id}`, bad.length ? { err: "Enter a valid email." } : { ok: "Email linked." });
 }));
 
 router.post("/athletes/:id/parents/:uid/remove", wrap(async (req, res) => {
   const id = int(req.params.id);
   await query(`DELETE FROM parent_athletes WHERE athlete_id=$1 AND user_id=$2`, [id, int(req.params.uid)]);
-  go(res, `/admin/athletes/${id}`, { ok: "Parent unlinked." });
+  go(res, `/admin/athletes/${id}`, { ok: "Email unlinked." });
 }));
 
 router.post("/athletes/:id/delete", wrap(async (req, res) => {
   await query(`DELETE FROM athletes WHERE id=$1`, [int(req.params.id)]);
-  go(res, "/admin/athletes", { ok: "Athlete deleted." });
+  go(res, `/admin/members?s=${req.sched.sc.id}`, { ok: "Deleted from the app, including their sign-ups." });
 }));
 
 module.exports = router;

@@ -20,7 +20,7 @@ const DEFAULT_CATALOG = {
   app_labels: { app_name: "Raptors Claim It", app_short: "Claim It", org_name: "Chippewa Valley Raptors", participant: ["Athlete", "Athletes"], group: ["Group", "Groups"] },
 };
 
-const AGE_GROUPS = [];          // ordered group names
+const AGE_GROUPS = [];          // every group name across all schedules (each schedule has its own list)
 const ACTIVITIES = [];          // every activity name, in display order (active and hidden)
 const ACTIVE_ACTIVITIES = [];   // the ones offered when adding new sessions
 const ACTIVITY_COLORS = {};
@@ -35,9 +35,12 @@ const LABELS = { app_name: "Raptors Claim It", app_short: "Claim It", org_name: 
 const refill = (arr, items) => arr.splice(0, arr.length, ...items);
 const reset = (obj, entries) => { for (const k of Object.keys(obj)) delete obj[k]; Object.assign(obj, Object.fromEntries(entries)); };
 
+// Called by schedules.js whenever any schedule's groups change
+function setAllGroups(list) { refill(AGE_GROUPS, [...new Set(list)]); }
+
 function apply(catalog) {
   CATALOG.current = catalog;
-  refill(AGE_GROUPS, catalog.age_groups);
+  if (!AGE_GROUPS.length) refill(AGE_GROUPS, catalog.age_groups || []);
   refill(ACTIVITIES, catalog.activities.map((a) => a.name));
   refill(ACTIVE_ACTIVITIES, catalog.activities.filter((a) => a.active !== false).map((a) => a.name));
   refill(ALL_AGES_ACTIVITIES, catalog.activities.filter((a) => a.all_ages).map((a) => a.name));
@@ -58,7 +61,7 @@ apply(DEFAULT_CATALOG);
 module.exports = {
   TZ: "America/Chicago",
   AGE_GROUPS, ACTIVITIES, ACTIVE_ACTIVITIES, ACTIVITY_COLORS, ACTIVITY_META, ALL_AGES_ACTIVITIES, PRESETS, LOCATIONS,
-  CATALOG, DEFAULT_CATALOG, FAMILY, LABELS, apply,
+  CATALOG, DEFAULT_CATALOG, FAMILY, LABELS, apply, setAllGroups,
   APP_URL: (() => {
     const u = (process.env.APP_URL || "").trim().replace(/\/$/, "");
     return u && !/^https?:\/\//.test(u) ? `https://${u}` : u; // tolerate a missing https://

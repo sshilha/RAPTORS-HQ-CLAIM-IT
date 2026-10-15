@@ -4,12 +4,14 @@
 const { AGE_GROUPS, ACTIVITIES, ALL_AGES_ACTIVITIES, ACTIVITY_META } = require("./config");
 
 const sortAges = (ages) => AGE_GROUPS.filter((g) => ages.includes(g));
+// Groups are per schedule; labels show the range of the groups chosen ("12U–18U")
 const agesLabel = (ages) => {
-  const a = sortAges(ages);
-  if (a.length === AGE_GROUPS.length) return "All ages";
+  const a = sortAges(ages || []);
+  if (!a.length) return "Everyone";
   return a.length === 1 ? a[0] : `${a[0]}–${a[a.length - 1]}`;
 };
-const isAllAges = (activity, ages) => ALL_AGES_ACTIVITIES.includes(activity) && sortAges(ages).length === AGE_GROUPS.length;
+// "All groups" activities (like Cage Time), and sessions with no group limit, show just the activity name
+const isAllAges = (activity, ages) => ALL_AGES_ACTIVITIES.includes(activity) || !(ages || []).length;
 const typeLabel = (activity, ages) => (isAllAges(activity, ages) ? activity : `${activity} ${agesLabel(ages)}`);
 const programName = (roundName, activity, ages) => `${roundName} ${typeLabel(activity, ages)}`;
 

@@ -6,7 +6,7 @@ const { typeLabel, defaultsFor, isUnlocked, limitFor } = require("../rounds");
 const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox } = require("./partials");
 const SC = require("../schedules");
 const { LABELS } = require("../config");
-let L = SC.labels(null), ACTS = [];
+let L = SC.labels(null), ACTS = [], GROUPS = [], PRESETS_SC = [];
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -164,15 +164,15 @@ function sessionsPanel(r, types) {
       : `<p class="muted">No sessions yet. Add the activity and group combinations this round offers.</p>`}
 
     <form method="post" action="/admin/rounds/${r.id}/types" class="type-add">
-      <h3>Add a ${esc(L.activity.one.toLowerCase())}</h3>
+      <h3>Add ${esc(SC.an(L.activity.one))}</h3>
       <fieldset class="checks"><legend>Activity</legend>
         ${ACTS.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
       </fieldset>
       <fieldset class="checks"><legend>Group</legend>
-        ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${g}"> ${g}</label>`).join("")}
+        ${GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}
         <div class="presets">
-          ${PRESETS.map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}
-          <button type="button" class="tchip" data-ages="${AGE_GROUPS.join(",")}">All ages</button>
+          ${PRESETS_SC.map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}
+          ${GROUPS.length ? `<button type="button" class="tchip" data-ages="${esc(GROUPS.join(","))}">All ${esc(L.group.many.toLowerCase())}</button>` : ""}
         </div>
       </fieldset>
       <div class="inline-add">
@@ -237,6 +237,7 @@ function schedulePanel(r, types, last) {
 
 function builderPage({ user, flash, round, types, sessions, last = {}, season, seasons = [], readonly, schedule }) {
   L = SC.labels(schedule); ACTS = SC.activitiesFor(schedule, { activeOnly: true });
+  GROUPS = SC.groupsFor(schedule); PRESETS_SC = SC.presetsFor(schedule);
   const r = round;
   const total = sessions.length;
   const taken = sessions.reduce((n, s) => n + s.taken, 0);
@@ -266,7 +267,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
   </div>
 
   <section class="panel" id="limits">
-    <h2>Limits per ${esc(LABELS.participant.toLowerCase())}</h2>
+    <h2>Limits per ${esc(L.participant.one.toLowerCase())}</h2>
     ${limitsForm(r, { readonly, activities: SC.activitiesFor(schedule) })}
   </section>
 

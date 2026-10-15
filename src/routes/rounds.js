@@ -175,10 +175,10 @@ router.post("/:id/slots/remove", wrap(async (req, res) => {
 }));
 
 // ---------- session definitions (activity + group + spots) ----------
-function readType(b) {
+function readType(b, groups) {
   const activity = ACTIVITIES.includes(b.activity) ? b.activity : null;
-  let ages = [].concat(b.ages || []).filter((g) => AGE_GROUPS.includes(g));
-  if (activity && !ages.length && ALL_AGES_ACTIVITIES.includes(activity)) ages = [...AGE_GROUPS];
+  let ages = [].concat(b.ages || []).filter((g) => groups.includes(g));
+  if (activity && !ages.length && ALL_AGES_ACTIVITIES.includes(activity)) ages = [...groups];
   const spots = int(b.spots);
   return { activity, ages, spots: spots && spots <= 200 ? spots : null, coach: str(b.coach) || null, block: R.cleanBlock(b.block),
     waitlist: R.readWaitlist(b.waitlist) };
@@ -186,10 +186,13 @@ function readType(b) {
 
 router.post("/:id/types", wrap(async (req, res) => {
   const id = int(req.params.id);
-  const t = readType(req.body);
   const rr = await getRound(id);
-  if (t.activity && !t.ages.length && rr && rr.signup_mode !== "roster") t.ages = [...AGE_GROUPS]; // open sheets: groups optional
-  if (!t.activity || !t.ages.length || !t.spots) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Choose an activity, at least one age group, and the number of spots." });
+  const sc = await require("../schedules").forRound(id);
+  const groups = require("../schedules").groupsFor(sc);
+  const t = readType(req.body, groups);
+  const openSheet = rr && rr.signup_mode !== "roster";
+  if (t.activity && !t.ages.length && openSheet) t.ages = [...groups]; // open sheets: groups optional
+  if (!t.activity || !t.spots || (!t.ages.length && !(openSheet || !groups.length))) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Choose what it is, at least one group, and the number of spots." });
   const round = await getRound(id);
   const exists = (await query(`SELECT 1 FROM programs WHERE round_id=$1 AND activity=$2 AND age_groups=$3::text[]`,
     [id, t.activity, R.sortAges(t.ages)])).rowCount;

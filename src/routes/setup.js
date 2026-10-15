@@ -10,8 +10,7 @@ const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
 
 router.get("/", wrap(async (req, res) => {
-  const schedules = await SC.all();
-  const schedule = schedules.find((x) => x.id === int(req.query.s)) || schedules[0];
+  const schedule = req.sched.sc;
   const seasons = (await query(`SELECT * FROM seasons WHERE schedule_id=$1 ORDER BY starts_on DESC`, [schedule.id])).rows;
   const rounds = (await query(
     `SELECT r.*,
@@ -32,24 +31,32 @@ router.get("/", wrap(async (req, res) => {
        (SELECT count(*)::int FROM training_sessions s WHERE s.program_id=p.id AND s.canceled_at IS NULL AND s.starts_at > now()) AS upcoming
      FROM programs p WHERE p.round_id IS NULL ORDER BY p.archived, p.name`)).rows;
   for (const r of rounds) r.types = types.filter((t) => t.round_id === r.id);
-  res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedules, schedule, seasons, rounds, standalone }));
+  res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedule, seasons, rounds, standalone }));
+}));
+
+router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: req.user, flash: flashFrom(req), schedules: req.sched.list }))));
+
+router.get("/schedule", wrap(async (req, res) => {
+  const sc = req.sched.sc;
+  const counts = (await query(`SELECT (SELECT count(*) FROM seasons WHERE schedule_id=$1) + (SELECT count(*) FROM rounds WHERE schedule_id=$1) AS items,
+    (SELECT count(*) FROM schedule_members WHERE schedule_id=$1) AS members`, [sc.id])).rows[0];
+  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, counts: { items: Number(counts.items), members: Number(counts.members) } }));
 }));
 
 // ---------- schedules ----------
-const PRESETS = {
-  training: { top: ["Season", "Seasons"], middle: ["Round", "Rounds"], activity: ["Activity", "Activities"], slot: ["Session", "Sessions"] },
-  volunteer: { top: ["Term", "Terms"], middle: ["Event", "Events"], activity: ["Role", "Roles"], slot: ["Shift", "Shifts"] },
-  weekly: { top: ["Year", "Years"], middle: ["Week", "Weeks"], activity: ["Activity", "Activities"], slot: ["Slot", "Slots"] },
-};
 const clean = (x, n = 24) => str(x).replace(/\s+/g, " ").slice(0, n);
 
 router.post("/schedules", wrap(async (req, res) => {
   const name = clean(req.body.name, 40);
-  if (!name) return go(res, "/admin/setup", { err: "Enter a name for the schedule." });
-  const labels = PRESETS[req.body.preset] || PRESETS.training;
+  if (!name) return go(res, "/admin/setup/new", { err: "Enter a name for the schedule." });
+  const labels = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
+  const src = int(req.body.copy_groups) ? await SC.get(int(req.body.copy_groups)) : null;
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
-  const { rows } = await query(`INSERT INTO schedules (name, labels, sort) VALUES ($1,$2,$3) RETURNING id`, [name, JSON.stringify(labels), sort]);
-  go(res, `/admin/setup?s=${rows[0].id}#schedule-settings`, { ok: `Created ${name}. Rename its levels and pick what it offers below.` });
+  const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+    [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : [])]);
+  await SC.refreshGroups();
+  const L = SC.labels({ labels });
+  go(res, `/admin/settings/activities?s=${rows[0].id}`, { ok: `Created ${name}. Next: add its ${L.activity.many.toLowerCase()} here, then its ${L.group.many.toLowerCase()} and ${L.participant.many.toLowerCase()}.` });
 }));
 
 router.post("/schedules/:id", wrap(async (req, res) => {
@@ -60,18 +67,24 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     const one = clean(b[`${k}_one`]) || SC.DEFAULT_LABELS[k][0];
     labels[k] = [one, clean(b[`${k}_many`]) || `${one}s`];
   }
-  const acts = [].concat(b.acts || []).map((a) => str(a));
-  await query(`UPDATE schedules SET name=$2, labels=$3, activities=$4 WHERE id=$1`,
-    [id, clean(b.name, 40) || "Schedule", JSON.stringify(labels), acts.length ? acts : null]);
-  go(res, `/admin/setup?s=${id}`, { ok: `Saved. Levels: ${labels.top[0]} › ${labels.middle[0]} › ${labels.activity[0]} › ${labels.slot[0]}.` });
+  await query(`UPDATE schedules SET name=$2, labels=$3 WHERE id=$1`, [id, clean(b.name, 40) || "Schedule", JSON.stringify(labels)]);
+  // program names include the level words, so refresh them
+  const R = require("../rounds");
+  for (const r of (await query(`SELECT * FROM rounds WHERE schedule_id=$1`, [id])).rows) await R.syncPrograms({ query }, r);
+  go(res, `/admin/setup/schedule?s=${id}`, { ok: `Saved. ${labels.top[0]} › ${labels.middle[0]} › ${labels.activity[0]} › ${labels.slot[0]}, with ${labels.participant[1].toLowerCase()} in ${labels.group[1].toLowerCase()}.` });
 }));
 
 router.post("/schedules/:id/delete", wrap(async (req, res) => {
   const id = int(req.params.id);
   const used = (await query(`SELECT (SELECT count(*) FROM seasons WHERE schedule_id=$1) + (SELECT count(*) FROM rounds WHERE schedule_id=$1) AS n`, [id])).rows[0].n;
-  if (Number(used)) return go(res, `/admin/setup?s=${id}`, { err: "Delete or move its items first. A schedule can only be deleted when it's empty." });
-  if ((await SC.all()).length <= 1) return go(res, `/admin/setup?s=${id}`, { err: "Keep at least one schedule." });
+  if (Number(used)) return go(res, `/admin/setup/schedule?s=${id}`, { err: "Delete its items first. A schedule can only be deleted when it's empty." });
+  if ((await SC.all()).length <= 1) return go(res, `/admin/setup/schedule?s=${id}`, { err: "Keep at least one schedule." });
+  // its activities go with it (they can't be on anything, since the schedule is empty)
+  const catalog = require("../catalog");
+  const c = catalog.current(); c.activities = c.activities.filter((a) => a.schedule_id !== id); await catalog.save(c);
   await query(`DELETE FROM schedules WHERE id=$1`, [id]);
+  res.clearCookie("rt_sched");
+  await SC.refreshGroups();
   go(res, "/admin/setup", { ok: "Schedule deleted." });
 }));
 

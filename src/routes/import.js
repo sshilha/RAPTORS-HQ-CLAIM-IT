@@ -75,7 +75,8 @@ router.post("/preview", wrap(async (req, res) => {
   if (!text) return res.send(v.uploadPage({ user: req.user, v: b, schedules: await SC.all(), seasons: await openSeasons(), flash: { err: "Choose a PDF or paste the schedule text." } }));
 
   const year = int(b.year);
-  const { sessions, warnings } = parseSchedule(text, { year: year && year > 2000 ? year : undefined });
+  const target = await SC.get(int(b.schedule_id)) || (await SC.all())[0];
+  const { sessions, warnings } = parseSchedule(text, { year: year && year > 2000 ? year : undefined, groups: SC.groupsFor(target) });
   if (!sessions.length) return res.send(v.uploadPage({ user: req.user, v: b, schedules: await SC.all(), seasons: await openSeasons(),
     flash: { err: "No sessions found. Lines should look like 6-7:30pm-Hitting-12/14/16/18U, under a date like November 4." } }));
 

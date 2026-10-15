@@ -19,7 +19,7 @@ const spotsLabel = (spots, block) => (block ? `${spots} per ${block}-min block` 
 const shown = (list) => (list && list.length ? ACTIVITIES.filter((a) => list.includes(a)) : ACTIVITIES);
 
 function limitsTable(round, activities) {
-  return `<table class="limits"><thead><tr><th>Type</th><th>Per ${esc(LABELS.participant.toLowerCase())}</th><th>Unlimited</th></tr></thead><tbody>
+  return `<table class="limits"><thead><tr><th>Type</th><th>Per person</th><th>Unlimited</th></tr></thead><tbody>
     ${shown(activities).map((a) => {
       const i = ACTIVITIES.indexOf(a);
       const v = limitFor(round || {}, a);

@@ -13,7 +13,9 @@ router.use(auth.requireUser);
 
 // The family's participants: themselves (if set up) first, then their kids
 const myAthletes = async (userId) => (await query(
-  `SELECT a.* FROM athletes a JOIN parent_athletes pa ON pa.athlete_id=a.id WHERE pa.user_id=$1
+  `SELECT a.*, ARRAY(SELECT DISTINCT m.group_name FROM schedule_members m WHERE m.athlete_id=a.id AND m.group_name IS NOT NULL) AS groups,
+     EXISTS (SELECT 1 FROM schedule_members m WHERE m.athlete_id=a.id) AS on_roster
+   FROM athletes a JOIN parent_athletes pa ON pa.athlete_id=a.id WHERE pa.user_id=$1
    ORDER BY (a.self_user_id IS NULL), a.first_name`, [userId])).rows;
 
 // Only send families back to their own pages
