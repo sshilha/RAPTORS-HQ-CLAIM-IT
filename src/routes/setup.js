@@ -48,7 +48,8 @@ router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req
   const counts = (await query(`SELECT (SELECT count(*) FROM rounds WHERE schedule_id=$1 AND NOT is_main)
       + (SELECT count(*) FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=$1) AS items,
     (SELECT count(*) FROM schedule_members WHERE schedule_id=$1) AS members`, [sc.id])).rows[0];
-  const part = req.path.endsWith("/more") ? "more" : req.path.endsWith("/archive") ? "archive" : "structure";
+  if (req.path.endsWith("/more")) return res.redirect(`/admin/setup/schedule?s=${sc.id}#locations`); // merged into Setup
+  const part = req.path.endsWith("/archive") ? "archive" : "structure";
   res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, counts: { items: Number(counts.items), members: Number(counts.members) } }));
 }));
 
@@ -58,11 +59,13 @@ const clean = (x, n = 24) => str(x).replace(/\s+/g, " ").slice(0, n);
 router.post("/schedules", wrap(async (req, res) => {
   const name = clean(req.body.name, 60);
   if (!name) return go(res, "/admin/setup/new", { err: "Enter a name for the schedule." });
-  const { depth = 3, calendar = true, ...labels } = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
+  const { depth = 3, calendar = true, claim = "roster", restrict = false, ...labels } = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
   const src = int(req.body.copy_groups) ? await SC.get(int(req.body.copy_groups)) : null;
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
-  const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets, depth, use_calendar, pick_mode) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth, calendar, calendar ? "calendar" : "list"]);
+  const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets, depth, use_calendar, pick_mode, claim_mode, restricted)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+    [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth, calendar, calendar ? "calendar" : "list",
+     claim, restrict || !!(src && (src.groups || []).length)]);
   await SC.refreshGroups();
   await SC.ensureStructure(await SC.get(rows[0].id));
   const L = SC.labels({ labels });
@@ -98,6 +101,10 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     labels[k] = [one, clean(b[`${k}_many`]) || `${one}s`];
   }
   const pick = ["list", "calendar", "both"].includes(b.pick) ? b.pick : null;
+  const claim = ["public", "family", "roster"].includes(b.claim) ? b.claim : null;
+  const restrict = b.restrict === "yes" ? true : b.restrict === "no" ? false : null;
+  await query(`UPDATE schedules SET claim_mode = COALESCE($2, claim_mode), restricted = COALESCE($3, restricted) WHERE id=$1`, [id, claim, restrict]);
+  if (claim) await query(`UPDATE rounds SET signup_mode=$2 WHERE schedule_id=$1`, [id, claim]); // one answer for the whole board
   await query(`UPDATE schedules SET name=$2, labels=$3, pick_mode = COALESCE($4, pick_mode), use_calendar = COALESCE($4, pick_mode) <> 'list' WHERE id=$1`,
     [id, clean(b.name, 60) || "Claim Board", JSON.stringify(labels), pick]);
   // program names include the level words, so refresh them
@@ -109,26 +116,26 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   go(res, `/admin/setup/schedule?s=${id}`, { ok: `Saved. ${SC.levelKeys(sc2).map((k) => L2[k].many).join(" › ")}, with ${L2.participant.many.toLowerCase()} in ${L2.group.many.toLowerCase()}.` });
 }));
 
-// ---------- a board's locations + family view ----------
+// ---------- a board's locations + view (who's going) ----------
 router.post("/schedules/:id/locations", wrap(async (req, res) => {
   const id = int(req.params.id);
   const name = str(req.body.name).replace(/\s+/g, " ").slice(0, 80);
-  if (!name) return go(res, `/admin/setup/schedule/more?s=${id}#locations`, { err: "Enter a location." });
+  if (!name) return go(res, `/admin/setup/schedule?s=${id}#locations`, { err: "Enter a location." });
   await query(`UPDATE schedules SET locations = array_append(locations, $2) WHERE id=$1 AND NOT ($2 = ANY(locations))`, [id, name]);
-  go(res, `/admin/setup/schedule/more?s=${id}#locations`, { ok: `Added ${name}.` });
+  go(res, `/admin/setup/schedule?s=${id}#locations`, { ok: `Added ${name}.` });
 }));
 
 router.post("/schedules/:id/locations/remove", wrap(async (req, res) => {
   const id = int(req.params.id);
   await query(`UPDATE schedules SET locations = array_remove(locations, $2) WHERE id=$1`, [id, str(req.body.name)]);
-  go(res, `/admin/setup/schedule/more?s=${id}#locations`, { ok: "Location removed. Anything that already uses it keeps it." });
+  go(res, `/admin/setup/schedule?s=${id}#locations`, { ok: "Location removed. Anything that already uses it keeps it." });
 }));
 
 router.post("/schedules/:id/family", wrap(async (req, res) => {
   const id = int(req.params.id);
   const mode = ["full", "initial", "off"].includes(req.body.family_names) ? req.body.family_names : "initial";
   await query(`UPDATE schedules SET family_names=$2 WHERE id=$1`, [id, mode]);
-  go(res, `/admin/setup/schedule/more?s=${id}#family`, { ok: { full: "Families now see full names of who's going.", initial: "Families now see first names and last initials of who's going.", off: "Families no longer see who's going." }[mode] });
+  go(res, `/admin/setup/schedule?s=${id}#family`, { ok: { full: "People now see full names of who's going.", initial: "People now see first names and last initials of who's going.", off: "People no longer see who's going." }[mode] });
 }));
 
 // ---------- copy a whole board ----------

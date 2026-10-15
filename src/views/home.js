@@ -83,7 +83,7 @@ function copyPage({ user, flash, sc, counts }) {
     body: `<a class="back" href="/admin/settings">Settings</a>
     <section class="panel">
       <h1>Copy ${esc(sc.name)}</h1>
-      <p class="lede">Make a new ${esc(n)} from this one. Its name, level words, locations, and family view always come along. Pick what else to bring.</p>
+      <p class="lede">Make a new ${esc(n)} from this one. Its setup (name, levels, who can claim, views, and locations) always comes along. Pick what else to bring.</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/copy" class="stack copy-form">
         <label>Name of the new ${esc(n)}<input name="name" required maxlength="40" value="${esc(nextName(sc.name))}"></label>
         <fieldset class="checks stack-list"><legend>Bring along</legend>

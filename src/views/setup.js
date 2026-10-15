@@ -57,7 +57,6 @@ function roundBlock(r, locked, L, acts) {
       ${r.is_main ? "" : `<span class="r-dates">${esc(niceRange(r.starts_on, r.ends_on))}</span>`}
       <span class="r-stats">${depth === 1 ? `${pln(r.scheduled, L.slot)}, ${r.claimed}/${r.spots} spots claimed`
         : `${pln(r.types.length, L.activity)}, ${pln(r.scheduled, L.slot)}, ${r.claimed}/${r.spots} spots claimed`}</span>
-      <span class="pill mode-pill">${esc(SC.MODES[r.signup_mode || "roster"][0])}</span>
       ${locked ? `<span class="pill">Completed</span>` : statusPill(r)}
     </summary>
     <div class="round-body">
@@ -69,11 +68,7 @@ function roundBlock(r, locked, L, acts) {
         <a class="link-dark" href="/admin/reports?round=${r.id}">Reports</a>
       </div>
 
-      <div class="round-who">
-        <p class="label-like">Who signs up</p>
-        ${modeForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked })}
-        ${r.signup_mode === "public" ? shareBox(r) : ""}
-      </div>
+      ${r.signup_mode === "public" ? `<div class="round-who"><p class="label-like">Share</p>${shareBox(r)}</div>` : ""}
       <div class="round-limits">
         <p class="label-like">Limits per ${esc(L.participant.one.toLowerCase())}</p>
         ${limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts, listOnly })}
@@ -92,14 +87,14 @@ function roundBlock(r, locked, L, acts) {
 
         <div${depth === 1 ? ' hidden' : ""}>
           <p class="label-like">${esc(L.activity.many)} offered</p>
-          ${r.types.length ? `<table class="types compact"><thead><tr><th>${esc(L.activity.one)}</th><th>Spots</th>${listOnly ? "" : "<th>Split into</th>"}<th>Waitlist</th>${(CUR.tags || []).length ? "<th>Only for</th>" : ""}<th>Coach</th><th>On calendar</th><th></th></tr></thead>
+          ${r.types.length ? `<table class="types compact"><thead><tr><th>${esc(L.activity.one)}</th><th>Spots</th>${listOnly ? "" : "<th>Split into</th>"}<th>Waitlist</th>${SC.restricts(CUR) && (CUR.tags || []).length ? "<th>Only for</th>" : ""}<th>Coach</th><th>On calendar</th><th></th></tr></thead>
             <tbody>${r.types.map((t) => `<tr>
               <td>${swatch(t.activity)}<strong>${t.section ? `${esc(t.section)} › ` : ""}${esc(typeLabel(t.activity, t.age_groups, t.required_tags))}</strong></td>
-              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td>${listOnly ? "" : `<td>${t.block_minutes ? `${t.block_minutes} min` : "Whole"}</td>`}<td>${t.waitlist == null ? "Round default" : t.waitlist ? "On" : "Off"}</td>${(CUR.tags || []).length ? `<td>${esc((t.required_tags || []).join(", ") || "Everyone")}</td>` : ""}<td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
+              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td>${listOnly ? "" : `<td>${t.block_minutes ? `${t.block_minutes} min` : "Whole"}</td>`}<td>${t.waitlist == null ? "Round default" : t.waitlist ? "On" : "Off"}</td>${SC.restricts(CUR) && (CUR.tags || []).length ? `<td>${esc((t.required_tags || []).join(", ") || "Everyone")}</td>` : ""}<td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
               <td><input form="st-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
               ${listOnly ? "" : `<td>${blockSelect("block", t.block_minutes, `form="st-${t.id}" aria-label="Split into blocks"`)}</td>`}
               <td>${waitlistSelect(t.waitlist, r, `form="st-${t.id}" aria-label="Waitlist"`)}</td>
-              ${(CUR.tags || []).length ? `<td>${onlyFor(CUR.tags, t.required_tags || [], `st-${t.id}`)}</td>` : ""}
+              ${SC.restricts(CUR) && (CUR.tags || []).length ? `<td>${onlyFor(CUR.tags, t.required_tags || [], `st-${t.id}`)}</td>` : ""}
               <td><input form="st-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
               <td>${t.scheduled}</td>
               <td><div class="row-actions">
@@ -112,15 +107,15 @@ function roundBlock(r, locked, L, acts) {
             ${depth === 4 ? `<input name="section" required maxlength="40" list="sections-${r.id}" placeholder="${esc(L.section.one)}" aria-label="${esc(L.section.one)}" class="coach-in">
               <datalist id="sections-${r.id}">${[...new Set((r.types || []).map((t) => t.section).filter(Boolean))].map((x) => `<option value="${esc(x)}">`).join("")}</datalist>` : ""}
             <select name="activity" required aria-label="${esc(L.activity.one)}"><option value="">${esc(L.activity.one)}…</option>${acts.map((a) => `<option>${esc(a)}</option>`).join("")}</select>
-            <span class="ages">${SC.groupsFor(CUR).map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}
-              ${SC.presetsFor(CUR).map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}</span>
+            ${SC.restricts(CUR) ? `<span class="ages">${SC.groupsFor(CUR).map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}
+              ${SC.presetsFor(CUR).map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}</span>` : ""}
             <input type="number" name="spots" min="1" max="200" required placeholder="Spots" aria-label="Spots" class="spots-in">
             ${listOnly ? "" : blockSelect("block", null, 'aria-label="Split into blocks" class="block-in"')}
             ${waitlistSelect(null, r, 'aria-label="Waitlist" class="block-in"')}
-            ${(CUR.tags || []).length ? `<span class="only-label">Only for:</span>${onlyFor(CUR.tags, [])}` : ""}
+            ${SC.restricts(CUR) && (CUR.tags || []).length ? `<span class="only-label">Only for:</span>${onlyFor(CUR.tags, [])}` : ""}
             <input name="coach" placeholder="Coach (optional)" aria-label="Coach" class="coach-in">
             <button class="btn-small" type="submit">Add</button>
-          </form>${r.signup_mode && r.signup_mode !== "roster" ? `<p class="fine">Open to everyone, so ${esc(L.group.many.toLowerCase())} are optional.</p>` : ""}`}
+          </form>`}
         </div>
       </div>
       ${itemsPanel(r, locked, L)}
@@ -178,8 +173,8 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   const tab = { structure: "schedule", more: "schedule-more", archive: "schedule-archive" }[part] || "schedule";
   const sections = {
     structure: `<section class="panel">
-      <h1>Name &amp; structure</h1>
-      <p class="muted tight">The board's name, how many levels it has, and what each level is called. The last level is what people claim.</p>
+      <h1>${esc(require("../config").LABELS.schedule)} Setup</h1>
+      <p class="muted tight">The basics: its name, who can claim, how people see it, its levels, locations, and what people see of who's going.</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/depth?s=${sc.id}" class="depth-form">
         <label>Levels under the board<select name="depth"${counts.items ? " disabled" : ""}>
           ${[1, 2, 3, 4].map((n) => `<option value="${n}"${SC.depthOf(sc) === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select></label>
@@ -188,10 +183,21 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       </form>
       <form method="post" action="/admin/setup/schedules/${sc.id}?s=${sc.id}" class="sched-form">
         <label class="w-wide">Name<input name="name" required value="${esc(sc.name)}" maxlength="60"></label>
-        <fieldset class="checks pick-mode"><legend>How people pick</legend>
-          <label class="mode-opt"><input type="radio" name="pick" value="list"${SC.pickMode(sc) === "list" ? " checked" : ""}><span><b>From a list</b><span class="fine">No dates or times. Good when everything happens on one day: put the day in the board's name, and times in an item's name if needed.</span></span></label>
-          <label class="mode-opt"><input type="radio" name="pick" value="calendar"${SC.pickMode(sc) === "calendar" ? " checked" : ""}><span><b>On a calendar</b><span class="fine">${esc(L.slot.many)} have dates and times, and families pick days on a calendar. Undated items can still be added too.</span></span></label>
-          <label class="mode-opt"><input type="radio" name="pick" value="both"${SC.pickMode(sc) === "both" ? " checked" : ""}><span><b>Both: families choose</b><span class="fine">Dates and times, and families can switch between a calendar and a day-by-day list. The app remembers their choice.</span></span></label>
+        <fieldset class="checks pick-mode"><legend>Who can claim?</legend>
+          <label class="mode-opt"><input type="radio" name="claim" value="public"${SC.claimMode(sc) === "public" ? " checked" : ""}><span><b>Anyone with the link</b><span class="fine">Share a link or QR code. People enter a name and email, no account needed.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="claim" value="family"${SC.claimMode(sc) === "family" ? " checked" : ""}><span><b>Signed-in families</b><span class="fine">Anyone who signs in can claim for themselves or their kids. Nothing to set up.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="claim" value="roster"${SC.claimMode(sc) === "roster" ? " checked" : ""}><span><b>Only people I add</b><span class="fine">You add the ${esc(L.participant.many.toLowerCase())}. Adds the <strong>${esc(L.participant.many)}</strong> step.</span></span></label>
+        </fieldset>
+        ${SC.depthOf(sc) > 1 ? `<fieldset class="checks pick-mode"><legend>Limit some ${esc(L.activity.many.toLowerCase())} to certain people?</legend>
+          <label class="mode-opt"><input type="radio" name="restrict" value="no"${SC.restricts(sc) ? "" : " checked"}><span><b>No</b><span class="fine">Anyone who can claim can claim anything on this board.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="restrict" value="yes"${SC.restricts(sc) ? " checked" : ""}><span><b>Yes, by ${esc(L.group.one.toLowerCase())} or tag</b><span class="fine">${SC.activitiesFor(sc).includes("Hitting") || !SC.activitiesFor(sc).length && SC.depthOf(sc) === 3
+            ? "e.g. Hitting only for 12U–18U, Catching only for catchers."
+            : `e.g. ${esc(SC.activitiesFor(sc)[0] || L.activity.one)} only for adults, or only for people tagged Bartender.`} Adds the <strong>${esc(L.group.many)} &amp; tags</strong> and <strong>${esc(L.participant.many)}</strong> steps.</span></span></label>
+        </fieldset>` : ""}
+        <fieldset class="checks pick-mode"><legend>Available views</legend>
+          <label class="mode-opt"><input type="radio" name="pick" value="list"${SC.pickMode(sc) === "list" ? " checked" : ""}><span><b>List</b><span class="fine">No dates or times: people pick from a list. Good when everything happens on one day. Put the day in the board's name, and times in an item's name if needed.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="pick" value="calendar"${SC.pickMode(sc) === "calendar" ? " checked" : ""}><span><b>Calendar</b><span class="fine">${esc(L.slot.many)} have dates and times, and people pick days on a calendar. Undated items can still be added too.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="pick" value="both"${SC.pickMode(sc) === "both" ? " checked" : ""}><span><b>Both: List &amp; Calendar</b><span class="fine">Dates and times, and people can switch between the calendar and a day-by-day list. The app remembers which one they used last.</span></span></label>
         </fieldset>
         <div class="table-wrap"><table class="levels">
           <thead><tr><th>Level</th><th>What it is</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
@@ -209,9 +215,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       </form>
     </section>
 `,
-    more: `<section class="panel"><h1>Locations &amp; family view</h1>
-      <p class="muted tight">Where things happen, and how much families see of who's going.</p></section>
-    <div class="settings-2">
+    more: `    <div class="settings-2">
     <section class="panel" id="locations">
       <h2 class="banner">Locations</h2>
       <p class="fine">Suggested when you set a ${esc(L.middle.one.toLowerCase())}'s location. The first one is the default for new ${esc(L.middle.many.toLowerCase())}.</p>
@@ -222,8 +226,8 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
         <button class="btn-small" type="submit">Add</button></form>
     </section>
     <section class="panel" id="family">
-      <h2 class="banner">Family view</h2>
-      <p class="fine">On a day's page, families can see who's going to each ${esc(L.slot.one.toLowerCase())}, so friends can claim spots together. They never see emails or other contact details.</p>
+      <h2 class="banner">View</h2>
+      <p class="fine">What people see of who's going to each ${esc(L.slot.one.toLowerCase())}, so friends can claim spots together. Emails and other contact details are never shown.</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/family?s=${sc.id}" class="stack-list checks">
         ${[["initial", "First name and last initial", "Ava S."], ["full", "Full names", "Ava Smith"], ["off", "Don't show who's going", "Only spots open"]].map(([k, l, ex]) =>
           `<label class="radio-row"><input type="radio" name="family_names" value="${k}"${(sc.family_names || "initial") === k ? " checked" : ""}> ${l} <span class="fine-inline">${ex}</span></label>`).join("")}
@@ -250,7 +254,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   };
   return page({
     title: `Settings · ${sc.name}`, tab, user, flash,
-    body: sections[part] || sections.structure,
+    body: part === "archive" ? sections.archive : sections.structure + sections.more,
   });
 }
 

@@ -74,8 +74,9 @@ router.post("/", wrap(async (req, res) => {
       return (await R.copyRound(db, src, { name, starts_on: s, ends_on: e, season_id: seasonId, offsetDays: offset, shiftRules: false })).round.id;
     }
     return (await db.query(
-      `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits, schedule_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE((SELECT schedule_id FROM seasons WHERE id=$4), $8, (SELECT min(id) FROM schedules))) RETURNING id`,
+      `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits, schedule_id, signup_mode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE((SELECT schedule_id FROM seasons WHERE id=$4), $8, (SELECT min(id) FROM schedules)),
+         COALESCE((SELECT claim_mode FROM schedules WHERE id=$8), 'roster')) RETURNING id`,
       [name, s, e, seasonId, ((await require("../schedules").get(int(req.body.schedule_id) || (seasonId && (await require("../schedules").forSeason(seasonId) || {}).id)) || {}).locations || [])[0] || null, "{}",
        JSON.stringify(R.defaultLimits(await require("../schedules").get(int(req.body.schedule_id) || (seasonId && (await require("../schedules").forSeason(seasonId) || {}).id)) || null)),
        int(req.body.schedule_id) || null])).rows[0].id;
@@ -235,8 +236,10 @@ router.post("/:id/types", wrap(async (req, res) => {
   const groups = require("../schedules").groupsFor(sc);
   const t = readType(req.body, groups, sc && sc.id);
   const openSheet = rr && rr.signup_mode !== "roster";
-  if (t.activity && !t.ages.length && openSheet) t.ages = [...groups]; // open sheets: groups optional
-  if (!t.activity || !t.spots || (!t.ages.length && !(openSheet || !groups.length))) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Choose what it is, at least one group, and the number of spots." });
+  const limited = require("../schedules").restricts(sc);
+  if (!limited) { t.ages = []; t.tags = []; } // the board doesn't limit by group or tag
+  else if (t.activity && !t.ages.length && openSheet) t.ages = [...groups]; // open sheets: groups optional
+  if (!t.activity || !t.spots || (limited && !t.ages.length && !(openSheet || !groups.length))) return go(res, dest(req, `/admin/rounds/${id}#setup`), { err: "Choose what it is, at least one group, and the number of spots." });
   const round = await getRound(id);
   t.tags = t.tags.filter((x) => (sc && sc.tags || []).includes(x)).sort();
   const exists = (await query(`SELECT 1 FROM programs WHERE round_id=$1 AND activity=$2 AND age_groups=$3::text[]

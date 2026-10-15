@@ -7,6 +7,13 @@ function groupSelect(sc, value, attrs = "") {
     ${SC.groupsFor(sc).map((g) => `<option${g === value ? " selected" : ""}>${esc(g)}</option>`).join("")}</select>`;
 }
 
+function needBanner(sc, L) {
+  const SCm = require("../schedules");
+  if (SCm.claimMode(sc) === "roster") return `<div class="need yes"><b>Only the ${esc(L.participant.many.toLowerCase())} listed here can claim on this board.</b> Add each one, with their ${esc(L.group.one.toLowerCase())}${SCm.restricts(sc) ? " and tags" : ""}, and link a parent or contact email so they can sign in.</div>`;
+  if (SCm.restricts(sc)) return `<div class="need yes"><b>Add people here to give them a ${esc(L.group.one.toLowerCase())} or tags.</b> Anyone signed in can still claim things that aren't limited; limited ones need the right ${esc(L.group.one.toLowerCase())} or tag.</div>`;
+  return `<div class="need no"><b>Not needed for this board.</b> It's open to ${SCm.claimMode(sc) === "public" ? "anyone with the link" : "signed-in families"}, so people just claim spots.</div>`;
+}
+
 function membersPage({ user, flash, sc, members, others, group, total }) {
   const L = SC.labels(sc);
   const groups = SC.groupsFor(sc);
@@ -16,8 +23,9 @@ function membersPage({ user, flash, sc, members, others, group, total }) {
     title: `${L.participant.many} · ${sc.name}`, tab: "members", user, flash,
     body: `<section class="panel">
       <div class="athlete-head"><div><h1>${esc(L.participant.many)}</h1>
-        <p class="muted tight">${total} in ${esc(sc.name)}. Only needed if something on this board is <b>roster only</b> (or uses tags like Catcher): these are the people allowed to claim it. Boards open to signed-in families or anyone with the link can skip this step.</p></div>
+        <p class="muted tight">${total} in ${esc(sc.name)}.</p></div>
         <a class="btn-small" href="#add">+ Add</a></div>
+      ${needBanner(sc, L)}
       ${groups.length ? `<nav class="chip-filter" aria-label="Filter by ${esc(L.group.one.toLowerCase())}">
         <a href="/admin/members?s=${sc.id}"${!group ? ' aria-current="page"' : ""}>All</a>
         ${groups.map((g) => `<a href="/admin/members?s=${sc.id}&g=${encodeURIComponent(g)}"${group === g ? ' aria-current="page"' : ""}>${esc(g)}</a>`).join("")}

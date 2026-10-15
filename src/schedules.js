@@ -24,20 +24,24 @@ const LEVELS = [
 
 // Which engine pieces a board's levels use (the last one is always what gets claimed)
 const LEVEL_KEYS = { 1: ["slot"], 2: ["activity", "slot"], 3: ["middle", "activity", "slot"], 4: ["middle", "section", "activity", "slot"] };
+const claimMode = (sc) => (sc && ["public", "family", "roster"].includes(sc.claim_mode) ? sc.claim_mode : "roster");
+const restricts = (sc) => !!(sc && sc.restricted && depthOf(sc) > 1);
+// Which setup steps a board needs, from its answers on Name & structure
+const needsPeople = (sc) => claimMode(sc) === "roster" || restricts(sc);
 const pickMode = (sc) => (sc && ["list", "calendar", "both"].includes(sc.pick_mode) ? sc.pick_mode : sc && sc.use_calendar === false ? "list" : "calendar");
 const usesCalendar = (sc) => !sc || pickMode(sc) !== "list";
 const depthOf = (sc) => Math.min(4, Math.max(1, parseInt((sc && sc.depth) || 3, 10) || 3));
 const levelKeys = (sc) => LEVEL_KEYS[depthOf(sc)];
 
 const PRESET_LABELS = {
-  training: { ...DEFAULT_LABELS, depth: 3 },
-  volunteer: { depth: 2, activity: ["Area", "Areas"], slot: ["Shift", "Shifts"], middle: ["Round", "Rounds"],
+  training: { ...DEFAULT_LABELS, depth: 3, claim: "roster", restrict: true },
+  volunteer: { depth: 2, claim: "family", restrict: false, activity: ["Area", "Areas"], slot: ["Shift", "Shifts"], middle: ["Round", "Rounds"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
-  list: { depth: 1, calendar: false, slot: ["Item", "Items"], activity: ["Item", "Items"], middle: ["Round", "Rounds"],
+  list: { depth: 1, calendar: false, claim: "public", restrict: false, slot: ["Item", "Items"], activity: ["Item", "Items"], middle: ["Round", "Rounds"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
-  event: { depth: 4, middle: ["Day", "Days"], section: ["Area", "Areas"], activity: ["Station", "Stations"], slot: ["Shift", "Shifts"],
+  event: { depth: 4, claim: "family", restrict: false, middle: ["Day", "Days"], section: ["Area", "Areas"], activity: ["Station", "Stations"], slot: ["Shift", "Shifts"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
-  weekly: { depth: 3, middle: ["Week", "Weeks"], activity: ["Activity", "Activities"], slot: ["Slot", "Slots"],
+  weekly: { depth: 3, claim: "family", restrict: false, middle: ["Week", "Weeks"], activity: ["Activity", "Activities"], slot: ["Slot", "Slots"],
     participant: ["Member", "Members"], group: ["Group", "Groups"] },
 };
 
@@ -86,7 +90,7 @@ async function current(req, res) {
   const list = await all();
   const want = parseInt((req.query && req.query.s) || (req.body && req.body.s) || (req.cookies && req.cookies.rt_sched), 10);
   const sc = list.find((x) => x.id === want) || list[0];
-  if (sc) sc.member_count = (await query(`SELECT count(*)::int AS n FROM schedule_members WHERE schedule_id=$1`, [sc.id])).rows[0].n;
+  if (sc) Object.assign(sc, await boardNeeds(sc.id));
   if (res && sc && String(sc.id) !== (req.cookies && req.cookies.rt_sched)) res.cookie("rt_sched", String(sc.id), { sameSite: "lax", maxAge: 365 * 864e5 });
   return { list, sc };
 }
@@ -103,9 +107,9 @@ async function ensureStructure(sc) {
   if (!r) {
     const R = require("./rounds");
     r = (await query(
-      `INSERT INTO rounds (name, starts_on, ends_on, location, activity_defaults, activity_limits, schedule_id, is_main)
-       VALUES ($1, CURRENT_DATE, CURRENT_DATE + 730, $2, '{}', '{}', $3, true) RETURNING *`,
-      [sc.name, (sc.locations || [])[0] || null, sc.id])).rows[0];
+      `INSERT INTO rounds (name, starts_on, ends_on, location, activity_defaults, activity_limits, schedule_id, is_main, signup_mode)
+       VALUES ($1, CURRENT_DATE, CURRENT_DATE + 730, $2, '{}', '{}', $3, true, $4) RETURNING *`,
+      [sc.name, (sc.locations || [])[0] || null, sc.id, claimMode(sc)])).rows[0];
     void R;
   }
   if (depth === 1) {
@@ -120,6 +124,15 @@ async function ensureStructure(sc) {
     await require("./rounds").ensureProgram({ query }, r, name, [], {});
   }
   return r;
+}
+
+// Whether a board needs its People list: something is roster-only, or something requires a tag
+async function boardNeeds(id) {
+  return (await query(`SELECT
+      (SELECT count(*)::int FROM schedule_members WHERE schedule_id=$1) AS member_count,
+      EXISTS (SELECT 1 FROM rounds WHERE schedule_id=$1 AND signup_mode='roster') AS has_roster,
+      EXISTS (SELECT 1 FROM programs p JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=$1 AND cardinality(p.required_tags) > 0) AS has_tag_rules,
+      (SELECT array_agg(DISTINCT signup_mode) FROM rounds WHERE schedule_id=$1) AS modes`, [id])).rows[0];
 }
 
 async function refreshGroups() {
@@ -190,10 +203,14 @@ async function ensureDefault() {
     c.board_settings_moved = true;
     await catalog.save(c);
   }
+  // Boards made before (or during) this upgrade get answers that match how they're set up
+  await query(`UPDATE schedules SET restricted = (cardinality(groups) > 0 OR cardinality(tags) > 0) WHERE restricted IS NULL`);
+  await query(`UPDATE schedules sc SET claim_mode = COALESCE((SELECT r.signup_mode FROM rounds r WHERE r.schedule_id=sc.id
+      GROUP BY r.signup_mode ORDER BY count(*) DESC LIMIT 1), 'roster') WHERE claim_mode IS NULL`);
   await refreshGroups();
 }
 
 module.exports = {
-  LEVEL_KEYS, pickMode, usesCalendar, depthOf, levelKeys, mainRound, ensureStructure, an, entriesFor, metaJson, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
+  claimMode, restricts, needsPeople, boardNeeds, LEVEL_KEYS, pickMode, usesCalendar, depthOf, levelKeys, mainRound, ensureStructure, an, entriesFor, metaJson, DEFAULT_LABELS, PRESET_LABELS, LEVELS, MODES, labels, activitiesFor, groupsFor, presetsFor,
   all, get, forRound, forSeason, forProgram, current, refreshGroups, ensureDefault,
 };

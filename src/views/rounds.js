@@ -8,7 +8,7 @@ const { typeLabel, defaultsFor, isUnlocked, limitFor } = require("../rounds");
 const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox, onlyFor } = require("./partials");
 const SC = require("../schedules");
 const { LABELS } = require("../config");
-let L = SC.labels(null), ACTS = [], GROUPS = [], PRESETS_SC = [], BTAGS = [], DEPTH = 3, TYPES = [];
+let L = SC.labels(null), ACTS = [], GROUPS = [], PRESETS_SC = [], BTAGS = [], DEPTH = 3, TYPES = [], RESTRICT = true;
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -170,7 +170,7 @@ function sessionsPanel(r, types) {
       <fieldset class="checks"><legend>Activity</legend>
         ${ACTS.map((a) => `<label class="act" style="--c:${ACTIVITY_COLORS[a]}"><input type="radio" name="activity" value="${esc(a)}" required> ${esc(a)}</label>`).join("")}
       </fieldset>
-      <fieldset class="checks"><legend>Group</legend>
+      <fieldset class="checks"${RESTRICT ? "" : " hidden"}><legend>${esc(L.group.one)}</legend>
         ${GROUPS.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}
         <div class="presets">
           ${PRESETS_SC.map((x) => `<button type="button" class="tchip" data-ages="${esc(x.ages.join(","))}">${esc(x.name)}</button>`).join("")}
@@ -181,7 +181,7 @@ function sessionsPanel(r, types) {
         <label>Spots<input type="number" name="spots" min="1" max="200" required placeholder="10"></label>
         <label>Split into${blockSelect("block", null)}</label>
         <label>Waitlist${waitlistSelect(null, r)}</label>
-        ${BTAGS.length ? `<label>Only for${onlyFor(BTAGS, [])}</label>` : ""}
+        ${RESTRICT && BTAGS.length ? `<label>Only for${onlyFor(BTAGS, [])}</label>` : ""}
         <label>Coach<input name="coach" placeholder="Optional"></label>
         <button class="btn-small" type="submit">Add session</button>
       </div>
@@ -241,7 +241,8 @@ function schedulePanel(r, types, last) {
 function builderPage({ user, flash, round, types, sessions, last = {}, season, seasons = [], readonly, schedule }) {
   L = SC.labels(schedule); ACTS = SC.activitiesFor(schedule, { activeOnly: true }); SID = schedule && schedule.id;
   GROUPS = SC.groupsFor(schedule); PRESETS_SC = SC.presetsFor(schedule); BTAGS = (schedule && schedule.tags) || [];
-  DEPTH = SC.depthOf(schedule); TYPES = types || [];
+  DEPTH = SC.depthOf(schedule); TYPES = types || []; RESTRICT = SC.restricts(schedule);
+  if (!RESTRICT) BTAGS = [];
   const r = round;
   const total = sessions.length;
   const taken = sessions.reduce((n, s) => n + s.taken, 0);
@@ -276,9 +277,8 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     ${limitsForm(r, { readonly, activities: SC.activitiesFor(schedule), listOnly: !SC.usesCalendar(schedule) })}
   </section>
 
-  <section class="panel" id="who">
-    <h2>Who signs up</h2>
-    ${modeForm(r, { readonly })}
+  <section class="panel" id="who"${r.signup_mode === "public" ? "" : " hidden"}>
+    <h2>Share</h2>
     ${r.signup_mode === "public" ? shareBox(r) : ""}
   </section>
 

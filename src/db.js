@@ -193,6 +193,15 @@ async function migrate() {
     -- How families pick: 'list', 'calendar', or 'both' (they can switch between calendar and list)
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS pick_mode TEXT;
     UPDATE schedules SET pick_mode = CASE WHEN use_calendar THEN 'calendar' ELSE 'list' END WHERE pick_mode IS NULL;
+    -- Board-level answers that decide which setup steps exist:
+    --   claim_mode: who can claim (public / family / roster), applied to all the board's rounds
+    --   restricted: whether some activities are limited to certain groups or tags
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS claim_mode TEXT;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS restricted BOOLEAN;
+    UPDATE schedules sc SET claim_mode = COALESCE(
+        (SELECT r.signup_mode FROM rounds r WHERE r.schedule_id=sc.id GROUP BY r.signup_mode ORDER BY count(*) DESC, r.signup_mode DESC LIMIT 1), 'roster')
+      WHERE claim_mode IS NULL;
+    UPDATE schedules SET restricted = (cardinality(groups) > 0 OR cardinality(tags) > 0) WHERE restricted IS NULL;
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS is_main BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE programs ADD COLUMN IF NOT EXISTS section TEXT;
     ALTER TABLE training_sessions ALTER COLUMN starts_at DROP NOT NULL;

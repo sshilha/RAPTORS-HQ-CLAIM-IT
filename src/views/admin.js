@@ -9,12 +9,10 @@ const { limitFor, isUnlocked, unlocksAt } = require("../rounds");
 //  - its Settings (from the card): numbered steps in the order you'd set things up
 const BOARD_AREA = ["setup", "seasons", "rounds", "programs", "import"];
 const STEPS = [
-  ["structure", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => "Name & structure", () => "", ["schedule"]],
+  ["structure", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => `${require("../config").LABELS.schedule} Setup`, () => "", ["schedule", "schedule-more"]],
   ["activities", (sc) => `/admin/settings/activities?s=${sc.id}`, (L) => L.activity.many, (sc, SC) => String(SC.activitiesFor(sc).length), ["activities"]],
-  ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => `${L.group.many} & tags`, (sc) => `${(sc.groups || []).length}${(sc.tags || []).length ? ` · ${(sc.tags || []).length} tag${(sc.tags || []).length === 1 ? "" : "s"}` : ""}`, ["groups"]],
-  ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, (sc) => String(sc.member_count ?? ""), ["members", "athletes"]],
-  ["more", (sc) => `/admin/setup/schedule/more?s=${sc.id}`, () => "Locations & family view", (sc) => String((sc.locations || []).length ? (sc.locations || []).length + " location" + ((sc.locations || []).length === 1 ? "" : "s") : ""), ["schedule-more"]],
-  ["archive", (sc) => `/admin/setup/schedule/archive?s=${sc.id}`, () => "Archive or delete", (sc) => (sc.archived_at ? "Archived" : ""), ["schedule-archive"]],
+  ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => `${L.group.many} & tags`, (sc) => `${(sc.groups || []).length}${(sc.tags || []).length ? ` + ${(sc.tags || []).length} tag${(sc.tags || []).length === 1 ? "" : "s"}` : ""}`, ["groups"]],
+  ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, (sc) => String(sc.member_count || 0), ["members", "athletes"]],
 ];
 function settingsNav(tab, user) {
   const sched = user && user.sched;
@@ -27,7 +25,12 @@ function settingsNav(tab, user) {
       ${sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>`;
   const SC = require("../schedules");
   const L = SC.labels(sc);
-  const steps = STEPS.filter(([k]) => k !== "activities" || SC.depthOf(sc) > 1);
+  const steps = STEPS.filter(([k]) => {
+    if (k === "activities") return SC.depthOf(sc) > 1;
+    if (k === "groups") return SC.restricts(sc);
+    if (k === "members") return SC.needsPeople(sc) || sc.has_roster || sc.has_tag_rules;
+    return true;
+  });
   const cur = steps.find((t) => t[4].includes(tab));
   if (!cur) return "";
   return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sc.name)}</span><span class="crumb-sub">Settings</span>

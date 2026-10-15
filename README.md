@@ -49,6 +49,15 @@ A **Claim Board is the season or event itself**, e.g. "Winter Training 2026–27
 Rumble Volunteering". Next year, **Copy** it (the name bumps to 2027–28 automatically).
 **Archive** hides it from families and makes it read-only (reports still work); **Reopen** unlocks it.
 
+**Claim Board Setup** (the first settings step) asks the questions that decide which other steps exist:
+- **Who can claim?** Anyone with the link / Signed-in families / Only people I add. Applies to
+  the whole board (every round). "Only people I add" adds the People step.
+- **Limit some activities to certain people?** (2+ levels) No / Yes, by group or tag. "Yes" adds
+  the Groups & tags step (and People, where tags are given out), and the group/"Only for" pickers.
+- **Available views:** List / Calendar / Both.
+It also holds the board's levels, **Locations**, and **View** (what people see of who's going).
+Steps that aren't needed don't appear.
+
 **Open** (on the card) shows the board itself: its rounds or items, calendar, and rules.
 **Settings** (on the card) walks through setup as numbered steps: 1 Name & structure,
 2 Activities (skipped for 1-level boards), 3 Groups & tags, 4 People, 5 Locations & family
