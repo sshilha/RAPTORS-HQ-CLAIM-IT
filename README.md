@@ -41,22 +41,24 @@ is what people claim, with a number of spots:
 - 2 levels: e.g. Area › Shift (Beer Garden › Sat 9–11).
 - 3 levels: e.g. Round › Activity › Session (Winter Training).
 - 4 levels: e.g. Day › Area › Station › Shift.
-Boards with 1–2 levels keep their rules (who signs up, limits, unlocking, waitlist, publish) on the
+Boards with 1–2 levels show three numbered steps on their page (1 Add items, 2 Rules, 3 Publish &
+share, with the share link only for "Anyone with the link") and keep their rules (who signs up, limits, unlocking, waitlist, publish) on the
 board's Setup page. Anything claimable can have a date and time, or be an undated item with a name;
 undated items show as a list on My Claims and the public page, and have no give-it-up deadline.
 The number of levels can change only while the board is empty.
 
-**How people pick** (Name & structure): **From a list** (no calendar, dates, or times; put the
-day in the board's name and times in item names if needed), **On a calendar**, or **Both**
-(families switch between the calendar and a day-by-day list with Claim buttons; their choice is
-remembered). New item-list
+**Do things have dates and times?** No: people pick from a list (put the day in the board's name,
+times in item names). Yes: choose the **Available views**: Calendar, or Both: List & Calendar
+(people switch between the calendar and a day-by-day list; their choice is remembered). New item-list
 boards start as lists. Items appear in the order you add them.
 
 A **Claim Board is the season or event itself**, e.g. "Winter Training 2026–27" or "2027 Arctic
 Rumble Volunteering". Next year, **Copy** it (the name bumps to 2027–28 automatically).
 **Archive** hides it from families and makes it read-only (reports still work); **Reopen** unlocks it.
 
-**Claim Board Setup** (the first settings step) asks the questions that decide which other steps exist:
+The **New claim board** page asks the board-wide questions up front (structure, who can claim,
+limits to certain people, whether things have dates, and if so the available views), with defaults that follow the structure. They stay
+editable in **Claim Board Setup** (the first settings step), which asks the questions that decide which other steps exist:
 - **Who can claim?** Anyone with the link / Signed-in families / Only people I add. Applies to
   the whole board (every round). "Only people I add" adds the People step.
 - **Limit some activities to certain people?** (2+ levels) No / Yes, by group or tag. "Yes" adds

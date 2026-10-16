@@ -33,19 +33,19 @@ function limitsTable(round, activities) {
 function limitsCards(round, activities) {
   return `<div class="limit-card-wrap"><div class="limit-cards">${shown(activities).map((a, i) => {
     const v = limitFor(round || {}, a);
-    return `<div class="limit-card" style="--c:${colorFor(a, round && round.schedule_id)}"><input type="hidden" name="lname_${i}" value="${esc(a)}"><span class="lc-name">${esc(a)}</span>
+    return `<div class="limit-card" style="--c:${colorFor(a, round && round.schedule_id)}"><input type="hidden" name="lname_${i}" value="${esc(a)}"><span class="lc-name">${require("../config").metaFor(a, round && round.schedule_id).item_list ? "Per person" : esc(a)}</span>
       <input type="number" name="lim_${i}" min="1" max="50" value="${v ?? 2}" aria-label="${esc(a)} sessions per athlete" class="lim-n"${v == null ? " disabled" : ""}>
       <label class="check"><input type="checkbox" name="unl_${i}" value="1" class="lim-unl"${v == null ? " checked" : ""}> Unlimited</label></div>`;
   }).join("")}</div></div>`;
 }
 
-function limitsForm(round, { returnTo, readonly, compact, activities, listOnly } = {}) {
+function limitsForm(round, { returnTo, readonly, compact, activities, listOnly, slotWord } = {}) {
   return `<form method="post" action="/admin/rounds/${round.id}/limits" class="limits-form${compact ? " compact" : ""}">
     ${returnTo ? `<input type="hidden" name="return_to" value="${esc(returnTo)}">` : ""}
     <fieldset class="plain"${readonly ? " disabled" : ""}>
     ${compact ? limitsCards(round, activities) : limitsTable(round, activities)}
     <div class="limits-foot">${listOnly ? `<input type="hidden" name="unlock_never" value="1">` : unlockFields(round)}
-      <label class="check waitlist-check"><input type="checkbox" name="waitlist" value="1"${round && round.waitlist ? " checked" : ""}> Use a waitlist when sessions fill up</label>
+      <label class="check waitlist-check"><input type="checkbox" name="waitlist" value="1"${round && round.waitlist ? " checked" : ""}> Use a waitlist when ${esc((slotWord || "sessions").toLowerCase())} fill up</label>
       ${readonly ? "" : `<button class="btn-ghost" type="submit">Save limits</button>`}
     </div>
     <p class="fine">${listOnly ? `Each person can claim up to these limits. With the waitlist off, full items simply show "Full".`

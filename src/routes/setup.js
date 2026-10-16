@@ -59,13 +59,21 @@ const clean = (x, n = 24) => str(x).replace(/\s+/g, " ").slice(0, n);
 router.post("/schedules", wrap(async (req, res) => {
   const name = clean(req.body.name, 60);
   if (!name) return go(res, "/admin/setup/new", { err: "Enter a name for the schedule." });
-  const { depth = 3, calendar = true, claim = "roster", restrict = false, ...labels } = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
+  const pre = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
+  const { depth = 3, calendar: preCal = true, claim: preClaim = "roster", restrict: preRestrict = false, ...labels } = pre;
+  // the answers on the New page win over the structure's defaults
+  const b0 = req.body;
+  const claim = ["public", "family", "roster"].includes(b0.claim) ? b0.claim : preClaim;
+  const restrict = depth > 1 && (b0.restrict ? b0.restrict === "yes" : preRestrict);
+  const dated = b0.dated ? b0.dated === "yes" : preCal;
+  const pickMode = !dated ? "list" : b0.pick === "both" ? "both" : "calendar";
+  const calendar = pickMode !== "list";
   const src = null; // groups are copied later from the Groups & tags step, if needed
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
   const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets, depth, use_calendar, pick_mode, claim_mode, restricted)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth, calendar, calendar ? "calendar" : "list",
-     claim, restrict || !!(src && (src.groups || []).length)]);
+    [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth, calendar, pickMode,
+     claim, restrict]);
   await SC.refreshGroups();
   await SC.ensureStructure(await SC.get(rows[0].id));
   const L = SC.labels({ labels });
@@ -100,7 +108,8 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     const one = clean(b[`${k}_one`]) || SC.DEFAULT_LABELS[k][0];
     labels[k] = [one, clean(b[`${k}_many`]) || `${one}s`];
   }
-  const pick = ["list", "calendar", "both"].includes(b.pick) ? b.pick : null;
+  const pick = b.dated === "no" ? "list" : b.dated === "yes" ? (b.pick === "both" ? "both" : "calendar")
+    : ["list", "calendar", "both"].includes(b.pick) ? b.pick : null;
   const claim = ["public", "family", "roster"].includes(b.claim) ? b.claim : null;
   const restrict = b.restrict === "yes" ? true : b.restrict === "no" ? false : null;
   await query(`UPDATE schedules SET claim_mode = COALESCE($2, claim_mode), restricted = COALESCE($3, restricted) WHERE id=$1`, [id, claim, restrict]);
@@ -163,7 +172,7 @@ router.post("/schedules/:id/copy", wrap(async (req, res) => {
   const bits = [];
   const n = (c, l) => `${c} ${(c === 1 ? l.one : l.many).toLowerCase()}`;
   if (out.members) bits.push(n(out.members, L.participant));
-  if (calendar) bits.push(`${n(out.rounds, L.middle)} and ${n(out.sessions, L.slot)} (as drafts)`);
+  if (calendar) bits.push(SC.depthOf(sc) >= 3 ? `${n(out.rounds, L.middle)} and ${n(out.sessions, L.slot)} (as drafts)` : `${n(out.sessions, L.slot)} (unpublished)`);
   go(res, `/admin/setup?s=${out.board.id}`, { ok: `Created ${name} from ${sc.name}${bits.length ? ` with ${bits.join("; ")}` : ""}.` });
 }));
 

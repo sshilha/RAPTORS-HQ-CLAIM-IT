@@ -874,3 +874,27 @@ label .fine { text-transform: none; letter-spacing: normal; font-weight: 400; co
 .copy-from .label-like { margin: 0; }
 .copy-from .fine { flex-basis: 100%; }
 .struct-grid legend { font: 700 13px var(--body); text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+
+/* ---------- 1-2 level board page: numbered steps ---------- */
+.board-block { display: flex; flex-direction: column; gap: 14px; }
+.bb-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.board-step { border: 1.5px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.bs-title { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font: 800 20px var(--display); text-transform: uppercase; color: var(--navy); }
+.bs-title .step-num { background: var(--navy); color: #fff; }
+.bs-help { margin: 0 0 10px; font-size: 14px; max-width: 760px; }
+.bs-publish { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.bs-cal { margin: 10px 0; }
+.board-step .items-panel { border-top: 0; margin-top: 8px; padding-top: 0; }
+.board-step .round-limits { margin: 0; }
+.nb-q { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.nb-q legend { font: 700 13px var(--body); text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 4px; }
+#nb-restrict { grid-template-columns: 1fr 1fr; }
+.nb-opt { display: flex; gap: 8px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer;
+  text-transform: none; letter-spacing: normal; font-weight: 400; font-size: 13px; color: var(--muted); }
+.nb-opt:has(input:checked) { border-color: var(--navy); background: #fbfcff; box-shadow: inset 0 -3px 0 var(--lime-dark); }
+.nb-opt input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--navy); flex: none; }
+.nb-opt b { display: block; font: 700 15px var(--display); text-transform: uppercase; letter-spacing: .3px; color: var(--navy); margin-bottom: 1px; }
+@media (max-width: 640px) { .nb-q, #nb-restrict { grid-template-columns: 1fr; } }
+.board-step .items-panel > .label-like { display: none; }
+.nb-two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) { .nb-two { grid-template-columns: 1fr; } }
