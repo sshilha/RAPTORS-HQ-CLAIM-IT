@@ -3,6 +3,7 @@ const { LABELS, colorFor } = require("../config");
 const { fmtTime, fmtDateTime } = require("../time");
 const { typeLabel } = require("../rounds");
 const SC = require("../schedules");
+const P = require("../locations");
 
 const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -26,7 +27,7 @@ function sheetPage({ user, round: r, slots, flash }) {
     body: `<section class="panel">
       <p class="label-like">${esc(r.schedule_name || "")}</p>
       <h1>${esc(r.name)}</h1>
-      ${r.location ? `<p class="muted tight">${esc(r.location)}</p>` : ""}
+      ${r.location ? `<p class="muted tight">${P.link(r.location)}</p>` : ""}
       ${user ? `<p class="fine">Signed in as ${esc(user.email)}. Your spots also show under <a href="/dashboard">My Claims</a>.</p>`
         : `<p class="fine">Pick a time, tap <b>Claim it</b>, and enter a name and email. No account needed. Already claimed a spot? <a href="/">Sign in</a> with your email to see or give it up.</p>`}
     </section>
@@ -37,7 +38,7 @@ function sheetPage({ user, round: r, slots, flash }) {
         return `<li class="sess${open > 0 ? "" : " full"}" style="--c:${colorFor(s.activity, r.schedule_id)}">
           <div class="sess-main">
             <div class="sess-time"><span class="dot" style="background:var(--c)"></span> ${esc(s.starts_at ? `${fmtTime(s.starts_at)}–${fmtTime(s.ends_at)}${s.title ? `, ${s.title}` : ""}` : s.title || "Spot")}</div>
-            <div class="sess-meta">${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : esc(typeLabel(s.activity, s.age_groups, s.required_tags))}${s.coach ? `${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : ", "}${esc(s.coach)}` : ""}</div>
+            <div class="sess-meta">${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : esc(typeLabel(s.activity, s.age_groups, s.required_tags))}${s.coach ? `${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : ", "}${esc(s.coach)}` : ""}${s.location && s.location !== r.location ? ` · ${P.link(s.location)}` : ""}</div>
             <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div>
             ${s.going && s.going.length ? `<div class="going"><span>Going:</span> ${s.going.map(esc).join(", ")}</div>` : ""}
           </div>

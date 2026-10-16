@@ -293,7 +293,7 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
 
       <div><label>Cancellation deadline (hours before)<input type="number" min="0" max="336" name="cancel_hours" value="${r.cancel_hours}"></label></div>
       <div class="full"><label>Location<input name="location" value="${esc(r.location)}" list="locations"></label>
-        <datalist id="locations">${((schedule && schedule.locations) || []).map((l) => `<option value="${esc(l)}">`).join("")}</datalist>
+        ${require("../locations").datalist("locations")}
         <label class="check"><input type="checkbox" name="apply_location" value="1"> Also change it on sessions already scheduled</label></div>
       ${readonly ? "" : `<div class="full"><button class="btn" type="submit">Save round</button></div>`}
     </fieldset></form>

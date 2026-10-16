@@ -66,7 +66,7 @@ router.post("/schedules", wrap(async (req, res) => {
   const claim = ["public", "family", "roster"].includes(b0.claim) ? b0.claim : preClaim;
   const restrict = b0.restrict ? b0.restrict === "yes" : preRestrict;
   const dated = b0.dated ? b0.dated === "yes" : preCal;
-  const pickMode = !dated ? "list" : b0.pick === "both" ? "both" : "calendar";
+  const pickMode = !dated ? "list" : b0.pick === "both" ? "both" : b0.pick === "list" ? "dlist" : "calendar";
   const calendar = pickMode !== "list";
   const src = null; // groups are copied later from the Groups & tags step, if needed
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
@@ -108,7 +108,7 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     const one = clean(b[`${k}_one`]) || SC.DEFAULT_LABELS[k][0];
     labels[k] = [one, clean(b[`${k}_many`]) || `${one}s`];
   }
-  const pick = b.dated === "no" ? "list" : b.dated === "yes" ? (b.pick === "both" ? "both" : "calendar")
+  const pick = b.dated === "no" ? "list" : b.dated === "yes" ? (b.pick === "both" ? "both" : b.pick === "list" ? "dlist" : "calendar")
     : ["list", "calendar", "both"].includes(b.pick) ? b.pick : null;
   const claim = ["public", "family", "roster"].includes(b.claim) ? b.claim : null;
   const restrict = b.restrict === "yes" ? true : b.restrict === "no" ? false : null;

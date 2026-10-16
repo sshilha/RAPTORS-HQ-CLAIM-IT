@@ -62,8 +62,11 @@ router.get("/dashboard", wrap(async (req, res) => {
   // Calendar or list: boards set to "Both" let families switch; their choice is remembered
   let view = ["cal", "list"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.rt_view === "list" ? "list" : "cal";
   if (req.query.v) res.cookie("rt_view", view, { sameSite: "lax", maxAge: 365 * 864e5 });
-  const canSwitch = programs.some((p) => p.pick_mode === "both" && p.sessions.some((s) => s.starts_at));
-  if (!canSwitch) view = "cal";
+  const datedModes = [...new Set(programs.filter((p) => p.sessions.some((s) => s.starts_at)).map((p) => p.pick_mode))];
+  const listOnly = datedModes.length > 0 && datedModes.every((m) => m === "dlist");
+  const canSwitch = !listOnly && datedModes.includes("both");
+  if (listOnly) view = "list";
+  else if (!canSwitch) view = "cal";
   res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, canSelf, flash: flashFrom(req), view, canSwitch }));
 }));
 

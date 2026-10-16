@@ -63,9 +63,46 @@ router.get("/archived", wrap(async (req, res) => {
 }));
 
 // ---------- ⚙ App ----------
+// ---------- saved places (app-wide) ----------
+const { query: q } = require("../db");
+const P = require("../locations");
+router.post("/places", wrap(async (req, res) => {
+  const name = clean(req.body.name, 80), address = clean(req.body.address, 200) || null;
+  if (!name) return go(res, app("places"), { err: "Enter a name for the place." });
+  if (P.find(name)) return go(res, app("places"), { err: `${name} is already saved. Edit it in the list.` });
+  await q(`INSERT INTO app_locations (name, address) VALUES ($1,$2)`, [name, address]);
+  await P.load();
+  go(res, app("places"), { ok: `Saved ${name}.${address ? "" : " Add its address so people get directions."}` });
+}));
+router.post("/places/:id", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const cur = P.all().find((l) => l.id === id);
+  const name = clean(req.body.name, 80), address = clean(req.body.address, 200) || null;
+  if (!cur || !name) return go(res, app("places"), { err: "Enter a name." });
+  if (!same(cur.name, name) && P.find(name)) return go(res, app("places"), { err: `${name} is already saved.` });
+  await q(`UPDATE app_locations SET name=$2, address=$3 WHERE id=$1`, [id, name, address]);
+  if (cur.name !== name) { // everything that used the old name follows the rename
+    await q(`UPDATE rounds SET location=$2 WHERE location=$1`, [cur.name, name]);
+    await q(`UPDATE training_sessions SET location=$2 WHERE location=$1`, [cur.name, name]);
+  }
+  await P.load();
+  go(res, app("places"), { ok: `Saved ${name}.` });
+}));
+router.post("/places/:id/remove", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const cur = P.all().find((l) => l.id === id);
+  await q(`DELETE FROM app_locations WHERE id=$1`, [id]);
+  await P.load();
+  go(res, app("places"), { ok: `Removed ${cur ? cur.name : "it"}. Anything that used it keeps the name, just without a map link.` });
+}));
+
 router.get("/app", wrap(async (req, res) => {
   const admins = (await require("../db").query(`SELECT a.*, u.last_login_at FROM app_admins a LEFT JOIN users u ON u.email=a.email ORDER BY a.email`)).rows;
-  res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins() }));
+  const used = Object.fromEntries((await require("../db").query(
+    `SELECT location, count(*)::int AS n FROM (SELECT location FROM rounds UNION ALL SELECT location FROM training_sessions WHERE canceled_at IS NULL) x
+     WHERE location IS NOT NULL GROUP BY location`)).rows.map((r) => [r.location.toLowerCase(), r.n]));
+  res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins(),
+    places: require("../locations").all(), used, mapsKey: process.env.GOOGLE_MAPS_API_KEY || "" }));
 }));
 
 router.post("/labels", wrap(async (req, res) => {
@@ -80,7 +117,6 @@ router.post("/labels", wrap(async (req, res) => {
 }));
 
 // ---------- administrators ----------
-const { query: q } = require("../db");
 router.post("/admins", wrap(async (req, res) => {
   const email = auth.normalizeEmail(req.body.email);
   if (!auth.isValidEmail(email)) return go(res, app("admins"), { err: "Enter a valid email." });

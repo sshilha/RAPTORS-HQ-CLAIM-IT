@@ -44,6 +44,7 @@ async function start() {
   await require("./catalog").load(); // activities, age groups, shortcuts, locations
   await require("./schedules").ensureDefault(); // existing data becomes the first schedule
   await auth.loadAdmins();
+  await require("./locations").migrate(); // saved places (names from older lists, addresses added in ⚙ App)
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => console.log(`${require("./config").LABELS.app_name} running on port ${PORT}`));

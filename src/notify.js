@@ -23,7 +23,7 @@ function details(r) {
   const lines = [
     `${r.program_name}`,
     itemLabel(r),
-    r.location && `Location: ${r.location}`,
+    r.location && `Location: ${r.location}${require("./locations").mapUrl(r.location) ? ` (directions: ${require("./locations").mapUrl(r.location)})` : ""}`,
     r.coach && `Coach: ${r.coach}`,
     r.notes,
   ].filter(Boolean);

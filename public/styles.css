@@ -1032,3 +1032,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   .wz-progress li { font-size: 13px; padding: 8px; }
   .panel { padding: 18px 16px; }
 }
+table.places input { padding: 7px 9px; min-width: 160px; }
+table.places input.addr { min-width: 280px; }
+.place-add .grow { flex: 2 1 280px; }
+.loc-link { font-weight: 600; color: var(--navy-2); text-decoration: none; white-space: nowrap; }
+.loc-link:hover { text-decoration: underline; }
+.res-loc { font-size: 13px; margin-top: 2px; }
+.used-n { font-size: 13px; color: var(--muted); font-weight: 600; }

@@ -28,7 +28,7 @@ const claimMode = (sc) => (sc && ["public", "family", "roster"].includes(sc.clai
 const restricts = (sc) => !!(sc && sc.restricted);
 // Which setup steps a board needs, from its answers on Name & structure
 const needsPeople = (sc) => claimMode(sc) === "roster" || restricts(sc);
-const pickMode = (sc) => (sc && ["list", "calendar", "both"].includes(sc.pick_mode) ? sc.pick_mode : sc && sc.use_calendar === false ? "list" : "calendar");
+const pickMode = (sc) => (sc && ["list", "calendar", "both", "dlist"].includes(sc.pick_mode) ? sc.pick_mode : sc && sc.use_calendar === false ? "list" : "calendar");
 const usesCalendar = (sc) => !sc || pickMode(sc) !== "list";
 const depthOf = (sc) => Math.min(4, Math.max(1, parseInt((sc && sc.depth) || 3, 10) || 3));
 const levelKeys = (sc) => LEVEL_KEYS[depthOf(sc)];
@@ -109,7 +109,7 @@ async function ensureStructure(sc) {
     r = (await query(
       `INSERT INTO rounds (name, starts_on, ends_on, location, activity_defaults, activity_limits, schedule_id, is_main, signup_mode)
        VALUES ($1, CURRENT_DATE, CURRENT_DATE + 730, $2, '{}', '{}', $3, true, $4) RETURNING *`,
-      [sc.name, (sc.locations || [])[0] || null, sc.id, claimMode(sc)])).rows[0];
+      [sc.name, null, sc.id, claimMode(sc)])).rows[0];
     void R;
   }
   if (depth === 1) {

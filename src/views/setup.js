@@ -43,7 +43,7 @@ function itemsPanel(r, locked, L) {
     ${items.length ? `<table class="types compact items"><thead><tr>${depth > 1 ? `<th>${esc(L.activity.one)}</th>` : ""}<th>${esc(L.slot.one)}</th><th>Spots</th>${limited ? "<th>Who</th>" : ""}<th>Claimed</th><th></th></tr></thead>
       <tbody>${items.map((it) => `<tr>
         ${depth > 1 ? `<td>${swatch(it.activity)}${it.section ? `${esc(it.section)} › ` : ""}${esc(typeLabel(it.activity, it.age_groups, it.required_tags))}</td>` : ""}
-        <td>${locked ? esc(it.title || "") : `<input form="it-${it.id}" name="title" value="${esc(it.title || "")}" maxlength="80" aria-label="Name" required>`}</td>
+        <td>${locked ? esc(it.title || "") : `<input form="it-${it.id}" name="title" value="${esc(it.title || "")}" maxlength="80" aria-label="Name" required>`}${it.location ? `<div class="fine">📍 ${esc(it.location)}</div>` : ""}</td>
         <td>${locked ? it.capacity : `<input form="it-${it.id}" type="number" name="capacity" min="1" max="500" value="${it.capacity}" aria-label="Spots" class="spots-in">`}</td>
         ${limited ? `<td>${locked ? esc([...(it.only_groups || []), ...(it.only_tags || [])].join(", ") || "Everyone") : forPicker(CUR, it.only_groups || [], it.only_tags || [], `it-${it.id}`)}</td>` : ""}
         <td><a href="/admin/sessions/${it.id}">${it.claimed} of ${it.capacity}${it.waitlisted ? `, ${it.waitlisted} waiting` : ""}</a></td>
@@ -56,6 +56,7 @@ function itemsPanel(r, locked, L) {
         : `<input type="hidden" name="program_id" value="${(types[0] || {}).id || ""}">`}
       <input name="title" required maxlength="80" placeholder="e.g. Bring a case of water" aria-label="Name" class="title-in">
       <input type="number" name="capacity" min="1" max="500" required placeholder="Spots" aria-label="Spots" class="spots-in">
+      <input name="location" list="app-locations" maxlength="80" placeholder="Location (optional)" aria-label="Location" class="coach-in">${require("../locations").datalist()}
       ${limited ? forPicker(CUR) : ""}
       <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button>
     </form>`}
@@ -266,7 +267,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   const sections = {
     structure: `<section class="panel">
       <h1>${esc(require("../config").LABELS.schedule)} Setup</h1>
-      <p class="muted tight">The basics: its name, who can claim, how people see it, its levels, locations, and what people see of who's going.</p>
+      <p class="muted tight">The basics: its name, who can claim, how people see it, its levels, and what people see of who's going.</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/depth?s=${sc.id}" class="depth-form">
         <label>Levels under the board<select name="depth"${counts.items ? " disabled" : ""}>
           ${[1, 2, 3, 4].map((n) => `<option value="${n}"${SC.depthOf(sc) === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select></label>
@@ -291,7 +292,8 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
           <label class="mode-opt"><input type="radio" name="dated" value="yes"${SC.pickMode(sc) === "list" ? "" : " checked"}><span><b>Yes</b><span class="fine">${esc(L.slot.many)} have dates and times. Undated items can still be added too.</span></span></label>
         </fieldset>
         <fieldset class="checks pick-mode" id="views-q"${SC.pickMode(sc) === "list" ? " hidden" : ""}><legend>Available views</legend>
-          <label class="mode-opt"><input type="radio" name="pick" value="calendar"${SC.pickMode(sc) !== "both" ? " checked" : ""}><span><b>Calendar</b><span class="fine">People pick days on a calendar.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="pick" value="list"${SC.pickMode(sc) === "dlist" ? " checked" : ""}><span><b>List</b><span class="fine">People see a day-by-day list with dates and times. No calendar.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="pick" value="calendar"${["calendar", "list"].includes(SC.pickMode(sc)) ? " checked" : ""}><span><b>Calendar</b><span class="fine">People pick days on a calendar.</span></span></label>
           <label class="mode-opt"><input type="radio" name="pick" value="both"${SC.pickMode(sc) === "both" ? " checked" : ""}><span><b>Both: List &amp; Calendar</b><span class="fine">People can switch between the calendar and a day-by-day list. The app remembers which one they used last.</span></span></label>
         </fieldset>
         <script>document.querySelectorAll('input[name="dated"]').forEach(function (r) { r.addEventListener("change", function () {
@@ -313,15 +315,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
     </section>
 `,
     more: `    <div class="settings-2">
-    <section class="panel" id="locations">
-      <h2 class="banner">Locations</h2>
-      <p class="fine">Suggested when you set a ${esc(L.middle.one.toLowerCase())}'s location. The first one is the default for new ${esc(L.middle.many.toLowerCase())}.</p>
-      ${(sc.locations || []).length ? `<ul class="slot-list">${sc.locations.map((l) => `<li><span>${esc(l)}</span>
-        <form method="post" action="/admin/setup/schedules/${sc.id}/locations/remove?s=${sc.id}"><input type="hidden" name="name" value="${esc(l)}"><button class="x" type="submit" aria-label="Remove ${esc(l)}">×</button></form></li>`).join("")}</ul>`
-        : `<p class="muted">None yet.</p>`}
-      <form method="post" action="/admin/setup/schedules/${sc.id}/locations?s=${sc.id}" class="inline-add"><label>New location<input name="name" maxlength="80" required placeholder="e.g. Turn Two Athletics"></label>
-        <button class="btn-small" type="submit">Add</button></form>
-    </section>
+
     <section class="panel" id="family">
       <h2 class="banner">View</h2>
       <p class="fine">What people see of who's going to each ${esc(L.slot.one.toLowerCase())}, so friends can claim spots together. Emails and other contact details are never shown.</p>
@@ -407,7 +401,8 @@ function newSchedulePage({ user, flash }) {
           <fieldset class="q"><legend>Do things have dates and times?</legend><div class="choice-row">
             ${opt("dated", "no", "No", "It's all one day or there are no set times. People pick from a list.")}
             ${opt("dated", "yes", "Yes", "Things have dates and times.")}</div></fieldset>
-          <fieldset class="q" id="wz-views"><legend>Available views</legend><div class="choice-row">
+          <fieldset class="q" id="wz-views"><legend>Available views</legend><div class="choice-row three">
+            ${opt("pick", "list", "List", "A day-by-day list with dates and times. No calendar.")}
             ${opt("pick", "calendar", "Calendar", "People pick days on a calendar.")}
             ${opt("pick", "both", "Both: List &amp; Calendar", "People can switch between the calendar and a day-by-day list.")}</div></fieldset>
           <div class="wz-summary" aria-live="polite"><span class="label-like">Summary</span><p id="wz-sum"></p></div>
@@ -433,7 +428,7 @@ function newSchedulePage({ user, flash }) {
       function refresh() {
         document.getElementById("wz-views").hidden = val("dated") !== "yes";
         var who = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" }[val("claim")] || "";
-        var when = val("dated") === "yes" ? (val("pick") === "both" ? "dates, list & calendar" : "dates, calendar") : "no dates (a list)";
+        var when = val("dated") === "yes" ? ({ both: "dates, list & calendar", list: "dates, list view" }[val("pick")] || "dates, calendar") : "no dates (a list)";
         document.getElementById("wz-sum").innerHTML = "<b>" + (form.name.value.trim() || "Untitled").replace(/[<>&]/g, "") + "</b> · " + (NAMES[val("preset")] || "") +
           " · " + who + " · " + (val("restrict") === "yes" ? "limited by group or tag" : "anyone can claim anything") + " · " + when;
       }

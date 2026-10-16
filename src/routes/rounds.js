@@ -77,7 +77,7 @@ router.post("/", wrap(async (req, res) => {
       `INSERT INTO rounds (name, starts_on, ends_on, season_id, location, activity_defaults, activity_limits, schedule_id, signup_mode)
        VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE((SELECT schedule_id FROM seasons WHERE id=$4), $8, (SELECT min(id) FROM schedules)),
          COALESCE((SELECT claim_mode FROM schedules WHERE id=$8), 'roster')) RETURNING id`,
-      [name, s, e, seasonId, ((await require("../schedules").get(int(req.body.schedule_id) || (seasonId && (await require("../schedules").forSeason(seasonId) || {}).id)) || {}).locations || [])[0] || null, "{}",
+      [name, s, e, seasonId, null, "{}",
        JSON.stringify(R.defaultLimits(await require("../schedules").get(int(req.body.schedule_id) || (seasonId && (await require("../schedules").forSeason(seasonId) || {}).id)) || null)),
        int(req.body.schedule_id) || null])).rows[0].id;
   });
@@ -176,7 +176,7 @@ router.post("/:id/items", wrap(async (req, res) => {
   const program = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [int(req.body.program_id), id])).rows[0];
   const title = str(req.body.title).slice(0, 80), cap = int(req.body.capacity);
   if (!program || !title || !(cap >= 1 && cap <= 500)) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Pick what it is, give it a name, and enter how many spots." });
-  const item = await R.addItem({ query }, program, { title, capacity: cap });
+  const item = await R.addItem({ query }, program, { title, capacity: cap, location: str(req.body.location).slice(0, 80) || null });
   await saveFor(id, item.id, req.body);
   go(res, dest(req, `/admin/rounds/${id}`), { ok: `Added "${title}" with ${cap} spot${cap === 1 ? "" : "s"}.` });
 }));

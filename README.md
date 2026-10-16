@@ -49,7 +49,8 @@ undated items show as a list on My Claims and the public page, and have no give-
 The number of levels can change only while the board is empty.
 
 **Do things have dates and times?** No: people pick from a list (put the day in the board's name,
-times in item names). Yes: choose the **Available views**: Calendar, or Both: List & Calendar
+times in item names). Yes: choose the **Available views**: List (a day-by-day list with dates and times, no calendar),
+Calendar, or Both: List & Calendar
 (people switch between the calendar and a day-by-day list; their choice is remembered). New item-list
 boards start as lists. Items appear in the order you add them.
 
@@ -90,7 +91,10 @@ view, 6 Archive or delete. Steps 3–4 are only needed for roster-only claims or
   last initial, or hidden), archive/restore, delete (when empty). Archiving hides the board from
   families without deleting anything.
 
-**⚙ App:** app name and short name, organization, what each board is called, and
+**⚙ App:** app name and short name, organization, what each board is called, **Locations** (saved
+places with addresses; location boxes suggest them, and people see them as 📍 links to Google
+Maps directions; any other typed location shows as plain text; set `GOOGLE_MAPS_API_KEY` in
+Railway to turn on address search as you type), and
 **Administrators** (add or remove app-wide admins; anyone in the `ADMIN_EMAILS` variable is a
 built-in admin that can't be removed in the app, so you can't lock yourself out).
 

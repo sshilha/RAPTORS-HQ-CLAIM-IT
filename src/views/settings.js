@@ -136,14 +136,15 @@ function groupsPage({ user, flash, sc, usage, others = [] }) {
   });
 }
 
-function appPage({ user, flash, c, admins, envAdmins }) {
+function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, mapsKey = "" }) {
+  const P = require("../locations");
   const al = c.app_labels || {};
   const { fmtDateTime } = require("../time");
   return page({
     title: "App settings", tab: "settings", user, flash,
     body: `<section class="panel"><h1>App settings</h1>
       <p class="muted tight">Things that apply across the whole app. Everything else lives inside each ${esc((al.schedule || ["Claim Board"])[0])}.</p>
-      <nav class="jump"><a href="#labels">Name</a><a href="#admins">Administrators</a></nav></section>
+      <nav class="jump"><a href="#labels">Name</a><a href="#places">Locations</a><a href="#admins">Administrators</a></nav></section>
     <section class="panel" id="labels">
       <h2 class="banner">App name</h2>
       <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
@@ -155,6 +156,43 @@ function appPage({ user, flash, c, admins, envAdmins }) {
         <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
       </form>
     </section>
+    <section class="panel" id="places">
+      <h2 class="banner">Locations</h2>
+      <p class="fine">Places you use often. Location boxes everywhere suggest these, and people see them as a 📍 link to directions. You can still type any location (like "Pavilion behind Field 2"); it just shows as plain text.</p>
+      ${places.length ? `<div class="table-wrap"><table class="places">
+        <thead><tr><th>Name</th><th>Address</th><th>Map</th><th>Used</th><th></th></tr></thead>
+        <tbody>${places.map((l) => `<tr>
+          <td><input form="pl-${l.id}" name="name" value="${esc(l.name)}" maxlength="80" required aria-label="Name"></td>
+          <td><input form="pl-${l.id}" name="address" value="${esc(l.address)}" maxlength="200" class="addr" placeholder="Street, city, state" aria-label="Address"></td>
+          <td>${l.address ? `<a href="${P.mapUrl(l.name)}" target="_blank" rel="noopener">Open in Maps</a>` : `<span class="fine">Add an address</span>`}</td>
+          <td><span class="used-n">${used[l.name.toLowerCase()] || 0}</span></td>
+          <td><div class="row-actions"><form id="pl-${l.id}" method="post" action="/admin/settings/places/${l.id}"><button class="btn-ghost" type="submit">Save</button></form>
+            <form method="post" action="/admin/settings/places/${l.id}/remove" onsubmit="return confirm('Remove ${esc(l.name)} from saved places?')"><button class="x" type="submit" aria-label="Remove">×</button></form></div></td>
+        </tr>`).join("")}</tbody></table></div>` : `<p class="muted">No saved places yet.</p>`}
+      <form method="post" action="/admin/settings/places" class="inline-add place-add">
+        <label>Name<input name="name" id="place-name" required maxlength="80" placeholder="e.g. Turn Two Athletics"></label>
+        <label class="grow">Address<input name="address" id="place-address" class="addr" maxlength="200" placeholder="${mapsKey ? "Start typing to search…" : "Street, city, state"}"></label>
+        <button class="btn-small" type="submit">Add place</button>
+      </form>
+      ${mapsKey ? "" : `<p class="fine">Want address search as you type? Add a Google Maps API key in Railway as <code>GOOGLE_MAPS_API_KEY</code>. Map links work without it.</p>`}
+    </section>
+    ${mapsKey ? `<script>
+      function initPlaces() {
+        document.querySelectorAll("input.addr").forEach(function (el) {
+          var ac = new google.maps.places.Autocomplete(el, { fields: ["formatted_address", "name"], componentRestrictions: { country: "us" } });
+          ac.addListener("place_changed", function () {
+            var p = ac.getPlace(); if (!p) return;
+            if (p.formatted_address) el.value = p.formatted_address;
+            var nameBox = el.form ? el.form.querySelector('[name="name"]') : document.querySelector('[form="' + el.getAttribute("form") + '"][name="name"]');
+            if (el.id === "place-address") nameBox = document.getElementById("place-name");
+            if (nameBox && !nameBox.value && p.name) nameBox.value = p.name;
+          });
+          el.addEventListener("keydown", function (e) { if (e.key === "Enter" && document.querySelector(".pac-container:not([style*='display: none'])")) e.preventDefault(); });
+        });
+      }
+    </script>
+    <script async src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&libraries=places&callback=initPlaces"></script>` : ""}
+
     <section class="panel" id="admins">
       <h2 class="banner">Administrators</h2>
       <p class="fine">Administrators can open Settings and Reports and manage every ${esc((al.schedule || ["Claim Board"])[0])}. They sign in with their email like everyone else.</p>

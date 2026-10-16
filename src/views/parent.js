@@ -6,6 +6,7 @@ const { ACTIVITIES, LABELS, colorFor } = require("../config");
 const SC = require("../schedules");
 const { typeLabel } = require("../rounds");
 const { itemLabel } = require("../time");
+const P = require("../locations");
 
 const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -117,6 +118,7 @@ function itemsList(programs, athlete, back) {
     <ul class="sess-list">${items.map((s) => { const open = s.capacity - s.confirmed; return `<li class="sess${s.my_status ? " mine" : ""}${open > 0 ? "" : " full"}">
       <div class="sess-main"><div class="sess-time">${esc(s.title || "Spot")}</div>
         ${(s.only_groups || []).length || (s.only_tags || []).length ? `<div class="sess-meta">${esc([...(s.only_groups || []), ...(s.only_tags || [])].join(" or "))} only</div>` : ""}
+        ${s.location ? `<div class="sess-meta">${P.link(s.location)}</div>` : ""}
         <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div></div>
       <div class="sess-side">${actionFor(p, s, athlete, back)}</div></li>`; }).join("")}</ul></div>`).join("")}</div>`;
 }
@@ -150,7 +152,7 @@ function monthList(programs, athlete, month, back) {
       const s = e.s, open = s.capacity - s.confirmed;
       return `<li class="sess${s.my_status ? " mine" : ""}${open > 0 ? "" : " full"}" style="--c:${colorFor(e.p.activity, e.p.schedule_id)}">
         <div class="sess-main"><div class="sess-time"><span class="dot" style="background:var(--c)"></span> ${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}${s.title ? `, ${esc(s.title)}` : ""}</div>
-          <div class="sess-meta">${esc(label)}${s.location ? `, ${esc(s.location)}` : ""}</div>
+          <div class="sess-meta">${esc(label)}${s.location ? ` · ${P.link(s.location)}` : ""}</div>
           <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div></div>
         <div class="sess-side">${actionFor(e.p, s, athlete, back)}</div></li>`;
     }).join("")}</ul></div>`).join("")}</div>`;
@@ -209,7 +211,7 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
       ${mine.length ? `<ul class="res-list">${mine.map((r) => `<li class="res">
         <a class="res-main res-link" href="${r.starts_at ? `/athletes/${athlete.id}/day/${localDate(r.starts_at)}` : `/dashboard?a=${athlete.id}#items`}">
           <div class="res-when">${esc(itemLabel(r))}</div>
-          <div class="res-what">${esc(r.program_name)}${r.location ? `, ${esc(r.location)}` : ""}</div></a>
+          <div class="res-what">${esc(r.program_name)}</div></a>${r.location ? `<div class="res-loc">${P.link(r.location)}</div>` : ""}
         <div class="res-side">${r.status === "confirmed" ? `<span class="pill ok">Claimed</span>` : `<span class="pill wait">Waitlist #${r.wait_pos}</span>`}
           ${cancelControl(r, `/dashboard?a=${athlete.id}&m=${month}`)}</div></li>`).join("")}</ul>`
         : `<p class="muted">Nothing claimed yet. Pick a day on the calendar to get started.</p>`}
@@ -257,7 +259,7 @@ function sessionCard(p, s, athlete, back, going, showNames) {
   return `<li class="sess${open > 0 ? "" : " full"}${s.my_status ? " mine" : ""}">
     <div class="sess-main">
       <div class="sess-time">${esc(fmtTime(s.starts_at))}–${esc(fmtTime(s.ends_at))}</div>
-      <div class="sess-meta">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</div>
+      <div class="sess-meta">${[s.location ? P.link(s.location) : "", s.coach ? esc(`Coach ${s.coach}`) : ""].filter(Boolean).join(" · ")}</div>
       ${s.notes ? `<div class="sess-meta">${esc(s.notes)}</div>` : ""}
       <div class="spots">${spots}${s.unlocked && open > 0 && !s.my_status ? ` <span class="pill open-all">Open to all</span>` : ""}</div>
       ${showNames(p.id) ? goingLine(going[s.id], athlete) : ""}
@@ -267,7 +269,7 @@ function sessionCard(p, s, athlete, back, going, showNames) {
 }
 
 function blockGrid(p, list, athlete, back, going, showNames) {
-  return `<div class="sess-meta">${esc(fmtTime(list[0].starts_at))}–${esc(fmtTime(list[list.length - 1].ends_at))}${list[0].location ? `, ${esc(list[0].location)}` : ""}</div>
+  return `<div class="sess-meta">${esc(fmtTime(list[0].starts_at))}–${esc(fmtTime(list[list.length - 1].ends_at))}${list[0].location ? ` · ${P.link(list[0].location)}` : ""}</div>
     <div class="block-grid">${list.map((s) => {
       const open = s.capacity - s.confirmed;
       return `<div class="block${s.my_status ? " mine" : open > 0 ? "" : " full"}">

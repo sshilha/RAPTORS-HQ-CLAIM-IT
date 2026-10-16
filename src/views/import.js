@@ -31,7 +31,7 @@ const uploadPage = ({ user, flash, v = {}, seasons = [], schedules = [] }) => {
         ${schedules.map((x) => `<option value="${x.id}"${String(v.schedule_id) === String(x.id) ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select></div>
       <div><label for="year">Year of the first date</label><input id="year" name="year" inputmode="numeric" value="${esc(v.year)}" placeholder="Read from the PDF">
         <span class="fine">Leave blank to use the year on the schedule.</span></div>
-      <div><label for="loc">Location</label><input id="loc" name="location" value="${esc(v.location ?? (((target || {}).locations || [])[0] || ""))}"></div>
+      ${require("../locations").datalist()}<div><label for="loc">Location</label><input id="loc" name="location" value="${esc(v.location ?? "")}" list="app-locations"></div>
       <div class="full"><p class="label-like">Limits per athlete, each round</p>${limitsTable(null, acts)}${unlockFields(null)}
         <label class="check waitlist-check"><input type="checkbox" name="waitlist" value="1"${v.waitlist ? " checked" : ""}> Use a waitlist when sessions fill up</label></div>
       <div><label for="cxl">Cancellation deadline (hours before)</label><input id="cxl" type="number" min="0" max="336" name="cancel_hours" value="${esc(v.cancel_hours ?? 24)}"></div>

@@ -95,7 +95,7 @@ function sessionFields(s = {}, { create } = {}) {
   if (s.id && !s.starts_at) return `
   <div class="full"><label for="s-title">Name</label><input id="s-title" name="title" required maxlength="80" value="${esc(s.title)}"></div>
   <input type="hidden" name="undated" value="1">
-  <div><label for="s-loc">Location</label><input id="s-loc" name="location" value="${esc(s.location)}"></div>
+  <div><label for="s-loc">Location</label><input id="s-loc" name="location" list="app-locations" value="${esc(s.location)}">${require("../locations").datalist()}</div>
   <div><label for="s-coach">Contact</label><input id="s-coach" name="coach" value="${esc(s.coach)}"></div>
   <div><label for="s-cap">Spots</label><input id="s-cap" type="number" min="1" max="500" name="capacity" required value="${s.capacity ?? 1}"></div>
   <div class="full"><label for="s-notes">Notes (optional)</label><input id="s-notes" name="notes" value="${esc(s.notes)}"></div>`;
@@ -104,7 +104,7 @@ function sessionFields(s = {}, { create } = {}) {
   <div><label for="s-date">Date</label><input id="s-date" type="date" name="date" required value="${st.date}"></div>
   <div class="pair"><div><label for="s-st">Start</label><input id="s-st" type="time" name="start_time" required value="${st.time}"></div>
     <div><label for="s-en">End</label><input id="s-en" type="time" name="end_time" required value="${en.time}"></div></div>
-  <div><label for="s-loc">Location</label><input id="s-loc" name="location" value="${esc(s.location)}"></div>
+  <div><label for="s-loc">Location</label><input id="s-loc" name="location" list="app-locations" value="${esc(s.location)}">${require("../locations").datalist()}</div>
   <div><label for="s-coach">Coach</label><input id="s-coach" name="coach" value="${esc(s.coach)}"></div>
   <div><label for="s-cap">Capacity</label><input id="s-cap" type="number" min="1" max="200" name="capacity" required value="${s.capacity ?? 8}"></div>
   ${create ? `<div><label for="s-rep">Repeat weekly</label><select id="s-rep" name="repeat_weeks">

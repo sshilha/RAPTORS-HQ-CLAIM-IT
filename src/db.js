@@ -210,6 +210,14 @@ async function migrate() {
     -- "Only for" on a single item/session (e.g. Salad only for 10U); empty = everyone
     ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS only_groups TEXT[] NOT NULL DEFAULT '{}';
     ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS only_tags TEXT[] NOT NULL DEFAULT '{}';
+    -- App-wide saved places (name + optional address for map links)
+    CREATE TABLE IF NOT EXISTS app_locations (
+      id         SERIAL PRIMARY KEY,
+      name       TEXT NOT NULL,
+      address    TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_app_location_name ON app_locations (lower(name));
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,
