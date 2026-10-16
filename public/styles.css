@@ -852,3 +852,25 @@ label .fine { text-transform: none; letter-spacing: normal; font-weight: 400; co
 @media (max-width: 420px) { .appbar-logo { height: 40px; } }
 .appbar-logo { height: 60px; margin: -6px 0; }
 @media (max-width: 420px) { .appbar-logo { height: 52px; } }
+
+/* ---------- New claim board: compact structure cards ---------- */
+.new-board h1 { margin-bottom: 4px; }
+.struct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border: 0; padding: 0; margin: 0; }
+.struct-grid legend { grid-column: 1 / -1; margin-bottom: 4px; }
+.struct-opt { display: grid; grid-template-columns: 18px 1fr; column-gap: 8px; row-gap: 2px; align-items: start;
+  border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 11px; cursor: pointer;
+  text-transform: none; letter-spacing: normal; color: var(--ink); font-size: 14px; font-weight: 400; }
+.struct-opt:has(input:checked) { border-color: var(--navy); box-shadow: inset 0 -3px 0 var(--lime-dark); background: #fbfcff; }
+.struct-opt input { grid-row: 1 / span 4; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--navy); }
+.so-head { display: flex; align-items: baseline; gap: 8px; }
+.so-head b { font: 700 16px var(--display); text-transform: uppercase; letter-spacing: .3px; color: var(--navy); }
+.so-depth { font-size: 12px; font-weight: 700; color: var(--muted); }
+.so-levels { font-weight: 600; color: var(--navy-2); font-size: 13px; }
+.so-use { color: var(--muted); font-size: 13px; }
+.so-ex { color: var(--muted); font-size: 12px; font-style: italic; }
+@media (max-width: 640px) { .struct-grid { grid-template-columns: 1fr; } }
+.copy-from { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.copy-from select { width: auto; padding: 7px 8px; }
+.copy-from .label-like { margin: 0; }
+.copy-from .fine { flex-basis: 100%; }
+.struct-grid legend { font: 700 13px var(--body); text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }

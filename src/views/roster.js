@@ -26,7 +26,7 @@ function person(p, i, waitlist, ctx) {
       ${s.locked ? "" : `<div class="who-actions no-print">
         ${waitlist ? `<form method="post" action="/admin/reservations/${p.id}/promote"><input type="hidden" name="return_to" value="${esc(back)}">
           <button class="btn-ghost" type="submit">Move in</button></form>` : ""}
-        <form method="post" action="/admin/reservations/${p.id}/cancel" onsubmit="return confirm('Remove ${esc(p.first_name)} from this session? Their family will be emailed.')">
+        <form method="post" action="/admin/reservations/${p.id}/cancel" onsubmit="return confirm('Remove ${esc(p.first_name)} from this session? They'll be emailed.')">
           <input type="hidden" name="return_to" value="${esc(back)}"><button class="btn-ghost danger" type="submit">Remove</button></form>
         ${others.length ? `<form method="post" action="/admin/reservations/${p.id}/move" class="move-form">
           <input type="hidden" name="return_to" value="/admin/day/${date}">
@@ -67,7 +67,7 @@ function addForm(s, { date, athletes }) {
       <label class="check"><input type="checkbox" name="over" value="1"> Add anyway if full (adds a spot)</label>
       <button class="btn-small" type="submit">Add</button>
     </form>
-    <p class="fine">Admins can add anyone, past the limits. Their family gets the usual confirmation email.</p>
+    <p class="fine">Admins can add anyone, past the limits. They get the usual confirmation email.</p>
   </details>`;
 }
 

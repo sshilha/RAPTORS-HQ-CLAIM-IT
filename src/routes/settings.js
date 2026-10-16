@@ -172,7 +172,8 @@ router.get("/groups", wrap(async (req, res) => {
   const usage = {};
   for (const g of SC.groupsFor(sc)) usage[g] = await G.usage(sc.id, g);
   for (const t of sc.tags || []) usage[`tag:${t}`] = await G.tagUsage(sc.id, t);
-  res.send(v.groupsPage({ user: req.user, flash: flashFrom(req), sc, usage }));
+  const others = req.sched.list.filter((x) => x.id !== sc.id && ((x.groups || []).length || (x.tags || []).length));
+  res.send(v.groupsPage({ user: req.user, flash: flashFrom(req), sc, usage, others }));
 }));
 
 const groupName = (s) => clean(s, 30).replace(/,/g, "");
@@ -209,6 +210,25 @@ router.post("/groups/remove", wrap(async (req, res) => {
   const r = await G.remove(sc, name);
   if (r.blocked) return go(res, grps(sc, "#groups"), { err: `${r.blocked} session setup${r.blocked === 1 ? " is" : "s are"} only for ${name}. Remove ${r.blocked === 1 ? "it" : "them"} from the ${SC.labels(sc).middle.one.toLowerCase()} first.` });
   go(res, grps(sc, "#groups"), { ok: `Removed ${name}. Anyone who was in it now has no ${SC.labels(sc).group.one.toLowerCase()} here.` });
+}));
+
+// Copy another board's groups, tags, and shortcuts (adds what's missing; keeps what's here)
+router.post("/groups/copy", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  const src = await SC.get(int(req.body.from));
+  if (!src || src.id === sc.id) return go(res, grps(sc), { err: "Pick a board to copy from." });
+  const have = SC.groupsFor(sc);
+  let added = 0, tags = 0, shortcuts = 0;
+  for (const g of SC.groupsFor(src)) if (!have.some((x) => same(x, g))) { await G.add(await SC.get(sc.id), g); added++; }
+  for (const t of src.tags || []) if (!(sc.tags || []).some((x) => same(x, t))) { await G.addTag(await SC.get(sc.id), t); tags++; }
+  const now = await SC.get(sc.id);
+  const presets = SC.presetsFor(now).slice();
+  for (const p of SC.presetsFor(src)) if (!presets.some((x) => same(x.name, p.name))) { presets.push({ name: p.name, ages: p.ages.filter((g) => SC.groupsFor(now).includes(g)) }); shortcuts++; }
+  if (shortcuts) await G.savePresets(now, presets);
+  const L = SC.labels(sc);
+  go(res, grps(sc), { ok: added || tags || shortcuts
+    ? `Copied from ${src.name}: ${added} ${L.group.many.toLowerCase()}, ${tags} tag${tags === 1 ? "" : "s"}, ${shortcuts} shortcut${shortcuts === 1 ? "" : "s"}.`
+    : `Nothing new to copy from ${src.name}. This board already has all of them.` });
 }));
 
 // ---------- a board's tags ----------

@@ -43,8 +43,8 @@ const seasonPage = ({ user, flash, season: s, rounds, unassigned }) => page({
       <div class="head-actions">${seasonPill(s)}
         <a class="btn-ghost" href="/admin/reports?season=${s.id}">Reports</a>
         ${s.completed_at
-          ? `<form method="post" action="/admin/seasons/${s.id}/reopen" class="keep" onsubmit="return confirm('Reopen ${esc(s.name)}? It becomes editable, and rounds that were published become visible to families again.')"><button class="btn-ghost" type="submit">Reopen season</button></form>`
-          : `<form method="post" action="/admin/seasons/${s.id}/complete" onsubmit="return confirm('Complete ${esc(s.name)}? Families will no longer see it, and it becomes read-only. Reports stay available.')"><button class="btn-small" type="submit">Complete season</button></form>`}
+          ? `<form method="post" action="/admin/seasons/${s.id}/reopen" class="keep" onsubmit="return confirm('Reopen ${esc(s.name)}? It becomes editable, and rounds that were published become visible to people again.')"><button class="btn-ghost" type="submit">Reopen season</button></form>`
+          : `<form method="post" action="/admin/seasons/${s.id}/complete" onsubmit="return confirm('Complete ${esc(s.name)}? People will no longer see it, and it becomes read-only. Reports stay available.')"><button class="btn-small" type="submit">Complete season</button></form>`}
       </div>
     </div>
     ${s.completed_at ? `<p class="rule">Completed ${esc(fmtDateTime(s.completed_at))}. This season is read-only and only visible here in Admin.</p>` : ""}

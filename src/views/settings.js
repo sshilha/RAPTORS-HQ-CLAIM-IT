@@ -57,7 +57,7 @@ function activitiesPage({ user, flash, sc, list, usage }) {
   });
 }
 
-function groupsPage({ user, flash, sc, usage }) {
+function groupsPage({ user, flash, sc, usage, others = [] }) {
   const L = SC.labels(sc);
   const q = `?s=${sc.id}`;
   const groups = SC.groupsFor(sc), presets = SC.presetsFor(sc);
@@ -78,6 +78,13 @@ function groupsPage({ user, flash, sc, usage }) {
         <div><b>Tags</b> are extra labels a person can have several of, like Catcher or Pitcher. You check them on each person in the <b>${esc(L.participant.many)}</b> step, then set "Only for" on ${esc(SC.an(L.activity.one))}.
           <div class="fine">Example: ${esc(ex.act2)} only for people tagged ${esc(ex.tag)}.</div></div>
       </div>
+      ${others.length ? `<form method="post" action="/admin/settings/groups/copy${q}" class="copy-from">
+        <span class="label-like">Copy from another board</span>
+        <select name="from" required aria-label="Board to copy from"><option value="">Pick a board…</option>
+          ${others.map((x) => `<option value="${x.id}">${esc(x.name)} (${(x.groups || []).length} ${esc(SC.labels(x).group.many.toLowerCase())}${(x.tags || []).length ? `, ${(x.tags || []).length} tags` : ""})</option>`).join("")}</select>
+        <button class="btn-ghost" type="submit">Copy</button>
+        <span class="fine">Adds their ${esc(L.group.many.toLowerCase())}, tags, and shortcuts. Anything already here stays.</span>
+      </form>` : ""}
     </section>
     <div class="settings-2">
     <section class="panel" id="groups">
@@ -110,7 +117,7 @@ function groupsPage({ user, flash, sc, usage }) {
     </section>
 
     <section class="panel" id="presets"><details>
-      <summary class="banner-sum">Setup shortcuts <span class="fine-inline">(a time-saver for you; families never see these)</span></summary>
+      <summary class="banner-sum">Setup shortcuts <span class="fine-inline">(a time-saver for you; people claiming never see these)</span></summary>
       <p class="fine">Buttons that check several ${esc(L.group.many.toLowerCase())} at once when you add ${esc(SC.an(L.activity.one))}. For example, a "12U–18U" button checks 12U, 14U, 16U, and 18U in one click. Only worth setting up if you have lots of ${esc(L.group.many.toLowerCase())}.</p>
       ${presets.map((p) => `<form method="post" action="/admin/settings/presets${q}" class="preset-edit">
         <input type="hidden" name="original" value="${esc(p.name)}">

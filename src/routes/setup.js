@@ -41,7 +41,7 @@ router.get("/", wrap(async (req, res) => {
   res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedule, rounds, standalone }));
 }));
 
-router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: req.user, flash: flashFrom(req), schedules: req.sched.list }))));
+router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: req.user, flash: flashFrom(req) }))));
 
 router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req, res) => {
   const sc = req.sched.sc;
@@ -60,7 +60,7 @@ router.post("/schedules", wrap(async (req, res) => {
   const name = clean(req.body.name, 60);
   if (!name) return go(res, "/admin/setup/new", { err: "Enter a name for the schedule." });
   const { depth = 3, calendar = true, claim = "roster", restrict = false, ...labels } = SC.PRESET_LABELS[req.body.preset] || SC.PRESET_LABELS.training;
-  const src = int(req.body.copy_groups) ? await SC.get(int(req.body.copy_groups)) : null;
+  const src = null; // groups are copied later from the Groups & tags step, if needed
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
   const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets, depth, use_calendar, pick_mode, claim_mode, restricted)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,

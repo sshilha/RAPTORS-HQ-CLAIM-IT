@@ -149,7 +149,7 @@ function seasonBlock(s, rounds, allRounds, first, L, acts) {
         ${done ? `<span class="pill">Completed</span>` : `<span class="pill ok">Open</span>`}
         <a class="btn-ghost" href="/admin/reports?season=${s.id}">Reports</a>
         <a class="btn-ghost" href="/admin/seasons/${s.id}">Settings</a>
-        ${done ? "" : `<form method="post" action="/admin/seasons/${s.id}/complete" onsubmit="return confirm('Complete ${esc(s.name)}? Families will no longer see it, and it becomes read-only. Reports stay available.')">${back(`season-${s.id}`)}
+        ${done ? "" : `<form method="post" action="/admin/seasons/${s.id}/complete" onsubmit="return confirm('Complete ${esc(s.name)}? People will no longer see it, and it becomes read-only. Reports stay available.')">${back(`season-${s.id}`)}
           <button class="btn-ghost" type="submit">Complete ${esc(L.top.one.toLowerCase())}</button></form>`}
       </div>
     </div>
@@ -185,7 +185,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
         <label class="w-wide">Name<input name="name" required value="${esc(sc.name)}" maxlength="60"></label>
         <fieldset class="checks pick-mode"><legend>Who can claim?</legend>
           <label class="mode-opt"><input type="radio" name="claim" value="public"${SC.claimMode(sc) === "public" ? " checked" : ""}><span><b>Anyone with the link</b><span class="fine">Share a link or QR code. People enter a name and email, no account needed.</span></span></label>
-          <label class="mode-opt"><input type="radio" name="claim" value="family"${SC.claimMode(sc) === "family" ? " checked" : ""}><span><b>Signed-in families</b><span class="fine">Anyone who signs in can claim for themselves or their kids. Nothing to set up.</span></span></label>
+          <label class="mode-opt"><input type="radio" name="claim" value="family"${SC.claimMode(sc) === "family" ? " checked" : ""}><span><b>Anyone signed in</b><span class="fine">Anyone who signs in can claim for themselves or their kids. Nothing to set up.</span></span></label>
           <label class="mode-opt"><input type="radio" name="claim" value="roster"${SC.claimMode(sc) === "roster" ? " checked" : ""}><span><b>Only people I add</b><span class="fine">You add the ${esc(L.participant.many.toLowerCase())}. Adds the <strong>${esc(L.participant.many)}</strong> step.</span></span></label>
         </fieldset>
         ${SC.depthOf(sc) > 1 ? `<fieldset class="checks pick-mode"><legend>Limit some ${esc(L.activity.many.toLowerCase())} to certain people?</legend>
@@ -238,11 +238,11 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
 
 `,
     archive: `<section class="panel"><h1>Archive or delete</h1>
-      <p class="muted tight">When ${esc(sc.name)} is over, archive it: it's hidden from families and read-only, and its reports stay. Delete is only for empty boards.</p></section>
+      <p class="muted tight">When ${esc(sc.name)} is over, archive it: it's hidden from people and read-only, and its reports stay. Delete is only for empty boards.</p></section>
     <section class="panel">
       <h2>${sc.archived_at ? "Archived" : "Archive"}</h2>
-      <p class="muted">${sc.archived_at ? `Families can't see anything in ${esc(sc.name)}. Restore it to make it active again.`
-        : `Archiving hides ${esc(sc.name)} from families and moves it to the Archived list in Settings. Nothing is deleted, and you can restore it any time.`}</p>
+      <p class="muted">${sc.archived_at ? `People can't see anything in ${esc(sc.name)}. Restore it to make it active again.`
+        : `Archiving hides ${esc(sc.name)} from people and moves it to the Archived list in Settings. Nothing is deleted, and you can restore it any time.`}</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/archive?s=${sc.id}"><button class="btn-ghost" type="submit">${sc.archived_at ? "Restore" : "Archive"} ${esc(sc.name)}</button></form>
     </section>
     <section class="panel">
@@ -258,26 +258,34 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   });
 }
 
-function newSchedulePage({ user, flash, schedules }) {
+function newSchedulePage({ user, flash }) {
   const PRE = SC.PRESET_LABELS;
-  const line = (l) => `${SC.LEVEL_KEYS[l.depth].map((k) => l[k][1]).join(" › ")} · ${l.participant[1]} in ${l.group[1]}`;
+  const levels = (l) => SC.LEVEL_KEYS[l.depth].map((k) => l[k][1]).join(" › ");
+  const CHOICES = [
+    ["list", "Item list", "1 level", "Donations, a potluck, team snacks", "Bring a case of water · 10 spots"],
+    ["volunteer", "Areas & shifts", "2 levels", "Tournament or fundraiser volunteers", "Concessions › 9:00–11:00 AM · 4 spots"],
+    ["training", "Rounds & sessions", "3 levels", "Training with rounds, limits, and a calendar", "Round 1 › Hitting 12U–18U › Mon 6:00 PM · 16 spots"],
+    ["event", "Event days", "4 levels", "A multi-day event with areas and stations", "Saturday › Concessions › Grill › 8–10 AM · 2 spots"],
+  ];
   return page({
     title: "New", tab: "home", user, flash,
-    body: `<section class="panel">
+    body: `<a class="back" href="/admin/settings">All ${esc(require("../config").LABELS.schedules.toLowerCase())}</a>
+    <section class="panel new-board">
       <h1>New ${esc(require("../config").LABELS.schedule.toLowerCase())}</h1>
-      <a class="back" href="/admin/settings">All</a>
-      <p class="lede">Each one is a sign-up space for a period or an event, like <b>Winter Training 2026–27</b> or <b>2027 Arctic Rumble Volunteering</b>, with its own rounds, activities, groups, and people. Pick a name and a naming style; you can rename every level afterward. To start from last year's, use <b>Copy</b> on its card instead.</p>
+      <p class="muted tight">A sign-up space for a season or an event. You can rename everything afterward. Starting from last year's? Use <b>Copy</b> on its card instead.</p>
       <form method="post" action="/admin/setup/schedules" class="stack">
-        <label>Name<input name="name" required maxlength="60" placeholder="e.g. Winter Training 2026–27 or 2027 Arctic Rumble Volunteering"></label>
-        <fieldset class="checks stack-list"><legend>Structure</legend>
-          ${[["list", "Item list (1 level)"], ["volunteer", "Areas and shifts (2 levels)"], ["training", "Training (3 levels)"], ["event", "Event days (4 levels)"]].map(([k, t], i) =>
-            `<label class="mode-opt"><input type="radio" name="preset" value="${k}"${k === "training" ? " checked" : ""}><span><b>${t}</b><span class="fine">${esc(line(PRE[k]))}</span></span></label>`).join("")}
+        <label>Name<input name="name" required maxlength="60" placeholder="e.g. Winter Training 2026–27 or Raptors Rumble Concessions, Sat Feb 7"></label>
+        <fieldset class="struct-grid"><legend>Structure</legend>
+          ${CHOICES.map(([k, title, depth, use, ex]) => `<label class="struct-opt">
+            <input type="radio" name="preset" value="${k}"${k === "training" ? " checked" : ""}>
+            <span class="so-head"><b>${title}</b><span class="so-depth">${depth}</span></span>
+            <span class="so-levels">${esc(levels(PRE[k]))}</span>
+            <span class="so-use">${esc(use)}</span>
+            <span class="so-ex">e.g. ${esc(ex)}</span>
+          </label>`).join("")}
         </fieldset>
-        ${schedules.length ? `<label>Copy groups and shortcuts from<select name="copy_groups"><option value="">Nothing (start empty)</option>
-          ${schedules.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></label>` : ""}
         <button class="btn" type="submit">Create</button>
       </form>
-      <p class="fine">Next you'll add its ${"activities, groups, and people"}, then set up the calendar.</p>
     </section>`,
   });
 }
@@ -302,7 +310,7 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
             : `Add ${esc(L.slot.many.toLowerCase())} below. People pick from a list (no calendar).`}</p></div>
         ${locked ? `<span class="pill">Archived: read-only</span>` : depth >= 3 ? `<div class="head-actions"><a class="btn-ghost" href="/admin/import?s=${sc.id}">Import vendor schedule</a></div>` : ""}
       </div>
-      ${locked ? `<p class="rule">This Claim Board is archived: hidden from families and read-only. Reopen it from Settings to make changes.</p>` : ""}
+      ${locked ? `<p class="rule">This Claim Board is archived: hidden from people and read-only. Reopen it from Settings to make changes.</p>` : ""}
     </section>
 
     ${depth <= 2 ? `<section class="panel"><div class="rounds">${main ? roundBlock(main, locked, L, acts) : ""}</div></section>` : `<section class="panel">

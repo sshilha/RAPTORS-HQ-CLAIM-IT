@@ -253,10 +253,10 @@ function builderPage({ user, flash, round, types, sessions, last = {}, season, s
     <div class="athlete-head">
       <div><h1>${esc(r.is_main ? (schedule && schedule.name) || r.name : r.name)}</h1><p class="muted tight">${esc(niceRange(r.starts_on, r.ends_on))}. ${total} ${esc(L.slot.many.toLowerCase())} scheduled, ${taken} spots claimed. <a href="#settings">${esc(L.middle.one)} settings</a></p></div>
       <div class="head-actions">${statusPill(r)}
-        <form method="post" action="/admin/rounds/${r.id}/publish" ${r.published_at ? `onsubmit="return confirm('Hide this round from families? Their reservations are kept.')"` : ""}>
+        <form method="post" action="/admin/rounds/${r.id}/publish" ${r.published_at ? `onsubmit="return confirm('Hide this round? Their reservations are kept.')"` : ""}>
           <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide" : `Publish ${esc(L.middle.one.toLowerCase())}`}</button></form></div>
     </div>
-    ${readonly ? `<p class="rule">Part of a completed season: read-only and hidden from families. <a href="/admin/reports?round=${r.id}">Run reports for this round</a>.</p>`
+    ${readonly ? `<p class="rule">Part of a completed season: read-only and hidden from people. <a href="/admin/reports?round=${r.id}">Run reports for this round</a>.</p>`
       : r.published_at ? "" : `<p class="rule">Draft: nobody can see this ${esc(L.middle.one.toLowerCase())} yet. Set up times and ${esc(L.activity.many.toLowerCase())}, put them on the calendar, then publish.</p>`}
   </section>
 
