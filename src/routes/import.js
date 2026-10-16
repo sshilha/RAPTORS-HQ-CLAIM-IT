@@ -141,7 +141,7 @@ router.post("/commit", wrap(async (req, res) => {
   finally { client.release(); }
 
   const msg = `Created ${created} session${created === 1 ? "" : "s"} in ${touched.length} round${touched.length === 1 ? "" : "s"}` +
-    (skipped ? `. Skipped ${skipped} already added` : "") + ". They stay hidden from families until you publish them.";
+    (skipped ? `. Skipped ${skipped} already added` : "") + ". They stay hidden from people until you publish them.";
   go(res, touched.length === 1 ? `/admin/rounds/${touched[0]}` : `/admin/setup?s=${settings.schedule_id || ""}`, { ok: msg });
 }));
 

@@ -150,7 +150,7 @@ const rosterRows = (rows, kind) => rows.length ? `<div class="table-wrap"><table
     ${kind === "wait" ? `<td>${i + 1}</td>` : ""}
     <td>${esc(r.first_name)} ${esc(r.last_name)}</td><td>${esc(r.age_group || "")}</td>
     <td>${esc(r.emails.join(", "))}</td><td>${esc(fmtDateTime(r.created_at))}</td>
-    <td><form method="post" action="/admin/reservations/${r.id}/cancel" onsubmit="return confirm('Remove ${esc(r.first_name)}? Their family will get an email.')">
+    <td><form method="post" action="/admin/reservations/${r.id}/cancel" onsubmit="return confirm('Remove ${esc(r.first_name)}? They'll get an email.')">
       <button class="btn-ghost" type="submit">Remove</button></form></td></tr>`).join("")}</tbody></table></div>`
   : `<p class="muted">${kind === "wait" ? "No one on the waitlist." : "No reservations yet."}</p>`;
 
@@ -188,7 +188,7 @@ const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist,
       <div class="full"><button class="btn" type="submit">Save session</button>
       <span class="fine">Raising capacity moves waitlisted athletes in automatically.</span></div></form>
     <form method="post" action="/admin/sessions/${s.id}/cancel" class="inline-end"
-          onsubmit="return confirm('Cancel this session? Every reserved and waitlisted family will get an email.')">
+          onsubmit="return confirm('Cancel this session? Everyone who claimed it or is waitlisted will get an email.')">
       <button class="btn-ghost danger" type="submit">Cancel session</button>
     </form>
   </section>`}`,

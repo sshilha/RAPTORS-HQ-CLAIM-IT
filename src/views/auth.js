@@ -9,7 +9,7 @@ const loginPage = ({ error = "", email = "" } = {}) => gate("Sign in", `
            required value="${esc(email)}" placeholder="you@example.com">
     <button class="btn" type="submit">Send sign-in link</button>
   </form>
-  <p class="muted gate-help">Use the email on your SportsEngine account. We'll email you a link, so there's no password to remember.</p>`,
+  <p class="muted gate-help">Enter your email and we'll send you a sign-in link. No password to remember.</p>`,
   { err: error });
 
 const checkEmailPage = ({ email, devLink }) => gate("Check your email", `

@@ -173,7 +173,7 @@ router.post("/schedules/:id/archive", wrap(async (req, res) => {
   const r = rows[0];
   const { LABELS } = require("../config");
   go(res, require("./util").dest(req, `/admin/setup/schedule/archive?s=${id}`), { ok: r.archived_at
-    ? `${r.name} archived. Families can't see it anymore. Find it under "View archived ${LABELS.schedules.toLowerCase()}".`
+    ? `${r.name} archived. People can't see it anymore. Find it under "View archived ${LABELS.schedules.toLowerCase()}".`
     : `${r.name} reopened. It's active again.` });
 }));
 

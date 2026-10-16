@@ -19,7 +19,16 @@ function head(title) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0c192e">
 <title>${esc(title)} | ${esc(LABELS.app_name)}</title>
-<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="description" content="${esc(LABELS.app_name)}: sign up for training sessions, volunteer shifts, and more${LABELS.org_name ? ` with the ${esc(LABELS.org_name)}` : ""}.">
+<meta property="og:title" content="${esc(title)} | ${esc(LABELS.app_name)}">
+<meta property="og:description" content="Pick a spot and claim it.">
+<meta property="og:image" content="${esc((require("../config").APP_URL || "") + "/og-image.jpg")}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -34,8 +43,7 @@ function gateLayout({ title, body, flash }) {
   return `${head(title)}
 <body class="gate">
 <main class="gate-box">
-  <img class="gate-logo" src="/raptors-logo.png" alt="${esc(LABELS.org_name)}">
-  <p class="gate-title">${esc(LABELS.app_name)}</p>
+  <h1 class="gate-brand"><img class="gate-logo" src="/claim-it-logo.png" width="900" height="450" alt="${esc(LABELS.app_name)}"></h1>
   ${LABELS.org_name ? `<p class="gate-sub">${esc(LABELS.org_name)}</p>` : ""}
   ${flashHtml(flash)}${body}
   ${foot()}
@@ -59,8 +67,7 @@ function publicLayout({ title, body, flash }) {
   return `${head(title)}
 <body>
 <header class="appbar"><div class="appbar-inner">
-  <span class="brand"><img class="appbar-logo" src="/raptors-logo.png" alt="">
-    <span class="brand-text"><span class="brand-mark">${esc(LABELS.app_name)}</span><span class="brand-org">${esc(LABELS.org_name)}</span></span></span>
+  <span class="brand"><img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></span>
   <span class="spacer"></span><a class="link-btn" href="/">Sign in</a>
 </div></header>
 <main class="page">${flashHtml(flash)}${body}</main>
@@ -79,8 +86,8 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
 <header class="appbar">
   <div class="appbar-inner${w}">
     <a class="brand" href="/dashboard">
-      <img class="appbar-logo" src="/raptors-logo.png" alt="">
-      <span class="brand-text"><span class="brand-mark"><span class="bm-long">${esc(LABELS.app_name)}</span><span class="bm-short">${esc(LABELS.app_short)}</span></span><span class="brand-org">${esc(LABELS.org_name)}</span></span>
+      <img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}">
+      <span class="brand-text sr-only"><span class="brand-mark"><span class="bm-long">${esc(LABELS.app_name)}</span><span class="bm-short">${esc(LABELS.app_short)}</span></span><span class="brand-org">${esc(LABELS.org_name)}</span></span>
     </a>
     <span class="spacer"></span>
     <div class="who"><b>${esc(user.email)}</b>

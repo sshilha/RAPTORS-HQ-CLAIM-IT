@@ -86,7 +86,7 @@ function shareBox(round) {
       <p class="label-like">Share link</p>
       <div class="share-row"><input readonly value="${esc(url)}" aria-label="Share link" onclick="this.select()">
         <button class="btn-ghost" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='Copied'">Copy</button></div>
-      <p class="fine">${round.published_at ? "Anyone with this link can sign up. Post it on SportsEngine, email it, or print the QR code." : "Publish this to make the link work."}
+      <p class="fine">${round.published_at ? "Anyone with this link can sign up. Post it on your website, email or text it, or print the QR code." : "Publish this to make the link work."}
         <a href="/admin/rounds/${round.id}/qr.svg" download="signup-qr.svg">Download QR</a></p>
     </div></div>`;
 }

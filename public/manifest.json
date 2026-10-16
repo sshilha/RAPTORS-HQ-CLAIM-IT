@@ -1,0 +1,13 @@
+{
+  "name": "Raptors Claim It",
+  "short_name": "Claim It",
+  "description": "Pick a spot and claim it: training sessions, volunteer shifts, and more.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0c192e",
+  "theme_color": "#0c192e",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

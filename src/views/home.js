@@ -29,7 +29,7 @@ function card(sc, archived) {
       <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">Settings</a>
       <a class="btn-ghost" href="/admin/setup/schedules/${sc.id}/copy">Copy</a>
       <form method="post" action="/admin/setup/schedules/${sc.id}/archive?s=${sc.id}"
-        ${archived ? "" : `onsubmit="return confirm('Archive ${esc(sc.name)}? Families won\\'t see anything in it. Nothing is deleted, and you can reopen it any time.')"`}>
+        ${archived ? "" : `onsubmit="return confirm('Archive ${esc(sc.name)}? People won\'t see anything in it. Nothing is deleted, and you can reopen it any time.')"`}>
         <input type="hidden" name="return_to" value="${archived ? "/admin/settings/archived" : "/admin/settings"}">
         <button class="btn-ghost" type="submit">${archived ? "Reopen" : "Archive"}</button></form>
       ${archived && sc.empty ? `<form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete ${esc(sc.name)} for good?')">
@@ -61,7 +61,7 @@ function archivedPage({ user, flash, archived }) {
     title: `Archived ${LABELS.schedules}`, tab: "home", user, flash,
     body: `<a class="back" href="/admin/settings">Settings</a>
     <section class="panel"><h1>Archived ${esc(LABELS.schedules.toLowerCase())}</h1>
-      <p class="muted tight">Families can't see these. Nothing in them was deleted. Reopen one to make it active again, or copy it to start a new one.</p></section>
+      <p class="muted tight">People can't see these. Nothing in them was deleted. Reopen one to make it active again, or copy it to start a new one.</p></section>
     ${archived.length ? `<div class="sched-grid">${archived.map((x) => card(x, true)).join("")}</div>`
       : `<section class="panel"><p class="muted">Nothing archived.</p></section>`}`,
   });

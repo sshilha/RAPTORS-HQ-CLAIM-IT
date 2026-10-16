@@ -99,13 +99,13 @@ router.post("/:id/attach", wrap(async (req, res) => {
 router.post("/:id/complete", wrap(async (req, res) => {
   const s = await guardOpen(req, res); if (!s) return;
   await query(`UPDATE seasons SET completed_at=now() WHERE id=$1`, [s.id]);
-  go(res, dest(req, `/admin/seasons/${s.id}`), { ok: "Season completed. It's hidden from families and read-only. Its reports are still available." });
+  go(res, dest(req, `/admin/seasons/${s.id}`), { ok: "Season completed. It's hidden from people and read-only. Its reports are still available." });
 }));
 
 router.post("/:id/reopen", wrap(async (req, res) => {
   const id = int(req.params.id);
   await query(`UPDATE seasons SET completed_at=NULL WHERE id=$1`, [id]);
-  go(res, dest(req, `/admin/seasons/${id}`), { ok: "Season reopened. Rounds that were published are visible to families again." });
+  go(res, dest(req, `/admin/seasons/${id}`), { ok: "Season reopened. Rounds that were published are visible to people again." });
 }));
 
 router.post("/:id/delete", wrap(async (req, res) => {

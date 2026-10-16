@@ -46,9 +46,9 @@ const PRESET_LABELS = {
 };
 
 const MODES = {
-  roster: ["Roster only", "This schedule's participants in the sheet's groups. Families see it under their participants."],
-  family: ["Signed-in families", "Any signed-in family can sign up themselves or any of their participants. Groups don't restrict it."],
-  public: ["Anyone with the link", "A public page: people enter a name and email to sign up, no account needed. Also open to signed-in families."],
+  roster: ["Roster only", "This schedule's participants in the sheet's groups. They see it under My Claims."],
+  family: ["Anyone signed in", "Anyone who signs in can claim for themselves or the people linked to them. Groups don't restrict it."],
+  public: ["Anyone with the link", "A public page: people enter a name and email to sign up, no account needed. Also open to anyone signed in."],
 };
 
 // "a round" / "an event"

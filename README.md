@@ -1,5 +1,12 @@
 # Raptors Claim It
 
+![Raptors Claim It](public/claim-it-logo.png)
+
+**Branding:** the logo (`public/claim-it-logo*.png`) appears on the sign-in screen, the top bar,
+public share pages, and emails. The raptor eye is the browser/home-screen icon
+(`favicon*.png`, `apple-touch-icon.png`, `icon-512.png`, `manifest.json`), and shared links show
+`og-image.jpg` as their preview. Emails load the logo from `APP_URL`, so set it in Railway.
+
 **Claim It** for short. Sign-ups for the Chippewa Valley Raptors: training, concessions and
 volunteer shifts, events, anything with times and spots. Families see what's open and tap
 **Claim it**; "My Claims" shows what they've got. Rename it under Settings → Activities &

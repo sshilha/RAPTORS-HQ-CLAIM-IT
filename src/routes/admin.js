@@ -186,7 +186,7 @@ router.post("/sessions/:id/add", wrap(async (req, res) => {
     notify(r.status, r.reservationId);
     const a = (await query(`SELECT first_name, last_name FROM athletes WHERE id=$1`, [athleteId])).rows[0];
     go(res, back, { ok: r.status === "confirmed"
-      ? `Added ${a.first_name} ${a.last_name}${r.grew ? " (added a spot)" : ""}. Their family was emailed.`
+      ? `Added ${a.first_name} ${a.last_name}${r.grew ? " (added a spot)" : ""}. They were emailed.`
       : `That session is full, so ${a.first_name} is on the waitlist. Check "Add anyway" to add a spot instead.` });
   } catch (e) {
     if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
@@ -201,7 +201,7 @@ router.post("/reservations/:id/promote", wrap(async (req, res) => {
   try {
     const r = await booking.adminPromote({ reservationId: id });
     notify("promoted", id);
-    go(res, back, { ok: `Moved in from the waitlist${r.grew ? " (added a spot)" : ""}. Their family was emailed.` });
+    go(res, back, { ok: `Moved in from the waitlist${r.grew ? " (added a spot)" : ""}. They were emailed.` });
   } catch (e) {
     if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
     throw e;
@@ -218,7 +218,7 @@ router.post("/reservations/:id/move", wrap(async (req, res) => {
     const r = await booking.adminMove({ adminId: req.user.id, reservationId: id, toSessionId: to, overCapacity: !!req.body.over });
     notify(r.status, r.reservationId);
     r.promoted.forEach((pid) => notify("promoted", pid));
-    go(res, back, { ok: r.status === "confirmed" ? `Moved${r.grew ? " (added a spot)" : ""}. Their family was emailed.`
+    go(res, back, { ok: r.status === "confirmed" ? `Moved${r.grew ? " (added a spot)" : ""}. They were emailed.`
       : "Moved onto that session's waitlist because it's full. Check \"Add anyway\" to add a spot instead." });
   } catch (e) {
     if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
@@ -239,7 +239,7 @@ router.post("/sessions/:id/cancel", wrap(async (req, res) => {
   try {
     const ids = await booking.cancelSession(id, req.user.id);
     ids.forEach((rid) => notify("sessionCanceled", rid));
-    go(res, `/admin/sessions/${id}`, { ok: `Session canceled. ${ids.length} ${ids.length === 1 ? "family was" : "families were"} emailed.` });
+    go(res, `/admin/sessions/${id}`, { ok: `Session canceled. ${ids.length} ${ids.length === 1 ? "person was" : "people were"} emailed.` });
   } catch (e) {
     if (e instanceof booking.BookingError) return go(res, `/admin/sessions/${id}`, { err: e.message });
     throw e;

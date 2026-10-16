@@ -346,7 +346,7 @@ router.post("/:id/copy-day", wrap(async (req, res) => {
 router.post("/:id/sessions/:sid/delete", wrap(async (req, res) => {
   const id = int(req.params.id), sid = int(req.params.sid);
   const taken = (await query(`SELECT count(*)::int AS n FROM reservations WHERE session_id=$1 AND status<>'canceled'`, [sid])).rows[0].n;
-  if (taken) return go(res, `/admin/sessions/${sid}`, { err: "This session has reservations. Cancel it instead so families are emailed." });
+  if (taken) return go(res, `/admin/sessions/${sid}`, { err: "This session has reservations. Cancel it instead so everyone who claimed it is emailed." });
   const date = (await query(`SELECT to_char(starts_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS d FROM training_sessions WHERE id=$1`, [sid])).rows[0]?.d;
   await query(`DELETE FROM training_sessions WHERE id=$1`, [sid]);
   go(res, `/admin/rounds/${id}`, { ok: "Removed from the calendar.", d: date || "" });
@@ -382,7 +382,7 @@ router.post("/:id/publish", wrap(async (req, res) => {
   const id = int(req.params.id);
   const { rows } = await query(
     `UPDATE rounds SET published_at = CASE WHEN published_at IS NULL THEN now() ELSE NULL END WHERE id=$1 RETURNING published_at`, [id]);
-  go(res, dest(req, `/admin/rounds/${id}`), { ok: rows[0]?.published_at ? "Published. Families can now see and book this round." : "Hidden from families. Existing reservations are kept." });
+  go(res, dest(req, `/admin/rounds/${id}`), { ok: rows[0]?.published_at ? "Published. People can now see and claim it." : "Hidden from people. Existing reservations are kept." });
 }));
 
 router.post("/:id/delete", wrap(async (req, res) => {
