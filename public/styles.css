@@ -1150,3 +1150,5 @@ table.places input.addr { min-width: 280px; }
   .stat-tiles > div { padding: 10px 12px; }
   .st-n { font-size: 22px; }
 }
+.item-add { margin: 0 0 14px; }
+.items-empty { padding: 6px 2px; }

@@ -40,6 +40,15 @@ function itemsPanel(r, locked, L) {
   const anchor = `items-${r.id}`;
   return `<div class="items-panel" id="${anchor}">
     <p class="label-like">${listOnly ? esc(L.slot.many) : `${esc(L.slot.many)} without a date`}</p>
+    ${locked || (depth > 1 && !types.length) ? (depth > 1 && !types.length && !locked ? `<p class="fine">Add ${esc(SC.an(L.activity.one))} first, then its ${esc(L.slot.many.toLowerCase())}.</p>` : "") : `<form method="post" action="/admin/rounds/${r.id}/items" class="quick-type item-add">${back(anchor)}
+      ${pick ? `<select name="program_id" required aria-label="${esc(L.activity.one)}"><option value="">${esc(L.activity.one)}…</option>${types.map((t) => `<option value="${t.id}">${t.section ? `${esc(t.section)} › ` : ""}${esc(typeLabel(t.activity, t.age_groups, t.required_tags))}</option>`).join("")}</select>`
+        : `<input type="hidden" name="program_id" value="${(types[0] || {}).id || ""}">`}
+      <input name="title" required maxlength="80" placeholder="e.g. Bring a case of water" aria-label="Name" class="title-in">
+      <input type="number" name="capacity" min="1" max="500" required placeholder="Spots" aria-label="Spots" class="spots-in">
+      <input name="location" list="app-locations" maxlength="80" placeholder="Location (optional)" aria-label="Location" class="coach-in">${require("../locations").datalist()}
+      ${limited ? forPicker(CUR) : ""}
+      <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button>
+    </form>`}
     ${items.length ? `<table class="types compact items"><thead><tr>${depth > 1 ? `<th>${esc(L.activity.one)}</th>` : ""}<th>${esc(L.slot.one)}</th><th>Spots</th>${limited ? "<th>Who</th>" : ""}<th>Claimed</th><th></th></tr></thead>
       <tbody>${items.map((it) => `<tr>
         ${depth > 1 ? `<td>${swatch(it.activity)}${it.section ? `${esc(it.section)} › ` : ""}${esc(typeLabel(it.activity, it.age_groups, it.required_tags))}</td>` : ""}
@@ -50,16 +59,7 @@ function itemsPanel(r, locked, L) {
         <td>${locked ? "" : `<div class="row-actions">
           <form id="it-${it.id}" method="post" action="/admin/rounds/${r.id}/items/${it.id}">${back(anchor)}<button class="btn-ghost" type="submit">Save</button></form>
           <form method="post" action="/admin/rounds/${r.id}/items/${it.id}/delete" onsubmit="return confirm('Remove this ${esc(L.slot.one.toLowerCase())}?')">${back(anchor)}<button class="x" type="submit" aria-label="Remove">×</button></form></div>`}</td>
-      </tr>`).join("")}</tbody></table>` : `<p class="muted small">None yet.</p>`}
-    ${locked || (depth > 1 && !types.length) ? (depth > 1 && !types.length && !locked ? `<p class="fine">Add ${esc(SC.an(L.activity.one))} first, then its ${esc(L.slot.many.toLowerCase())}.</p>` : "") : `<form method="post" action="/admin/rounds/${r.id}/items" class="quick-type item-add">${back(anchor)}
-      ${pick ? `<select name="program_id" required aria-label="${esc(L.activity.one)}"><option value="">${esc(L.activity.one)}…</option>${types.map((t) => `<option value="${t.id}">${t.section ? `${esc(t.section)} › ` : ""}${esc(typeLabel(t.activity, t.age_groups, t.required_tags))}</option>`).join("")}</select>`
-        : `<input type="hidden" name="program_id" value="${(types[0] || {}).id || ""}">`}
-      <input name="title" required maxlength="80" placeholder="e.g. Bring a case of water" aria-label="Name" class="title-in">
-      <input type="number" name="capacity" min="1" max="500" required placeholder="Spots" aria-label="Spots" class="spots-in">
-      <input name="location" list="app-locations" maxlength="80" placeholder="Location (optional)" aria-label="Location" class="coach-in">${require("../locations").datalist()}
-      ${limited ? forPicker(CUR) : ""}
-      <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button>
-    </form>`}
+      </tr>`).join("")}</tbody></table>` : `<p class="muted small items-empty">Nothing added yet. Your ${esc(L.slot.many.toLowerCase())} will show here.</p>`}
   </div>`;
 }
 
