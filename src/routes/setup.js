@@ -64,7 +64,7 @@ router.post("/schedules", wrap(async (req, res) => {
   // the answers on the New page win over the structure's defaults
   const b0 = req.body;
   const claim = ["public", "family", "roster"].includes(b0.claim) ? b0.claim : preClaim;
-  const restrict = depth > 1 && (b0.restrict ? b0.restrict === "yes" : preRestrict);
+  const restrict = b0.restrict ? b0.restrict === "yes" : preRestrict;
   const dated = b0.dated ? b0.dated === "yes" : preCal;
   const pickMode = !dated ? "list" : b0.pick === "both" ? "both" : "calendar";
   const calendar = pickMode !== "list";

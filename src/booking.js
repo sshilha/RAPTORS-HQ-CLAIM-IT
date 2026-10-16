@@ -98,6 +98,11 @@ async function reserve({ userId, athleteId, sessionId }) {
       if (!m && s.schedule_id) throw new BookingError(`${a.first_name} isn't on this schedule's roster.`);
       if (s.age_groups.length && !s.age_groups.includes(group)) throw new BookingError(`${a.first_name} isn't eligible for ${s.program_name}.`);
     }
+    // The item's own "Only for" (e.g. Salad only for 10U)
+    if ((s.only_groups || []).length || (s.only_tags || []).length) {
+      const m = (await db.query(`SELECT group_name, tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [s.schedule_id, athleteId])).rows[0];
+      if (!itemFits(s, m)) throw new BookingError(`${a.first_name} can't claim this one. It's only for ${[...(s.only_groups || []), ...(s.only_tags || [])].join(" or ")}.`);
+    }
     // Tag rules ("Catcher only") apply on every kind of sheet
     if ((s.required_tags || []).length) {
       const m = (await db.query(`SELECT tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [s.schedule_id, athleteId])).rows[0];
@@ -279,10 +284,21 @@ async function parentReservations(userId) {
   return rows;
 }
 
+// An item's own "Only for" (groups and/or tags): the person needs a matching membership on its board
+const itemFits = (s, m) => {
+  const og = s.only_groups || [], ot = s.only_tags || [];
+  if (!og.length && !ot.length) return true;
+  if (!m) return false;
+  if (og.length && !og.includes(m.group_name)) return false;
+  if (ot.length && !(m.tags || []).some((t) => ot.includes(t))) return false;
+  return true;
+};
+
 async function bookingOptions(athlete) {
   const programs = (await query(
     `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours, r.waitlist AS round_waitlist,
-       r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name, sc.family_names, sc.pick_mode
+       r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name, sc.family_names, sc.pick_mode,
+       m.athlete_id AS member_id, m.group_name AS member_group, m.tags AS member_tags
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      LEFT JOIN schedules sc ON sc.id=r.schedule_id
      LEFT JOIN schedule_members m ON m.schedule_id=r.schedule_id AND m.athlete_id=$3
@@ -327,7 +343,8 @@ async function bookingOptions(athlete) {
   return programs
     .map((p) => {
       let limit, limitsOn, usedN;
-      let progSessions = sessions.filter((s) => s.program_id === p.id);
+      const member = p.member_id ? { group_name: p.member_group, tags: p.member_tags || [] } : null;
+      let progSessions = sessions.filter((s) => s.program_id === p.id && itemFits(s, member));
       if (p.round_id) {
         const round = { activity_limits: p.activity_limits, priority_limit: p.round_limit, unlock_hours: p.unlock_hours, schedule_id: p.schedule_id };
         limit = R.limitFor(round, p.activity); limitsOn = limit != null; usedN = usedAct[`${p.round_id}|${p.activity}`] || 0;
@@ -342,6 +359,7 @@ async function bookingOptions(athlete) {
 }
 
 module.exports = {
+  itemFits,
   BookingError, reserve, cancelReservation, adminAdd, adminPromote, adminMove, cancelSession, updateSessionCapacity, promoteWaitlist,
   parentReservations, bookingOptions, priorityActive, bookingOpen, cancelDeadline, isParentOf,
 };

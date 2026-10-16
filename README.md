@@ -61,7 +61,9 @@ limits to certain people, whether things have dates, and if so the available vie
 editable in **Claim Board Setup** (the first settings step), which asks the questions that decide which other steps exist:
 - **Who can claim?** Anyone with the link / Signed-in families / Only people I add. Applies to
   the whole board (every round). "Only people I add" adds the People step.
-- **Limit some activities to certain people?** (2+ levels) No / Yes, by group or tag. "Yes" adds
+- **Limit some things to certain people?** No / Yes, by group or tag. On item lists, each item
+  gets a **Who** picker (e.g. Salad only for 10U); items limited to a group or tag aren't offered
+  on the public link. "Yes" adds
   the Groups & tags step (and People, where tags are given out), and the group/"Only for" pickers.
 - **Available views:** List / Calendar / Both.
 It also holds the board's levels, **Locations**, and **View** (what people see of who's going).

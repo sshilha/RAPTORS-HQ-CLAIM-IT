@@ -898,3 +898,23 @@ label .fine { text-transform: none; letter-spacing: normal; font-weight: 400; co
 .board-step .items-panel > .label-like { display: none; }
 .nb-two { grid-template-columns: 1fr 1fr; }
 @media (max-width: 640px) { .nb-two { grid-template-columns: 1fr; } }
+.for-pick { position: relative; }
+.for-pick > summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 700; color: var(--navy-2); border: 1.5px solid var(--line);
+  border-radius: 8px; padding: 6px 10px; background: #fff; white-space: nowrap; }
+.for-pick > summary::after { content: " ▾"; color: var(--muted); }
+.for-box { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 240px; background: #fff; border: 1.5px solid var(--navy);
+  border-radius: 10px; padding: 10px; box-shadow: 0 8px 24px rgba(12, 25, 46, .18); display: flex; flex-direction: column; gap: 8px; }
+.for-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.for-row > .fine { width: 100%; }
+
+/* ---------- New page: grouped board options ---------- */
+.new-board .stack > label, .struct-grid legend { font: 800 15px var(--display) !important; letter-spacing: .5px !important; color: var(--navy) !important; text-transform: uppercase; }
+.nb-options { border: 2px solid var(--navy); border-radius: var(--radius); padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 14px; background: #fbfcff; }
+.nb-options-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.nb-options-head h2 { margin: 0; font: 900 20px var(--display); text-transform: uppercase; color: var(--navy); }
+.nb-q legend { display: flex; align-items: center; gap: 8px; font: 800 15px var(--display) !important; letter-spacing: .4px !important;
+  color: var(--navy) !important; text-transform: uppercase; margin-bottom: 6px !important; }
+.nb-n { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--navy); color: #fff; font: 800 13px var(--display); }
+.nb-q + .nb-q { border-top: 1px dashed var(--line); padding-top: 12px; }
+.nb-q[hidden] + .nb-q { border-top: 0; padding-top: 0; }
+.nb-opt { background: #fff; }

@@ -207,6 +207,9 @@ async function migrate() {
     ALTER TABLE training_sessions ALTER COLUMN starts_at DROP NOT NULL;
     ALTER TABLE training_sessions ALTER COLUMN ends_at DROP NOT NULL;
     ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS title TEXT;
+    -- "Only for" on a single item/session (e.g. Salad only for 10U); empty = everyone
+    ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS only_groups TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS only_tags TEXT[] NOT NULL DEFAULT '{}';
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,

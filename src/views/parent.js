@@ -116,6 +116,7 @@ function itemsList(programs, athlete, back) {
       : `${p.schedule_name ? `${p.schedule_name} › ` : ""}${p.section ? `${p.section} › ` : ""}${typeLabel(p.activity, p.age_groups, p.required_tags)}`)}</h3>
     <ul class="sess-list">${items.map((s) => { const open = s.capacity - s.confirmed; return `<li class="sess${s.my_status ? " mine" : ""}${open > 0 ? "" : " full"}">
       <div class="sess-main"><div class="sess-time">${esc(s.title || "Spot")}</div>
+        ${(s.only_groups || []).length || (s.only_tags || []).length ? `<div class="sess-meta">${esc([...(s.only_groups || []), ...(s.only_tags || [])].join(" or "))} only</div>` : ""}
         <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div></div>
       <div class="sess-side">${actionFor(p, s, athlete, back)}</div></li>`; }).join("")}</ul></div>`).join("")}</div>`;
 }

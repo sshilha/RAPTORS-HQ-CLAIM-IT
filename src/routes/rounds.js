@@ -148,12 +148,21 @@ router.post("/:id/limits", wrap(async (req, res) => {
 }));
 
 // ---------- items (claimable things with no date) ----------
+// An item's "Only for": only the board's own groups/tags, and only if the form showed the picker
+async function saveFor(roundId, sid, b) {
+  if (!b.for_shown) return;
+  const sc = await require("../schedules").forRound(roundId);
+  const groups = [].concat(b.only_groups || []).filter((g) => require("../schedules").groupsFor(sc).includes(g));
+  const tags = [].concat(b.only_tags || []).filter((t) => (sc.tags || []).includes(t));
+  await query(`UPDATE training_sessions SET only_groups=$2, only_tags=$3 WHERE id=$1`, [sid, groups, tags]);
+}
 router.post("/:id/items", wrap(async (req, res) => {
   const id = int(req.params.id);
   const program = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [int(req.body.program_id), id])).rows[0];
   const title = str(req.body.title).slice(0, 80), cap = int(req.body.capacity);
   if (!program || !title || !(cap >= 1 && cap <= 500)) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Pick what it is, give it a name, and enter how many spots." });
-  await R.addItem({ query }, program, { title, capacity: cap });
+  const item = await R.addItem({ query }, program, { title, capacity: cap });
+  await saveFor(id, item.id, req.body);
   go(res, dest(req, `/admin/rounds/${id}`), { ok: `Added "${title}" with ${cap} spot${cap === 1 ? "" : "s"}.` });
 }));
 
@@ -164,6 +173,7 @@ router.post("/:id/items/:sid", wrap(async (req, res) => {
   try {
     const promoted = await booking.updateSessionCapacity(sid, { capacity: cap, apply: (db) =>
       db.query(`UPDATE training_sessions SET title=$2, capacity=$3 WHERE id=$1 AND program_id IN (SELECT id FROM programs WHERE round_id=$4)`, [sid, title, cap, id]) });
+    await saveFor(id, sid, req.body);
     for (const rid of promoted) notify("promoted", rid);
     go(res, dest(req, `/admin/rounds/${id}`), { ok: `Saved "${title}".` + (promoted.length ? ` ${promoted.length} moved in from the waitlist.` : "") });
   } catch (e) {

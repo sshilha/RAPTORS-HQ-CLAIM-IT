@@ -17,20 +17,35 @@ const back = (anchor) => `<input type="hidden" name="return_to" value="${home()}
 const swatch = (a) => `<span class="swatch" style="background:${colorFor(a, CUR.id)}"></span>`;
 
 // Items without a date (and titled ones), with spots and who's claimed
+// "Only for" picker for one item: groups and tags, in a small dropdown
+function forPicker(sc, chosenGroups = [], chosenTags = [], formId = "") {
+  const groups = SC.groupsFor(sc), tags = sc.tags || [];
+  if (!SC.restricts(sc) || (!groups.length && !tags.length)) return "";
+  const f = formId ? ` form="${formId}"` : "";
+  const picked = [...chosenGroups, ...chosenTags];
+  return `<details class="for-pick"><summary>${picked.length ? `Only for ${esc(picked.join(", "))}` : "Everyone"}</summary>
+    <div class="for-box"><input type="hidden" name="for_shown" value="1"${f}>
+      ${groups.length ? `<div class="for-row"><span class="fine">${esc(SC.labels(sc).group.many)}</span>${groups.map((g) => `<label class="tag-box${chosenGroups.includes(g) ? " on" : ""}"><input type="checkbox" name="only_groups" value="${esc(g)}"${f}${chosenGroups.includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("")}</div>` : ""}
+      ${tags.length ? `<div class="for-row"><span class="fine">Tags</span>${tags.map((t) => `<label class="tag-box${chosenTags.includes(t) ? " on" : ""}"><input type="checkbox" name="only_tags" value="${esc(t)}"${f}${chosenTags.includes(t) ? " checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}
+      <p class="fine">Leave all unchecked for everyone.</p></div></details>`;
+}
+
 function itemsPanel(r, locked, L) {
   const depth = SC.depthOf(CUR);
   const listOnly = !SC.usesCalendar(CUR);
+  const limited = SC.restricts(CUR) && (SC.groupsFor(CUR).length || (CUR.tags || []).length);
   const items = r.items || [];
   const types = (r.types || []).filter((t) => depth > 1 || true);
   const pick = depth > 1 && types.length > 1;
   const anchor = `items-${r.id}`;
   return `<div class="items-panel" id="${anchor}">
     <p class="label-like">${listOnly ? esc(L.slot.many) : `${esc(L.slot.many)} without a date`}</p>
-    ${items.length ? `<table class="types compact items"><thead><tr>${depth > 1 ? `<th>${esc(L.activity.one)}</th>` : ""}<th>${esc(L.slot.one)}</th><th>Spots</th><th>Claimed</th><th></th></tr></thead>
+    ${items.length ? `<table class="types compact items"><thead><tr>${depth > 1 ? `<th>${esc(L.activity.one)}</th>` : ""}<th>${esc(L.slot.one)}</th><th>Spots</th>${limited ? "<th>Who</th>" : ""}<th>Claimed</th><th></th></tr></thead>
       <tbody>${items.map((it) => `<tr>
         ${depth > 1 ? `<td>${swatch(it.activity)}${it.section ? `${esc(it.section)} › ` : ""}${esc(typeLabel(it.activity, it.age_groups, it.required_tags))}</td>` : ""}
         <td>${locked ? esc(it.title || "") : `<input form="it-${it.id}" name="title" value="${esc(it.title || "")}" maxlength="80" aria-label="Name" required>`}</td>
         <td>${locked ? it.capacity : `<input form="it-${it.id}" type="number" name="capacity" min="1" max="500" value="${it.capacity}" aria-label="Spots" class="spots-in">`}</td>
+        ${limited ? `<td>${locked ? esc([...(it.only_groups || []), ...(it.only_tags || [])].join(", ") || "Everyone") : forPicker(CUR, it.only_groups || [], it.only_tags || [], `it-${it.id}`)}</td>` : ""}
         <td><a href="/admin/sessions/${it.id}">${it.claimed} of ${it.capacity}${it.waitlisted ? `, ${it.waitlisted} waiting` : ""}</a></td>
         <td>${locked ? "" : `<div class="row-actions">
           <form id="it-${it.id}" method="post" action="/admin/rounds/${r.id}/items/${it.id}">${back(anchor)}<button class="btn-ghost" type="submit">Save</button></form>
@@ -41,6 +56,7 @@ function itemsPanel(r, locked, L) {
         : `<input type="hidden" name="program_id" value="${(types[0] || {}).id || ""}">`}
       <input name="title" required maxlength="80" placeholder="e.g. Bring a case of water" aria-label="Name" class="title-in">
       <input type="number" name="capacity" min="1" max="500" required placeholder="Spots" aria-label="Spots" class="spots-in">
+      ${limited ? forPicker(CUR) : ""}
       <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button>
     </form>`}
   </div>`;
@@ -246,11 +262,11 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
           <label class="mode-opt"><input type="radio" name="claim" value="family"${SC.claimMode(sc) === "family" ? " checked" : ""}><span><b>Anyone signed in</b><span class="fine">Anyone who signs in can claim for themselves or their kids. Nothing to set up.</span></span></label>
           <label class="mode-opt"><input type="radio" name="claim" value="roster"${SC.claimMode(sc) === "roster" ? " checked" : ""}><span><b>Only people I add</b><span class="fine">You add the ${esc(L.participant.many.toLowerCase())}. Adds the <strong>${esc(L.participant.many)}</strong> step.</span></span></label>
         </fieldset>
-        ${SC.depthOf(sc) > 1 ? `<fieldset class="checks pick-mode"><legend>Limit some ${esc(L.activity.many.toLowerCase())} to certain people?</legend>
+        ${true ? `<fieldset class="checks pick-mode"><legend>Limit some ${esc((SC.depthOf(sc) > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people?</legend>
           <label class="mode-opt"><input type="radio" name="restrict" value="no"${SC.restricts(sc) ? "" : " checked"}><span><b>No</b><span class="fine">Anyone who can claim can claim anything on this board.</span></span></label>
           <label class="mode-opt"><input type="radio" name="restrict" value="yes"${SC.restricts(sc) ? " checked" : ""}><span><b>Yes, by ${esc(L.group.one.toLowerCase())} or tag</b><span class="fine">${SC.activitiesFor(sc).includes("Hitting") || !SC.activitiesFor(sc).length && SC.depthOf(sc) === 3
             ? "e.g. Hitting only for 12U–18U, Catching only for catchers."
-            : `e.g. ${esc(SC.activitiesFor(sc)[0] || L.activity.one)} only for adults, or only for people tagged Bartender.`} Adds the <strong>${esc(L.group.many)} &amp; tags</strong> and <strong>${esc(L.participant.many)}</strong> steps.</span></span></label>
+            : SC.depthOf(sc) === 1 ? "e.g. Salad only for 10U, Chips only for 14U." : `e.g. ${esc(SC.activitiesFor(sc)[0] || L.activity.one)} only for adults, or only for people tagged Bartender.`} Adds the <strong>${esc(L.group.many)} &amp; tags</strong> and <strong>${esc(L.participant.many)}</strong> steps.</span></span></label>
         </fieldset>` : ""}
         <fieldset class="checks pick-mode"><legend>Do things have dates and times?</legend>
           <label class="mode-opt"><input type="radio" name="dated" value="no"${SC.pickMode(sc) === "list" ? " checked" : ""}><span><b>No</b><span class="fine">It's all one day or there are no set times. People pick from a list. Put the day in the board's name, and times in an item's name if needed.</span></span></label>
@@ -348,26 +364,29 @@ function newSchedulePage({ user, flash }) {
           </label>`).join("")}
         </fieldset>
 
-        <fieldset class="nb-q"><legend>Who can claim?</legend>
+        <div class="nb-options">
+        <div class="nb-options-head"><h2>Board options</h2><span class="fine">Filled in for the structure you picked. Change any of them.</span></div>
+        <fieldset class="nb-q"><legend><span class="nb-n">1</span>Who can claim?</legend>
           <label class="nb-opt"><input type="radio" name="claim" value="public"><span><b>Anyone with the link</b> You'll get a share link and QR code to post or text. People just enter a name and email.</span></label>
           <label class="nb-opt"><input type="radio" name="claim" value="family"><span><b>Anyone signed in</b> People sign in with their email and find it under My Claims.</span></label>
           <label class="nb-opt"><input type="radio" name="claim" value="roster"><span><b>Only people I add</b> You add the people who can claim (like a team roster).</span></label>
         </fieldset>
 
-        <fieldset class="nb-q" id="nb-restrict"><legend>Limit some things to certain people?</legend>
+        <fieldset class="nb-q" id="nb-restrict"><legend><span class="nb-n">2</span>Limit some things to certain people?</legend>
           <label class="nb-opt"><input type="radio" name="restrict" value="no"><span><b>No</b> Anyone who can claim can claim anything.</span></label>
-          <label class="nb-opt"><input type="radio" name="restrict" value="yes"><span><b>Yes</b> By group or tag, e.g. Hitting only for 12U–18U, Catching only for catchers.</span></label>
+          <label class="nb-opt"><input type="radio" name="restrict" value="yes"><span><b>Yes</b> By group or tag, e.g. Salad only for 10U, or Catching only for catchers.</span></label>
         </fieldset>
 
-        <fieldset class="nb-q nb-two"><legend>Do things have dates and times?</legend>
+        <fieldset class="nb-q nb-two"><legend><span class="nb-n">3</span>Do things have dates and times?</legend>
           <label class="nb-opt"><input type="radio" name="dated" value="no"><span><b>No</b> It's all one day or there are no set times. People pick from a list (put the day in the name).</span></label>
           <label class="nb-opt"><input type="radio" name="dated" value="yes"><span><b>Yes</b> Things have dates and times.</span></label>
         </fieldset>
-        <fieldset class="nb-q nb-two" id="nb-views"><legend>Available views</legend>
+        <fieldset class="nb-q nb-two" id="nb-views"><legend><span class="nb-n">4</span>Available views</legend>
           <label class="nb-opt"><input type="radio" name="pick" value="calendar"><span><b>Calendar</b> People pick days on a calendar.</span></label>
           <label class="nb-opt"><input type="radio" name="pick" value="both"><span><b>Both: List &amp; Calendar</b> People can switch between the calendar and a day-by-day list.</span></label>
         </fieldset>
         <p class="fine">You can change all of these later in Claim Board Setup.</p>
+        </div>
         <button class="btn" type="submit">Create</button>
       </form>
     </section>
@@ -381,7 +400,6 @@ function newSchedulePage({ user, flash }) {
         var k = (document.querySelector('input[name="preset"]:checked') || {}).value; var d = D[k]; if (!d) return;
         set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated);
         if (!document.querySelector('input[name="pick"]:checked')) set("pick", "calendar");
-        document.getElementById("nb-restrict").hidden = d.depth === 1;
         views();
       }
       // views only matter when things have dates
