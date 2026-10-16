@@ -41,7 +41,8 @@ is what people claim, with a number of spots:
 - 2 levels: e.g. Area › Shift (Beer Garden › Sat 9–11).
 - 3 levels: e.g. Round › Activity › Session (Winter Training).
 - 4 levels: e.g. Day › Area › Station › Shift.
-Boards with 1–2 levels show three numbered steps on their page (1 Add items, 2 Rules, 3 Publish &
+Boards with 1–2 levels show three numbered steps on their page (1 Add items, 2 Rules: per-person
+limit, waitlist, when claiming opens, and for dated boards the give-it-up deadline; 3 Publish &
 share, with the share link only for "Anyone with the link") and keep their rules (who signs up, limits, unlocking, waitlist, publish) on the
 board's Setup page. Anything claimable can have a date and time, or be an undated item with a name;
 undated items show as a list on My Claims and the public page, and have no give-it-up deadline.
@@ -56,7 +57,8 @@ A **Claim Board is the season or event itself**, e.g. "Winter Training 2026–27
 Rumble Volunteering". Next year, **Copy** it (the name bumps to 2027–28 automatically).
 **Archive** hides it from families and makes it read-only (reports still work); **Reopen** unlocks it.
 
-The **New claim board** page asks the board-wide questions up front (structure, who can claim,
+The **New claim board** wizard (Details → Structure → Settings, with a live summary before
+Create) asks the board-wide questions up front (structure, who can claim,
 limits to certain people, whether things have dates, and if so the available views), with defaults that follow the structure. They stay
 editable in **Claim Board Setup** (the first settings step), which asks the questions that decide which other steps exist:
 - **Who can claim?** Anyone with the link / Signed-in families / Only people I add. Applies to

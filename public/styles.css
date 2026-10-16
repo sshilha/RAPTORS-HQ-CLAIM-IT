@@ -918,3 +918,117 @@ label .fine { text-transform: none; letter-spacing: normal; font-weight: 400; co
 .nb-q + .nb-q { border-top: 1px dashed var(--line); padding-top: 12px; }
 .nb-q[hidden] + .nb-q { border-top: 0; padding-top: 0; }
 .nb-opt { background: #fff; }
+.timing-form { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.tf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tf-row .label-like { margin: 0; min-width: 150px; }
+.tf-row input[type=datetime-local] { width: auto; padding: 7px 8px; }
+.timing-form .fine { margin: 4px 0 10px; }
+
+/* =====================================================================
+   Modern theme: soft cards, Inter for text, tinted selections with ✓.
+   Barlow Condensed stays for titles, buttons, and the athletic feel.
+   ===================================================================== */
+:root {
+  --page: #f4f6fa;
+  --accent: #84cc16;          /* Raptors lime (from the logo) */
+  --accent-tint: #f3fae4;
+  --accent-ink: #3f6212;
+  --line: #e1e6ee;
+  --line-strong: #cfd6e2;
+  --text-2: #475569;
+  --muted: #64748b;
+  --body: "Inter", system-ui, "Segoe UI", Arial, sans-serif;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(11, 25, 48, .04), 0 4px 14px rgba(11, 25, 48, .05);
+}
+body { background: var(--page); font: 400 15px/1.55 var(--body); }
+.panel { border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 24px; }
+.panel + .panel, .panel + section, section + .panel { margin-top: 16px; }
+h1 { letter-spacing: .4px; }
+h2 { letter-spacing: .3px; }
+.lede { color: var(--text-2); }
+.fine, .muted { color: var(--muted); }
+
+/* form fields */
+label { font: 600 13px/1.4 var(--body); text-transform: none; letter-spacing: 0; color: #334155; }
+.label-like, .checks legend { font: 700 12px var(--body) !important; letter-spacing: .6px !important; text-transform: uppercase; color: var(--muted) !important; }
+input[type=text], input[type=email], input[type=number], input[type=date], input[type=time], input[type=datetime-local], input:not([type]), select, textarea {
+  border: 1px solid var(--line-strong); border-radius: 8px; transition: border-color .12s, box-shadow .12s; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(132, 204, 22, .25); }
+
+/* buttons */
+.btn-ghost { border-width: 1px; border-color: var(--line-strong); }
+.btn-ghost:hover { border-color: var(--navy); background: #fff; }
+.btn, .btn-small { box-shadow: 0 1px 0 rgba(0, 0, 0, .08); }
+
+/* choice cards everywhere: tinted when selected, with a check */
+.mode-opt, .nb-opt, .struct-opt, .choice {
+  border: 1px solid var(--line-strong) !important; border-radius: 10px !important; background: #fff; box-shadow: none !important;
+  transition: border-color .12s, background .12s; position: relative; }
+.mode-opt:hover, .nb-opt:hover, .struct-opt:hover, .choice:hover { border-color: #9aa6b8 !important; }
+.mode-opt:has(input:checked), .nb-opt:has(input:checked), .struct-opt:has(input:checked), .choice:has(input:checked) {
+  border-color: var(--accent) !important; background: var(--accent-tint) !important; }
+.mode-opt:has(input:checked)::after, .nb-opt:has(input:checked)::after, .struct-opt:has(input:checked)::after {
+  content: "✓"; position: absolute; top: 8px; right: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent);
+  color: #fff; font: 800 12px/20px var(--body); text-align: center; }
+.mode-opt b, .nb-opt b { padding-right: 24px; }
+.mode-opt input, .nb-opt input, .struct-opt input { accent-color: var(--accent-ink); }
+
+/* admin: lighter section headings instead of solid navy bars */
+.admin-area .banner { background: none; color: var(--navy); box-shadow: none; border-left: 4px solid var(--accent); border-radius: 0;
+  padding: 2px 0 2px 10px; font: 800 18px/1.2 var(--display); letter-spacing: .5px; }
+.admin-area .settings-tabs a, .admin-area .steps a { border-width: 1px; border-radius: 10px; }
+.admin-area .steps a[aria-current="step"], .admin-area .settings-tabs a[aria-current="page"] { box-shadow: none; }
+.admin-area .board-step { border: 1px solid var(--line); background: #fff; }
+.admin-area .round { border-width: 1px; }
+.admin-area .sched-card { border: 1px solid var(--line); border-top: 4px solid var(--accent); box-shadow: var(--shadow); }
+.admin-area .limit-card { border-width: 1px; }
+.admin-area .tag-box.on { border-color: var(--accent); background: var(--accent-tint); color: var(--accent-ink); }
+.admin-area .tip, .admin-area .explain > div { background: #f8fafc; border: 1px solid var(--line); }
+.admin-area table th { font: 700 12px var(--body); letter-spacing: .5px; color: var(--muted); }
+
+/* ---------- New claim board wizard ---------- */
+.wizard { max-width: 780px; margin: 0 auto; }
+.wz-progress { list-style: none; display: flex; gap: 8px; margin: 16px 0 20px; padding: 0; counter-reset: s; }
+.wz-progress li { flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; background: #f1f4f8;
+  color: var(--muted); font: 700 15px var(--display); text-transform: uppercase; letter-spacing: .4px; }
+.wz-progress li span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #dfe5ee; color: var(--muted); font-size: 13px; }
+.wz-progress li.on { color: var(--navy); background: var(--accent-tint); }
+.wz-progress li.on span { background: var(--accent); color: #fff; }
+.wz-progress li.now { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.wz-step h2 { margin: 0 0 4px; font: 800 22px var(--display); text-transform: uppercase; color: var(--navy); }
+.wz-step .field { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; }
+.wz-step .field input { font-size: 17px; padding: 13px 14px; }
+.tip { border-radius: 10px; padding: 12px 14px; font-size: 14px; color: var(--text-2); }
+.tip b { color: var(--accent-ink); margin-right: 6px; }
+.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choice-row.three { grid-template-columns: repeat(3, 1fr); }
+.choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; cursor: pointer; text-transform: none; letter-spacing: 0;
+  font: 400 13px/1.4 var(--body); color: var(--text-2); }
+.choice > input { position: absolute; opacity: 0; pointer-events: none; }
+.choice-body { display: flex; flex-direction: column; gap: 2px; flex: 1; padding-right: 22px; }
+.choice-body b { font: 700 16px var(--display); text-transform: uppercase; letter-spacing: .3px; color: var(--navy); }
+.choice-body b em { font: 600 12px var(--body); font-style: normal; color: var(--muted); text-transform: none; margin-left: 4px; }
+.choice-body .lv { font-weight: 600; color: var(--navy-2); }
+.choice-body .ex { font-style: italic; font-size: 12px; color: var(--muted); }
+.choice-icon { font-size: 26px; line-height: 1; width: 40px; height: 40px; display: grid; place-items: center; background: #f1f4f8; border-radius: 10px; flex: none; }
+.choice:has(input:checked) .choice-icon { background: #fff; }
+.choice-check { position: absolute; top: 10px; right: 10px; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line-strong);
+  font: 800 12px/18px var(--body); text-align: center; color: transparent; }
+.choice:has(input:checked) .choice-check { background: var(--accent); border-color: var(--accent); color: #fff; }
+.choice:has(input:focus-visible) { box-shadow: 0 0 0 3px rgba(132, 204, 22, .35) !important; }
+.wizard .q { border: 0; padding: 0; margin: 16px 0 0; }
+.wizard .q legend { font: 800 15px var(--display); text-transform: uppercase; letter-spacing: .4px; color: var(--navy); margin-bottom: 8px; padding: 0; }
+.wz-summary { margin-top: 18px; background: #0c192e; color: #e2e8f0; border-radius: 10px; padding: 12px 14px; }
+.wz-summary .label-like { color: var(--accent) !important; }
+.wz-summary p { margin: 4px 0 0; font-size: 14px; }
+.wz-summary b { color: #fff; }
+.wz-nav { display: flex; align-items: center; gap: 10px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.wz-nav .spacer { flex: 1; }
+.wz-nav .btn-small { min-width: 150px; justify-content: center; }
+@media (max-width: 640px) {
+  .choice-grid, .choice-row, .choice-row.three { grid-template-columns: 1fr; }
+  .wz-progress li { font-size: 13px; padding: 8px; }
+  .panel { padding: 18px 16px; }
+}

@@ -31,7 +31,7 @@ function head(title) {
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 </head>`;
 }
@@ -82,7 +82,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
   return `${head(title)}
-<body>
+<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" ? "admin-area" : "member-area"}">
 <header class="appbar">
   <div class="appbar-inner${w}">
     <a class="brand" href="/dashboard">

@@ -131,6 +131,21 @@ router.post("/:id/settings", wrap(async (req, res) => {
   go(res, `/admin/rounds/${id}#settings`, { ok: "Round saved." });
 }));
 
+// Timing rules on a board's Rules step: when claiming opens, and how late a spot can be given up
+router.post("/:id/timing", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const b = req.body;
+  const opens = b.opens === "at" ? localOrNull(b.booking_opens_at) : null;
+  if (b.opens === "at" && !opens) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Pick the date and time claiming opens." });
+  const cancel = b.cancel_hours === undefined ? null : Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
+  await tx(async (db) => {
+    const round = (await db.query(
+      `UPDATE rounds SET booking_opens_at=${localSql(2)}, cancel_hours=COALESCE($3, cancel_hours) WHERE id=$1 RETURNING *`, [id, opens, cancel])).rows[0];
+    await R.syncPrograms(db, round);
+  });
+  go(res, dest(req, `/admin/rounds/${id}`), { ok: opens ? "Saved. Claiming opens at the time you picked." : "Saved. Claiming is open right away (once published)." });
+}));
+
 // ---------- limits (per activity) ----------
 router.post("/:id/limits", wrap(async (req, res) => {
   const id = int(req.params.id);

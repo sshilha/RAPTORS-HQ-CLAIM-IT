@@ -119,6 +119,25 @@ function typesPart(r, locked, L, acts, anchor) {
 `;
 }
 
+// When claiming opens, and (for dated boards) how late a spot can be given up
+function timingForm(r, locked, anchor, L) {
+  const { inputParts } = require("../time");
+  const at = r.booking_opens_at ? inputParts(r.booking_opens_at) : null;
+  const dated = SC.usesCalendar(CUR);
+  return `<form method="post" action="/admin/rounds/${r.id}/timing" class="timing-form">${back(anchor)}
+    <fieldset class="plain"${locked ? " disabled" : ""}>
+    <div class="tf-row"><span class="label-like">Claiming opens</span>
+      <label class="radio-row"><input type="radio" name="opens" value="now"${at ? "" : " checked"}> Right away (once published)</label>
+      <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At</label>
+      <input type="datetime-local" name="booking_opens_at" value="${at ? `${at.date}T${at.time}` : ""}" aria-label="Opens at" onfocus="this.form.opens[1].checked=true"></div>
+    <p class="fine">Set a time so everyone gets a fair shot, e.g. "claims open Monday at 7:00 PM".</p>
+    ${dated ? `<div class="tf-row"><span class="label-like">Give-it-up deadline</span>
+      <input type="number" name="cancel_hours" min="0" max="336" value="${r.cancel_hours ?? 24}" class="spots-in" aria-label="Hours before"> hours before it starts</div>
+    <p class="fine">After this, people can't give up a spot online (use 0 for any time). ${esc(L.slot.many)} without a date can always be given up.</p>` : ""}
+    ${locked ? "" : `<button class="btn-ghost" type="submit">Save timing</button>`}
+    </fieldset></form>`;
+}
+
 // 1-2 level boards: the board page itself, in the order you'd do things
 function boardBlock(r, locked, L, acts) {
   const anchor = `round-${r.id}`;
@@ -150,13 +169,12 @@ function boardBlock(r, locked, L, acts) {
          <p class="fine">Dated ${esc(L.slot.many.toLowerCase())} go on the calendar: <a class="btn-small" href="/admin/rounds/${r.id}">Open calendar</a></p></div>`}
        ${itemsPanel(r, locked, L)}`)}
 
-    ${step(2, "Rules <span class='opt-pill'>Optional</span>", `Leave these as they are and anyone who can claim can take as many as they like. Set a limit to spread spots around, and turn on a waitlist if you want people to line up when something fills.`,
-      limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts, listOnly, slotWord: L.slot.many }))}
+    ${step(2, "Rules <span class='opt-pill'>Optional</span>", `Leave these as they are and anyone who can claim can take as many as they like, starting as soon as you publish. Set a limit to spread spots around, a waitlist if you want people to line up when something fills, and a time if claiming should open later.`,
+      limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts, listOnly, slotWord: L.slot.many }) + timingForm(r, locked, anchor, L))}
 
     ${step(3, "Publish &amp; share", `${r.published_at ? "<b>Published:</b> people can see and claim it." : "<b>Not published yet:</b> nobody can see it until you publish."} ${how}`,
       `<div class="bs-publish">${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/publish">${back(anchor)}
-        <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide it" : "Publish"}</button></form>`}
-        <a class="link-dark" href="/admin/rounds/${r.id}#settings">More settings</a></div>
+        <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide it" : "Publish"}</button></form>`}</div>
        ${mode === "public" ? shareBox(r) : ""}`)}
   </div>`;
 }
@@ -339,75 +357,106 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
 
 function newSchedulePage({ user, flash }) {
   const PRE = SC.PRESET_LABELS;
+  const { LABELS } = require("../config");
   const levels = (l) => SC.LEVEL_KEYS[l.depth].map((k) => l[k][1]).join(" › ");
   const CHOICES = [
-    ["list", "Item list", "1 level", "Donations, a potluck, team snacks", "Bring a case of water · 10 spots"],
-    ["volunteer", "Areas & shifts", "2 levels", "Tournament or fundraiser volunteers", "Concessions › 9:00–11:00 AM · 4 spots"],
-    ["training", "Rounds & sessions", "3 levels", "Training with rounds, limits, and a calendar", "Round 1 › Hitting 12U–18U › Mon 6:00 PM · 16 spots"],
-    ["event", "Event days", "4 levels", "A multi-day event with areas and stations", "Saturday › Concessions › Grill › 8–10 AM · 2 spots"],
+    ["list", "📋", "Item list", "1 level", "Donations, a potluck, team snacks", "Bring a case of water · 10 spots"],
+    ["volunteer", "🙋", "Areas & shifts", "2 levels", "Tournament or fundraiser volunteers", "Concessions › 9:00–11:00 AM · 4 spots"],
+    ["training", "🥎", "Rounds & sessions", "3 levels", "Training with rounds, limits, and a calendar", "Round 1 › Hitting 12U–18U › Mon 6:00 PM"],
+    ["event", "🏆", "Event days", "4 levels", "A multi-day event with areas and stations", "Saturday › Concessions › Grill › 8–10 AM"],
   ];
+  const opt = (name, value, title, text) => `<label class="choice"><input type="radio" name="${name}" value="${value}">
+    <span class="choice-body"><b>${title}</b><span>${text}</span></span><span class="choice-check" aria-hidden="true">✓</span></label>`;
   return page({
     title: "New", tab: "home", user, flash,
-    body: `<a class="back" href="/admin/settings">All ${esc(require("../config").LABELS.schedules.toLowerCase())}</a>
-    <section class="panel new-board">
-      <h1>New ${esc(require("../config").LABELS.schedule.toLowerCase())}</h1>
-      <p class="muted tight">A sign-up space for a season or an event. You can rename everything afterward. Starting from last year's? Use <b>Copy</b> on its card instead.</p>
-      <form method="post" action="/admin/setup/schedules" class="stack">
-        <label>Name<input name="name" required maxlength="60" placeholder="e.g. Winter Training 2026–27 or Raptors Rumble Concessions, Sat Feb 7"></label>
-        <fieldset class="struct-grid"><legend>Structure</legend>
-          ${CHOICES.map(([k, title, depth, use, ex]) => `<label class="struct-opt">
-            <input type="radio" name="preset" value="${k}"${k === "training" ? " checked" : ""}>
-            <span class="so-head"><b>${title}</b><span class="so-depth">${depth}</span></span>
-            <span class="so-levels">${esc(levels(PRE[k]))}</span>
-            <span class="so-use">${esc(use)}</span>
-            <span class="so-ex">e.g. ${esc(ex)}</span>
-          </label>`).join("")}
-        </fieldset>
+    body: `<a class="back" href="/admin/settings">All ${esc(LABELS.schedules.toLowerCase())}</a>
+    <section class="panel wizard">
+      <h1>Create ${esc(SC.an(LABELS.schedule))}</h1>
+      <p class="muted tight">Set it up in three quick steps. You can change everything later.</p>
+      <ol class="wz-progress" aria-label="Steps">
+        <li data-step="1" class="on"><span>1</span>Details</li><li data-step="2"><span>2</span>Structure</li><li data-step="3"><span>3</span>Settings</li>
+      </ol>
+      <form method="post" action="/admin/setup/schedules" id="wz">
 
-        <div class="nb-options">
-        <div class="nb-options-head"><h2>Board options</h2><span class="fine">Filled in for the structure you picked. Change any of them.</span></div>
-        <fieldset class="nb-q"><legend><span class="nb-n">1</span>Who can claim?</legend>
-          <label class="nb-opt"><input type="radio" name="claim" value="public"><span><b>Anyone with the link</b> You'll get a share link and QR code to post or text. People just enter a name and email.</span></label>
-          <label class="nb-opt"><input type="radio" name="claim" value="family"><span><b>Anyone signed in</b> People sign in with their email and find it under My Claims.</span></label>
-          <label class="nb-opt"><input type="radio" name="claim" value="roster"><span><b>Only people I add</b> You add the people who can claim (like a team roster).</span></label>
-        </fieldset>
-
-        <fieldset class="nb-q" id="nb-restrict"><legend><span class="nb-n">2</span>Limit some things to certain people?</legend>
-          <label class="nb-opt"><input type="radio" name="restrict" value="no"><span><b>No</b> Anyone who can claim can claim anything.</span></label>
-          <label class="nb-opt"><input type="radio" name="restrict" value="yes"><span><b>Yes</b> By group or tag, e.g. Salad only for 10U, or Catching only for catchers.</span></label>
-        </fieldset>
-
-        <fieldset class="nb-q nb-two"><legend><span class="nb-n">3</span>Do things have dates and times?</legend>
-          <label class="nb-opt"><input type="radio" name="dated" value="no"><span><b>No</b> It's all one day or there are no set times. People pick from a list (put the day in the name).</span></label>
-          <label class="nb-opt"><input type="radio" name="dated" value="yes"><span><b>Yes</b> Things have dates and times.</span></label>
-        </fieldset>
-        <fieldset class="nb-q nb-two" id="nb-views"><legend><span class="nb-n">4</span>Available views</legend>
-          <label class="nb-opt"><input type="radio" name="pick" value="calendar"><span><b>Calendar</b> People pick days on a calendar.</span></label>
-          <label class="nb-opt"><input type="radio" name="pick" value="both"><span><b>Both: List &amp; Calendar</b> People can switch between the calendar and a day-by-day list.</span></label>
-        </fieldset>
-        <p class="fine">You can change all of these later in Claim Board Setup.</p>
+        <div class="wz-step" data-step="1">
+          <h2>Board details</h2>
+          <label class="field">Board name<input name="name" id="wz-name" required maxlength="60" autocomplete="off" placeholder="e.g. Winter Training 2026–27"></label>
+          <div class="tip"><b>Tip</b> Use a season or event name people will recognize, like "Winter Training 2026–27" or "Raptors Rumble Concessions, Sat Feb 7".</div>
         </div>
-        <button class="btn" type="submit">Create</button>
+
+        <div class="wz-step" data-step="2" hidden>
+          <h2>Structure</h2>
+          <p class="muted tight">How is it organized? The last level is what people claim.</p>
+          <div class="choice-grid">${CHOICES.map(([k, icon, title, depth, use, ex]) => `<label class="choice struct">
+            <input type="radio" name="preset" value="${k}"${k === "training" ? " checked" : ""}>
+            <span class="choice-icon" aria-hidden="true">${icon}</span>
+            <span class="choice-body"><b>${title} <em>${depth}</em></b><span class="lv">${esc(levels(PRE[k]))}</span><span>${esc(use)}</span><span class="ex">e.g. ${esc(ex)}</span></span>
+            <span class="choice-check" aria-hidden="true">✓</span></label>`).join("")}</div>
+        </div>
+
+        <div class="wz-step" data-step="3" hidden>
+          <h2>Settings</h2>
+          <p class="muted tight">Filled in for the structure you picked. Change any of them.</p>
+          <fieldset class="q"><legend>Who can claim?</legend><div class="choice-row three">
+            ${opt("claim", "public", "Anyone with the link", "You get a share link and QR code. People just enter a name and email.")}
+            ${opt("claim", "family", "Anyone signed in", "People sign in with their email and find it under My Claims.")}
+            ${opt("claim", "roster", "Only people I add", "You add the people who can claim, like a team roster.")}</div></fieldset>
+          <fieldset class="q"><legend>Limit some things to certain people?</legend><div class="choice-row">
+            ${opt("restrict", "no", "No", "Anyone who can claim can claim anything.")}
+            ${opt("restrict", "yes", "Yes", "By group or tag, e.g. Salad only for 10U, Catching only for catchers.")}</div></fieldset>
+          <fieldset class="q"><legend>Do things have dates and times?</legend><div class="choice-row">
+            ${opt("dated", "no", "No", "It's all one day or there are no set times. People pick from a list.")}
+            ${opt("dated", "yes", "Yes", "Things have dates and times.")}</div></fieldset>
+          <fieldset class="q" id="wz-views"><legend>Available views</legend><div class="choice-row">
+            ${opt("pick", "calendar", "Calendar", "People pick days on a calendar.")}
+            ${opt("pick", "both", "Both: List &amp; Calendar", "People can switch between the calendar and a day-by-day list.")}</div></fieldset>
+          <div class="wz-summary" aria-live="polite"><span class="label-like">Summary</span><p id="wz-sum"></p></div>
+        </div>
+
+        <div class="wz-nav">
+          <button type="button" class="btn-ghost" id="wz-back" hidden>Back</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn-small" id="wz-next">Continue</button>
+          <button type="submit" class="btn-small" id="wz-create" hidden>Create board</button>
+        </div>
       </form>
     </section>
     <script>
     (function () {
-      // Picking a structure fills in sensible answers (until you change one yourself)
       var D = ${JSON.stringify(Object.fromEntries(Object.entries(PRE).map(([k, v]) => [k, { claim: v.claim, restrict: v.restrict ? "yes" : "no", dated: v.calendar === false ? "no" : "yes", depth: v.depth }])))};
-      var touched = {};
-      function set(name, val) { if (touched[name]) return; var el = document.querySelector('input[name="' + name + '"][value="' + val + '"]'); if (el) el.checked = true; }
-      function apply() {
-        var k = (document.querySelector('input[name="preset"]:checked') || {}).value; var d = D[k]; if (!d) return;
-        set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated);
-        if (!document.querySelector('input[name="pick"]:checked')) set("pick", "calendar");
-        views();
+      var NAMES = ${JSON.stringify(Object.fromEntries(CHOICES.map(([k, , t, d]) => [k, t + " (" + d + ")"])))};
+      var form = document.getElementById("wz"), step = 1, touched = {};
+      var $ = function (sel) { return form.querySelector(sel); };
+      var val = function (n) { var el = form.querySelector('input[name="' + n + '"]:checked'); return el ? el.value : ""; };
+      function set(n, v) { if (touched[n]) return; var el = form.querySelector('input[name="' + n + '"][value="' + v + '"]'); if (el) el.checked = true; }
+      function defaults() { var d = D[val("preset")]; if (!d) return; set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated); if (!val("pick")) set("pick", "calendar"); refresh(); }
+      function refresh() {
+        document.getElementById("wz-views").hidden = val("dated") !== "yes";
+        var who = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" }[val("claim")] || "";
+        var when = val("dated") === "yes" ? (val("pick") === "both" ? "dates, list & calendar" : "dates, calendar") : "no dates (a list)";
+        document.getElementById("wz-sum").innerHTML = "<b>" + (form.name.value.trim() || "Untitled").replace(/[<>&]/g, "") + "</b> · " + (NAMES[val("preset")] || "") +
+          " · " + who + " · " + (val("restrict") === "yes" ? "limited by group or tag" : "anyone can claim anything") + " · " + when;
       }
-      // views only matter when things have dates
-      function views() { var dated = (document.querySelector('input[name="dated"]:checked') || {}).value === "yes"; document.getElementById("nb-views").hidden = !dated; }
-      document.querySelectorAll('input[name="dated"]').forEach(function (r) { r.addEventListener("change", views); });
-      document.querySelectorAll('input[name="preset"]').forEach(function (r) { r.addEventListener("change", apply); });
-      ["claim", "restrict", "dated", "pick"].forEach(function (n) { document.querySelectorAll('input[name="' + n + '"]').forEach(function (r) { r.addEventListener("change", function () { touched[n] = true; }); }); });
-      apply();
+      function show(n) {
+        step = n;
+        form.querySelectorAll(".wz-step").forEach(function (el) { el.hidden = +el.dataset.step !== n; });
+        document.querySelectorAll(".wz-progress li").forEach(function (li) { li.classList.toggle("on", +li.dataset.step <= n); li.classList.toggle("now", +li.dataset.step === n); });
+        document.getElementById("wz-back").hidden = n === 1;
+        document.getElementById("wz-next").hidden = n === 3;
+        document.getElementById("wz-create").hidden = n !== 3;
+        if (n === 3) refresh();
+        var f = form.querySelector('.wz-step[data-step="' + n + '"] input'); if (f && n === 1) f.focus();
+      }
+      document.getElementById("wz-next").addEventListener("click", function () {
+        if (step === 1 && !form.name.value.trim()) { form.name.reportValidity(); return; }
+        show(step + 1);
+      });
+      document.getElementById("wz-back").addEventListener("click", function () { show(step - 1); });
+      form.name.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); document.getElementById("wz-next").click(); } });
+      form.querySelectorAll('input[name="preset"]').forEach(function (r) { r.addEventListener("change", defaults); });
+      ["claim", "restrict", "dated", "pick"].forEach(function (n) { form.querySelectorAll('input[name="' + n + '"]').forEach(function (r) { r.addEventListener("change", function () { touched[n] = true; refresh(); }); }); });
+      form.name.addEventListener("input", refresh);
+      defaults(); show(1);
     })();
     </script>`,
   });
