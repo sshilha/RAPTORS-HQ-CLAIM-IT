@@ -55,11 +55,19 @@ function gateLayout({ title, body, flash }) {
 function bottomNav(tab, admin) {
   const items = [
     ["home", "/dashboard", "🏠", "My Claims"],
-    ...(admin ? [["reports", "/admin/reports", "📊", "Reports"], ["settings", "/admin/settings", "🛠️", "Settings"]] : []),
+    ...(admin ? [["settings", "/admin/settings", "🗂️", "Claim Boards"], ["reports", "/admin/reports", "📊", "Reports"]] : []),
   ];
   const active = SETTINGS_AREA.includes(tab) ? "settings" : tab || "home";
   return `<nav class="site-nav" aria-label="Main">${items.map(([k, href, icon, label]) =>
     `<a href="${href}"${k === active ? ' aria-current="page"' : ""}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></a>`).join("")}</nav>`;
+}
+
+// On wider screens the main links sit in the top bar (phones keep the bottom bar)
+function topNav(tab) {
+  const active = SETTINGS_AREA.includes(tab) ? (tab === "settings" ? "app" : "settings") : tab || "home";
+  const items = [["home", "/dashboard", "My Claims"], ["settings", "/admin/settings", "Claim Boards"], ["reports", "/admin/reports", "Reports"], ["app", "/admin/settings/app", "⚙ App"]];
+  return `<nav class="top-nav" aria-label="Main">${items.map(([k, href, label]) =>
+    `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>`;
 }
 
 // Public sign-up sheets: light page with the app bar, for people who aren't signed in
@@ -89,6 +97,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
       <img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}">
       <span class="brand-text sr-only"><span class="brand-mark"><span class="bm-long">${esc(LABELS.app_name)}</span><span class="bm-short">${esc(LABELS.app_short)}</span></span><span class="brand-org">${esc(LABELS.org_name)}</span></span>
     </a>
+    ${admin ? topNav(tab) : ""}
     <span class="spacer"></span>
     <div class="who"><b>${esc(user.email)}</b>
       <form method="post" action="/logout"><button class="link-btn" type="submit">Sign out</button></form></div>

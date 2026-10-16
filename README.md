@@ -72,6 +72,14 @@ editable in **Claim Board Setup** (the first settings step), which asks the ques
 It also holds the board's levels, **Locations**, and **View** (what people see of who's going).
 Steps that aren't needed don't appear.
 
+**Navigation:** on computers the main links are in the top bar (My Claims · Claim Boards ·
+Reports · ⚙ App); phones keep the bottom bar.
+
+**Board page:** one header (name, Draft/Published, ⚙ Settings, Publish board), stat tiles (items,
+spots, claimed), then for 1–2 level boards two columns: **Manage items** on the left; **Rules**
+(one-line summary + Edit rules) and **Publish & share** (status, share link/QR once published) on
+the right. 3–4 level boards keep their rounds list under the same header.
+
 **Open** (on the card) shows the board itself: its rounds or items, calendar, and rules.
 **Settings** (on the card) walks through setup as numbered steps: 1 Name & structure,
 2 Activities (skipped for 1-level boards), 3 Groups & tags, 4 People, 5 Locations & family

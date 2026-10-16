@@ -21,7 +21,8 @@ function settingsNav(tab, user) {
   const homeLink = `<a class="crumb" href="/admin/settings">← All ${esc(LABELS.schedules.toLowerCase())}</a>`;
   if (tab === "settings") return `<nav class="crumbs no-print">${homeLink}</nav>`;
   const sc = sched.sc;
-  if (BOARD_AREA.includes(tab)) return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sc.name)}</span>
+  if (tab === "setup") return `<nav class="crumbs no-print">${homeLink}</nav>`;
+  if (BOARD_AREA.includes(tab)) return `<nav class="crumbs no-print">${homeLink}<a class="crumb" href="/admin/setup?s=${sc.id}">${esc(sc.name)}</a>
       ${sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>`;
   const SC = require("../schedules");
   const L = SC.labels(sc);

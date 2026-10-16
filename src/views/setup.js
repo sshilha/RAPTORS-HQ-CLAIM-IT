@@ -139,44 +139,60 @@ function timingForm(r, locked, anchor, L) {
     </fieldset></form>`;
 }
 
-// 1-2 level boards: the board page itself, in the order you'd do things
+// One-line summary of a board's rules, e.g. "Unlimited per person · No waitlist · Opens right away"
+function rulesSummary(r, L, acts) {
+  const { limitFor } = require("../rounds");
+  const { fmtDateTime } = require("../time");
+  const depth = SC.depthOf(CUR);
+  const parts = [];
+  if (depth === 1) { const n = limitFor(r, acts[0]); parts.push(n == null ? "Unlimited per person" : `Up to ${n} per person`); }
+  else {
+    const lim = acts.map((a) => [a, limitFor(r, a)]).filter(([, n]) => n != null);
+    parts.push(lim.length ? lim.map(([a, n]) => `${a} ${n}`).join(", ") + " per person" : "No limits");
+  }
+  parts.push(r.waitlist ? "Waitlist on" : "No waitlist");
+  parts.push(r.booking_opens_at ? `Opens ${fmtDateTime(r.booking_opens_at)}` : "Opens right away");
+  if (SC.usesCalendar(CUR)) parts.push(r.cancel_hours ? `Give up ${r.cancel_hours}h before` : "Give up any time");
+  return parts.join(" · ");
+}
+
+// 1-2 level boards: manage on the left, rules + publishing on the right
 function boardBlock(r, locked, L, acts) {
   const anchor = `round-${r.id}`;
   const depth = SC.depthOf(CUR);
   const listOnly = !SC.usesCalendar(CUR);
   const mode = SC.claimMode(CUR);
   const setupLink = `<a href="/admin/setup/schedule?s=${CUR.id}">Claim Board Setup</a>`;
-  const step = (n, title, help, body, extra = "") => `<section class="board-step${extra}">
-    <h2 class="bs-title"><span class="step-num">${n}</span>${title}</h2>
-    ${help ? `<p class="fine bs-help">${help}</p>` : ""}${body}</section>`;
-  const what = depth === 1 ? esc(L.slot.many) : `${esc(L.activity.many)} &amp; ${esc(L.slot.many.toLowerCase())}`;
   const how = {
-    public: `People get to it with the <b>share link</b> or <b>QR code</b> below, because <i>Who can claim</i> is set to <b>Anyone with the link</b> (change it in ${setupLink}).`,
-    family: `People sign in and find it under <b>My Claims</b>, because <i>Who can claim</i> is <b>Anyone signed in</b> (change it in ${setupLink}). Send them your site's address so they can sign in.`,
-    roster: `Only the ${esc(L.participant.many.toLowerCase())} you add in Settings can claim it, from <b>My Claims</b> (change who can claim in ${setupLink}).`,
+    public: `People get here with the <b>share link</b> or <b>QR code</b> (Who can claim: <b>Anyone with the link</b>, set in ${setupLink}).`,
+    family: `People sign in and find it under <b>My Claims</b> (Who can claim: <b>Anyone signed in</b>, set in ${setupLink}).`,
+    roster: `Only the ${esc(L.participant.many.toLowerCase())} you add can claim it, from <b>My Claims</b> (set in ${setupLink}).`,
   }[mode];
-  return `<div class="board-block" id="${anchor}">
-    <div class="bb-status">
-      <span>${pln(r.scheduled, L.slot)} · ${r.claimed}/${r.spots} spots claimed</span>
-      ${locked ? `<span class="pill">Archived</span>` : statusPill(r)}
-      <a class="link-dark" href="/admin/reports?round=${r.id}">Reports</a>
-    </div>
-
-    ${step(1, `Add ${what}`, depth === 1
-      ? `Each ${esc(L.slot.one.toLowerCase())} is something people can claim, with how many spots it has. For example: <i>Bring a case of water, 10 spots</i>.`
-      : `First the ${esc(L.activity.many.toLowerCase())} you're offering (like Concessions or Ticket Booth), then the ${esc(L.slot.many.toLowerCase())} people claim in each.`,
-      `${depth > 1 ? typesPart(r, locked, L, acts, anchor) : ""}
-       ${listOnly ? "" : `<div class="bs-cal">${timesPart(r, locked, L, acts, anchor)}
-         <p class="fine">Dated ${esc(L.slot.many.toLowerCase())} go on the calendar: <a class="btn-small" href="/admin/rounds/${r.id}">Open calendar</a></p></div>`}
-       ${itemsPanel(r, locked, L)}`)}
-
-    ${step(2, "Rules <span class='opt-pill'>Optional</span>", `Leave these as they are and anyone who can claim can take as many as they like, starting as soon as you publish. Set a limit to spread spots around, a waitlist if you want people to line up when something fills, and a time if claiming should open later.`,
-      limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts, listOnly, slotWord: L.slot.many }) + timingForm(r, locked, anchor, L))}
-
-    ${step(3, "Publish &amp; share", `${r.published_at ? "<b>Published:</b> people can see and claim it." : "<b>Not published yet:</b> nobody can see it until you publish."} ${how}`,
-      `<div class="bs-publish">${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/publish">${back(anchor)}
-        <button class="${r.published_at ? "btn-ghost" : "btn-small"}" type="submit">${r.published_at ? "Hide it" : "Publish"}</button></form>`}</div>
-       ${mode === "public" ? shareBox(r) : ""}`)}
+  return `<div class="board-cols" id="${anchor}">
+    <section class="panel bc-main">
+      <div class="bc-head"><h2>Manage ${esc(L.slot.many.toLowerCase())}</h2>
+        ${listOnly ? "" : `<a class="btn-ghost" href="/admin/rounds/${r.id}">Open calendar</a>`}</div>
+      ${depth > 1 ? `<div class="bc-sub">${typesPart(r, locked, L, acts, anchor)}</div>` : ""}
+      ${listOnly ? "" : `<details class="bc-times"><summary>Times for the calendar (${(r.time_slots || []).length})</summary>${timesPart(r, locked, L, acts, anchor)}</details>`}
+      ${itemsPanel(r, locked, L)}
+    </section>
+    <aside class="bc-side">
+      <section class="panel side-card">
+        <div class="bc-head"><h2>Rules</h2><span class="opt-pill">Optional</span></div>
+        <p class="rules-sum">${esc(rulesSummary(r, L, acts))}</p>
+        <details class="edit-rules"${locked ? "" : ""}><summary class="btn-ghost">Edit rules</summary>
+          <p class="fine">Leave these alone and anyone who can claim can take as many as they like, starting as soon as you publish.</p>
+          ${limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts, listOnly, slotWord: L.slot.many })}
+          ${timingForm(r, locked, anchor, L)}
+        </details>
+      </section>
+      <section class="panel side-card">
+        <div class="bc-head"><h2>Publish &amp; share</h2>${r.published_at ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Not published</span>`}</div>
+        <p class="fine">${r.published_at ? "People can see and claim it." : "Nobody can see it until you publish it (button at the top)."} ${how}</p>
+        ${mode === "public" ? (r.published_at ? shareBox(r) : `<p class="fine">The share link and QR code appear here once it's published.</p>`) : ""}
+        <p class="fine"><a href="/admin/reports?round=${r.id}">Reports</a> for this board.</p>
+      </section>
+    </aside>
   </div>`;
 }
 
@@ -366,7 +382,7 @@ function newSchedulePage({ user, flash }) {
     body: `<a class="back" href="/admin/settings">All ${esc(LABELS.schedules.toLowerCase())}</a>
     <section class="panel wizard">
       <h1>Create ${esc(SC.an(LABELS.schedule))}</h1>
-      <p class="muted tight">Set it up in three quick steps. You can change everything later.</p>
+      <p class="muted tight">Set up your board in three simple steps. You can change everything later.</p>
       <ol class="wz-progress" aria-label="Steps">
         <li data-step="1" class="on"><span>1</span>Details</li><li data-step="2"><span>2</span>Structure</li><li data-step="3"><span>3</span>Settings</li>
       </ol>
@@ -374,8 +390,9 @@ function newSchedulePage({ user, flash }) {
 
         <div class="wz-step" data-step="1">
           <h2>Board details</h2>
+          <p class="muted tight">Give it a name people will recognize.</p>
           <label class="field">Board name<input name="name" id="wz-name" required maxlength="60" autocomplete="off" placeholder="e.g. Winter Training 2026–27"></label>
-          <div class="tip"><b>Tip</b> Use a season or event name people will recognize, like "Winter Training 2026–27" or "Raptors Rumble Concessions, Sat Feb 7".</div>
+          <div class="tip"><b>Helpful tip</b>Use a season or event name people will recognize, like "Winter Training 2026–27" or "Raptors Rumble Concessions, Sat Feb 7".</div>
         </div>
 
         <div class="wz-step" data-step="2" hidden>
@@ -409,7 +426,7 @@ function newSchedulePage({ user, flash }) {
         </div>
 
         <div class="wz-nav">
-          <button type="button" class="btn-ghost" id="wz-back" hidden>Back</button>
+          <button type="button" class="btn-ghost" id="wz-back" disabled>Back</button>
           <span class="spacer"></span>
           <button type="button" class="btn-small" id="wz-next">Continue</button>
           <button type="submit" class="btn-small" id="wz-create" hidden>Create board</button>
@@ -436,7 +453,7 @@ function newSchedulePage({ user, flash }) {
         step = n;
         form.querySelectorAll(".wz-step").forEach(function (el) { el.hidden = +el.dataset.step !== n; });
         document.querySelectorAll(".wz-progress li").forEach(function (li) { li.classList.toggle("on", +li.dataset.step <= n); li.classList.toggle("now", +li.dataset.step === n); });
-        document.getElementById("wz-back").hidden = n === 1;
+        document.getElementById("wz-back").disabled = n === 1;
         document.getElementById("wz-next").hidden = n === 3;
         document.getElementById("wz-create").hidden = n !== 3;
         if (n === 3) refresh();
@@ -457,6 +474,29 @@ function newSchedulePage({ user, flash }) {
   });
 }
 
+function boardHeader(sc, L, depth, main, rounds, locked) {
+  const all = depth <= 2 ? (main ? [main] : []) : rounds;
+  const sum = (k) => all.reduce((n, r) => n + (r[k] || 0), 0);
+  const published = depth <= 2 ? !!(main && main.published_at) : rounds.some((r) => r.published_at);
+  const status = locked ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">${depth <= 2 ? "Published" : "Live"}</span>` : `<span class="pill warn">Draft</span>`;
+  return `<section class="board-head">
+      <div class="bh-title"><h1>${esc(sc.name)}</h1>${status}</div>
+      <div class="bh-actions">
+        <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">⚙ Settings</a>
+        ${depth >= 3 && !locked ? `<a class="btn-ghost" href="/admin/import?s=${sc.id}">Import schedule</a>` : ""}
+        ${depth <= 2 && main && !locked ? `<form method="post" action="/admin/rounds/${main.id}/publish">${back()}
+          <button class="${main.published_at ? "btn-ghost" : "btn-small"}" type="submit">${main.published_at ? "Unpublish" : "Publish board"}</button></form>` : ""}
+      </div>
+    </section>
+    ${locked ? `<p class="rule">Archived: hidden from people and read-only. Reopen it from the Claim Boards page to make changes.</p>` : ""}
+    <div class="stat-tiles">
+      <div><span class="st-n">${sum("scheduled")}</span><span class="st-l">${esc(L.slot.many)}</span></div>
+      <div><span class="st-n">${sum("spots")}</span><span class="st-l">Total spots</span></div>
+      <div><span class="st-n">${sum("claimed")}</span><span class="st-l">Claimed</span></div>
+      ${depth >= 3 ? `<div><span class="st-n">${rounds.length}</span><span class="st-l">${esc(L.middle.many)}</span></div>` : ""}
+    </div>`;
+}
+
 function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
   CUR = sc;
   const L = SC.labels(sc);
@@ -467,19 +507,8 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
   const sorted = rounds.filter((r) => !r.is_main).sort((x, y) => String(x.starts_on).localeCompare(String(y.starts_on)));
   return page({
     title: sc.name, tab: "setup", user, flash, xwide: true,
-    body: `<section class="panel">
-      <div class="athlete-head">
-        <div><h1>${esc(sc.name)}</h1>
-          <p class="muted tight">${SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ")}. ${depth >= 3 && SC.usesCalendar(sc)
-            ? `Open ${esc(SC.an(L.middle.one))}'s calendar to put ${esc(L.slot.many.toLowerCase())} on days.`
-            : depth >= 3 ? `Add ${esc(L.slot.many.toLowerCase())} inside each ${esc(L.middle.one.toLowerCase())}. People pick from a list (no calendar).`
-            : `Three things to do here: <b>add ${esc(L.slot.many.toLowerCase())}</b>, set <b>rules</b> if you want, then <b>publish</b>.`}</p></div>
-        ${locked ? `<span class="pill">Archived: read-only</span>` : depth >= 3 ? `<div class="head-actions"><a class="btn-ghost" href="/admin/import?s=${sc.id}">Import vendor schedule</a></div>` : ""}
-      </div>
-      ${locked ? `<p class="rule">This Claim Board is archived: hidden from people and read-only. Reopen it from Settings to make changes.</p>` : ""}
-    </section>
-
-    ${depth <= 2 ? `<section class="panel">${main ? boardBlock(main, locked, L, acts) : ""}</section>` : `<section class="panel">
+    body: `${boardHeader(sc, L, depth, main, sorted, locked)}
+    ${depth <= 2 ? (main ? boardBlock(main, locked, L, acts) : "") : `<section class="panel">
       <h2 class="season-title">${esc(L.middle.many)}</h2>
       <div class="rounds">${sorted.length ? sorted.map((r) => roundBlock(r, locked, L, acts)).join("") : `<p class="muted">No ${esc(L.middle.many.toLowerCase())} yet. Add the first one below.</p>`}</div>
       ${locked ? "" : newRoundForm(null, [...sorted].reverse(), true, L)}
