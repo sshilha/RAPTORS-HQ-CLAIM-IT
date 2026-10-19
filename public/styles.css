@@ -1293,3 +1293,24 @@ table.places input.addr { min-width: 280px; }
 .ir-edit .ir-fields input:not([type=checkbox]):not([type=hidden]), .ir-edit select, .ir-edit .for-pick > summary {
   height: 34px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; }
 .ir-edit .for-pick > summary { display: flex; align-items: center; }
+
+/* add form: labels over each field, lined up with the button */
+.item-add2 { align-items: flex-end; }
+.item-add2 .mini { flex: none; }
+.item-add2 .ia-name { flex: 1 1 240px; }
+.item-add2 .ia-name input { width: 100%; }
+.item-add2 .mini input:not([type=checkbox]), .item-add2 .for-pick > summary { height: 36px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; }
+.item-add2 .for-pick > summary { display: flex; align-items: center; background: #fff; }
+.item-add2 .spots-in { width: 9ch; }
+.item-add2 > .btn-small { height: 36px; display: inline-flex; align-items: center; }
+.mini .opt { font-weight: 400; color: #94a3b8; }
+
+/* example text in every field is light, so it never looks like a typed answer */
+::placeholder { color: #a7b0bf !important; font-weight: 400 !important; font-style: normal; opacity: 1; }
+@media (max-width: 640px) { .item-add2 .mini, .item-add2 .ia-name { flex: 1 1 100%; } .item-add2 .mini input { width: 100%; } }
+.item-add2 .mini { white-space: nowrap; }
+.item-add2 .ia-name { flex: 1 1 200px; min-width: 160px; }
+.item-add2 .ir-loc { width: 150px; }
+.item-add2 { flex-wrap: wrap; }
+.item-add2 .ia-title { flex: 1 1 100%; }
+.item-add2 > .btn-small { white-space: nowrap; flex: none; }

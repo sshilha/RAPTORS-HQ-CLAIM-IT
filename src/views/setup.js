@@ -106,11 +106,13 @@ function itemAdd(r, programId, L, placeholder) {
   return `<form method="post" action="/admin/rounds/${r.id}/items" class="item-add2">${back(`items-${r.id}`)}
     <span class="ia-title">Add ${esc(SC.an(L.slot.one))}</span>
     <input type="hidden" name="program_id" value="${programId}">${dated ? `<input type="hidden" name="when_shown" value="1">` : ""}
-    <input name="title" required maxlength="80" placeholder="${esc(placeholder)}" aria-label="Name" class="ir-title">
-    ${dated ? `<input type="date" name="date" aria-label="Date"><input type="time" name="start_time" aria-label="Start"><input type="time" name="end_time" aria-label="End">` : ""}
-    <input type="number" name="capacity" min="1" max="500" required placeholder="Spots" aria-label="Spots" class="spots-in">
-    <input name="location" list="app-locations" maxlength="80" placeholder="Location (optional)" aria-label="Location" class="ir-loc">
-    ${limited ? forPicker(CUR) : ""}
+    <label class="mini ia-name">Name<input name="title" required maxlength="80" placeholder="${esc(placeholder)}" class="ir-title"></label>
+    ${dated ? `<label class="mini">Date<input type="date" name="date"></label>
+      <label class="mini">Start<input type="time" name="start_time"></label>
+      <label class="mini">End<input type="time" name="end_time"></label>` : ""}
+    <label class="mini">Spots<input type="number" name="capacity" min="1" max="500" required placeholder="e.g. 4" class="spots-in"></label>
+    <label class="mini"><span>Location <span class="opt">(optional)</span></span><input name="location" list="app-locations" maxlength="80" placeholder="e.g. Pavilion" class="ir-loc"></label>
+    ${limited ? `<div class="mini">Who${forPicker(CUR)}</div>` : ""}
     <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button>
   </form>`;
 }
