@@ -25,10 +25,42 @@ function forPicker(sc, chosenGroups = [], chosenTags = [], formId = "") {
   const picked = [...chosenGroups, ...chosenTags];
   return `<details class="for-pick"><summary>${picked.length ? `Only for ${esc(picked.join(", "))}` : "Everyone"}</summary>
     <div class="for-box"><input type="hidden" name="for_shown" value="1"${f}>
+      <p class="fine for-hint">Who can claim this? Leave everything unchecked for everyone.</p>
       ${groups.length ? `<div class="for-row"><span class="fine">${esc(SC.labels(sc).group.many)}</span>${groups.map((g) => `<label class="tag-box${chosenGroups.includes(g) ? " on" : ""}"><input type="checkbox" name="only_groups" value="${esc(g)}"${f}${chosenGroups.includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("")}</div>` : ""}
       ${tags.length ? `<div class="for-row"><span class="fine">Tags</span>${tags.map((t) => `<label class="tag-box${chosenTags.includes(t) ? " on" : ""}"><input type="checkbox" name="only_tags" value="${esc(t)}"${f}${chosenTags.includes(t) ? " checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}
-      <p class="fine">Leave all unchecked for everyone.</p></div></details>`;
+      <div class="for-actions">
+        ${formId ? `<button type="submit" class="btn-small" form="${formId}">Save</button>` : `<button type="button" class="btn-small" data-for="done">Done</button>`}
+        <button type="button" class="btn-ghost" data-for="cancel">Cancel</button>
+      </div>
+    </div></details>`;
 }
+
+// One small script per page for every "Who" dropdown: live label, Done/Cancel, click-outside, Esc
+const FOR_PICK_JS = `<script>
+(function () {
+  function boxes(d) { return d.querySelectorAll('input[type=checkbox]'); }
+  function label(d) {
+    var on = [].filter.call(boxes(d), function (c) { return c.checked; }).map(function (c) { return c.value; });
+    d.querySelector('summary').textContent = on.length ? 'Only for ' + on.join(', ') : 'Everyone';
+    [].forEach.call(boxes(d), function (c) { c.closest('.tag-box').classList.toggle('on', c.checked); });
+  }
+  document.querySelectorAll('details.for-pick').forEach(function (d) {
+    d.addEventListener('toggle', function () { if (d.open) d._saved = [].map.call(boxes(d), function (c) { return c.checked; }); });
+    d.addEventListener('change', function () { label(d); });
+    d.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-for]'); if (!b) return;
+      if (b.dataset.for === 'cancel' && d._saved) [].forEach.call(boxes(d), function (c, i) { c.checked = d._saved[i]; });
+      label(d); d.open = false;
+    });
+  });
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('details.for-pick[open]').forEach(function (d) { if (!d.contains(e.target)) { label(d); d.open = false; } });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') document.querySelectorAll('details.for-pick[open]').forEach(function (d) { label(d); d.open = false; });
+  });
+})();
+</script>`;
 
 // One claimable item: name, optional date/time (dated boards), spots, location, who, claimed
 function itemRow(it, r, locked, L) {
@@ -689,6 +721,7 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
         <ul class="plain-list">${standalone.map((p) => `<li><a href="/admin/programs/${p.id}">${esc(p.name)}</a> <span class="fine-inline">${p.archived ? "archived" : `${p.upcoming} upcoming`}</span></li>`).join("")}</ul>
       </details>
     </section>` : ""}
+    ${FOR_PICK_JS}
     <script>
     (function () {
       // Open whatever the last action pointed at

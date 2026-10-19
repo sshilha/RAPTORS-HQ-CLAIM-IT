@@ -1283,3 +1283,7 @@ table.places input.addr { min-width: 280px; }
   .ci-card { grid-template-columns: 1fr auto; } .ci-when { grid-column: 1 / -1; }
   .ci-people li { flex-wrap: wrap; } .ci-actions { width: 100%; } .ci-actions form { flex: 1; } .ci-btn { width: 100%; }
 }
+.for-hint { margin: 0; }
+.for-actions { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid #eef1f5; }
+.for-actions .btn-small { padding: 7px 16px; }
+.for-pick[open] > summary { border-color: var(--accent); }
