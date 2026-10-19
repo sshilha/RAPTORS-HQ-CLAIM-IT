@@ -38,7 +38,8 @@ as chosen. Each one is called a **Claim Board** by default (changeable under ⚙
 **Levels.** Each Claim Board has 1–4 levels that you name (Claim Board settings); the last level
 is what people claim, with a number of spots:
 - 1 level: a simple list (e.g. Task: "Bring a case of water", 6 spots).
-- 2 levels: e.g. Area › Shift (Beer Garden › Sat 9–11).
+- 2 levels: e.g. Area › Shift. Areas are made right on the board (just a name); each shift/item
+  has its own spots and, if the board has dates, its own date and time. No calendar builder.
 - 3 levels: e.g. Round › Activity › Session (Winter Training).
 - 4 levels: e.g. Day › Area › Station › Shift.
 Boards with 1–2 levels show three numbered steps on their page (1 Add items, 2 Rules: per-person

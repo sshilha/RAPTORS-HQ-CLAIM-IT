@@ -30,7 +30,81 @@ function forPicker(sc, chosenGroups = [], chosenTags = [], formId = "") {
       <p class="fine">Leave all unchecked for everyone.</p></div></details>`;
 }
 
+// One claimable item: name, optional date/time (dated boards), spots, location, who, claimed
+function itemRow(it, r, locked, L) {
+  const { inputParts } = require("../time");
+  const dated = SC.usesCalendar(CUR);
+  const limited = SC.restricts(CUR) && (SC.groupsFor(CUR).length || (CUR.tags || []).length);
+  const f = `it-${it.id}`, st = it.starts_at ? inputParts(it.starts_at) : null, en = it.ends_at ? inputParts(it.ends_at) : null;
+  if (locked) return `<li class="irow"><div class="ir-main"><b>${esc(it.title || "")}</b>
+      <span class="fine">${[it.starts_at ? require("../time").fmtRange(it.starts_at, it.ends_at) : "", `${it.capacity} spots`, it.location ? `📍 ${esc(it.location)}` : ""].filter(Boolean).join(" · ")}</span></div>
+      <a class="ir-claimed" href="/admin/sessions/${it.id}">${it.claimed} of ${it.capacity}</a></li>`;
+  return `<li class="irow">
+    <form id="${f}" method="post" action="/admin/rounds/${r.id}/items/${it.id}">${back(`items-${r.id}`)}${dated ? `<input type="hidden" name="when_shown" value="1">` : ""}</form>
+    <div class="ir-fields">
+      <input form="${f}" name="title" value="${esc(it.title || "")}" maxlength="80" required aria-label="Name" class="ir-title">
+      ${dated ? `<input form="${f}" type="date" name="date" value="${st ? st.date : ""}" aria-label="Date">
+        <input form="${f}" type="time" name="start_time" value="${st ? st.time : ""}" aria-label="Start">
+        <input form="${f}" type="time" name="end_time" value="${en ? en.time : ""}" aria-label="End">` : ""}
+      <input form="${f}" type="number" name="capacity" min="1" max="500" value="${it.capacity}" aria-label="Spots" class="spots-in" title="Spots">
+      <input form="${f}" name="location" value="${esc(it.location || "")}" list="app-locations" maxlength="80" placeholder="Location" aria-label="Location" class="ir-loc">
+      ${limited ? forPicker(CUR, it.only_groups || [], it.only_tags || [], f) : ""}
+    </div>
+    <div class="ir-side">
+      <a class="ir-claimed" href="/admin/sessions/${it.id}" title="See who claimed it">${it.claimed} of ${it.capacity}${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}</a>
+      <button class="btn-ghost" type="submit" form="${f}">Save</button>
+      <form method="post" action="/admin/rounds/${r.id}/items/${it.id}/delete" onsubmit="return confirm('Remove this ${esc(L.slot.one.toLowerCase())}?')">${back(`items-${r.id}`)}<button class="x" type="submit" aria-label="Remove">×</button></form>
+    </div></li>`;
+}
+
+function itemAdd(r, programId, L, placeholder) {
+  const dated = SC.usesCalendar(CUR);
+  const limited = SC.restricts(CUR) && (SC.groupsFor(CUR).length || (CUR.tags || []).length);
+  return `<form method="post" action="/admin/rounds/${r.id}/items" class="item-add2">${back(`items-${r.id}`)}
+    <input type="hidden" name="program_id" value="${programId}">${dated ? `<input type="hidden" name="when_shown" value="1">` : ""}
+    <input name="title" required maxlength="80" placeholder="${esc(placeholder)}" aria-label="Name" class="ir-title">
+    ${dated ? `<input type="date" name="date" aria-label="Date"><input type="time" name="start_time" aria-label="Start"><input type="time" name="end_time" aria-label="End">` : ""}
+    <input type="number" name="capacity" min="1" max="500" required placeholder="Spots" aria-label="Spots" class="spots-in">
+    <input name="location" list="app-locations" maxlength="80" placeholder="Location (optional)" aria-label="Location" class="ir-loc">
+    ${limited ? forPicker(CUR) : ""}
+    <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button>
+  </form>`;
+}
+
+// 2-level boards: each area with its items inside, then "Add area"
+function areasPanel(r, locked, L) {
+  const areas = r.types || [];
+  return `<div class="areas" id="items-${r.id}">${require("../locations").datalist()}
+    ${areas.length ? areas.map((t) => {
+      const its = (r.items || []).filter((i) => i.program_id === t.id);
+      return `<section class="area">
+        <div class="area-head">
+          ${locked ? `<h3>${esc(t.activity)}</h3>` : `<form method="post" action="/admin/rounds/${r.id}/areas/${t.id}" class="area-name">${back(`items-${r.id}`)}
+            <input name="name" value="${esc(t.activity)}" maxlength="40" required aria-label="${esc(L.activity.one)} name"><button class="btn-ghost" type="submit">Rename</button></form>`}
+          <span class="fine">${its.length} ${esc((its.length === 1 ? L.slot.one : L.slot.many).toLowerCase())} · ${its.reduce((n, i) => n + i.claimed, 0)}/${its.reduce((n, i) => n + i.capacity, 0)} claimed</span>
+          ${locked || its.length ? "" : `<form method="post" action="/admin/rounds/${r.id}/areas/${t.id}/delete" onsubmit="return confirm('Remove ${esc(t.activity)}?')">${back(`items-${r.id}`)}<button class="x" type="submit" aria-label="Remove ${esc(t.activity)}">×</button></form>`}
+        </div>
+        ${locked ? "" : itemAdd(r, t.id, L, SC.usesCalendar(CUR) ? `e.g. Morning shift` : `e.g. 9:00–11:00 AM`)}
+        ${its.length ? `<ul class="ilist">${its.map((it) => itemRow(it, r, locked, L)).join("")}</ul>` : `<p class="muted small items-empty">No ${esc(L.slot.many.toLowerCase())} yet.</p>`}
+      </section>`;
+    }).join("") : `<p class="muted">Start with ${esc(SC.an(L.activity.one))}, like <i>Concessions</i> or <i>Ticket Booth</i>. Then add its ${esc(L.slot.many.toLowerCase())}.</p>`}
+    ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/areas" class="area-add">${back(`items-${r.id}`)}
+      <input name="name" required maxlength="40" placeholder="e.g. Concessions" aria-label="New ${esc(L.activity.one.toLowerCase())}">
+      <button class="btn-small" type="submit">+ Add ${esc(L.activity.one.toLowerCase())}</button></form>`}
+  </div>`;
+}
+
 function itemsPanel(r, locked, L) {
+  // the built-in round of a 1-level board: one simple list, same rows as areas use
+  if (r.is_main && SC.depthOf(CUR) === 1) {
+    const its = r.items || [];
+    const prog = (r.types || [])[0];
+    return `<div class="items-panel" id="items-${r.id}">${require("../locations").datalist()}
+      ${locked || !prog ? "" : itemAdd(r, prog.id, L, "e.g. Bring a case of water")}
+      ${its.length ? `<ul class="ilist">${its.map((it) => itemRow(it, r, locked, L)).join("")}</ul>`
+        : `<p class="muted small items-empty">Nothing added yet. Your ${esc(L.slot.many.toLowerCase())} will show here.</p>`}
+    </div>`;
+  }
   const depth = SC.depthOf(CUR);
   const listOnly = !SC.usesCalendar(CUR);
   const limited = SC.restricts(CUR) && (SC.groupsFor(CUR).length || (CUR.tags || []).length);
@@ -170,11 +244,8 @@ function boardBlock(r, locked, L, acts) {
   }[mode];
   return `<div class="board-cols" id="${anchor}">
     <section class="panel bc-main">
-      <div class="bc-head"><h2>Manage ${esc(L.slot.many.toLowerCase())}</h2>
-        ${listOnly ? "" : `<a class="btn-ghost" href="/admin/rounds/${r.id}">Open calendar</a>`}</div>
-      ${depth > 1 ? `<div class="bc-sub">${typesPart(r, locked, L, acts, anchor)}</div>` : ""}
-      ${listOnly ? "" : `<details class="bc-times"><summary>Times for the calendar (${(r.time_slots || []).length})</summary>${timesPart(r, locked, L, acts, anchor)}</details>`}
-      ${itemsPanel(r, locked, L)}
+      <div class="bc-head"><h2>${depth === 2 ? `${esc(L.activity.many)} &amp; ${esc(L.slot.many.toLowerCase())}` : `Manage ${esc(L.slot.many.toLowerCase())}`}</h2></div>
+      ${depth === 2 ? areasPanel(r, locked, L) : itemsPanel(r, locked, L)}
     </section>
     <aside class="bc-side">
       <section class="panel side-card">

@@ -162,7 +162,67 @@ router.post("/:id/limits", wrap(async (req, res) => {
   go(res, dest(req, `/admin/rounds/${id}#limits`), { ok: `Limits saved: ${summary}. Open spots unlock ${R.unlockLabel(unlock)}${unlock == null ? "" : " each session"}. Waitlist ${req.body.waitlist ? "on" : "off"}.` });
 }));
 
-// ---------- items (claimable things with no date) ----------
+// ---------- items (the claimable things at the end of a board) ----------
+// An item's optional date and time: all three, or none (an undated item)
+function readWhen(b) {
+  if (b.when_shown === undefined) return {};
+  const date = str(b.date), start = str(b.start_time), end = str(b.end_time);
+  if (!date && !start && !end) return { shown: true };
+  if (!isDate(date) || !isTime(start) || !isTime(end)) return { err: "For a date and time, fill in the date, start, and end (or leave all three empty)." };
+  if (end <= start) return { err: "The end time needs to be after the start time." };
+  return { shown: true, date, start, end };
+}
+
+// ---------- areas (2-level boards: named groups of items, made right on the board) ----------
+router.post("/:id/areas", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const sc = await require("../schedules").forRound(id);
+  const name = str(req.body.name).replace(/\s+/g, " ").slice(0, 40);
+  const L = require("../schedules").labels(sc);
+  if (!name) return go(res, dest(req, `/admin/rounds/${id}`), { err: `Enter a name for the ${L.activity.one.toLowerCase()}.` });
+  const catalog = require("../catalog");
+  const c = catalog.current();
+  if (c.activities.some((a) => a.schedule_id === sc.id && a.name.toLowerCase() === name.toLowerCase()))
+    return go(res, dest(req, `/admin/rounds/${id}`), { err: `${name} already exists on this board.` });
+  const COLORS = ["#93c47d", "#7fa7d9", "#f6cf55", "#d0503f", "#9a85cc", "#5fb3b3", "#e69a4a", "#c27ba0", "#8d9db6", "#6aa84f"];
+  const mine = c.activities.filter((a) => a.schedule_id === sc.id);
+  c.activities.push({ name, color: COLORS[mine.length % COLORS.length], all_ages: true, default_spots: 1, default_block: null,
+    default_limit: null, aliases: [], active: true, schedule_id: sc.id });
+  await catalog.save(c);
+  await R.ensureProgram({ query }, await getRound(id), name, [], {});
+  go(res, dest(req, `/admin/rounds/${id}`), { ok: `Added ${name}. Now add its ${L.slot.many.toLowerCase()}.` });
+}));
+
+router.post("/:id/areas/:pid", wrap(async (req, res) => {
+  const id = int(req.params.id), pid = int(req.params.pid);
+  const sc = await require("../schedules").forRound(id);
+  const p = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [pid, id])).rows[0];
+  const name = str(req.body.name).replace(/\s+/g, " ").slice(0, 40);
+  if (!p || !name) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Enter a name." });
+  if (name !== p.activity) {
+    const catalog = require("../catalog");
+    const c = catalog.current();
+    if (c.activities.some((a) => a.schedule_id === sc.id && a.name.toLowerCase() === name.toLowerCase() && a.name !== p.activity))
+      return go(res, dest(req, `/admin/rounds/${id}`), { err: `${name} already exists on this board.` });
+    const meta = c.activities.find((a) => a.schedule_id === sc.id && a.name === p.activity) || {};
+    await catalog.renameActivity(p.activity, name, { ...meta, schedule_id: sc.id });
+    await R.syncPrograms({ query }, await getRound(id));
+  }
+  go(res, dest(req, `/admin/rounds/${id}`), { ok: `Saved ${name}.` });
+}));
+
+router.post("/:id/areas/:pid/delete", wrap(async (req, res) => {
+  const id = int(req.params.id), pid = int(req.params.pid);
+  const sc = await require("../schedules").forRound(id);
+  const p = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [pid, id])).rows[0];
+  if (!p) return go(res, dest(req, `/admin/rounds/${id}`), {});
+  const n = (await query(`SELECT count(*)::int AS n FROM training_sessions WHERE program_id=$1 AND canceled_at IS NULL`, [pid])).rows[0].n;
+  if (n) return go(res, dest(req, `/admin/rounds/${id}`), { err: `Remove its ${n} ${n === 1 ? "item" : "items"} first.` });
+  await query(`DELETE FROM programs WHERE id=$1`, [pid]);
+  const catalog = require("../catalog");
+  const c = catalog.current(); c.activities = c.activities.filter((a) => !(a.schedule_id === sc.id && a.name === p.activity)); await catalog.save(c);
+  go(res, dest(req, `/admin/rounds/${id}`), { ok: `Removed ${p.activity}.` });
+}));
 // An item's "Only for": only the board's own groups/tags, and only if the form showed the picker
 async function saveFor(roundId, sid, b) {
   if (!b.for_shown) return;
@@ -176,7 +236,9 @@ router.post("/:id/items", wrap(async (req, res) => {
   const program = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [int(req.body.program_id), id])).rows[0];
   const title = str(req.body.title).slice(0, 80), cap = int(req.body.capacity);
   if (!program || !title || !(cap >= 1 && cap <= 500)) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Pick what it is, give it a name, and enter how many spots." });
-  const item = await R.addItem({ query }, program, { title, capacity: cap, location: str(req.body.location).slice(0, 80) || null });
+  const when = readWhen(req.body);
+  if (when.err) return go(res, dest(req, `/admin/rounds/${id}`), { err: when.err });
+  const item = await R.addItem({ query }, program, { title, capacity: cap, location: str(req.body.location).slice(0, 80) || null, ...when });
   await saveFor(id, item.id, req.body);
   go(res, dest(req, `/admin/rounds/${id}`), { ok: `Added "${title}" with ${cap} spot${cap === 1 ? "" : "s"}.` });
 }));
@@ -186,8 +248,16 @@ router.post("/:id/items/:sid", wrap(async (req, res) => {
   const title = str(req.body.title).slice(0, 80), cap = int(req.body.capacity);
   if (!title || !(cap >= 1 && cap <= 500)) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Enter a name and spots." });
   try {
-    const promoted = await booking.updateSessionCapacity(sid, { capacity: cap, apply: (db) =>
-      db.query(`UPDATE training_sessions SET title=$2, capacity=$3 WHERE id=$1 AND program_id IN (SELECT id FROM programs WHERE round_id=$4)`, [sid, title, cap, id]) });
+    const when = readWhen(req.body);
+    if (when.err) return go(res, dest(req, `/admin/rounds/${id}`), { err: when.err });
+    const promoted = await booking.updateSessionCapacity(sid, { capacity: cap, apply: async (db) => {
+      await db.query(`UPDATE training_sessions SET title=$2, capacity=$3 WHERE id=$1 AND program_id IN (SELECT id FROM programs WHERE round_id=$4)`, [sid, title, cap, id]);
+      if (req.body.location !== undefined) await db.query(`UPDATE training_sessions SET location=$2 WHERE id=$1`, [sid, str(req.body.location).slice(0, 80) || null]);
+      if (when.shown) await db.query(`UPDATE training_sessions SET
+          starts_at = CASE WHEN $2::text IS NULL THEN NULL ELSE ($2::text::timestamp AT TIME ZONE 'America/Chicago') END,
+          ends_at   = CASE WHEN $3::text IS NULL THEN NULL ELSE ($3::text::timestamp AT TIME ZONE 'America/Chicago') END WHERE id=$1`,
+        [sid, when.date ? `${when.date} ${when.start}` : null, when.date ? `${when.date} ${when.end}` : null]);
+    } });
     await saveFor(id, sid, req.body);
     for (const rid of promoted) notify("promoted", rid);
     go(res, dest(req, `/admin/rounds/${id}`), { ok: `Saved "${title}".` + (promoted.length ? ` ${promoted.length} moved in from the waitlist.` : "") });

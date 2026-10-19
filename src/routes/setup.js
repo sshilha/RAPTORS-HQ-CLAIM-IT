@@ -11,7 +11,12 @@ router.use(auth.requireUser, auth.requireAdmin);
 
 router.get("/", wrap(async (req, res) => {
   const schedule = req.sched.sc;
-  await SC.ensureStructure(schedule);
+  const main = await SC.ensureStructure(schedule);
+  // 2-level boards: every area on the board has its place in the built-in round
+  if (main && SC.depthOf(schedule) === 2) {
+    const have = new Set((await query(`SELECT activity FROM programs WHERE round_id=$1`, [main.id])).rows.map((r) => r.activity));
+    for (const a of SC.activitiesFor(schedule)) if (!have.has(a)) await require("../rounds").ensureProgram({ query }, main, a, [], {});
+  }
   const rounds = (await query(
     `SELECT r.*,
        (SELECT count(*)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id
@@ -36,7 +41,8 @@ router.get("/", wrap(async (req, res) => {
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS claimed,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='waitlisted') AS waitlisted
      FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
-     WHERE r.schedule_id=$1 AND s.starts_at IS NULL AND s.canceled_at IS NULL ORDER BY p.activity, s.id`, [schedule.id])).rows;
+     WHERE r.schedule_id=$1 AND s.canceled_at IS NULL AND ($2 OR s.starts_at IS NULL)
+     ORDER BY s.starts_at NULLS FIRST, s.id`, [schedule.id, SC.depthOf(schedule) <= 2])).rows;
   for (const r of rounds) r.items = items.filter((i) => i.round_id === r.id);
   res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedule, rounds, standalone }));
 }));
@@ -77,8 +83,9 @@ router.post("/schedules", wrap(async (req, res) => {
   await SC.refreshGroups();
   await SC.ensureStructure(await SC.get(rows[0].id));
   const L = SC.labels({ labels });
-  go(res, depth === 1 ? `/admin/setup?s=${rows[0].id}` : `/admin/settings/activities?s=${rows[0].id}`, { ok: depth === 1
+  go(res, depth <= 2 ? `/admin/setup?s=${rows[0].id}` : `/admin/settings/activities?s=${rows[0].id}`, { ok: depth === 1
     ? `Created ${name}. Add its ${L.slot.many.toLowerCase()} below. (Its settings are on the board's card under Settings.)`
+    : depth === 2 ? `Created ${name}. Add its first ${L.activity.one.toLowerCase()} below, then its ${L.slot.many.toLowerCase()}.`
     : `Created ${name}. Step 2: add its ${L.activity.many.toLowerCase()}. Steps 3–4 (${L.group.many.toLowerCase()} and ${L.participant.many.toLowerCase()}) are only needed for roster-only claims. Then Open board to add ${depth >= 3 ? `${L.middle.many.toLowerCase()} and ` : ""}${L.slot.many.toLowerCase()}.` });
 }));
 

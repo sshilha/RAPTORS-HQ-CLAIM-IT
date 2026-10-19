@@ -27,7 +27,7 @@ function settingsNav(tab, user) {
   const SC = require("../schedules");
   const L = SC.labels(sc);
   const steps = STEPS.filter(([k]) => {
-    if (k === "activities") return SC.depthOf(sc) > 1;
+    if (k === "activities") return SC.depthOf(sc) >= 3;
     if (k === "groups") return SC.restricts(sc);
     if (k === "members") return SC.needsPeople(sc) || sc.has_roster || sc.has_tag_rules;
     return true;
