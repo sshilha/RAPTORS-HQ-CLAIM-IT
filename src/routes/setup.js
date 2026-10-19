@@ -71,7 +71,7 @@ router.post("/schedules", wrap(async (req, res) => {
   // the answers on the New page win over the structure's defaults
   const b0 = req.body;
   const claim = ["public", "family", "roster"].includes(b0.claim) ? b0.claim : preClaim;
-  const restrict = b0.restrict ? b0.restrict === "yes" : preRestrict;
+  const restrict = claim === "public" ? false : b0.restrict ? b0.restrict === "yes" : preRestrict;
   const dated = b0.dated ? b0.dated === "yes" : preCal;
   const pickMode = !dated ? "list" : b0.pick === "both" ? "both" : b0.pick === "list" ? "dlist" : "calendar";
   const calendar = pickMode !== "list";
@@ -109,6 +109,30 @@ router.post("/schedules/:id/depth", wrap(async (req, res) => {
 router.post("/schedules/:id", wrap(async (req, res) => {
   const id = int(req.params.id);
   const b = req.body;
+  // Number of levels: only while the board is empty (same rule as before)
+  const before = await SC.get(id);
+  const wantDepth = int(b.depth);
+  if (wantDepth && wantDepth !== SC.depthOf(before)) {
+    const used = (await query(`SELECT (SELECT count(*) FROM rounds WHERE schedule_id=$1 AND NOT is_main) +
+      (SELECT count(*) FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=$1) AS n`, [id])).rows[0].n;
+    if (Number(used)) return go(res, `/admin/setup/schedule?s=${id}`, { err: "This board already has things in it, so its levels can't change." });
+    await query(`DELETE FROM rounds WHERE schedule_id=$1 AND is_main`, [id]);
+    const cat = require("../catalog"); const c = cat.current();
+    if (c.activities.some((a) => a.schedule_id === id && a.item_list)) { c.activities = c.activities.filter((a) => !(a.schedule_id === id && a.item_list)); await cat.save(c); }
+    await query(`UPDATE schedules SET depth=$2 WHERE id=$1`, [id, Math.min(4, Math.max(1, wantDepth))]);
+  }
+  // Who's going, attendance default, coaches (one email per line)
+  if (["full", "initial", "off"].includes(b.family_names)) await query(`UPDATE schedules SET family_names=$2 WHERE id=$1`, [id, b.family_names]);
+  if (b.track) await query(`UPDATE schedules SET track_attendance=$2 WHERE id=$1`, [id, b.track === "on"]);
+  let badCoaches = [];
+  if (b.coaches !== undefined) {
+    const auth = require("../auth");
+    const emails = [...new Set(String(b.coaches).split(/[\s,;]+/).map(auth.normalizeEmail).filter(Boolean))];
+    badCoaches = emails.filter((e) => !auth.isValidEmail(e));
+    const good = emails.filter(auth.isValidEmail);
+    await query(`DELETE FROM schedule_coaches WHERE schedule_id=$1 AND NOT (email = ANY($2))`, [id, good]);
+    for (const e of good) { await query(`INSERT INTO schedule_coaches (schedule_id, email) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [id, e]); await auth.findOrCreateUser(e); }
+  }
   const prev = (await SC.get(id)).labels || {};
   const labels = { ...prev };
   for (const k of Object.keys(SC.DEFAULT_LABELS)) {
@@ -122,15 +146,18 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   const restrict = b.restrict === "yes" ? true : b.restrict === "no" ? false : null;
   await query(`UPDATE schedules SET claim_mode = COALESCE($2, claim_mode), restricted = COALESCE($3, restricted) WHERE id=$1`, [id, claim, restrict]);
   if (claim) await query(`UPDATE rounds SET signup_mode=$2 WHERE schedule_id=$1`, [id, claim]); // one answer for the whole board
-  await query(`UPDATE schedules SET name=$2, labels=$3, pick_mode = COALESCE($4, pick_mode), use_calendar = COALESCE($4, pick_mode) <> 'list' WHERE id=$1`,
-    [id, clean(b.name, 60) || "Claim Board", JSON.stringify(labels), pick]);
+  await query(`UPDATE schedules SET name = COALESCE($2, name), labels=$3, pick_mode = COALESCE($4, pick_mode), use_calendar = COALESCE($4, pick_mode) <> 'list' WHERE id=$1`,
+    [id, b.name === undefined ? null : clean(b.name, 60) || "Claim Board", JSON.stringify(labels), pick]);
   // program names include the level words, so refresh them
   const R = require("../rounds");
   for (const r of (await query(`SELECT * FROM rounds WHERE schedule_id=$1`, [id])).rows) await R.syncPrograms({ query }, r);
   const sc2 = await SC.get(id);
   await SC.ensureStructure(sc2); // a 1-level board's built-in activity follows the level name
   const L2 = SC.labels(sc2);
-  go(res, `/admin/setup/schedule?s=${id}`, { ok: `Saved. ${SC.levelKeys(sc2).map((k) => L2[k].many).join(" › ")}, with ${L2.participant.many.toLowerCase()} in ${L2.group.many.toLowerCase()}.` });
+  const back = `/admin/setup/schedule?s=${id}${/^[a-z]+$/.test(b.q || "") ? `#q-${b.q}` : ""}`;
+  go(res, back, badCoaches.length
+    ? { err: `Saved, but these coach emails weren't valid and were left out: ${badCoaches.join(", ")}` }
+    : { ok: "Saved." });
 }));
 
 // ---------- a board's locations + view (who's going) ----------

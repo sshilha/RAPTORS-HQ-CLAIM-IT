@@ -25,7 +25,8 @@ const LEVELS = [
 // Which engine pieces a board's levels use (the last one is always what gets claimed)
 const LEVEL_KEYS = { 1: ["slot"], 2: ["activity", "slot"], 3: ["middle", "activity", "slot"], 4: ["middle", "section", "activity", "slot"] };
 const claimMode = (sc) => (sc && ["public", "family", "roster"].includes(sc.claim_mode) ? sc.claim_mode : "roster");
-const restricts = (sc) => !!(sc && sc.restricted);
+// Limits by group/tag need known people, so they don't apply to "Anyone with the link" boards
+const restricts = (sc) => !!(sc && sc.restricted && claimMode(sc) !== "public");
 // Which setup steps a board needs, from its answers on Name & structure
 const needsPeople = (sc) => claimMode(sc) === "roster" || restricts(sc);
 const pickMode = (sc) => (sc && ["list", "calendar", "both", "dlist"].includes(sc.pick_mode) ? sc.pick_mode : sc && sc.use_calendar === false ? "list" : "calendar");

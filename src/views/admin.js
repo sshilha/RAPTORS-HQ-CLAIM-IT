@@ -9,7 +9,7 @@ const { limitFor, isUnlocked, unlocksAt } = require("../rounds");
 //  - its Settings (from the card): numbered steps in the order you'd set things up
 const BOARD_AREA = ["setup", "seasons", "rounds", "programs", "import"];
 const STEPS = [
-  ["structure", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => `${require("../config").LABELS.schedule} Setup`, () => "", ["schedule", "schedule-more"]],
+  ["structure", (sc) => `/admin/setup/schedule?s=${sc.id}`, () => "Setup", () => "", ["schedule", "schedule-more"]],
   ["activities", (sc) => `/admin/settings/activities?s=${sc.id}`, (L) => L.activity.many, (sc, SC) => String(SC.activitiesFor(sc).length), ["activities"]],
   ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => `${L.group.many} & tags`, (sc) => `${(sc.groups || []).length}${(sc.tags || []).length ? ` + ${(sc.tags || []).length} tag${(sc.tags || []).length === 1 ? "" : "s"}` : ""}`, ["groups"]],
   ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, (sc) => String(sc.member_count || 0), ["members", "athletes"]],
@@ -29,7 +29,7 @@ function settingsNav(tab, user) {
   const steps = STEPS.filter(([k]) => {
     if (k === "activities") return SC.depthOf(sc) >= 3;
     if (k === "groups") return SC.restricts(sc);
-    if (k === "members") return SC.needsPeople(sc) || sc.has_roster || sc.has_tag_rules;
+    if (k === "members") return SC.needsPeople(sc) || (SC.claimMode(sc) !== "public" && (sc.has_roster || sc.has_tag_rules));
     return true;
   });
   const cur = steps.find((t) => t[4].includes(tab));

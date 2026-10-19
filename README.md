@@ -73,7 +73,8 @@ editable in **Claim Board Setup** (the first settings step), which asks the ques
   the Groups & tags step (and People, where tags are given out), and the group/"Only for" pickers.
 - **Available views:** List / Calendar / Both.
 It also holds the board's levels, **Locations**, and **View** (what people see of who's going).
-Steps that aren't needed don't appear.
+Tabs that aren't needed don't appear: "Anyone with the link" boards never show Teams & tags or
+People (visitors are anonymous, so limits don't apply).
 
 **Navigation:** on computers the main links are in the top bar (My Claims · Claim Boards ·
 Reports · ⚙ App); phones keep the bottom bar.

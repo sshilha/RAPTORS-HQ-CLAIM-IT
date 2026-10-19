@@ -9,6 +9,12 @@ function groupSelect(sc, value, attrs = "") {
 
 function needBanner(sc, L) {
   const SCm = require("../schedules");
+  const why = SCm.claimMode(sc) === "roster" ? `Setup says <b>only people you add</b> can claim` : `Setup says <b>some things are limited to certain people</b>`;
+  const link = ` <a href="/admin/setup/schedule?s=${sc.id}#who">Change that</a>`;
+  return `<p class="why-note">Shown because ${why}.${link}</p>` + needBannerBody(sc, L);
+}
+function needBannerBody(sc, L) {
+  const SCm = require("../schedules");
   if (SCm.claimMode(sc) === "roster") return `<div class="need yes"><b>Only the ${esc(L.participant.many.toLowerCase())} listed here can claim on this board.</b> Add each one, with their ${esc(L.group.one.toLowerCase())}${SCm.restricts(sc) ? " and tags" : ""}, and link a parent or contact email so they can sign in.</div>`;
   if (SCm.restricts(sc)) return `<div class="need yes"><b>Add people here to give them a ${esc(L.group.one.toLowerCase())} or tags.</b> Anyone signed in can still claim things that aren't limited; limited ones need the right ${esc(L.group.one.toLowerCase())} or tag.</div>`;
   return `<div class="need no"><b>Not needed for this board.</b> It's open to ${SCm.claimMode(sc) === "public" ? "anyone with the link" : "anyone signed in"}, so people just claim spots.</div>`;

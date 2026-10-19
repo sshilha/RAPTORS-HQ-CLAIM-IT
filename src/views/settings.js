@@ -70,7 +70,8 @@ function groupsPage({ user, flash, sc, usage, others = [] }) {
     tag: (sc.tags || [])[0] || (training ? "Catcher" : "Bartender") };
   return page({
     title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash,
-    body: `<section class="panel"><h1>${esc(L.group.many)} &amp; tags <span class="opt-pill">Optional</span></h1>
+    body: `<section class="panel"><h1>${esc(L.group.many)} &amp; tags</h1>
+      <p class="why-note">Shown because Setup says <b>some ${esc((SC.depthOf(sc) > 1 ? L.activity.many : L.slot.many).toLowerCase())} are limited to certain people</b>. <a href="/admin/setup/schedule?s=${sc.id}#who">Change that</a></p>
       <p class="lede">Use this only if some ${esc(L.activity.many.toLowerCase())} should be claimable by <b>certain people only</b>. If anyone can claim anything, skip this step.</p>
       <div class="explain">
         <div><b>${esc(L.group.many)}</b> sort ${esc(L.participant.many.toLowerCase())} into one group each, like ages (12U, 14U) or teams. When you add ${esc(SC.an(L.activity.one))} you pick which ${esc(L.group.many.toLowerCase())} it's for.
