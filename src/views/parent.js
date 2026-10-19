@@ -115,6 +115,7 @@ function itemsList(programs, athlete, back, going = {}) {
   return `<div class="items-list" id="items">${groups.map(({ p, items }) => `<div class="item-group">
     <h3 class="banner">${esc(require("../config").metaFor(p.activity, p.schedule_id).item_list ? p.schedule_name || p.activity
       : `${p.schedule_name ? `${p.schedule_name} › ` : ""}${p.section ? `${p.section} › ` : ""}${typeLabel(p.activity, p.age_groups, p.required_tags)}`)}</h3>
+    ${p.event_date || p.event_location ? `<p class="event-line">${[p.event_date ? esc(require("./setup").eventDates(p)) : "", p.event_location ? P.link(p.event_location) : ""].filter(Boolean).join(" · ")}</p>` : ""}
     <ul class="sess-list">${items.map((s) => { const open = s.capacity - s.confirmed; return `<li class="sess${s.my_status ? " mine" : ""}${open > 0 ? "" : " full"}">
       <div class="sess-main"><div class="sess-time">${esc(s.title || "Spot")}</div>
         ${(s.only_groups || []).length || (s.only_tags || []).length ? `<div class="sess-meta">${esc([...(s.only_groups || []), ...(s.only_tags || [])].join(" or "))} only</div>` : ""}

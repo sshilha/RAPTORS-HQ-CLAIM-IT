@@ -240,6 +240,10 @@ async function migrate() {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (schedule_id, email)
     );
+    -- Optional event details on a board (shown to people with the board's name)
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS event_date DATE;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS event_end DATE;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS event_location TEXT;
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,

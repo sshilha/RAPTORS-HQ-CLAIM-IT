@@ -13,7 +13,7 @@ const router = express.Router();
 async function sheet(token) {
   return (await query(
     `SELECT r.*, sc.labels AS schedule_labels, sc.name AS schedule_name, se.completed_at AS season_done, sc.archived_at AS schedule_archived,
-       coalesce(sc.family_names, 'initial') AS family_names
+       coalesce(sc.family_names, 'initial') AS family_names, sc.event_date, sc.event_end, sc.event_location
      FROM rounds r LEFT JOIN schedules sc ON sc.id=r.schedule_id LEFT JOIN seasons se ON se.id=r.season_id
      WHERE r.share_token=$1`, [token])).rows[0];
 }

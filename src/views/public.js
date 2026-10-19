@@ -27,7 +27,7 @@ function sheetPage({ user, round: r, slots, flash }) {
     body: `<section class="panel">
       <p class="label-like">${esc(r.schedule_name || "")}</p>
       <h1>${esc(r.name)}</h1>
-      ${r.location ? `<p class="muted tight">${P.link(r.location)}</p>` : ""}
+      ${r.event_date || r.event_location || r.location ? `<p class="muted tight">${[r.event_date ? esc(require("./setup").eventDates(r)) : "", (r.event_location || r.location) ? P.link(r.event_location || r.location) : ""].filter(Boolean).join(" · ")}</p>` : ""}
       ${user ? `<p class="fine">Signed in as ${esc(user.email)}. Your spots also show under <a href="/dashboard">My Claims</a>.</p>`
         : `<p class="fine">Pick a time, tap <b>Claim it</b>, and enter a name and email. No account needed. Already claimed a spot? <a href="/">Sign in</a> with your email to see or give it up.</p>`}
     </section>

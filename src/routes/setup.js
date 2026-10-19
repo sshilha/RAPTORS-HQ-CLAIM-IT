@@ -122,6 +122,14 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     if (c.activities.some((a) => a.schedule_id === id && a.item_list)) { c.activities = c.activities.filter((a) => !(a.schedule_id === id && a.item_list)); await cat.save(c); }
     await query(`UPDATE schedules SET depth=$2 WHERE id=$1`, [id, Math.min(4, Math.max(1, wantDepth))]);
   }
+  // Event details (optional): date, end date, location
+  if (b.event_date !== undefined) {
+    const d1 = /^\d{4}-\d{2}-\d{2}$/.test(str(b.event_date)) ? str(b.event_date) : null;
+    let d2 = /^\d{4}-\d{2}-\d{2}$/.test(str(b.event_end)) ? str(b.event_end) : null;
+    if (!d1 || (d2 && d2 <= d1)) d2 = null;
+    await query(`UPDATE schedules SET event_date=$2, event_end=$3 WHERE id=$1`, [id, d1, d2]);
+  }
+  if (b.event_location !== undefined) await query(`UPDATE schedules SET event_location=$2 WHERE id=$1`, [id, str(b.event_location).slice(0, 80) || null]);
   // Who's going, attendance default, coaches (one email per line)
   if (["full", "initial", "off"].includes(b.family_names)) await query(`UPDATE schedules SET family_names=$2 WHERE id=$1`, [id, b.family_names]);
   if (b.track) await query(`UPDATE schedules SET track_attendance=$2 WHERE id=$1`, [id, b.track === "on"]);

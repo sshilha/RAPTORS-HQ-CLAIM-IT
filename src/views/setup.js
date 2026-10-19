@@ -463,9 +463,18 @@ const LEVEL_INFO = {
   group: () => ["How people are sorted, so things can be limited to certain groups.", "12U, Team, Level"],
 };
 
+// "Sat, Feb 7, 2026" or "Feb 7–8, 2026"
+function eventDates(sc) {
+  if (!sc.event_date) return "";
+  const f = (d, o) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", o);
+  if (!sc.event_end) return f(sc.event_date, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  return `${f(sc.event_date, { month: "short", day: "numeric" })} – ${f(sc.event_end, { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
 function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   const L = SC.labels(sc);
-  const { LABELS } = require("../config");
+  const I = require("./icons");
+  const P = require("../locations");
   const tab = { structure: "schedule", more: "schedule-more", archive: "schedule-archive" }[part] || "schedule";
   if (part === "archive") return page({ title: `Settings · ${sc.name}`, tab, user, flash, body: `<section class="panel"><h1>Archive or delete</h1>
       <p class="muted tight">When ${esc(sc.name)} is over, archive it: it's hidden from people and read-only, and its reports stay. Delete is only for empty boards.</p></section>
@@ -483,108 +492,61 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       <form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete the ${esc(sc.name)} schedule?')">
         <button class="btn-ghost danger" type="submit"${counts.items ? " disabled" : ""}>Delete ${esc(sc.name)}</button></form>
     </section>` });
-  const radio = (name, value, cur, title, text) => `<label class="mode-opt"><input type="radio" name="${name}" value="${value}" data-label="${esc(title.replace(/<[^>]+>/g, ""))}"${cur === value ? " checked" : ""}><span><b>${title}</b><span class="fine">${text}</span></span></label>`;
+  const radio = (name, value, cur, title, text) => `<label class="mode-opt"><input type="radio" name="${name}" value="${value}" data-label="${esc(title.replace(/<[^>]+>/g, ""))}"${cur === value ? " checked" : ""}><span><b>${title}</b>${text ? `<span class="fine">${text}</span>` : ""}</span></label>`;
   const claim = SC.claimMode(sc), pick = SC.pickMode(sc), depth = SC.depthOf(sc);
-  const section = (id, title, inner) => `<section class="panel setup-card" id="${id}"><div class="sc-head"><h2>${title}</h2></div>${inner}</section>`;
-  // A question shows its current answer; Edit opens its options (saved with Save changes)
-  const q = (id, label, answer, edit, attrs = "") => `<div class="q-block" id="q-${id}"${attrs}>
-      <div class="q-sum"><span class="q-lab">${label}</span><span class="q-val" data-for="${id}">${answer}</span>
-        <button type="button" class="link-dark q-edit-btn" aria-controls="q-${id}-edit">Edit</button></div>
-      <form method="post" action="/admin/setup/schedules/${sc.id}?s=${sc.id}" class="q-edit" id="q-${id}-edit" hidden>
-        <input type="hidden" name="q" value="${id}">${edit}
-        <div class="q-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost q-cancel">Cancel</button></div>
-      </form></div>`;
   const CLAIM = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" };
   const VIEWS = { list: "No dates: a list", dlist: "Dates and times: list view", calendar: "Dates and times: calendar", both: "Dates and times: list & calendar" };
   const WHO = { initial: "First name + initial", full: "Full names", off: "Hidden" };
+  const action = `/admin/setup/schedules/${sc.id}?s=${sc.id}`;
+  const rows = (list) => `<dl class="ss-rows">${list.filter(Boolean).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>`;
+  // One setup section: icon, title, description, Edit at top right; Edit swaps the answers for its form
+  const sec = (id, icon, title, sub, view, form) => `<section class="ss" id="ss-${id}">
+      <div class="ss-head"><span class="ss-ico">${icon}</span><div class="ss-titles"><h3>${title}</h3><p class="fine">${sub}</p></div>
+        <button type="button" class="btn-ghost ss-edit">${I.pencil()} Edit</button></div>
+      <div class="ss-view">${view}</div>
+      <form method="post" action="${action}" class="ss-form" hidden><input type="hidden" name="q" value="${id}">${form}
+        <div class="q-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost ss-cancel">Cancel</button></div></form>
+    </section>`;
   const levelLine = SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ");
-  // ---- right column: the pieces that used to be tabs, shown only when they apply ----
   const groups = SC.groupsFor(sc), tags = sc.tags || [];
   const chips = (list) => list.map((x) => `<span class="chip-s">${esc(x)}</span>`).join("");
-  const side = [];
-  if (depth >= 3) side.push(`<section class="panel side-card"><div class="bc-head"><h2>${esc(L.activity.many)}</h2><span class="pill">${SC.activitiesFor(sc).length}</span></div>
-    <p class="fine">The kinds of things on this board, with their default spots, colors, and limits.</p>
-    <a class="btn-ghost" href="/admin/settings/activities?s=${sc.id}">Manage ${esc(L.activity.many.toLowerCase())}</a></section>`);
-  if (SC.restricts(sc)) side.push(`<section class="panel side-card"><div class="bc-head"><h2>${esc(L.group.many)} &amp; tags</h2></div>
-    <p class="fine">Used to limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people.</p>
-    <div class="chip-line"><span class="q-lab">${esc(L.group.many)}</span>${groups.length ? chips(groups) : `<span class="fine">None yet</span>`}</div>
-    <div class="chip-line"><span class="q-lab">Tags</span>${tags.length ? chips(tags) : `<span class="fine">None yet</span>`}</div>
-    <a class="btn-ghost" href="/admin/settings/groups?s=${sc.id}">Manage ${esc(L.group.many.toLowerCase())} &amp; tags</a></section>`);
-  if (SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules))) side.push(`<section class="panel side-card"><div class="bc-head"><h2>${esc(L.participant.many)}</h2><span class="pill">${sc.member_count || 0}</span></div>
-    <p class="fine">${claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add here can claim.` : `Add people here to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>
-    <a class="btn-ghost" href="/admin/members?s=${sc.id}">Manage ${esc(L.participant.many.toLowerCase())}</a></section>`);
-  side.push(`<section class="panel side-card"><div class="bc-head"><h2>When it's over</h2></div>
-    <p class="fine">Copy it for next year, or archive it to hide it from people and make it read-only. Both are on its card in <a href="/admin/settings">Claim Boards</a>.</p></section>`);
-  const tile = (id, label, value) => `<button type="button" class="tile-btn" data-open="${id}"><span class="st-l">${label}</span><span class="tile-v">${value}</span><span class="tile-edit">Edit</span></button>`;
   const published = !!counts.published;
+  // inline editors in the header (name, event date, location)
+  const inline = (id, view, form) => `<span class="inl" id="inl-${id}"><span class="inl-view">${view}<button type="button" class="pencil" aria-label="Edit">${I.pencil()}</button></span>
+      <form method="post" action="${action}" class="inl-form" hidden><input type="hidden" name="q" value="${id}">${form}
+        <button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost inl-cancel">Cancel</button></form></span>`;
+  const dates = eventDates(sc);
   return page({
     title: `Settings · ${sc.name}`, tab, user, flash, xwide: true,
-    body: `<section class="board-head">
-      <div class="bh-title"><h1>${esc(sc.name)} <span class="h-sub">· Settings</span></h1>${sc.archived_at ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Draft</span>`}</div>
+    body: `<section class="board-head settings-head">
+      <div class="bh-main">
+        <div class="bh-title">${inline("name", `<h1>${esc(sc.name)}</h1>`, `<input name="name" required maxlength="60" value="${esc(sc.name)}" class="inl-name" aria-label="Board name">`)}
+          ${sc.archived_at ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Draft</span>`}
+          <span class="h-sub">${I.gear()} Settings</span></div>
+        <div class="meta-line">
+          <span class="meta">${I.calendar()} ${inline("date", `Event date: <b>${dates ? esc(dates) : "Not set"}</b>`,
+            `<input type="date" name="event_date" value="${sc.event_date ? String(sc.event_date).slice(0, 10) : ""}" aria-label="Event date">
+             <span class="fine">to</span><input type="date" name="event_end" value="${sc.event_end ? String(sc.event_end).slice(0, 10) : ""}" aria-label="End date (optional)">`)}</span>
+          <span class="meta">${I.pin()} ${inline("place", `Location: <b>${sc.event_location ? P.link(sc.event_location) : "Not set"}</b>`,
+            `<input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Turn Two Athletics" aria-label="Location">${P.datalist()}`)}</span>
+          ${SC.restricts(sc) ? `<span class="meta">${I.users()} ${esc(L.group.many)}: <b>${groups.length}</b></span>
+            <span class="meta">${I.tag()} Tags: ${tags.length ? chips(tags) : "<b>none</b>"}</span>` : ""}
+        </div>
+      </div>
       <div class="bh-actions"><a class="btn-small" href="/admin/setup?s=${sc.id}">Open board</a></div>
     </section>
-    <div class="stat-tiles tiles-3">
-      ${tile("claim", "Who can claim", CLAIM[claim])}
-      ${tile("views", "How people see it", VIEWS[pick] || VIEWS.calendar)}
-      ${tile("track", "Attendance", `${sc.track_attendance ? "Tracked" : "Not tracked"} · ${(counts.coaches || []).length} coach${(counts.coaches || []).length === 1 ? "" : "es"}`)}
-    </div>
+
     <div class="board-cols">
-    <div id="setup-form" class="setup-form">
-    ${section("basics", "Basics", q("name", "Board name", esc(sc.name),
-      `<label class="field-l">Board name<input name="name" required value="${esc(sc.name)}" maxlength="60"></label>`))}
+    <section class="panel setup-panel" id="setup-form">
+      <div class="bc-head"><h2>Board setup</h2></div>
 
-    ${section("who", "Who can claim", `
-      ${q("claim", "Who can claim", CLAIM[claim], `<div class="opt-row three">
-        ${radio("claim", "public", claim, "Anyone with the link", "Share a link or QR code. People enter a name and email, no account needed.")}
-        ${radio("claim", "family", claim, "Anyone signed in", "People sign in with their email and find it under My Claims.")}
-        ${radio("claim", "roster", claim, "Only people I add", `You add the ${esc(L.participant.many.toLowerCase())} (adds the <strong>${esc(L.participant.many)}</strong> tab).`)}
-      </div>`)}
-      ${q("restrict", `Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No", `<div class="opt-row">
-        ${radio("restrict", "no", sc.restricted ? "yes" : "no", "No", "Anyone who can claim can claim anything.")}
-        ${radio("restrict", "yes", sc.restricted ? "yes" : "no", `Yes, by ${esc(L.group.one.toLowerCase())} or tag`, `e.g. ${depth === 1 ? "Salad only for 10U" : "Catching only for catchers"}. Adds the <strong>${esc(L.group.many)} &amp; tags</strong> and <strong>${esc(L.participant.many)}</strong> tabs.`)}
-      </div>`, claim === "public" ? " hidden" : "")}
-      <p class="fine" id="public-note"${claim === "public" ? "" : " hidden"}>With "Anyone with the link" people are anonymous, so there's nothing to limit by ${esc(L.group.one.toLowerCase())} or tag.</p>`)}
-
-    ${section("see", "How people see it", `
-      ${q("views", "Dates &amp; views", VIEWS[pick] || VIEWS.calendar, `
-        <p class="q-label">Do things have dates and times?</p>
-        <div class="opt-row">
-          ${radio("dated", "no", pick === "list" ? "no" : "yes", "No", "It's all one day or there are no set times. People pick from a list. Put the day in the board's name.")}
-          ${radio("dated", "yes", pick === "list" ? "no" : "yes", "Yes", `${esc(L.slot.many)} have dates and times.`)}
-        </div>
-        <div class="sub-q" id="views-q"${pick === "list" ? " hidden" : ""}>
-          <p class="q-label">Available views</p>
-          <div class="opt-row three">
-            ${radio("pick", "list", pick === "dlist" ? "list" : pick, "List", "A day-by-day list with dates and times.")}
-            ${radio("pick", "calendar", ["calendar", "list"].includes(pick) ? "calendar" : pick, "Calendar", "People pick days on a calendar.")}
-            ${radio("pick", "both", pick, "Both", "People can switch between the two.")}
-          </div>
-        </div>`)}
-      ${q("who", "Who's going", WHO[sc.family_names || "initial"], `
-        <p class="fine tight">What people see of who's claimed each ${esc(L.slot.one.toLowerCase())}. Emails and contact details are never shown.</p>
-        <div class="opt-row three">
-          ${radio("family_names", "initial", sc.family_names || "initial", "First name + initial", "e.g. Ava S.")}
-          ${radio("family_names", "full", sc.family_names || "initial", "Full names", "e.g. Ava Smith")}
-          ${radio("family_names", "off", sc.family_names || "initial", "Hidden", "Only how many spots are open")}
-        </div>`)}`)}
-
-    ${section("attendance", "Attendance", `
-      ${q("track", "Track attendance", sc.track_attendance ? "Yes, by default" : "No, not by default", `<div class="opt-row">
-        ${radio("track", "off", sc.track_attendance ? "on" : "off", "No, not by default", "")}
-        ${radio("track", "on", sc.track_attendance ? "on" : "off", "Yes, by default", "")}
-      </div>
-      <p class="fine">${depth >= 2 ? `Each ${esc(L.activity.one.toLowerCase())} can change this (e.g. track Hitting, not Cage Time).` : `Each ${esc(L.slot.one.toLowerCase())} can change this.`}</p>`)}
-      ${q("coaches", "Coaches", (counts.coaches || []).length ? esc(counts.coaches.join(", ")) : "None", `
-        <label class="field-l"><span>Coaches who can take attendance <span class="opt">(one email per line)</span></span>
-          <textarea name="coaches" rows="${Math.max(2, (counts.coaches || []).length + 1)}" placeholder="coach@example.com">${esc((counts.coaches || []).join("\n"))}</textarea></label>
-        <p class="fine">They sign in with their email and only see Check-in. Admins can always take attendance.</p>`)}`)}
-
-    ${section("structure", "Structure", `
-      ${q("levels", `${depth}-level board`, `${levelLine} <span class="fine-inline">· ${esc(L.participant.many)} in ${esc(L.group.many.toLowerCase())}</span>`, `
-        ${counts.items ? `<input type="hidden" name="depth" value="${depth}">` : `<label class="field-l">Levels under the board<select name="depth">
-          ${[1, 2, 3, 4].map((n) => `<option value="${n}"${depth === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select>
-          <span class="fine">You can change this while the board is empty. The last level is always what people claim.</span></label>`}
-        <div class="table-wrap"><table class="levels">
+      ${sec("structure", I.layers(), "Structure",
+        `How the board is organized, and what things are called. <b>Rename anything here</b> (e.g. Items → Donations).`,
+        rows([["Levels", `${depth} level${depth === 1 ? "" : "s"}: <b>${levelLine}</b>`], ["People", `${esc(L.participant.many)} in ${esc(L.group.many.toLowerCase())}`]]),
+        `${counts.items ? `<input type="hidden" name="depth" value="${depth}">` : `<label class="field-l">Levels under the board<select name="depth">
+            ${[1, 2, 3, 4].map((n) => `<option value="${n}"${depth === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select>
+            <span class="fine">You can change this while the board is empty. The last level is always what people claim.</span></label>`}
+         <div class="table-wrap"><table class="levels">
           <thead><tr><th>Level</th><th>What it is</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
           <tbody>${SC.levelKeys(sc).map((k, i, all) => { const info = LEVEL_INFO[k](i === all.length - 1); return `<tr>
             <td><strong>Level ${i + 1}</strong>${i === all.length - 1 ? `<div class="pill ok claim-pill">Claimed</div>` : ""}</td>
@@ -596,53 +558,105 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
             <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required></td>
             <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required></td></tr>`; }).join("")}
           </tbody></table></div>
-        ${counts.items ? `<p class="fine">The number of levels is set once a board has ${esc(L.slot.many.toLowerCase())}. To restructure, copy the board without its calendar.</p>` : ""}`)}`)}
+         ${counts.items ? `<p class="fine">The number of levels is set once a board has ${esc(L.slot.many.toLowerCase())}. To restructure, copy the board without its calendar.</p>` : ""}`)}
 
-    </div>
-    <aside class="bc-side">${side.join("")}</aside>
+      ${sec("who", I.users(), "Who can claim", "Who can see this board and claim from it, and whether some things are limited.",
+        rows([["Who can claim", CLAIM[claim]], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
+        `<div class="opt-row three">
+          ${radio("claim", "public", claim, "Anyone with the link", "Share a link or QR code. People enter a name and email, no account needed.")}
+          ${radio("claim", "family", claim, "Anyone signed in", "People sign in with their email and find it under My Claims.")}
+          ${radio("claim", "roster", claim, "Only people I add", `You add the ${esc(L.participant.many.toLowerCase())}.`)}
+        </div>
+        <div class="sub-q" data-restrict${claim === "public" ? " hidden" : ""}>
+          <p class="q-label">Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people?</p>
+          <div class="opt-row">
+            ${radio("restrict", "no", sc.restricted ? "yes" : "no", "No", "Anyone who can claim can claim anything.")}
+            ${radio("restrict", "yes", sc.restricted ? "yes" : "no", `Yes, by ${esc(L.group.one.toLowerCase())} or tag`, `e.g. ${depth === 1 ? "Salad only for 10U" : "Catching only for catchers"}.`)}
+          </div>
+        </div>
+        <p class="fine" data-public-note${claim === "public" ? "" : " hidden"}>With "Anyone with the link" people are anonymous, so there's nothing to limit by ${esc(L.group.one.toLowerCase())} or tag.</p>`)}
+
+      ${sec("see", I.calendar(), "How people see it", "Whether things have dates, which views people get, and what they see of who's going.",
+        rows([["Dates &amp; views", VIEWS[pick] || VIEWS.calendar], ["Who's going", WHO[sc.family_names || "initial"]]]),
+        `<p class="q-label">Do things have dates and times?</p>
+        <div class="opt-row">
+          ${radio("dated", "no", pick === "list" ? "no" : "yes", "No", "It's all one day or there are no set times. People pick from a list.")}
+          ${radio("dated", "yes", pick === "list" ? "no" : "yes", "Yes", `${esc(L.slot.many)} have dates and times.`)}
+        </div>
+        <div class="sub-q" data-views${pick === "list" ? " hidden" : ""}>
+          <p class="q-label">Available views</p>
+          <div class="opt-row three">
+            ${radio("pick", "list", pick === "dlist" ? "list" : pick, "List", "A day-by-day list with dates and times.")}
+            ${radio("pick", "calendar", ["calendar", "list"].includes(pick) ? "calendar" : pick, "Calendar", "People pick days on a calendar.")}
+            ${radio("pick", "both", pick, "Both", "People can switch between the two.")}
+          </div>
+        </div>
+        <p class="q-label">Who's going</p>
+        <div class="opt-row three">
+          ${radio("family_names", "initial", sc.family_names || "initial", "First name + initial", "e.g. Ava S.")}
+          ${radio("family_names", "full", sc.family_names || "initial", "Full names", "e.g. Ava Smith")}
+          ${radio("family_names", "off", sc.family_names || "initial", "Hidden", "Only how many spots are open")}
+        </div>
+        <p class="fine">Emails and contact details are never shown.</p>`)}
+
+      ${sec("attendance", I.check(), "Attendance", "Whether attendance is taken, and the coaches who can take it.",
+        rows([["Track attendance", sc.track_attendance ? "Yes, by default" : "No, not by default"], ["Coaches", (counts.coaches || []).length ? esc(counts.coaches.join(", ")) : "None"]]),
+        `<div class="opt-row">
+          ${radio("track", "off", sc.track_attendance ? "on" : "off", "No, not by default", "")}
+          ${radio("track", "on", sc.track_attendance ? "on" : "off", "Yes, by default", "")}
+        </div>
+        <p class="fine">${depth >= 2 ? `Each ${esc(L.activity.one.toLowerCase())} can change this (e.g. track Hitting, not Cage Time).` : `Each ${esc(L.slot.one.toLowerCase())} can change this.`}</p>
+        <label class="field-l"><span>Coaches who can take attendance <span class="opt">(one email per line)</span></span>
+          <textarea name="coaches" rows="${Math.max(2, (counts.coaches || []).length + 1)}" placeholder="coach@example.com">${esc((counts.coaches || []).join("\n"))}</textarea></label>
+        <p class="fine">They sign in with their email and only see Check-in. Admins can always take attendance.</p>`)}
+    </section>
+
+    <aside class="bc-side">
+      ${depth >= 3 ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.grid()}</span><h2>${esc(L.activity.many)}</h2>
+          <a class="btn-ghost" href="/admin/settings/activities?s=${sc.id}">${I.gear()} Manage</a></div>
+        <p class="fine">${SC.activitiesFor(sc).length} ${esc(L.activity.many.toLowerCase())} with their default spots, colors, and limits.</p></section>` : ""}
+      ${SC.restricts(sc) ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.tag()}</span><h2>${esc(L.group.many)} &amp; tags</h2>
+          <a class="btn-ghost" href="/admin/settings/groups?s=${sc.id}">${I.gear()} Manage</a></div>
+        <p class="fine">Used to limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people.</p>
+        <div class="chip-line"><span class="q-lab">${esc(L.group.many)} (${groups.length})</span>${groups.length ? chips(groups) : `<span class="fine">None yet</span>`}</div>
+        <div class="chip-line"><span class="q-lab">Tags (${tags.length})</span>${tags.length ? chips(tags) : `<span class="fine">None yet</span>`}</div></section>` : ""}
+      ${SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules)) ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span><h2>${esc(L.participant.many)}</h2>
+          <a class="btn-ghost" href="/admin/members?s=${sc.id}">${I.gear()} Manage</a></div>
+        <p class="fine">${claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add can claim.` : `Add people to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>
+        <div class="big-count"><b>${sc.member_count || 0}</b><span>${esc((sc.member_count === 1 ? L.participant.one : L.participant.many).toLowerCase())}</span></div></section>` : ""}
+    </aside>
     </div>
     <script>
     (function () {
-      var root = document.getElementById("setup-form");
-      // tiles jump to their question and open it
-      document.querySelectorAll(".tile-btn").forEach(function (t) {
-        t.addEventListener("click", function () {
-          var box = document.getElementById("q-" + t.dataset.open); if (!box) return;
-          box.scrollIntoView({ behavior: "smooth", block: "center" });
-          var b = box.querySelector(".q-edit-btn"); if (b && !b.hidden) b.click();
+      var val = function (f, n) { var el = f.querySelector('input[name="' + n + '"]:checked'); return el ? el.value : ""; };
+      function sync(f) {
+        var r = f.querySelector("[data-restrict]"), pn = f.querySelector("[data-public-note]"), vq = f.querySelector("[data-views]");
+        if (r) r.hidden = val(f, "claim") === "public";
+        if (pn) pn.hidden = val(f, "claim") !== "public";
+        if (vq) vq.hidden = val(f, "dated") !== "yes";
+      }
+      // sections: Edit swaps the answers for the form; Cancel puts them back
+      document.querySelectorAll(".ss").forEach(function (sec) {
+        var f = sec.querySelector(".ss-form"), v = sec.querySelector(".ss-view"), b = sec.querySelector(".ss-edit");
+        b.addEventListener("click", function () {
+          document.querySelectorAll(".ss.open .ss-cancel, .inl.open .inl-cancel").forEach(function (c) { c.click(); });
+          f.hidden = false; v.hidden = true; b.hidden = true; sec.classList.add("open");
         });
-      });
-      var VIEWS = { no: "No dates: a list", list: "Dates and times: list view", calendar: "Dates and times: calendar", both: "Dates and times: list & calendar" };
-      function val(f, n) { var el = f.querySelector('input[name="' + n + '"]:checked'); return el ? el.value : ""; }
-      function lab(f, n) { var el = f.querySelector('input[name="' + n + '"]:checked'); return el ? el.dataset.label : ""; }
-      function close(box) { var f = box.querySelector(".q-edit"); f.hidden = true; box.classList.remove("open"); box.querySelector(".q-edit-btn").hidden = false; }
-      root.querySelectorAll(".q-block").forEach(function (box) {
-        var f = box.querySelector(".q-edit"), shown = box.querySelector(".q-val"), original = shown.innerHTML;
-        box.querySelector(".q-edit-btn").addEventListener("click", function () {
-          root.querySelectorAll(".q-block.open").forEach(function (b) { if (b !== box) b.querySelector(".q-cancel").click(); });
-          f.hidden = false; box.classList.add("open"); this.hidden = true;
-          var first = f.querySelector("input:not([type=hidden]), select, textarea"); if (first) first.focus();
-        });
-        box.querySelector(".q-cancel").addEventListener("click", function () { f.reset(); shown.innerHTML = original; sync(f); close(box); });
-        f.addEventListener("input", function () { sync(f); });
+        sec.querySelector(".ss-cancel").addEventListener("click", function () { f.reset(); sync(f); f.hidden = true; v.hidden = false; b.hidden = false; sec.classList.remove("open"); });
         f.addEventListener("change", function () { sync(f); });
       });
-      // keep the answer line (and dependent pieces) in step while choosing
-      function sync(f) {
-        var id = f.querySelector('input[name="q"]').value, el = root.querySelector('.q-val[data-for="' + id + '"]');
-        if (id === "views") { var v = f.querySelector("#views-q"); if (v) v.hidden = val(f, "dated") !== "yes";
-          el.textContent = val(f, "dated") === "no" ? VIEWS.no : (VIEWS[val(f, "pick")] || VIEWS.calendar); }
-        if (id === "claim") el.textContent = lab(f, "claim");
-        if (id === "restrict") el.textContent = lab(f, "restrict");
-        if (id === "who") el.textContent = lab(f, "family_names");
-        if (id === "track") el.textContent = lab(f, "track");
-        if (id === "name") el.textContent = f.name.value;
-        if (id === "coaches") { var c = f.coaches.value.split(/[\s,;]+/).filter(Boolean); el.textContent = c.length ? c.join(", ") : "None"; }
-      }
-      document.addEventListener("keydown", function (e) { if (e.key === "Escape") root.querySelectorAll(".q-block.open .q-cancel").forEach(function (b) { b.click(); }); });
-      // open the question that was just saved? no: show it closed, briefly highlighted
-      var h = location.hash && document.querySelector(location.hash);
-      if (h && h.classList.contains("q-block")) { h.classList.add("just-saved"); setTimeout(function () { h.classList.remove("just-saved"); }, 1800); }
+      // header: pencil edits in place
+      document.querySelectorAll(".inl").forEach(function (x) {
+        var f = x.querySelector(".inl-form"), v = x.querySelector(".inl-view");
+        x.querySelector(".pencil").addEventListener("click", function () {
+          document.querySelectorAll(".ss.open .ss-cancel, .inl.open .inl-cancel").forEach(function (c) { c.click(); });
+          f.hidden = false; v.hidden = true; x.classList.add("open"); var i = f.querySelector("input:not([type=hidden])"); if (i) i.focus();
+        });
+        x.querySelector(".inl-cancel").addEventListener("click", function () { f.reset(); f.hidden = true; v.hidden = false; x.classList.remove("open"); });
+      });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".ss.open .ss-cancel, .inl.open .inl-cancel").forEach(function (c) { c.click(); }); });
+      var h = location.hash && document.querySelector(location.hash.replace("#q-", "#ss-"));
+      if (h) { h.classList.add("just-saved"); setTimeout(function () { h.classList.remove("just-saved"); }, 1800); }
     })();
     </script>`,
   });
@@ -767,7 +781,9 @@ function boardHeader(sc, L, depth, main, rounds, locked) {
   const published = depth <= 2 ? !!(main && main.published_at) : rounds.some((r) => r.published_at);
   const status = locked ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">${depth <= 2 ? "Published" : "Live"}</span>` : `<span class="pill warn">Draft</span>`;
   return `<section class="board-head">
-      <div class="bh-title"><h1>${esc(sc.name)}</h1>${status}</div>
+      <div class="bh-main"><div class="bh-title"><h1>${esc(sc.name)}</h1>${status}</div>
+        ${eventDates(sc) || sc.event_location ? `<div class="meta-line">${eventDates(sc) ? `<span class="meta">${require("./icons").calendar()} <b>${esc(eventDates(sc))}</b></span>` : ""}
+          ${sc.event_location ? `<span class="meta">${require("./icons").pin()} <b>${require("../locations").link(sc.event_location)}</b></span>` : ""}</div>` : ""}</div>
       <div class="bh-actions">
         <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">⚙ ${esc(require("../config").LABELS.schedule)} settings</a>
         ${depth >= 3 && !locked ? `<a class="btn-ghost" href="/admin/import?s=${sc.id}">Import schedule</a>` : ""}
@@ -838,4 +854,4 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
   });
 }
 
-module.exports = { setupPage, scheduleSettingsPage, newSchedulePage };
+module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates };
