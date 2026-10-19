@@ -1287,3 +1287,9 @@ table.places input.addr { min-width: 280px; }
 .for-actions { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid #eef1f5; }
 .for-actions .btn-small { padding: 7px 16px; }
 .for-pick[open] > summary { border-color: var(--accent); }
+/* edit row: dropdowns match the text boxes */
+.mini select, .ir-edit select { width: auto; padding: 8px 30px 8px 10px; font-size: 14px; line-height: 1.4; height: auto; border-radius: 8px; background-color: #fff; }
+.mini .for-pick > summary { padding: 8px 10px; font-size: 14px; line-height: 1.4; }
+.ir-edit .ir-fields input:not([type=checkbox]):not([type=hidden]), .ir-edit select, .ir-edit .for-pick > summary {
+  height: 34px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; }
+.ir-edit .for-pick > summary { display: flex; align-items: center; }
