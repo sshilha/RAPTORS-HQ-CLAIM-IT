@@ -1187,3 +1187,55 @@ table.places input.addr { min-width: 280px; }
 }
 .ir-fields input[type=time], .item-add2 input[type=time] { width: 128px; }
 .ir-fields input[type=date], .item-add2 input[type=date] { width: 150px; }
+.claim-note { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.claim-note input { width: 190px; padding: 8px 10px; font-size: 14px; }
+.my-note { display: block; font-size: 13px; color: var(--text-2); margin-top: 4px; }
+
+/* ---------- item list: read-only rows, Edit opens the boxes ---------- */
+.irow { display: block; padding: 10px 14px; background: #fff; }
+.ir-view { display: flex; align-items: center; gap: 12px; }
+.ir-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.ir-main b { font-weight: 600; color: var(--navy); }
+.ir-meta { font-size: 13px; color: var(--muted); }
+.ir-side { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+.ir-claimed { font-weight: 600; font-size: 13px; color: var(--muted); text-decoration: none; }
+.ir-claimed:hover { text-decoration: underline; }
+.ir-edit-btn { font-weight: 700; color: var(--navy-2); background: none; border: 0; cursor: pointer; padding: 4px 2px; }
+.ir-edit { display: none; }
+.irow.editing { border-color: var(--accent); background: var(--accent-tint); }
+.irow.editing .ir-view { display: none; }
+.irow.editing .ir-edit { display: block; }
+.ir-edit .ir-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.mini { display: flex; flex-direction: column; gap: 3px; font: 600 12px var(--body); color: var(--muted); }
+.mini input { width: auto; padding: 8px 10px; font-size: 14px; background: #fff; }
+.mini .ir-title { min-width: 220px; }
+.ir-edit-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.ir-edit-actions .spacer { flex: 1; }
+.danger-link { color: #b91c1c !important; background: none; border: 0; cursor: pointer; font-weight: 600; }
+@media (max-width: 640px) { .ir-view { flex-wrap: wrap; } .ir-side { margin-left: 0; } .mini, .mini .ir-title { flex: 1 1 100%; min-width: 0; } }
+
+/* ---------- rules card: read view + edit mode ---------- */
+.rc-edit { background: none; border: 0; cursor: pointer; font-weight: 700; color: var(--navy-2); }
+.rc-list { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.rc-list > div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid #eef1f5; padding-bottom: 7px; }
+.rc-list > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.rc-list dt { font-size: 13px; color: var(--muted); }
+.rc-list dd { margin: 0; font-size: 14px; font-weight: 600; color: var(--navy); text-align: right; }
+.rc-form { display: none; }
+.rules-card.editing .rc-list, .rules-card.editing .rc-edit { display: none; }
+.rules-card.editing .rc-form { display: flex; flex-direction: column; gap: 12px; }
+.rules-card.editing { border-color: var(--accent); }
+.rc-form fieldset { border: 0; margin: 0; padding: 0 0 12px; border-bottom: 1px solid #eef1f5; }
+.rc-form legend { font: 600 14px var(--body); color: var(--navy); margin-bottom: 6px; padding: 0; }
+.rc-form .radio-row { display: flex; align-items: center; gap: 8px; font: 400 14px var(--body); color: var(--text-2); margin: 4px 0; text-transform: none; }
+.rc-form input[type=datetime-local] { width: auto; padding: 6px 8px; }
+.rc-limit { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
+.rc-act { flex: 1; font-size: 14px; color: var(--navy); }
+.rc-note { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.rc-actions { display: flex; gap: 8px; }
+/* publish checklist */
+.checklist { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.checklist li { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; color: var(--text-2); }
+.checklist .ck { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line-strong); font: 800 12px/18px var(--body); text-align: center; color: #fff; }
+.checklist li.ok .ck { background: var(--accent); border-color: var(--accent); }
+.full-btn { width: 100%; justify-content: center; }

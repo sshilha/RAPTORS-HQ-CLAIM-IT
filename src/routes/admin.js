@@ -128,7 +128,7 @@ router.get("/sessions/:id", wrap(async (req, res) => {
   if (!session) return go(res, "/admin/programs", { err: "Session not found." });
   const program = (await query(`SELECT * FROM programs WHERE id=$1`, [session.program_id])).rows[0];
   const roster = (await query(
-    `SELECT r.id, r.status, r.created_at, a.first_name, a.last_name, a.age_group,
+    `SELECT r.id, r.status, r.created_at, r.note, a.first_name, a.last_name, a.age_group,
        ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS emails
      FROM reservations r JOIN athletes a ON a.id=r.athlete_id
      WHERE r.session_id=$1 AND r.status<>'canceled' ORDER BY r.created_at, r.id`, [session.id])).rows;

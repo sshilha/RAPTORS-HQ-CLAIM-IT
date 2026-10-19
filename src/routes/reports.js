@@ -157,7 +157,7 @@ const builders = {
     let statusSql = "";
     if (f.status) { params.push(f.status); statusSql = `AND x.status = $${params.length}`; }
     const rows = (await query(
-      `SELECT x.id, x.status, ${DAY} AS day, ${TIME} AS time, rd.name AS round, p.activity, p.age_groups,
+      `SELECT x.id, x.status, x.note, CASE WHEN rd.ask_note THEN rd.note_label END AS question, ${DAY} AS day, ${TIME} AS time, rd.name AS round, p.activity, p.age_groups,
          a.first_name, a.last_name, s.id AS sid,
          (SELECT mm.group_name FROM schedule_members mm WHERE mm.athlete_id=a.id AND mm.schedule_id=rd.schedule_id) AS age_group,
          ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id ORDER BY u.email) AS emails,
@@ -176,7 +176,7 @@ const builders = {
         { key: "day", label: "Date" }, { key: "time", label: "Time" }, { key: "round", label: "Round" },
         { key: "session", label: "Session" }, { key: "athlete", label: "Athlete" }, { key: "age_group", label: "Age group" },
         { key: "statusText", label: "Status" }, { key: "parents", label: "Parent emails" },
-        { key: "booked_by", label: "Booked by" }, { key: "booked_at", label: "Booked" }, { key: "canceled_at", label: "Canceled" },
+        { key: "question", label: "Question" }, { key: "note", label: "Answer" }, { key: "booked_by", label: "Booked by" }, { key: "booked_at", label: "Booked" }, { key: "canceled_at", label: "Canceled" },
       ],
       rows: rows.map((r) => ({ ...r, session: typeLabel(r.activity, r.age_groups, r.required_tags), athlete: `${r.last_name}, ${r.first_name}`,
         parents: r.emails.join(", "), statusText: label[r.status] + (r.promoted && r.status !== "waitlisted" ? " (from waitlist)" : "") +

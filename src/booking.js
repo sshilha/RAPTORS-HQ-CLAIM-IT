@@ -65,7 +65,7 @@ async function promoteWaitlist(db, sessionId) {
   }
 }
 
-async function reserve({ userId, athleteId, sessionId }) {
+async function reserve({ userId, athleteId, sessionId, note }) {
   return tx(async (db) => {
     if (!(await isParentOf(db, userId, athleteId))) throw new BookingError("That athlete isn't linked to your account.");
 
@@ -74,6 +74,7 @@ async function reserve({ userId, athleteId, sessionId }) {
       `SELECT s.*, p.name AS program_name, p.age_groups, p.priority_limit, p.priority_ends_at, p.activity, p.round_id, p.required_tags,
               r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours,
               p.waitlist AS program_waitlist, r.waitlist AS round_waitlist, r.signup_mode, r.schedule_id,
+              r.ask_note, r.note_label, r.note_required,
               p.booking_opens_at,
               (p.archived OR (p.round_id IS NOT NULL AND r.published_at IS NULL) OR se.completed_at IS NOT NULL
                OR EXISTS (SELECT 1 FROM schedules x WHERE x.id=r.schedule_id AND x.archived_at IS NOT NULL)) AS archived
@@ -103,6 +104,9 @@ async function reserve({ userId, athleteId, sessionId }) {
       const m = (await db.query(`SELECT group_name, tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [s.schedule_id, athleteId])).rows[0];
       if (!itemFits(s, m)) throw new BookingError(`${a.first_name} can't claim this one. It's only for ${[...(s.only_groups || []), ...(s.only_tags || [])].join(" or ")}.`);
     }
+    // "What are you bringing?" (when the board asks)
+    const cleanNote = s.ask_note ? String(note || "").replace(/\s+/g, " ").trim().slice(0, 120) || null : null;
+    if (s.ask_note && s.note_required && !cleanNote) throw new BookingError(`Please answer: ${s.note_label || "the question"}`);
     // Tag rules ("Catcher only") apply on every kind of sheet
     if ((s.required_tags || []).length) {
       const m = (await db.query(`SELECT tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [s.schedule_id, athleteId])).rows[0];
@@ -145,8 +149,8 @@ async function reserve({ userId, athleteId, sessionId }) {
       throw new BookingError("Sorry, that time just filled up.");
 
     const r = (await db.query(
-      `INSERT INTO reservations (session_id, athlete_id, booked_by, status, counts_toward_limit) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [sessionId, athleteId, userId, status, counts]
+      `INSERT INTO reservations (session_id, athlete_id, booked_by, status, counts_toward_limit, note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [sessionId, athleteId, userId, status, counts, cleanNote]
     )).rows[0];
     return { reservationId: r.id, status };
   });
@@ -298,6 +302,7 @@ async function bookingOptions(athlete) {
   const programs = (await query(
     `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours, r.waitlist AS round_waitlist,
        r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name, sc.family_names, sc.pick_mode,
+       r.ask_note, r.note_label, r.note_required,
        m.athlete_id AS member_id, m.group_name AS member_group, m.tags AS member_tags
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      LEFT JOIN schedules sc ON sc.id=r.schedule_id
@@ -316,7 +321,7 @@ async function bookingOptions(athlete) {
     `SELECT s.*,
        (SELECT count(*)::int FROM reservations c WHERE c.session_id=s.id AND c.status='confirmed') AS confirmed,
        (SELECT count(*)::int FROM reservations c WHERE c.session_id=s.id AND c.status='waitlisted') AS waitlisted,
-       my.id AS my_id, my.status AS my_status,
+       my.id AS my_id, my.status AS my_status, my.note AS my_note,
        (SELECT count(*)::int FROM reservations w WHERE w.session_id=s.id AND w.status='waitlisted'
           AND (w.created_at, w.id) <= (my.created_at, my.id)) AS my_pos
      FROM training_sessions s

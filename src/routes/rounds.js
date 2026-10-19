@@ -162,6 +162,28 @@ router.post("/:id/limits", wrap(async (req, res) => {
   go(res, dest(req, `/admin/rounds/${id}#limits`), { ok: `Limits saved: ${summary}. Open spots unlock ${R.unlockLabel(unlock)}${unlock == null ? "" : " each session"}. Waitlist ${req.body.waitlist ? "on" : "off"}.` });
 }));
 
+// All of a 1-2 level board's rules in one save: limits, waitlist, when claiming opens,
+// the give-it-up deadline (dated boards), and "ask what they're bringing"
+router.post("/:id/rules", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const b = req.body;
+  const cur = await getRound(id);
+  const limits = R.readLimits(b, cur && cur.activity_limits);
+  const opens = b.opens === "at" ? localOrNull(b.booking_opens_at) : null;
+  if (b.opens === "at" && !opens) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Pick the date and time claiming opens." });
+  const cancel = b.cancel_hours === undefined ? null : Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
+  const label = str(b.note_label).replace(/\s+/g, " ").slice(0, 80) || null;
+  if (b.ask_note && !label) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Type the question you want to ask." });
+  await tx(async (db) => {
+    const round = (await db.query(
+      `UPDATE rounds SET activity_limits=$2, waitlist=$3, booking_opens_at=${localSql(4)}, cancel_hours=COALESCE($5, cancel_hours),
+         ask_note=$6, note_label=$7, note_required=$8, note_public=$9 WHERE id=$1 RETURNING *`,
+      [id, JSON.stringify(limits), !!b.waitlist, opens, cancel, !!b.ask_note, label, !!b.note_required, !!b.note_public])).rows[0];
+    await R.syncPrograms(db, round);
+  });
+  go(res, dest(req, `/admin/rounds/${id}`), { ok: "Rules saved." });
+}));
+
 // ---------- items (the claimable things at the end of a board) ----------
 // An item's optional date and time: all three, or none (an undated item)
 function readWhen(b) {

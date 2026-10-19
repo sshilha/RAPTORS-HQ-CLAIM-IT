@@ -67,7 +67,22 @@ router.get("/dashboard", wrap(async (req, res) => {
   const canSwitch = !listOnly && datedModes.includes("both");
   if (listOnly) view = "list";
   else if (!canSwitch) view = "cal";
-  res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, canSelf, flash: flashFrom(req), view, canSwitch }));
+  // who's going to undated items (with what they're bringing), as each board's view setting allows
+  const going = {};
+  const undated = programs.flatMap((p) => p.sessions.filter((s) => !s.starts_at).map((s) => s.id));
+  if (undated.length) {
+    const rows = (await query(
+      `SELECT x.session_id, a.id, a.first_name, a.last_name, CASE WHEN r.note_public THEN x.note END AS note, coalesce(sc.family_names, 'initial') AS mode
+       FROM reservations x JOIN athletes a ON a.id=x.athlete_id JOIN training_sessions s ON s.id=x.session_id
+       JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN schedules sc ON sc.id=r.schedule_id
+       WHERE x.session_id = ANY($1) AND x.status='confirmed' ORDER BY x.created_at, x.id`, [undated])).rows;
+    for (const r of rows) {
+      if (r.mode === "off") continue;
+      (going[r.session_id] = going[r.session_id] || []).push({ id: r.id,
+        name: (r.mode === "full" ? `${r.first_name} ${r.last_name}` : `${r.first_name} ${(r.last_name || "").slice(0, 1)}.`) + (r.note ? ` · ${r.note}` : "") });
+    }
+  }
+  res.send(v.dashboardPage({ user: req.user, athletes, athlete, programs, reservations, month, admin, canSelf, flash: flashFrom(req), view, canSwitch, going }));
 }));
 
 router.get("/athletes/:id/book", (req, res) => res.redirect(`/dashboard?a=${int(req.params.id)}`));
@@ -84,14 +99,14 @@ router.get("/athletes/:id/day/:date", wrap(async (req, res) => {
   const ids = programs.flatMap((p) => p.sessions.filter((s) => localDate(s.starts_at) === date).map((s) => s.id));
   if (ids.length) {
     const rows = (await query(
-      `SELECT x.session_id, a.id, a.first_name, a.last_name, coalesce(sc.family_names, 'initial') AS mode
+      `SELECT x.session_id, a.id, a.first_name, a.last_name, CASE WHEN r.note_public THEN x.note END AS note, coalesce(sc.family_names, 'initial') AS mode
        FROM reservations x JOIN athletes a ON a.id=x.athlete_id JOIN training_sessions s ON s.id=x.session_id
        JOIN programs p ON p.id=s.program_id LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN schedules sc ON sc.id=r.schedule_id
        WHERE x.session_id = ANY($1) AND x.status='confirmed' ORDER BY x.created_at, x.id`, [ids])).rows;
     for (const r of rows) {
       if (r.mode === "off") continue;
       (going[r.session_id] = going[r.session_id] || []).push({
-        id: r.id, name: r.mode === "full" ? `${r.first_name} ${r.last_name}` : `${r.first_name} ${(r.last_name || "").slice(0, 1)}.`,
+        id: r.id, name: (r.mode === "full" ? `${r.first_name} ${r.last_name}` : `${r.first_name} ${(r.last_name || "").slice(0, 1)}.`) + (r.note ? ` · ${r.note}` : ""),
       });
     }
   }
@@ -106,7 +121,7 @@ router.post("/athletes/:id/book", wrap(async (req, res) => {
   const athleteId = int(req.params.id);
   const back = safeBack(req, `/dashboard?a=${athleteId}`);
   try {
-    const r = await booking.reserve({ userId: req.user.id, athleteId, sessionId: int(req.body.session_id) });
+    const r = await booking.reserve({ userId: req.user.id, athleteId, sessionId: int(req.body.session_id), note: req.body.note });
     notify(r.status, r.reservationId);
     go(res, back, { ok: r.status === "confirmed"
       ? "Spot claimed! A confirmation email is on its way."

@@ -43,7 +43,9 @@ is what people claim, with a number of spots:
 - 3 levels: e.g. Round › Activity › Session (Winter Training).
 - 4 levels: e.g. Day › Area › Station › Shift.
 Boards with 1–2 levels show three numbered steps on their page (1 Add items, 2 Rules: per-person
-limit, waitlist, when claiming opens, and for dated boards the give-it-up deadline; 3 Publish &
+limit, waitlist, when claiming opens, a question to ask when people claim (your wording;
+optionally required; answers shown to others or kept private), and for dated boards the give-it-up
+deadline; 3 Publish &
 share, with the share link only for "Anyone with the link") and keep their rules (who signs up, limits, unlocking, waitlist, publish) on the
 board's Setup page. Anything claimable can have a date and time, or be an undated item with a name;
 undated items show as a list on My Claims and the public page, and have no give-it-up deadline.

@@ -218,6 +218,12 @@ async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uq_app_location_name ON app_locations (lower(name));
+    -- "Ask what they're bringing": a question people answer when they claim (e.g. potlucks)
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS ask_note BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS note_label TEXT;
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS note_required BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS note TEXT;
+    ALTER TABLE rounds ADD COLUMN IF NOT EXISTS note_public BOOLEAN NOT NULL DEFAULT true; -- show answers next to names
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,

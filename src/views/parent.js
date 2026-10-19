@@ -109,7 +109,7 @@ const selfCard = () => `<section class="panel self-card">
   </form></section>`;
 
 // Claimable things with no date: a simple list, grouped by what they are
-function itemsList(programs, athlete, back) {
+function itemsList(programs, athlete, back, going = {}) {
   const groups = programs.map((p) => ({ p, items: p.sessions.filter((s) => !s.starts_at) })).filter((g) => g.items.length);
   if (!groups.length) return "";
   return `<div class="items-list" id="items">${groups.map(({ p, items }) => `<div class="item-group">
@@ -119,7 +119,8 @@ function itemsList(programs, athlete, back) {
       <div class="sess-main"><div class="sess-time">${esc(s.title || "Spot")}</div>
         ${(s.only_groups || []).length || (s.only_tags || []).length ? `<div class="sess-meta">${esc([...(s.only_groups || []), ...(s.only_tags || [])].join(" or "))} only</div>` : ""}
         ${s.location ? `<div class="sess-meta">${P.link(s.location)}</div>` : ""}
-        <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div></div>
+        <div class="spots">${open > 0 ? `${open} of ${s.capacity} open` : "Full"}</div>
+        ${(going[s.id] || []).length ? `<div class="going sm">${going[s.id].map((g) => g.id === athlete.id ? `<b>${esc(g.name)}</b>` : esc(g.name)).join(", ")}</div>` : ""}</div>
       <div class="sess-side">${actionFor(p, s, athlete, back)}</div></li>`; }).join("")}</ul></div>`).join("")}</div>`;
 }
 
@@ -158,7 +159,7 @@ function monthList(programs, athlete, month, back) {
     }).join("")}</ul></div>`).join("")}</div>`;
 }
 
-function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash, canSelf, view = "cal", canSwitch = false }) {
+function dashboardPage({ user, athletes, athlete, programs, reservations, month, admin, flash, canSelf, view = "cal", canSwitch = false, going = {} }) {
   if (!athletes.length) return layout({ title: "My claims", user, admin, flash, tab: "home",
     body: `<section class="panel"><h1>Welcome to ${esc(LABELS.app_name)}</h1>
       <div class="empty"><p>No ${esc(LABELS.participants.toLowerCase())} are linked to this email yet.</p>
@@ -201,7 +202,7 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
         <a href="${href(month)}&v=list"${view === "list" ? ' aria-current="page"' : ""}>☰ List</a></nav>` : ""}
       ${view === "list" ? monthList(programs, athlete, month, `${href(month)}&v=list`) : monthGrid(athlete, month, byDay, today)}
       <div class="pcal-legend">${activities.map(([a, sid]) => `<span>${dot(a, sid)}${esc(a)}</span>`).join("")}<span><span class="cal-mine sm">✓</span>Claimed</span></div>` : ""}
-      ${itemsList(programs, athlete, `/dashboard?a=${athlete.id}&m=${month}`)}
+      ${itemsList(programs, athlete, `/dashboard?a=${athlete.id}&m=${month}`, going)}
       ${byDay.size ? `<p class="fine">${view === "list" ? "Tap a date to see who's going." : "Tap a day to see what's open and claim a spot."}${nextDay && nextDay.slice(0, 7) !== month ? ` Next training: <a href="/athletes/${athlete.id}/day/${nextDay}">${esc(longDay(nextDay))}</a>.` : ""}</p>`
         : programs.some((p) => p.sessions.some((s) => !s.starts_at)) ? "" : `<div class="empty"><p>Nothing open to claim right now.</p><p class="muted">New spots show up here as soon as they're posted.</p></div>`}`}
     </section>
@@ -229,7 +230,7 @@ function actionFor(p, s, athlete, back, compact) {
   const open = s.capacity - s.confirmed;
   if (s.my_status) {
     const r = { id: s.my_id, status: s.my_status, starts_at: s.starts_at, cancel_hours: p.cancel_hours };
-    return `${s.my_status === "confirmed" ? `<span class="pill ok">Claimed</span>` : `<span class="pill wait">Waitlist #${s.my_pos}</span>`}
+    return `${s.my_status === "confirmed" ? `<span class="pill ok">Claimed</span>` : `<span class="pill wait">Waitlist #${s.my_pos}</span>`}${s.my_note ? `<span class="my-note">${esc(s.my_note)}</span>` : ""}
       ${compact ? `<form method="post" action="/reservations/${s.my_id}/cancel" onsubmit="return confirm('Give up this spot?')">
           <input type="hidden" name="return_to" value="${esc(back)}"><button class="link-dark sm" type="submit">Give it up</button></form>` : cancelControl(r, back)}`;
   }
@@ -237,8 +238,9 @@ function actionFor(p, s, athlete, back, compact) {
   if (open <= 0 && !p.waitlistOn) return `<button class="btn-small" disabled>Full</button>`;
   if (blocked(p, s)) return `<button class="btn-small" disabled>${compact ? "Limit" : "Limit reached"}</button>` +
     (s.unlocksAt ? `<span class="fine unlock-hint">${compact ? `Opens ${esc(fmtDay(s.unlocksAt))}` : `Opens to all ${esc(fmtDateTime(s.unlocksAt))}`}</span>` : "");
-  return `<form method="post" action="/athletes/${athlete.id}/book">
+  return `<form method="post" action="/athletes/${athlete.id}/book" class="${p.ask_note ? "claim-note" : ""}">
       <input type="hidden" name="session_id" value="${s.id}"><input type="hidden" name="return_to" value="${esc(back)}">
+      ${p.ask_note ? `<input name="note" maxlength="120"${p.note_required ? " required" : ""} placeholder="${esc((p.note_label || "Your answer") + (p.note_required ? "" : " (optional)"))}" aria-label="${esc(p.note_label || "Your answer")}">` : ""}
       <button class="${open > 0 ? "btn-small" : "btn-small secondary"}" type="submit">${open > 0 ? "Claim it" : compact ? "Waitlist" : "Join waitlist"}</button>
     </form>`;
 }

@@ -145,11 +145,11 @@ const programPage = ({ user, program: p, sessions, flash, readonly }) => page({
   </section>`}`,
 });
 
-const rosterRows = (rows, kind) => rows.length ? `<div class="table-wrap"><table>
+const rosterRows = (rows, kind, qLabel = "") => rows.length ? `<div class="table-wrap"><table>
   <thead><tr>${kind === "wait" ? "<th>#</th>" : ""}<th>Athlete</th><th>Age</th><th>Parents</th><th>Booked</th><th></th></tr></thead>
   <tbody>${rows.map((r, i) => `<tr>
     ${kind === "wait" ? `<td>${i + 1}</td>` : ""}
-    <td>${esc(r.first_name)} ${esc(r.last_name)}</td><td>${esc(r.age_group || "")}</td>
+    <td>${esc(r.first_name)} ${esc(r.last_name)}${r.note ? `<div class="fine">${esc(qLabel ? `${qLabel}: ` : "")}${esc(r.note)}</div>` : ""}</td><td>${esc(r.age_group || "")}</td>
     <td>${esc(r.emails.join(", "))}</td><td>${esc(fmtDateTime(r.created_at))}</td>
     <td><form method="post" action="/admin/reservations/${r.id}/cancel" onsubmit="return confirm('Remove ${esc(r.first_name)}? They'll get an email.')">
       <button class="btn-ghost" type="submit">Remove</button></form></td></tr>`).join("")}</tbody></table></div>`
@@ -173,15 +173,15 @@ function lockPanel(s, p, round) {
   </div>`;
 }
 
-const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist, flash, readonly }) => page({
+const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist, flash, readonly, qLabel = round && round.ask_note ? round.note_label : "" }) => page({
   title: "Session", tab: "rounds", user, flash, readonly,
   body: `<a class="back" href="${p.round_id ? `/admin/rounds/${p.round_id}` : `/admin/programs/${p.id}`}">${p.round_id ? "Back to round calendar" : esc(p.name)}</a>
   <section class="panel">
     <div class="athlete-head"><h1>${esc(require("../time").itemLabel(s))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>
     <p class="muted">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</p>
     ${lockPanel(s, p, round)}
-    <h2>Claimed (${confirmed.length} of ${s.capacity})</h2>${rosterRows(confirmed, "ok")}
-    <h2>Waitlist</h2>${rosterRows(waitlist, "wait")}
+    <h2>Claimed (${confirmed.length} of ${s.capacity})</h2>${rosterRows(confirmed, "ok", qLabel)}
+    <h2>Waitlist</h2>${rosterRows(waitlist, "wait", qLabel)}
   </section>
   ${s.canceled_at ? "" : `<section class="panel">
     <h2>Edit session</h2>

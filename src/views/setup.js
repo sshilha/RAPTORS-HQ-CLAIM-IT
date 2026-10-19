@@ -32,29 +32,38 @@ function forPicker(sc, chosenGroups = [], chosenTags = [], formId = "") {
 
 // One claimable item: name, optional date/time (dated boards), spots, location, who, claimed
 function itemRow(it, r, locked, L) {
-  const { inputParts } = require("../time");
+  const { inputParts, fmtRange } = require("../time");
   const dated = SC.usesCalendar(CUR);
   const limited = SC.restricts(CUR) && (SC.groupsFor(CUR).length || (CUR.tags || []).length);
   const f = `it-${it.id}`, st = it.starts_at ? inputParts(it.starts_at) : null, en = it.ends_at ? inputParts(it.ends_at) : null;
-  if (locked) return `<li class="irow"><div class="ir-main"><b>${esc(it.title || "")}</b>
-      <span class="fine">${[it.starts_at ? require("../time").fmtRange(it.starts_at, it.ends_at) : "", `${it.capacity} spots`, it.location ? `📍 ${esc(it.location)}` : ""].filter(Boolean).join(" · ")}</span></div>
-      <a class="ir-claimed" href="/admin/sessions/${it.id}">${it.claimed} of ${it.capacity}</a></li>`;
-  return `<li class="irow">
-    <form id="${f}" method="post" action="/admin/rounds/${r.id}/items/${it.id}">${back(`items-${r.id}`)}${dated ? `<input type="hidden" name="when_shown" value="1">` : ""}</form>
-    <div class="ir-fields">
-      <input form="${f}" name="title" value="${esc(it.title || "")}" maxlength="80" required aria-label="Name" class="ir-title">
-      ${dated ? `<input form="${f}" type="date" name="date" value="${st ? st.date : ""}" aria-label="Date">
-        <input form="${f}" type="time" name="start_time" value="${st ? st.time : ""}" aria-label="Start">
-        <input form="${f}" type="time" name="end_time" value="${en ? en.time : ""}" aria-label="End">` : ""}
-      <input form="${f}" type="number" name="capacity" min="1" max="500" value="${it.capacity}" aria-label="Spots" class="spots-in" title="Spots">
-      <input form="${f}" name="location" value="${esc(it.location || "")}" list="app-locations" maxlength="80" placeholder="Location" aria-label="Location" class="ir-loc">
-      ${limited ? forPicker(CUR, it.only_groups || [], it.only_tags || [], f) : ""}
+  const who = [...(it.only_groups || []), ...(it.only_tags || [])];
+  const meta = [it.starts_at ? fmtRange(it.starts_at, it.ends_at) : "", `${it.capacity} spot${it.capacity === 1 ? "" : "s"}`,
+    it.location ? `📍 ${it.location}` : "", who.length ? `Only for ${who.join(", ")}` : ""].filter(Boolean);
+  const claimed = `<a class="ir-claimed" href="/admin/sessions/${it.id}" title="See who claimed it">${it.claimed ? `${it.claimed} claimed` : "No claims yet"}${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}</a>`;
+  return `<li class="irow" data-item="${it.id}">
+    <div class="ir-view">
+      <div class="ir-main"><b>${esc(it.title || "")}</b><span class="ir-meta">${meta.map(esc).join(" · ")}</span></div>
+      <div class="ir-side">${claimed}${locked ? "" : `<button type="button" class="link-dark ir-edit-btn" onclick="this.closest('.irow').classList.add('editing')">Edit</button>`}</div>
     </div>
-    <div class="ir-side">
-      <a class="ir-claimed" href="/admin/sessions/${it.id}" title="See who claimed it">${it.claimed} of ${it.capacity}${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}</a>
-      <button class="btn-ghost" type="submit" form="${f}">Save</button>
-      <form method="post" action="/admin/rounds/${r.id}/items/${it.id}/delete" onsubmit="return confirm('Remove this ${esc(L.slot.one.toLowerCase())}?')">${back(`items-${r.id}`)}<button class="x" type="submit" aria-label="Remove">×</button></form>
-    </div></li>`;
+    ${locked ? "" : `<div class="ir-edit">
+      <form id="${f}" method="post" action="/admin/rounds/${r.id}/items/${it.id}">${back(`items-${r.id}`)}${dated ? `<input type="hidden" name="when_shown" value="1">` : ""}</form>
+      <div class="ir-fields">
+        <label class="mini">Name<input form="${f}" name="title" value="${esc(it.title || "")}" maxlength="80" required class="ir-title"></label>
+        ${dated ? `<label class="mini">Date<input form="${f}" type="date" name="date" value="${st ? st.date : ""}"></label>
+          <label class="mini">Start<input form="${f}" type="time" name="start_time" value="${st ? st.time : ""}"></label>
+          <label class="mini">End<input form="${f}" type="time" name="end_time" value="${en ? en.time : ""}"></label>` : ""}
+        <label class="mini">Spots<input form="${f}" type="number" name="capacity" min="1" max="500" value="${it.capacity}" class="spots-in"></label>
+        <label class="mini">Location<input form="${f}" name="location" value="${esc(it.location || "")}" list="app-locations" maxlength="80" class="ir-loc"></label>
+        ${limited ? `<div class="mini">Who${forPicker(CUR, it.only_groups || [], it.only_tags || [], f)}</div>` : ""}
+      </div>
+      <div class="ir-edit-actions">
+        <button class="btn-small" type="submit" form="${f}">Save</button>
+        <button type="button" class="btn-ghost" onclick="var row=this.closest('.irow'); row.classList.remove('editing'); document.getElementById('${f}').reset(); row.querySelectorAll('[form=${f}]').forEach(function(el){ el.value = el.defaultValue; });">Cancel</button>
+        <span class="spacer"></span>
+        <form method="post" action="/admin/rounds/${r.id}/items/${it.id}/delete" onsubmit="return confirm('Remove ${esc((it.title || "this").replace(/'/g, ""))}?')">${back(`items-${r.id}`)}<button class="link-dark danger-link" type="submit">Remove</button></form>
+      </div>
+    </div>`}
+  </li>`;
 }
 
 function itemAdd(r, programId, L, placeholder) {
@@ -230,39 +239,105 @@ function rulesSummary(r, L, acts) {
   return parts.join(" · ");
 }
 
+// Confirm before publishing / unpublishing a board
+const publishForm = (r, name, cls = "") => {
+  const msg = r.published_at
+    ? `Unpublish ${name}? People won't see it or be able to claim until you publish it again. Existing claims are kept.`
+    : `Publish ${name}? People who can claim will be able to see it and start claiming.`;
+  return `<form method="post" action="/admin/rounds/${r.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(msg))})">${back()}
+    <button class="${r.published_at ? "btn-ghost" : "btn-small"} ${cls}" type="submit">${r.published_at ? "Unpublish" : "Publish board"}</button></form>`;
+};
+
+// The rules, read as a short list; Edit rules turns the card into one form with one Save
+function rulesCard(r, locked, L, acts) {
+  const { limitFor } = require("../rounds");
+  const { fmtDateTime, inputParts } = require("../time");
+  const dated = SC.usesCalendar(CUR);
+  const depth = SC.depthOf(CUR);
+  const lim = acts.map((a) => [a, limitFor(r, a)]);
+  const perPerson = depth === 1 ? (lim[0] && lim[0][1] != null ? `Up to ${lim[0][1]}` : "Unlimited")
+    : lim.filter(([, n]) => n != null).map(([a, n]) => `${a}: ${n}`).join(", ") || "Unlimited";
+  const at = r.booking_opens_at ? inputParts(r.booking_opens_at) : null;
+  const rows = [
+    ["Per person", perPerson],
+    ["Waitlist", r.waitlist ? "On" : "Off"],
+    ["Claiming opens", r.booking_opens_at ? fmtDateTime(r.booking_opens_at) : "Right away"],
+    ...(dated ? [["Give-it-up deadline", r.cancel_hours ? `${r.cancel_hours} hours before` : "Any time"]] : []),
+    ["Question", r.ask_note ? `"${r.note_label || "Your answer"}"${[r.note_required ? "required" : "", r.note_public !== false ? "shown to others" : "private"].filter(Boolean).map((x) => ` · ${x}`).join("")}` : "None"],
+  ];
+  const slots = L.slot.many.toLowerCase();
+  return `<section class="panel side-card rules-card" id="rules-${r.id}">
+    <div class="bc-head"><h2>Rules</h2>${locked ? "" : `<button type="button" class="link-dark rc-edit" onclick="this.closest('.rules-card').classList.add('editing')">Edit</button>`}</div>
+    <dl class="rc-list">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+    ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/rules" class="rc-form">${back(`rules-${r.id}`)}
+      <fieldset><legend>How many can each person claim?</legend>
+        ${lim.map(([a, n], k) => `<div class="rc-limit"><input type="hidden" name="lname_${k}" value="${esc(a)}">
+          ${depth > 1 ? `<span class="rc-act">${esc(a)}</span>` : ""}
+          <input type="number" name="lim_${k}" min="1" max="50" value="${n ?? 2}" class="spots-in"${n == null ? " disabled" : ""} aria-label="Limit${depth > 1 ? ` for ${esc(a)}` : ""}">
+          <label class="radio-row"><input type="checkbox" name="unl_${k}" value="1"${n == null ? " checked" : ""} onchange="this.closest('.rc-limit').querySelector('input[type=number]').disabled=this.checked"> Unlimited</label></div>`).join("")}
+      </fieldset>
+      <fieldset><legend>Waitlist</legend>
+        <label class="radio-row"><input type="checkbox" name="waitlist" value="1"${r.waitlist ? " checked" : ""}> When ${esc(slots)} fill up, let people join a waitlist</label>
+      </fieldset>
+      <fieldset><legend>When claiming opens</legend>
+        <label class="radio-row"><input type="radio" name="opens" value="now"${at ? "" : " checked"}> Right away (once published)</label>
+        <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At <input type="datetime-local" name="booking_opens_at" value="${at ? `${at.date}T${at.time}` : ""}" onfocus="this.form.opens[1].checked=true"></label>
+      </fieldset>
+      ${dated ? `<fieldset><legend>Give-it-up deadline</legend>
+        <label class="radio-row"><input type="number" name="cancel_hours" min="0" max="336" value="${r.cancel_hours ?? 24}" class="spots-in"> hours before it starts (0 = any time)</label>
+      </fieldset>` : ""}
+      <fieldset><legend>Ask a question when they claim</legend>
+        <label class="radio-row"><input type="checkbox" name="ask_note" value="1"${r.ask_note ? " checked" : ""} onchange="var b=this.closest('fieldset').querySelector('.rc-note'); b.hidden=!this.checked; b.querySelector('input[name=note_label]').required=this.checked;"> Ask a question</label>
+        <div class="rc-note"${r.ask_note ? "" : " hidden"}>
+          <input name="note_label" maxlength="80" value="${esc(r.note_label || "")}" placeholder="e.g. What will you bring? or T-shirt size?" aria-label="Question"${r.ask_note ? " required" : ""}>
+          <label class="radio-row"><input type="checkbox" name="note_required" value="1"${r.note_required ? " checked" : ""}> Required</label>
+          <label class="radio-row"><input type="checkbox" name="note_public" value="1"${r.note_public !== false ? " checked" : ""}> Show answers to others, next to their name</label>
+          <p class="fine">Turn that off for private answers (like allergies). You always see the answers on the claimed list and in reports.</p>
+        </div>
+      </fieldset>
+      <div class="rc-actions"><button class="btn-small" type="submit">Save rules</button>
+        <button type="button" class="btn-ghost" onclick="var c=this.closest('.rules-card'); c.classList.remove('editing'); this.form.reset();">Cancel</button></div>
+    </form>`}
+  </section>`;
+}
+
+// Publish & share: a short checklist before publishing; the link and QR once it's live
+function publishCard(r, locked, L) {
+  const mode = SC.claimMode(CUR);
+  const n = r.scheduled || 0;
+  const setupLink = `<a href="/admin/setup/schedule?s=${CUR.id}">change</a>`;
+  const who = { public: "Anyone with the link", family: "Anyone signed in", roster: `Only ${L.participant.many.toLowerCase()} you add` }[mode];
+  if (r.published_at) return `<section class="panel side-card">
+    <div class="bc-head"><h2>Publish &amp; share</h2><span class="pill ok">Live</span></div>
+    <p class="fine">${mode === "public" ? "Share this link or QR code. Anyone with it can claim." : mode === "family" ? "People sign in and find it under <b>My Claims</b>." : `Your ${esc(L.participant.many.toLowerCase())} find it under <b>My Claims</b>.`}</p>
+    ${mode === "public" ? shareBox(r) : ""}
+    ${locked ? "" : publishForm(r, CUR.name)}
+  </section>`;
+  const check = (ok, text) => `<li class="${ok ? "ok" : ""}"><span class="ck">${ok ? "✓" : ""}</span>${text}</li>`;
+  return `<section class="panel side-card">
+    <div class="bc-head"><h2>Ready to publish?</h2><span class="pill warn">Draft</span></div>
+    <ul class="checklist">
+      ${check(n > 0, n > 0 ? `${n} ${esc((n === 1 ? L.slot.one : L.slot.many).toLowerCase())} added` : `Add at least one ${esc(L.slot.one.toLowerCase())}`)}
+      ${check(true, `Who can claim: <b>${esc(who)}</b> (${setupLink})`)}
+      ${check(true, `Rules: ${r.waitlist || r.booking_opens_at || r.ask_note ? "set (see below)" : "the defaults are fine (see below)"}`)}
+    </ul>
+    <p class="fine">${mode === "public" ? "Once published, you'll get a share link and QR code here." : "Once published, people will see it under My Claims."}</p>
+    ${locked ? "" : publishForm(r, CUR.name, "full-btn")}
+  </section>`;
+}
+
 // 1-2 level boards: manage on the left, rules + publishing on the right
 function boardBlock(r, locked, L, acts) {
   const anchor = `round-${r.id}`;
   const depth = SC.depthOf(CUR);
-  const listOnly = !SC.usesCalendar(CUR);
-  const mode = SC.claimMode(CUR);
-  const setupLink = `<a href="/admin/setup/schedule?s=${CUR.id}">Claim Board Setup</a>`;
-  const how = {
-    public: `People get here with the <b>share link</b> or <b>QR code</b> (Who can claim: <b>Anyone with the link</b>, set in ${setupLink}).`,
-    family: `People sign in and find it under <b>My Claims</b> (Who can claim: <b>Anyone signed in</b>, set in ${setupLink}).`,
-    roster: `Only the ${esc(L.participant.many.toLowerCase())} you add can claim it, from <b>My Claims</b> (set in ${setupLink}).`,
-  }[mode];
   return `<div class="board-cols" id="${anchor}">
     <section class="panel bc-main">
-      <div class="bc-head"><h2>${depth === 2 ? `${esc(L.activity.many)} &amp; ${esc(L.slot.many.toLowerCase())}` : `Manage ${esc(L.slot.many.toLowerCase())}`}</h2></div>
+      <div class="bc-head"><h2>${depth === 2 ? `${esc(L.activity.many)} &amp; ${esc(L.slot.many.toLowerCase())}` : esc(L.slot.many)}</h2></div>
       ${depth === 2 ? areasPanel(r, locked, L) : itemsPanel(r, locked, L)}
     </section>
     <aside class="bc-side">
-      <section class="panel side-card">
-        <div class="bc-head"><h2>Rules</h2><span class="opt-pill">Optional</span></div>
-        <p class="rules-sum">${esc(rulesSummary(r, L, acts))}</p>
-        <details class="edit-rules"${locked ? "" : ""}><summary class="btn-ghost">Edit rules</summary>
-          <p class="fine">Leave these alone and anyone who can claim can take as many as they like, starting as soon as you publish.</p>
-          ${limitsForm(r, { returnTo: `${home()}#${anchor}`, readonly: locked, compact: true, activities: acts, listOnly, slotWord: L.slot.many })}
-          ${timingForm(r, locked, anchor, L)}
-        </details>
-      </section>
-      <section class="panel side-card">
-        <div class="bc-head"><h2>Publish &amp; share</h2>${r.published_at ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Not published</span>`}</div>
-        <p class="fine">${r.published_at ? "People can see and claim it." : "Nobody can see it until you publish it (button at the top)."} ${how}</p>
-        ${mode === "public" ? (r.published_at ? shareBox(r) : `<p class="fine">The share link and QR code appear here once it's published.</p>`) : ""}
-        <p class="fine"><a href="/admin/reports?round=${r.id}">Reports</a> for this board.</p>
-      </section>
+      ${publishCard(r, locked, L)}
+      ${rulesCard(r, locked, L, acts)}
     </aside>
   </div>`;
 }
@@ -468,9 +543,10 @@ function newSchedulePage({ user, flash }) {
 
         <div class="wz-step" data-step="2" hidden>
           <h2>Structure</h2>
-          <p class="muted tight">How is it organized? The last level is what people claim.</p>
+          <p class="muted tight">How is it organized? Pick one. The last level is what people claim.</p>
+          <p class="alert" id="wz-pick-err" hidden>Pick a structure to continue.</p>
           <div class="choice-grid">${CHOICES.map(([k, icon, title, depth, use, ex]) => `<label class="choice struct">
-            <input type="radio" name="preset" value="${k}"${k === "training" ? " checked" : ""}>
+            <input type="radio" name="preset" value="${k}" required>
             <span class="choice-icon" aria-hidden="true">${icon}</span>
             <span class="choice-body"><b>${title} <em>${depth}</em></b><span class="lv">${esc(levels(PRE[k]))}</span><span>${esc(use)}</span><span class="ex">e.g. ${esc(ex)}</span></span>
             <span class="choice-check" aria-hidden="true">✓</span></label>`).join("")}</div>
@@ -512,7 +588,8 @@ function newSchedulePage({ user, flash }) {
       var $ = function (sel) { return form.querySelector(sel); };
       var val = function (n) { var el = form.querySelector('input[name="' + n + '"]:checked'); return el ? el.value : ""; };
       function set(n, v) { if (touched[n]) return; var el = form.querySelector('input[name="' + n + '"][value="' + v + '"]'); if (el) el.checked = true; }
-      function defaults() { var d = D[val("preset")]; if (!d) return; set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated); if (!val("pick")) set("pick", "calendar"); refresh(); }
+      function defaults() { var d = D[val("preset")]; if (!d) return; set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated); if (!val("pick")) set("pick", "calendar"); refresh();
+        var err = document.getElementById("wz-pick-err"); if (err) err.hidden = true; }
       function refresh() {
         document.getElementById("wz-views").hidden = val("dated") !== "yes";
         var who = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" }[val("claim")] || "";
@@ -532,6 +609,7 @@ function newSchedulePage({ user, flash }) {
       }
       document.getElementById("wz-next").addEventListener("click", function () {
         if (step === 1 && !form.name.value.trim()) { form.name.reportValidity(); return; }
+        if (step === 2 && !val("preset")) { document.getElementById("wz-pick-err").hidden = false; return; }
         show(step + 1);
       });
       document.getElementById("wz-back").addEventListener("click", function () { show(step - 1); });
@@ -555,15 +633,14 @@ function boardHeader(sc, L, depth, main, rounds, locked) {
       <div class="bh-actions">
         <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">⚙ Settings</a>
         ${depth >= 3 && !locked ? `<a class="btn-ghost" href="/admin/import?s=${sc.id}">Import schedule</a>` : ""}
-        ${depth <= 2 && main && !locked ? `<form method="post" action="/admin/rounds/${main.id}/publish">${back()}
-          <button class="${main.published_at ? "btn-ghost" : "btn-small"}" type="submit">${main.published_at ? "Unpublish" : "Publish board"}</button></form>` : ""}
+        ${depth <= 2 && main && !locked ? publishForm(main, sc.name) : ""}
       </div>
     </section>
     ${locked ? `<p class="rule">Archived: hidden from people and read-only. Reopen it from the Claim Boards page to make changes.</p>` : ""}
     <div class="stat-tiles">
       <div><span class="st-n">${sum("scheduled")}</span><span class="st-l">${esc(L.slot.many)}</span></div>
       <div><span class="st-n">${sum("spots")}</span><span class="st-l">Total spots</span></div>
-      <div><span class="st-n">${sum("claimed")}</span><span class="st-l">Claimed</span></div>
+      ${sum("claimed") ? `<div><span class="st-n">${sum("claimed")}</span><span class="st-l">Claimed</span></div>` : ""}
       ${depth >= 3 ? `<div><span class="st-n">${rounds.length}</span><span class="st-l">${esc(L.middle.many)}</span></div>` : ""}
     </div>`;
 }

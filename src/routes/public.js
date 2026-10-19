@@ -30,10 +30,11 @@ async function slots(roundId, mode = "initial") {
      ORDER BY s.starts_at NULLS FIRST, p.activity, s.id`, [roundId])).rows;
   if (mode !== "off" && rows.length) {
     const names = (await query(
-      `SELECT x.session_id, a.first_name, a.last_name FROM reservations x JOIN athletes a ON a.id=x.athlete_id
-       WHERE x.session_id = ANY($1) AND x.status='confirmed' ORDER BY x.created_at`, [rows.map((r) => r.id)])).rows;
+      `SELECT x.session_id, a.first_name, a.last_name, CASE WHEN (SELECT note_public FROM rounds WHERE id=$2) THEN x.note END AS note
+     FROM reservations x JOIN athletes a ON a.id=x.athlete_id
+       WHERE x.session_id = ANY($1) AND x.status='confirmed' ORDER BY x.created_at`, [rows.map((r) => r.id), roundId])).rows;
     for (const r of rows) r.going = names.filter((n) => n.session_id === r.id)
-      .map((n) => (mode === "full" ? `${n.first_name} ${n.last_name}` : `${n.first_name} ${(n.last_name || "").slice(0, 1)}.`));
+      .map((n) => (mode === "full" ? `${n.first_name} ${n.last_name}` : `${n.first_name} ${(n.last_name || "").slice(0, 1)}.`) + (n.note ? ` · ${n.note}` : ""));
   }
   return rows;
 }
@@ -62,7 +63,7 @@ router.post("/:token/:sid", wrap(async (req, res) => {
   const s = await loadSlot(r, int(req.params.sid));
   if (!s) return res.redirect(`/s/${r.share_token}?err=${encodeURIComponent("That time is no longer available.")}`);
   const b = req.body;
-  const values = { first_name: str(b.first_name).slice(0, 40), last_name: str(b.last_name).slice(0, 40), email: auth.normalizeEmail(b.email) };
+  const values = { first_name: str(b.first_name).slice(0, 40), last_name: str(b.last_name).slice(0, 40), email: auth.normalizeEmail(b.email), note: str(b.note).slice(0, 120) };
   const again = (err) => res.status(400).send(v.formPage({ user: req.user, round: r, slot: s, values, err }));
   if (str(b.website)) return again("Something went wrong. Please try again."); // bots fill the hidden field
   if (!values.first_name || !values.last_name) return again("Enter the first and last name of the person signing up.");
@@ -79,7 +80,7 @@ router.post("/:token/:sid", wrap(async (req, res) => {
     await query(`INSERT INTO parent_athletes (user_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [user.id, p.id]);
   }
   try {
-    const out = await booking.reserve({ userId: user.id, athleteId: p.id, sessionId: s.id });
+    const out = await booking.reserve({ userId: user.id, athleteId: p.id, sessionId: s.id, note: b.note });
     notify(out.status, out.reservationId);
     res.send(v.donePage({ user: req.user, round: r, slot: s, values, status: out.status }));
   } catch (e) {

@@ -60,6 +60,7 @@ function formPage({ user, round: r, slot: s, values = {}, err }) {
         <div class="pair"><div><label>First name<input name="first_name" required maxlength="40" value="${esc(values.first_name)}" autocomplete="given-name"></label></div>
           <div><label>Last name<input name="last_name" required maxlength="40" value="${esc(values.last_name)}" autocomplete="family-name"></label></div></div>
         <label>Your email<input type="email" name="email" required value="${esc(values.email)}" autocomplete="email" inputmode="email"></label>
+        ${r.ask_note ? `<label>${esc(r.note_label || "Your answer")}${r.note_required ? "" : " (optional)"}<input name="note" maxlength="120"${r.note_required ? " required" : ""} value="${esc(values.note)}"></label>` : ""}
         <p class="fine">Name the person who's coming (you, or your child). We'll email the confirmation here.</p>
         <div class="hp" aria-hidden="true"><label>Leave blank<input name="website" tabindex="-1" autocomplete="off"></label></div>
         <button class="btn" type="submit">Claim it</button>
