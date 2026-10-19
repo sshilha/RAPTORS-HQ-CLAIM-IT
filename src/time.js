@@ -30,4 +30,5 @@ const isLocal = (s) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s);
 // SQL fragment that turns a Central-time "YYYY-MM-DD HH:MM" param into timestamptz
 const localSql = (n) => `($${n}::timestamp AT TIME ZONE '${TZ}')`;
 
-module.exports = { itemLabel, fmtDay, fmtTime, fmtDateTime, fmtRange, inputParts, isDate, isTime, isLocal, localSql };
+const localDate = (ts) => inputParts(ts).date;
+module.exports = { localDate, itemLabel, fmtDay, fmtTime, fmtDateTime, fmtRange, inputParts, isDate, isTime, isLocal, localSql };

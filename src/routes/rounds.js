@@ -184,6 +184,8 @@ router.post("/:id/rules", wrap(async (req, res) => {
   go(res, dest(req, `/admin/rounds/${id}`), { ok: "Rules saved." });
 }));
 
+const readTri = (v) => (v === "on" ? true : v === "off" ? false : null);
+
 // ---------- items (the claimable things at the end of a board) ----------
 // An item's optional date and time: all three, or none (an undated item)
 function readWhen(b) {
@@ -221,6 +223,7 @@ router.post("/:id/areas/:pid", wrap(async (req, res) => {
   const p = (await query(`SELECT * FROM programs WHERE id=$1 AND round_id=$2`, [pid, id])).rows[0];
   const name = str(req.body.name).replace(/\s+/g, " ").slice(0, 40);
   if (!p || !name) return go(res, dest(req, `/admin/rounds/${id}`), { err: "Enter a name." });
+  if (req.body.attendance !== undefined) await query(`UPDATE programs SET attendance=$2 WHERE id=$1`, [pid, readTri(req.body.attendance)]);
   if (name !== p.activity) {
     const catalog = require("../catalog");
     const c = catalog.current();
@@ -275,6 +278,7 @@ router.post("/:id/items/:sid", wrap(async (req, res) => {
     const promoted = await booking.updateSessionCapacity(sid, { capacity: cap, apply: async (db) => {
       await db.query(`UPDATE training_sessions SET title=$2, capacity=$3 WHERE id=$1 AND program_id IN (SELECT id FROM programs WHERE round_id=$4)`, [sid, title, cap, id]);
       if (req.body.location !== undefined) await db.query(`UPDATE training_sessions SET location=$2 WHERE id=$1`, [sid, str(req.body.location).slice(0, 80) || null]);
+      if (req.body.attendance !== undefined) await db.query(`UPDATE training_sessions SET attendance=$2 WHERE id=$1`, [sid, readTri(req.body.attendance)]);
       if (when.shown) await db.query(`UPDATE training_sessions SET
           starts_at = CASE WHEN $2::text IS NULL THEN NULL ELSE ($2::text::timestamp AT TIME ZONE 'America/Chicago') END,
           ends_at   = CASE WHEN $3::text IS NULL THEN NULL ELSE ($3::text::timestamp AT TIME ZONE 'America/Chicago') END WHERE id=$1`,
@@ -379,6 +383,7 @@ router.post("/:id/types/:pid", wrap(async (req, res) => {
   const only = [].concat(req.body.only_tags || []).map(String).filter((x) => (bsc && bsc.tags || []).includes(x)).sort();
   await query(`UPDATE programs SET default_capacity=$2, default_coach=$3, block_minutes=$4, waitlist=$5, required_tags=$6 WHERE id=$1`,
     [pid, spots, coach, R.cleanBlock(req.body.block), R.readWaitlist(req.body.waitlist), req.body.tags_shown ? only : p.required_tags]);
+  if (req.body.attendance !== undefined) await query(`UPDATE programs SET attendance=$2 WHERE id=$1`, [pid, readTri(req.body.attendance)]);
   if (req.body.tags_shown) await R.syncPrograms({ query }, await getRound(id));
 
   // Apply to everything already scheduled; never drop below who's already reserved

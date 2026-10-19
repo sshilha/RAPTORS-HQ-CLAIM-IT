@@ -52,10 +52,12 @@ function gateLayout({ title, body, flash }) {
 </html>`;
 }
 
-function bottomNav(tab, admin) {
+function bottomNav(tab, admin, coach) {
   const items = [
     ["home", "/dashboard", "🏠", "My Claims"],
-    ...(admin ? [["settings", "/admin/settings", "🗂️", "Claim Boards"], ["reports", "/admin/reports", "📊", "Reports"]] : []),
+    ...(admin ? [["settings", "/admin/settings", "🗂️", "Claim Boards"]] : []),
+    ...(admin || coach ? [["checkin", "/checkin", "✅", "Check-in"]] : []),
+    ...(admin ? [["reports", "/admin/reports", "📊", "Reports"]] : []),
   ];
   const active = SETTINGS_AREA.includes(tab) ? "settings" : tab || "home";
   return `<nav class="site-nav" aria-label="Main">${items.map(([k, href, icon, label]) =>
@@ -63,9 +65,10 @@ function bottomNav(tab, admin) {
 }
 
 // On wider screens the main links sit in the top bar (phones keep the bottom bar)
-function topNav(tab) {
+function topNav(tab, admin, coach) {
   const active = SETTINGS_AREA.includes(tab) ? (tab === "settings" ? "app" : "settings") : tab || "home";
-  const items = [["home", "/dashboard", "My Claims"], ["settings", "/admin/settings", "Claim Boards"], ["reports", "/admin/reports", "Reports"], ["app", "/admin/settings/app", "⚙ App"]];
+  const items = [["home", "/dashboard", "My Claims"], ...(admin ? [["settings", "/admin/settings", "Claim Boards"]] : []),
+    ...(admin || coach ? [["checkin", "/checkin", "Check-in"]] : []), ...(admin ? [["reports", "/admin/reports", "Reports"], ["app", "/admin/settings/app", "⚙ App"]] : [])];
   return `<nav class="top-nav" aria-label="Main">${items.map(([k, href, label]) =>
     `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>`;
 }
@@ -85,19 +88,21 @@ ${foot()}
 }
 
 function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, tab, pub }) {
+  const coach = !!(user && user.is_coach);
+  if (user && require("../auth").isAdmin(user)) admin = admin || true; // admins always get their links
   if (pub && !user) return publicLayout({ title, body, flash });
   if (gate || !user) return gateLayout({ title, body, flash });
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
   return `${head(title)}
-<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" ? "admin-area" : "member-area"}">
+<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">
 <header class="appbar">
   <div class="appbar-inner${w}">
     <a class="brand" href="/dashboard">
       <img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}">
       <span class="brand-text sr-only"><span class="brand-mark"><span class="bm-long">${esc(LABELS.app_name)}</span><span class="bm-short">${esc(LABELS.app_short)}</span></span><span class="brand-org">${esc(LABELS.org_name)}</span></span>
     </a>
-    ${admin ? topNav(tab) : ""}
+    ${admin || coach ? topNav(tab, admin, coach) : ""}
     <span class="spacer"></span>
     <div class="who"><b>${esc(user.email)}</b>
       <form method="post" action="/logout"><button class="link-btn" type="submit">Sign out</button></form></div>
@@ -105,7 +110,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
 </header>
 <main class="page${w}${ro}">${flashHtml(flash)}${body}</main>
 ${foot()}
-${admin ? bottomNav(tab, admin) : ""}
+${admin || coach ? bottomNav(tab, admin, coach) : ""}
 </body>
 </html>`;
 }

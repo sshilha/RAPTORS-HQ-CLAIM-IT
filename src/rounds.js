@@ -215,8 +215,10 @@ async function copyRound(db, src, { name, starts_on, ends_on, season_id, offsetD
        cancel_hours, location, activity_defaults, time_slots, activity_limits, unlock_hours, waitlist,
        COALESCE((SELECT schedule_id FROM seasons WHERE id=$6), $8, schedule_id), signup_mode, is_main FROM rounds WHERE id=$1 RETURNING *`,
     [src.id, offsetDays, name, starts_on, ends_on, season_id, !!shiftRules, schedule_id || null])).rows[0];
-  for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows)
-    await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach, block: p.block_minutes, waitlist: p.waitlist, tags: p.required_tags, section: p.section });
+  for (const p of (await db.query(`SELECT * FROM programs WHERE round_id=$1`, [src.id])).rows) {
+    const np = await ensureProgram(db, round, p.activity, p.age_groups, { capacity: p.default_capacity, coach: p.default_coach, block: p.block_minutes, waitlist: p.waitlist, tags: p.required_tags, section: p.section });
+    if (p.attendance != null) await db.query(`UPDATE programs SET attendance=$2 WHERE id=$1`, [np.id, p.attendance]);
+  }
   const sess = (await db.query(
     `SELECT p.activity, p.age_groups, p.required_tags AS tags, p.section, s.capacity, s.coach, s.location, s.notes, s.title,
        to_char((s.starts_at AT TIME ZONE 'America/Chicago')::date + $2::int, 'YYYY-MM-DD') AS date,

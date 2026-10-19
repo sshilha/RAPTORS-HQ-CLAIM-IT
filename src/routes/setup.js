@@ -37,7 +37,7 @@ router.get("/", wrap(async (req, res) => {
      FROM programs p WHERE p.round_id IS NULL ORDER BY p.archived, p.name`)).rows;
   for (const r of rounds) r.types = types.filter((t) => t.round_id === r.id);
   const items = (await query(
-    `SELECT s.*, p.round_id, p.activity, p.age_groups, p.required_tags, p.section,
+    `SELECT s.*, p.round_id, p.activity, p.age_groups, p.required_tags, p.section, p.attendance AS p_attendance,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS claimed,
        (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='waitlisted') AS waitlisted
      FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
@@ -56,7 +56,8 @@ router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req
     (SELECT count(*) FROM schedule_members WHERE schedule_id=$1) AS members`, [sc.id])).rows[0];
   if (req.path.endsWith("/more")) return res.redirect(`/admin/setup/schedule?s=${sc.id}#locations`); // merged into Setup
   const part = req.path.endsWith("/archive") ? "archive" : "structure";
-  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, counts: { items: Number(counts.items), members: Number(counts.members) } }));
+  const coaches = (await query(`SELECT email FROM schedule_coaches WHERE schedule_id=$1 ORDER BY email`, [sc.id])).rows.map((r) => r.email);
+  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, counts: { items: Number(counts.items), members: Number(counts.members), coaches } }));
 }));
 
 // ---------- schedules ----------
@@ -181,6 +182,26 @@ router.post("/schedules/:id/copy", wrap(async (req, res) => {
   if (out.members) bits.push(n(out.members, L.participant));
   if (calendar) bits.push(SC.depthOf(sc) >= 3 ? `${n(out.rounds, L.middle)} and ${n(out.sessions, L.slot)} (as drafts)` : `${n(out.sessions, L.slot)} (unpublished)`);
   go(res, `/admin/setup?s=${out.board.id}`, { ok: `Created ${name} from ${sc.name}${bits.length ? ` with ${bits.join("; ")}` : ""}.` });
+}));
+
+// ---------- attendance: board default + coaches ----------
+router.post("/schedules/:id/attendance", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  await query(`UPDATE schedules SET track_attendance=$2 WHERE id=$1`, [id, req.body.track === "on"]);
+  go(res, `/admin/setup/schedule?s=${id}#attendance`, { ok: req.body.track === "on" ? "Attendance is tracked by default." : "Attendance isn't tracked by default." });
+}));
+router.post("/schedules/:id/coaches", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const email = require("../auth").normalizeEmail(req.body.email);
+  if (!require("../auth").isValidEmail(email)) return go(res, `/admin/setup/schedule?s=${id}#attendance`, { err: "Enter a valid email." });
+  await query(`INSERT INTO schedule_coaches (schedule_id, email) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [id, email]);
+  await require("../auth").findOrCreateUser(email);
+  go(res, `/admin/setup/schedule?s=${id}#attendance`, { ok: `${email} can now take attendance on this board.` });
+}));
+router.post("/schedules/:id/coaches/remove", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  await query(`DELETE FROM schedule_coaches WHERE schedule_id=$1 AND email=$2`, [id, str(req.body.email)]);
+  go(res, `/admin/setup/schedule?s=${id}#attendance`, { ok: "Coach removed." });
 }));
 
 router.post("/schedules/:id/archive", wrap(async (req, res) => {

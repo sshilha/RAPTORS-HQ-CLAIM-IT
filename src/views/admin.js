@@ -149,7 +149,7 @@ const rosterRows = (rows, kind, qLabel = "") => rows.length ? `<div class="table
   <thead><tr>${kind === "wait" ? "<th>#</th>" : ""}<th>Athlete</th><th>Age</th><th>Parents</th><th>Booked</th><th></th></tr></thead>
   <tbody>${rows.map((r, i) => `<tr>
     ${kind === "wait" ? `<td>${i + 1}</td>` : ""}
-    <td>${esc(r.first_name)} ${esc(r.last_name)}${r.note ? `<div class="fine">${esc(qLabel ? `${qLabel}: ` : "")}${esc(r.note)}</div>` : ""}</td><td>${esc(r.age_group || "")}</td>
+    <td>${esc(r.first_name)} ${esc(r.last_name)}${r.attended === true ? ` <span class="pill ok">Here</span>` : r.attended === false ? ` <span class="pill warn">No-show</span>` : ""}${r.note ? `<div class="fine">${esc(qLabel ? `${qLabel}: ` : "")}${esc(r.note)}</div>` : ""}</td><td>${esc(r.age_group || "")}</td>
     <td>${esc(r.emails.join(", "))}</td><td>${esc(fmtDateTime(r.created_at))}</td>
     <td><form method="post" action="/admin/reservations/${r.id}/cancel" onsubmit="return confirm('Remove ${esc(r.first_name)}? They'll get an email.')">
       <button class="btn-ghost" type="submit">Remove</button></form></td></tr>`).join("")}</tbody></table></div>`
@@ -180,7 +180,8 @@ const sessionPage = ({ user, session: s, program: p, round, confirmed, waitlist,
     <div class="athlete-head"><h1>${esc(require("../time").itemLabel(s))}</h1>${s.canceled_at ? `<span class="pill">Canceled</span>` : ""}</div>
     <p class="muted">${[s.location, s.coach && `Coach ${s.coach}`].filter(Boolean).map(esc).join(", ")}</p>
     ${lockPanel(s, p, round)}
-    <h2>Claimed (${confirmed.length} of ${s.capacity})</h2>${rosterRows(confirmed, "ok", qLabel)}
+    <h2>Claimed (${confirmed.length} of ${s.capacity})</h2>
+    <p><a class="btn-ghost" href="/checkin/${s.id}">✅ Take attendance</a></p>${rosterRows(confirmed, "ok", qLabel)}
     <h2>Waitlist</h2>${rosterRows(waitlist, "wait", qLabel)}
   </section>
   ${s.canceled_at ? "" : `<section class="panel">

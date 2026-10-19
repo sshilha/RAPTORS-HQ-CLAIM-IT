@@ -15,6 +15,7 @@ const REPORTS = {
   summary: "Activity and group summary",
   athletes: "Athlete participation",
   reservations: "Reservation detail",
+  attendance: "Attendance",
 };
 
 const BASE = `FROM training_sessions s JOIN programs p ON p.id=s.program_id
@@ -148,6 +149,34 @@ const builders = {
       rows: rows.map((r) => ({ ...r, athlete: `${r.last_name}, ${r.first_name}`, parents: r.emails.join(", "), link: `/admin/athletes/${r.id}` })),
       totals: (rs) => Object.fromEntries(["reserved", "waitlisted", "canceled", ...ACTIVITIES.map((a) => `a_${a}`)].map((k) => [k, sum(rs, k)])),
       note: "Counts are reservations, not attendance. Age group filters by the athlete's age group.",
+    };
+  },
+
+  async attendance(f) {
+    const params = [];
+    const { sql } = where(f, "athlete", params);
+    const rows = (await query(
+      `SELECT a.id, a.first_name, a.last_name,
+         count(*)::int AS claimed,
+         count(*) FILTER (WHERE x.attended)::int AS here,
+         count(*) FILTER (WHERE x.attended = false)::int AS noshow,
+         count(*) FILTER (WHERE x.attended IS NULL)::int AS unmarked,
+         count(*) FILTER (WHERE x.walk_in)::int AS walkins
+       FROM reservations x JOIN athletes a ON a.id=x.athlete_id JOIN training_sessions s ON s.id=x.session_id
+       JOIN programs p ON p.id=s.program_id LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN seasons se ON se.id=rd.season_id
+       LEFT JOIN schedules sc ON sc.id=rd.schedule_id
+       WHERE x.status='confirmed' AND s.canceled_at IS NULL AND COALESCE(s.attendance, p.attendance, sc.track_attendance, false)
+         AND (s.starts_at IS NULL OR s.starts_at <= now()) ${sql}
+       GROUP BY a.id ORDER BY a.last_name, a.first_name`, params)).rows;
+    const pct = (r) => (r.here + r.noshow ? Math.round((100 * r.here) / (r.here + r.noshow)) + "%" : "–");
+    return {
+      columns: [
+        { key: "athlete", label: "Person" }, { key: "claimed", label: "Claimed", num: true }, { key: "here", label: "Here", num: true },
+        { key: "noshow", label: "No-show", num: true }, { key: "unmarked", label: "Not marked", num: true }, { key: "walkins", label: "Walk-ins", num: true },
+        { key: "rate", label: "Showed up" },
+      ],
+      rows: rows.map((r) => ({ ...r, athlete: `${r.last_name}, ${r.first_name}`, rate: pct(r), link: `/admin/athletes/${r.id}` })),
+      note: "Only items that track attendance and have already started (or have no date). Showed up = here ÷ (here + no-show).",
     };
   },
 

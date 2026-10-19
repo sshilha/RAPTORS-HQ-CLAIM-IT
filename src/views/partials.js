@@ -62,6 +62,14 @@ function onlyFor(boardTags, chosen = [], formId) {
     `<label class="tag-box${chosen.includes(t) ? " on" : ""}"><input type="checkbox" name="only_tags" value="${esc(t)}"${f}${chosen.includes(t) ? " checked" : ""}> ${esc(t)}</label>`).join("")}</span>`;
 }
 
+// Attendance override: follow the level above, or force on/off
+function attendanceSelect(value, inherited, attrs = "") {
+  return `<select name="attendance" ${attrs}>
+    <option value=""${value == null ? " selected" : ""}>Default (${inherited ? "track" : "don't track"})</option>
+    <option value="on"${value === true ? " selected" : ""}>Track attendance</option>
+    <option value="off"${value === false ? " selected" : ""}>Don't track</option></select>`;
+}
+
 // Who can sign up for a sheet
 function modeForm(round, { returnTo, readonly } = {}) {
   const { MODES } = require("../schedules");
@@ -128,4 +136,4 @@ document.querySelectorAll(".unlock-never").forEach(function (c) {
 });
 </script>`;
 
-module.exports = { onlyFor, swatch, blockSelect, spotsLabel, limitsTable, limitsForm, limitsScript, unlockFields, waitlistSelect, modeForm, shareBox };
+module.exports = { attendanceSelect, onlyFor, swatch, blockSelect, spotsLabel, limitsTable, limitsForm, limitsScript, unlockFields, waitlistSelect, modeForm, shareBox };

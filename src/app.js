@@ -11,6 +11,10 @@ app.use(express.urlencoded({ extended: false, limit: "15mb" })); // room for upl
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(auth.loadUser);
+// Coaches (not admins) get a Check-in link; remember that on the signed-in user
+app.use(async (req, res, next) => {
+  try { if (req.user && !auth.isAdmin(req.user)) req.user.is_coach = await require("./attendance").isCoach(req.user); next(); } catch (e) { next(e); }
+});
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use(require("./routes/auth"));
@@ -31,6 +35,7 @@ app.use("/admin/day", require("./routes/roster"));
 app.use("/admin/reports", require("./routes/reports"));
 app.use("/admin", require("./routes/admin"));
 app.use("/s", require("./routes/public")); // public sign-up sheets (no account needed)
+app.use("/checkin", require("./routes/checkin")); // attendance (admins + coaches)
 app.use(require("./routes/parent"));
 
 app.use((req, res) => res.status(404).send(errorPage("That page doesn't exist.")));

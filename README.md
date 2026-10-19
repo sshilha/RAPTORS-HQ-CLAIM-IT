@@ -83,6 +83,13 @@ spots, claimed), then for 1–2 level boards two columns: **Manage items** on th
 (one-line summary + Edit rules) and **Publish & share** (status, share link/QR once published) on
 the right. 3–4 level boards keep their rounds list under the same header.
 
+**Attendance:** Claim Board Setup → Attendance sets the board default (track or not) and the
+**Coaches** (emails) who may take attendance on that board. Each activity in a round, each area
+(2-level), or each item (1-level) can override it (e.g. track Hitting, not Cage Time). The
+**Check-in** page (admins: all boards; coaches: their boards only, nothing else) lists the day's
+tracked sessions; tap one to mark ✓ Here / ✗ No-show, Mark everyone else here, or add a walk-in.
+Reports → **Attendance**: claimed, here, no-show, not marked, walk-ins, showed-up %.
+
 **Open** (on the card) shows the board itself: its rounds or items, calendar, and rules.
 **Settings** (on the card) walks through setup as numbered steps: 1 Name & structure,
 2 Activities (skipped for 1-level boards), 3 Groups & tags, 4 People, 5 Locations & family

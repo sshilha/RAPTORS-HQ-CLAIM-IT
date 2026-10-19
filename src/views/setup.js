@@ -4,7 +4,7 @@ const { colorFor } = require("../config");
 const { fmtDateTime } = require("../time");
 const { typeLabel, defaultsFor } = require("../rounds");
 const { niceRange, shortRange, statusPill } = require("./rounds");
-const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox, onlyFor } = require("./partials");
+const { blockSelect, spotsLabel, limitsForm, limitsScript, waitlistSelect, modeForm, shareBox, onlyFor, attendanceSelect } = require("./partials");
 const SC = require("../schedules");
 const { LABELS } = require("../config");
 
@@ -38,7 +38,8 @@ function itemRow(it, r, locked, L) {
   const f = `it-${it.id}`, st = it.starts_at ? inputParts(it.starts_at) : null, en = it.ends_at ? inputParts(it.ends_at) : null;
   const who = [...(it.only_groups || []), ...(it.only_tags || [])];
   const meta = [it.starts_at ? fmtRange(it.starts_at, it.ends_at) : "", `${it.capacity} spot${it.capacity === 1 ? "" : "s"}`,
-    it.location ? `📍 ${it.location}` : "", who.length ? `Only for ${who.join(", ")}` : ""].filter(Boolean);
+    it.location ? `📍 ${it.location}` : "", who.length ? `Only for ${who.join(", ")}` : "",
+    (it.attendance ?? it.p_attendance ?? CUR.track_attendance) ? "✓ attendance" : ""].filter(Boolean);
   const claimed = `<a class="ir-claimed" href="/admin/sessions/${it.id}" title="See who claimed it">${it.claimed ? `${it.claimed} claimed` : "No claims yet"}${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}</a>`;
   return `<li class="irow" data-item="${it.id}">
     <div class="ir-view">
@@ -48,13 +49,14 @@ function itemRow(it, r, locked, L) {
     ${locked ? "" : `<div class="ir-edit">
       <form id="${f}" method="post" action="/admin/rounds/${r.id}/items/${it.id}">${back(`items-${r.id}`)}${dated ? `<input type="hidden" name="when_shown" value="1">` : ""}</form>
       <div class="ir-fields">
-        <label class="mini">Name<input form="${f}" name="title" value="${esc(it.title || "")}" maxlength="80" required class="ir-title"></label>
+        <label class="mini">Name<input form="${f}" name="title" value="${esc(it.title || "")}" maxlength="80" required class="ir-title" size="${Math.max(12, (it.title || "").length + 2)}" oninput="this.size=Math.max(12,this.value.length+2)"></label>
         ${dated ? `<label class="mini">Date<input form="${f}" type="date" name="date" value="${st ? st.date : ""}"></label>
           <label class="mini">Start<input form="${f}" type="time" name="start_time" value="${st ? st.time : ""}"></label>
           <label class="mini">End<input form="${f}" type="time" name="end_time" value="${en ? en.time : ""}"></label>` : ""}
         <label class="mini">Spots<input form="${f}" type="number" name="capacity" min="1" max="500" value="${it.capacity}" class="spots-in"></label>
-        <label class="mini">Location<input form="${f}" name="location" value="${esc(it.location || "")}" list="app-locations" maxlength="80" class="ir-loc"></label>
+        <label class="mini">Location<input form="${f}" name="location" value="${esc(it.location || "")}" list="app-locations" maxlength="80" class="ir-loc" size="${Math.max(10, (it.location || "").length + 2)}" oninput="this.size=Math.max(10,this.value.length+2)" placeholder="Optional"></label>
         ${limited ? `<div class="mini">Who${forPicker(CUR, it.only_groups || [], it.only_tags || [], f)}</div>` : ""}
+        ${SC.depthOf(CUR) === 1 ? `<label class="mini">Attendance${attendanceSelect(it.attendance ?? null, !!CUR.track_attendance, `form="${f}"`)}</label>` : ""}
       </div>
       <div class="ir-edit-actions">
         <button class="btn-small" type="submit" form="${f}">Save</button>
@@ -70,6 +72,7 @@ function itemAdd(r, programId, L, placeholder) {
   const dated = SC.usesCalendar(CUR);
   const limited = SC.restricts(CUR) && (SC.groupsFor(CUR).length || (CUR.tags || []).length);
   return `<form method="post" action="/admin/rounds/${r.id}/items" class="item-add2">${back(`items-${r.id}`)}
+    <span class="ia-title">Add ${esc(SC.an(L.slot.one))}</span>
     <input type="hidden" name="program_id" value="${programId}">${dated ? `<input type="hidden" name="when_shown" value="1">` : ""}
     <input name="title" required maxlength="80" placeholder="${esc(placeholder)}" aria-label="Name" class="ir-title">
     ${dated ? `<input type="date" name="date" aria-label="Date"><input type="time" name="start_time" aria-label="Start"><input type="time" name="end_time" aria-label="End">` : ""}
@@ -89,7 +92,8 @@ function areasPanel(r, locked, L) {
       return `<section class="area">
         <div class="area-head">
           ${locked ? `<h3>${esc(t.activity)}</h3>` : `<form method="post" action="/admin/rounds/${r.id}/areas/${t.id}" class="area-name">${back(`items-${r.id}`)}
-            <input name="name" value="${esc(t.activity)}" maxlength="40" required aria-label="${esc(L.activity.one)} name"><button class="btn-ghost" type="submit">Rename</button></form>`}
+            <input name="name" value="${esc(t.activity)}" maxlength="40" required aria-label="${esc(L.activity.one)} name"><button class="btn-ghost" type="submit">Rename</button>
+            ${attendanceSelect(t.attendance ?? null, !!CUR.track_attendance, `onchange="this.form.submit()" aria-label="Attendance" class="att-sel"`)}</form>`}
           <span class="fine">${its.length} ${esc((its.length === 1 ? L.slot.one : L.slot.many).toLowerCase())} · ${its.reduce((n, i) => n + i.claimed, 0)}/${its.reduce((n, i) => n + i.capacity, 0)} claimed</span>
           ${locked || its.length ? "" : `<form method="post" action="/admin/rounds/${r.id}/areas/${t.id}/delete" onsubmit="return confirm('Remove ${esc(t.activity)}?')">${back(`items-${r.id}`)}<button class="x" type="submit" aria-label="Remove ${esc(t.activity)}">×</button></form>`}
         </div>
@@ -110,6 +114,7 @@ function itemsPanel(r, locked, L) {
     const prog = (r.types || [])[0];
     return `<div class="items-panel" id="items-${r.id}">${require("../locations").datalist()}
       ${locked || !prog ? "" : itemAdd(r, prog.id, L, "e.g. Bring a case of water")}
+      <h3 class="ilist-head">Your ${esc(L.slot.many.toLowerCase())} <span class="fine-inline">(${its.length})</span></h3>
       ${its.length ? `<ul class="ilist">${its.map((it) => itemRow(it, r, locked, L)).join("")}</ul>`
         : `<p class="muted small items-empty">Nothing added yet. Your ${esc(L.slot.many.toLowerCase())} will show here.</p>`}
     </div>`;
@@ -170,13 +175,14 @@ function typesPart(r, locked, L, acts, anchor) {
   const slots = r.time_slots || [];
   return `        <div${depth === 1 ? ' hidden' : ""}>
           <p class="label-like">${esc(L.activity.many)} offered</p>
-          ${r.types.length ? `<table class="types compact"><thead><tr><th>${esc(L.activity.one)}</th><th>Spots</th>${listOnly ? "" : "<th>Split into</th>"}<th>Waitlist</th>${SC.restricts(CUR) && (CUR.tags || []).length ? "<th>Only for</th>" : ""}<th>Coach</th><th>On calendar</th><th></th></tr></thead>
+          ${r.types.length ? `<table class="types compact"><thead><tr><th>${esc(L.activity.one)}</th><th>Spots</th>${listOnly ? "" : "<th>Split into</th>"}<th>Waitlist</th><th>Attendance</th>${SC.restricts(CUR) && (CUR.tags || []).length ? "<th>Only for</th>" : ""}<th>Coach</th><th>On calendar</th><th></th></tr></thead>
             <tbody>${r.types.map((t) => `<tr>
               <td>${swatch(t.activity)}<strong>${t.section ? `${esc(t.section)} › ` : ""}${esc(typeLabel(t.activity, t.age_groups, t.required_tags))}</strong></td>
-              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td>${listOnly ? "" : `<td>${t.block_minutes ? `${t.block_minutes} min` : "Whole"}</td>`}<td>${t.waitlist == null ? "Round default" : t.waitlist ? "On" : "Off"}</td>${SC.restricts(CUR) && (CUR.tags || []).length ? `<td>${esc((t.required_tags || []).join(", ") || "Everyone")}</td>` : ""}<td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
+              ${locked ? `<td>${t.default_capacity || defaultsFor(r, t.activity).capacity}</td>${listOnly ? "" : `<td>${t.block_minutes ? `${t.block_minutes} min` : "Whole"}</td>`}<td>${t.waitlist == null ? "Round default" : t.waitlist ? "On" : "Off"}</td><td>${(t.attendance ?? CUR.track_attendance) ? "Track" : "Don't track"}</td>${SC.restricts(CUR) && (CUR.tags || []).length ? `<td>${esc((t.required_tags || []).join(", ") || "Everyone")}</td>` : ""}<td>${esc(t.default_coach || "")}</td><td>${t.scheduled}</td><td></td>` : `
               <td><input form="st-${t.id}" type="number" name="spots" min="1" max="200" required value="${t.default_capacity || defaultsFor(r, t.activity).capacity}" aria-label="Spots"></td>
               ${listOnly ? "" : `<td>${blockSelect("block", t.block_minutes, `form="st-${t.id}" aria-label="Split into blocks"`)}</td>`}
               <td>${waitlistSelect(t.waitlist, r, `form="st-${t.id}" aria-label="Waitlist"`)}</td>
+              <td>${attendanceSelect(t.attendance ?? null, !!CUR.track_attendance, `form="st-${t.id}" aria-label="Attendance"`)}</td>
               ${SC.restricts(CUR) && (CUR.tags || []).length ? `<td>${onlyFor(CUR.tags, t.required_tags || [], `st-${t.id}`)}</td>` : ""}
               <td><input form="st-${t.id}" name="coach" value="${esc(t.default_coach)}" placeholder="Optional" aria-label="Coach"></td>
               <td>${t.scheduled}</td>
@@ -478,6 +484,22 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
 `,
     more: `    <div class="settings-2">
 
+    <section class="panel" id="attendance">
+      <h2 class="banner">Attendance</h2>
+      <form method="post" action="/admin/setup/schedules/${sc.id}/attendance?s=${sc.id}" class="stack-list checks">
+        <label class="radio-row"><input type="radio" name="track" value="off"${sc.track_attendance ? "" : " checked"}> Don't track attendance by default</label>
+        <label class="radio-row"><input type="radio" name="track" value="on"${sc.track_attendance ? " checked" : ""}> Track attendance by default</label>
+        <p class="fine">${SC.depthOf(sc) >= 2 ? `Each ${esc(L.activity.one.toLowerCase())} can change this (e.g. track Hitting, not Cage Time).` : `Each ${esc(L.slot.one.toLowerCase())} can change this.`} Tracked ones show up on the <a href="/checkin">Check-in</a> page.</p>
+        <div><button class="btn-ghost" type="submit">Save</button></div>
+      </form>
+      <h3>Coaches</h3>
+      <p class="fine">People who can take attendance on this board, on a phone or computer. They sign in with their email and only see Check-in. Admins can always take attendance.</p>
+      ${(counts.coaches || []).length ? `<ul class="slot-list">${counts.coaches.map((e) => `<li><span>${esc(e)}</span>
+        <form method="post" action="/admin/setup/schedules/${sc.id}/coaches/remove?s=${sc.id}"><input type="hidden" name="email" value="${esc(e)}"><button class="x" type="submit" aria-label="Remove ${esc(e)}">×</button></form></li>`).join("")}</ul>` : `<p class="muted">No coaches yet.</p>`}
+      <form method="post" action="/admin/setup/schedules/${sc.id}/coaches?s=${sc.id}" class="inline-add"><label>Coach's email<input type="email" name="email" required placeholder="coach@example.com"></label>
+        <button class="btn-small" type="submit">Add coach</button></form>
+    </section>
+
     <section class="panel" id="family">
       <h2 class="banner">View</h2>
       <p class="fine">What people see of who's going to each ${esc(L.slot.one.toLowerCase())}, so friends can claim spots together. Emails and other contact details are never shown.</p>
@@ -631,9 +653,8 @@ function boardHeader(sc, L, depth, main, rounds, locked) {
   return `<section class="board-head">
       <div class="bh-title"><h1>${esc(sc.name)}</h1>${status}</div>
       <div class="bh-actions">
-        <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">⚙ Settings</a>
+        <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">⚙ ${esc(require("../config").LABELS.schedule)} settings</a>
         ${depth >= 3 && !locked ? `<a class="btn-ghost" href="/admin/import?s=${sc.id}">Import schedule</a>` : ""}
-        ${depth <= 2 && main && !locked ? publishForm(main, sc.name) : ""}
       </div>
     </section>
     ${locked ? `<p class="rule">Archived: hidden from people and read-only. Reopen it from the Claim Boards page to make changes.</p>` : ""}

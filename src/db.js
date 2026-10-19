@@ -224,6 +224,22 @@ async function migrate() {
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS note_required BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE reservations ADD COLUMN IF NOT EXISTS note TEXT;
     ALTER TABLE rounds ADD COLUMN IF NOT EXISTS note_public BOOLEAN NOT NULL DEFAULT true; -- show answers next to names
+    -- Attendance: a board default, overridable on an activity/area (program) or a single item.
+    -- NULL on a program/item means "follow the level above".
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS track_attendance BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE programs ADD COLUMN IF NOT EXISTS attendance BOOLEAN;
+    ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS attendance BOOLEAN;
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS attended BOOLEAN;          -- true here, false no-show, NULL not marked
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS attended_at TIMESTAMPTZ;
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS attended_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS walk_in BOOLEAN NOT NULL DEFAULT false;
+    -- Coaches: people who can take attendance on a board (and nothing else)
+    CREATE TABLE IF NOT EXISTS schedule_coaches (
+      schedule_id INTEGER NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+      email       TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (schedule_id, email)
+    );
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,
