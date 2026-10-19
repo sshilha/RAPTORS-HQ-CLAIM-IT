@@ -57,7 +57,8 @@ router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req
   if (req.path.endsWith("/more")) return res.redirect(`/admin/setup/schedule?s=${sc.id}#locations`); // merged into Setup
   const part = req.path.endsWith("/archive") ? "archive" : "structure";
   const coaches = (await query(`SELECT email FROM schedule_coaches WHERE schedule_id=$1 ORDER BY email`, [sc.id])).rows.map((r) => r.email);
-  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, counts: { items: Number(counts.items), members: Number(counts.members), coaches } }));
+  const published = (await query(`SELECT 1 FROM rounds WHERE schedule_id=$1 AND published_at IS NOT NULL LIMIT 1`, [sc.id])).rowCount > 0;
+  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, counts: { items: Number(counts.items), members: Number(counts.members), coaches, published } }));
 }));
 
 // ---------- schedules ----------

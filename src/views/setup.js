@@ -498,9 +498,38 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   const VIEWS = { list: "No dates: a list", dlist: "Dates and times: list view", calendar: "Dates and times: calendar", both: "Dates and times: list & calendar" };
   const WHO = { initial: "First name + initial", full: "Full names", off: "Hidden" };
   const levelLine = SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ");
+  // ---- right column: the pieces that used to be tabs, shown only when they apply ----
+  const groups = SC.groupsFor(sc), tags = sc.tags || [];
+  const chips = (list) => list.map((x) => `<span class="chip-s">${esc(x)}</span>`).join("");
+  const side = [];
+  if (depth >= 3) side.push(`<section class="panel side-card"><div class="bc-head"><h2>${esc(L.activity.many)}</h2><span class="pill">${SC.activitiesFor(sc).length}</span></div>
+    <p class="fine">The kinds of things on this board, with their default spots, colors, and limits.</p>
+    <a class="btn-ghost" href="/admin/settings/activities?s=${sc.id}">Manage ${esc(L.activity.many.toLowerCase())}</a></section>`);
+  if (SC.restricts(sc)) side.push(`<section class="panel side-card"><div class="bc-head"><h2>${esc(L.group.many)} &amp; tags</h2></div>
+    <p class="fine">Used to limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people.</p>
+    <div class="chip-line"><span class="q-lab">${esc(L.group.many)}</span>${groups.length ? chips(groups) : `<span class="fine">None yet</span>`}</div>
+    <div class="chip-line"><span class="q-lab">Tags</span>${tags.length ? chips(tags) : `<span class="fine">None yet</span>`}</div>
+    <a class="btn-ghost" href="/admin/settings/groups?s=${sc.id}">Manage ${esc(L.group.many.toLowerCase())} &amp; tags</a></section>`);
+  if (SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules))) side.push(`<section class="panel side-card"><div class="bc-head"><h2>${esc(L.participant.many)}</h2><span class="pill">${sc.member_count || 0}</span></div>
+    <p class="fine">${claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add here can claim.` : `Add people here to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>
+    <a class="btn-ghost" href="/admin/members?s=${sc.id}">Manage ${esc(L.participant.many.toLowerCase())}</a></section>`);
+  side.push(`<section class="panel side-card"><div class="bc-head"><h2>When it's over</h2></div>
+    <p class="fine">Copy it for next year, or archive it to hide it from people and make it read-only. Both are on its card in <a href="/admin/settings">Claim Boards</a>.</p></section>`);
+  const tile = (id, label, value) => `<button type="button" class="tile-btn" data-open="${id}"><span class="st-l">${label}</span><span class="tile-v">${value}</span><span class="tile-edit">Edit</span></button>`;
+  const published = !!counts.published;
   return page({
-    title: `Setup · ${sc.name}`, tab, user, flash,
-    body: `<div id="setup-form" class="setup-form">
+    title: `Settings · ${sc.name}`, tab, user, flash, xwide: true,
+    body: `<section class="board-head">
+      <div class="bh-title"><h1>${esc(sc.name)} <span class="h-sub">· Settings</span></h1>${sc.archived_at ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Draft</span>`}</div>
+      <div class="bh-actions"><a class="btn-small" href="/admin/setup?s=${sc.id}">Open board</a></div>
+    </section>
+    <div class="stat-tiles tiles-3">
+      ${tile("claim", "Who can claim", CLAIM[claim])}
+      ${tile("views", "How people see it", VIEWS[pick] || VIEWS.calendar)}
+      ${tile("track", "Attendance", `${sc.track_attendance ? "Tracked" : "Not tracked"} · ${(counts.coaches || []).length} coach${(counts.coaches || []).length === 1 ? "" : "es"}`)}
+    </div>
+    <div class="board-cols">
+    <div id="setup-form" class="setup-form">
     ${section("basics", "Basics", q("name", "Board name", esc(sc.name),
       `<label class="field-l">Board name<input name="name" required value="${esc(sc.name)}" maxlength="60"></label>`))}
 
@@ -570,9 +599,19 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
         ${counts.items ? `<p class="fine">The number of levels is set once a board has ${esc(L.slot.many.toLowerCase())}. To restructure, copy the board without its calendar.</p>` : ""}`)}`)}
 
     </div>
+    <aside class="bc-side">${side.join("")}</aside>
+    </div>
     <script>
     (function () {
       var root = document.getElementById("setup-form");
+      // tiles jump to their question and open it
+      document.querySelectorAll(".tile-btn").forEach(function (t) {
+        t.addEventListener("click", function () {
+          var box = document.getElementById("q-" + t.dataset.open); if (!box) return;
+          box.scrollIntoView({ behavior: "smooth", block: "center" });
+          var b = box.querySelector(".q-edit-btn"); if (b && !b.hidden) b.click();
+        });
+      });
       var VIEWS = { no: "No dates: a list", list: "Dates and times: list view", calendar: "Dates and times: calendar", both: "Dates and times: list & calendar" };
       function val(f, n) { var el = f.querySelector('input[name="' + n + '"]:checked'); return el ? el.value : ""; }
       function lab(f, n) { var el = f.querySelector('input[name="' + n + '"]:checked'); return el ? el.dataset.label : ""; }

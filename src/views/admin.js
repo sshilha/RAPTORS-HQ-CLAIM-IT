@@ -25,22 +25,11 @@ function settingsNav(tab, user) {
   if (BOARD_AREA.includes(tab)) return `<nav class="crumbs no-print">${homeLink}<a class="crumb" href="/admin/setup?s=${sc.id}">${esc(sc.name)}</a>
       ${sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>`;
   const SC = require("../schedules");
-  const L = SC.labels(sc);
-  const steps = STEPS.filter(([k]) => {
-    if (k === "activities") return SC.depthOf(sc) >= 3;
-    if (k === "groups") return SC.restricts(sc);
-    if (k === "members") return SC.needsPeople(sc) || (SC.claimMode(sc) !== "public" && (sc.has_roster || sc.has_tag_rules));
-    return true;
-  });
-  const cur = steps.find((t) => t[4].includes(tab));
+  const cur = STEPS.find((t) => t[4].includes(tab));
   if (!cur) return "";
-  return `<nav class="crumbs no-print">${homeLink}<span class="crumb-name">${esc(sc.name)}</span><span class="crumb-sub">Settings</span>
-      <a class="btn-small crumb-open" href="/admin/setup?s=${sc.id}">Open board</a></nav>
-    <nav class="steps no-print" aria-label="Settings for ${esc(sc.name)}">${steps.map(([k, href, label, count], i) => {
-      const c = count(sc, SC);
-      return `<a href="${href(sc)}"${k === cur[0] ? ' aria-current="step"' : ""}><span class="step-num">${i + 1}</span>
-        <span class="step-text">${esc(label(L))}${c ? `<span class="step-count">${esc(c)}</span>` : ""}</span></a>`;
-    }).join("")}</nav>`;
+  // the settings page has its own header; the pages it links to get a way back
+  if (cur[0] === "structure") return `<nav class="crumbs no-print">${homeLink}</nav>`;
+  return `<nav class="crumbs no-print">${homeLink}<a class="crumb" href="/admin/setup/schedule?s=${sc.id}">← ${esc(sc.name)} settings</a></nav>`;
 }
 const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsNav(opts.tab, opts.user) + opts.body });
 
