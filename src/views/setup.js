@@ -25,11 +25,11 @@ function forPicker(sc, chosenGroups = [], chosenTags = [], formId = "") {
   const picked = [...chosenGroups, ...chosenTags];
   return `<details class="for-pick"><summary>${picked.length ? `Only for ${esc(picked.join(", "))}` : "Everyone"}</summary>
     <div class="for-box"><input type="hidden" name="for_shown" value="1"${f}>
-      <p class="fine for-hint">Who can claim this? Leave everything unchecked for everyone.</p>
+      <p class="fine for-hint">Who can claim this? Leave everything unchecked for everyone.${formId ? " Click the item's Save to keep the change." : ""}</p>
       ${groups.length ? `<div class="for-row"><span class="fine">${esc(SC.labels(sc).group.many)}</span>${groups.map((g) => `<label class="tag-box${chosenGroups.includes(g) ? " on" : ""}"><input type="checkbox" name="only_groups" value="${esc(g)}"${f}${chosenGroups.includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("")}</div>` : ""}
       ${tags.length ? `<div class="for-row"><span class="fine">Tags</span>${tags.map((t) => `<label class="tag-box${chosenTags.includes(t) ? " on" : ""}"><input type="checkbox" name="only_tags" value="${esc(t)}"${f}${chosenTags.includes(t) ? " checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}
       <div class="for-actions">
-        ${formId ? `<button type="submit" class="btn-small" form="${formId}">Save</button>` : `<button type="button" class="btn-small" data-for="done">Done</button>`}
+        <button type="button" class="btn-small" data-for="done">Done</button>
         <button type="button" class="btn-ghost" data-for="cancel">Cancel</button>
       </div>
     </div></details>`;
