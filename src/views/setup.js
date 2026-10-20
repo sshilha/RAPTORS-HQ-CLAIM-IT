@@ -148,7 +148,7 @@ function itemsPanel(r, locked, L) {
     const prog = (r.types || [])[0];
     return `<div class="items-panel" id="items-${r.id}">${require("../locations").datalist()}
       ${locked || !prog ? "" : itemAdd(r, prog.id, L, "e.g. Bring a case of water")}
-      <h3 class="ilist-head">Your ${esc(L.slot.many.toLowerCase())} <span class="fine-inline">(${its.length})</span></h3>
+      <h3 class="ilist-head">Your ${esc(L.slot.many.toLowerCase())} <span class="fine-inline">(${its.length})${its.length ? ` · ${its.reduce((n, i) => n + (i.capacity || 0), 0)} spots${its.some((i) => i.claimed) ? ` · ${its.reduce((n, i) => n + (i.claimed || 0), 0)} claimed` : ""}` : ""}</span></h3>
       ${its.length ? `<ul class="ilist">${its.map((it) => itemRow(it, r, locked, L)).join("")}</ul>`
         : `<p class="muted small items-empty">Nothing added yet. Your ${esc(L.slot.many.toLowerCase())} will show here.</p>`}
     </div>`;
@@ -463,6 +463,17 @@ const LEVEL_INFO = {
   group: () => ["How people are sorted, so things can be limited to certain groups.", "12U, Team, Level"],
 };
 
+// Plain-language descriptions of "Who can claim", used by the wizard and Settings
+function claimHelp(L) {
+  const org = require("../config").LABELS.org_name || "your organization";
+  const people = (L ? L.participant.many : "people").toLowerCase();
+  return {
+    public: `Anyone with the link or QR code can claim. No sign-in: they just type a name and email. <i>Best for public events and donations.</i>`,
+    family: `Anyone who signs in with an email can see it and claim, <strong>not limited to ${esc(org)}</strong>, and you don't keep a list. <i>Best when any help is welcome.</i>`,
+    roster: `Only the ${esc(people)} on this board's list can see it and claim. Parents see just their own kids. <i>Best for training or team-only events.</i>`,
+  };
+}
+
 // "Sat, Feb 7, 2026" or "Feb 7–8, 2026"
 function eventDates(sc) {
   if (!sc.event_date) return "";
@@ -522,7 +533,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       <div class="bh-main">
         <div class="bh-title">${inline("name", `<h1>${esc(sc.name)}</h1>`, `<input name="name" required maxlength="60" value="${esc(sc.name)}" class="inl-name" aria-label="Board name">`)}
           ${sc.archived_at ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Draft</span>`}
-          <span class="h-sub">${I.gear()} Settings</span></div>
+</div>
         <div class="meta-line">
           <span class="meta">${I.calendar()} ${inline("date", `Event date: <b>${dates ? esc(dates) : "Not set"}</b>`,
             `<input type="date" name="event_date" value="${sc.event_date ? String(sc.event_date).slice(0, 10) : ""}" aria-label="Event date">
@@ -561,11 +572,11 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
          ${counts.items ? `<p class="fine">The number of levels is set once a board has ${esc(L.slot.many.toLowerCase())}. To restructure, copy the board without its calendar.</p>` : ""}`)}
 
       ${sec("who", I.users(), "Who can claim", "Who can see this board and claim from it, and whether some things are limited.",
-        rows([["Who can claim", CLAIM[claim]], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
+        rows([["Who can claim", `${CLAIM[claim]}<div class="fine">${{ public: "No sign-in needed; anyone with the link.", family: `Anyone who signs in, not just ${esc(require("../config").LABELS.org_name || "your organization")}.`, roster: `Only the ${esc(L.participant.many.toLowerCase())} on this board's list.` }[claim]}</div>`], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
         `<div class="opt-row three">
-          ${radio("claim", "public", claim, "Anyone with the link", "Share a link or QR code. People enter a name and email, no account needed.")}
-          ${radio("claim", "family", claim, "Anyone signed in", "People sign in with their email and find it under My Claims.")}
-          ${radio("claim", "roster", claim, "Only people I add", `You add the ${esc(L.participant.many.toLowerCase())}.`)}
+          ${radio("claim", "public", claim, "Anyone with the link", claimHelp(L).public)}
+          ${radio("claim", "family", claim, "Anyone signed in", claimHelp(L).family)}
+          ${radio("claim", "roster", claim, "Only people I add", claimHelp(L).roster)}
         </div>
         <div class="sub-q" data-restrict${claim === "public" ? " hidden" : ""}>
           <p class="q-label">Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people?</p>
@@ -615,15 +626,17 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       ${depth >= 3 ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.grid()}</span><h2>${esc(L.activity.many)}</h2>
           <a class="btn-ghost" href="/admin/settings/activities?s=${sc.id}">${I.gear()} Manage</a></div>
         <p class="fine">${SC.activitiesFor(sc).length} ${esc(L.activity.many.toLowerCase())} with their default spots, colors, and limits.</p></section>` : ""}
-      ${SC.restricts(sc) ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.tag()}</span><h2>${esc(L.group.many)} &amp; tags</h2>
+      ${SC.restricts(sc) || groups.length || tags.length ? `<section class="panel side-card${SC.restricts(sc) ? "" : " not-used"}"><div class="card-head"><span class="ss-ico">${I.tag()}</span><h2>${esc(L.group.many)} &amp; tags</h2>
           <a class="btn-ghost" href="/admin/settings/groups?s=${sc.id}">${I.gear()} Manage</a></div>
-        <p class="fine">Used to limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people.</p>
+        <p class="fine">${SC.restricts(sc) ? `Used to limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people.`
+          : `<b>Not in use:</b> ${claim === "public" ? "this board is open to anyone with the link, so nothing is limited by team or tag." : `"Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}" is set to No.`} They're kept in case you turn it back on.`}</p>
         <div class="chip-line"><span class="q-lab">${esc(L.group.many)} (${groups.length})</span>${groups.length ? chips(groups) : `<span class="fine">None yet</span>`}</div>
         <div class="chip-line"><span class="q-lab">Tags (${tags.length})</span>${tags.length ? chips(tags) : `<span class="fine">None yet</span>`}</div></section>` : ""}
-      ${SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules)) ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span><h2>${esc(L.participant.many)}</h2>
+      ${(() => { const used = SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules)); return used || sc.member_count ? `<section class="panel side-card${used ? "" : " not-used"}"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span><h2>${esc(L.participant.many)}</h2>
           <a class="btn-ghost" href="/admin/members?s=${sc.id}">${I.gear()} Manage</a></div>
-        <p class="fine">${claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add can claim.` : `Add people to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>
-        <div class="big-count"><b>${sc.member_count || 0}</b><span>${esc((sc.member_count === 1 ? L.participant.one : L.participant.many).toLowerCase())}</span></div></section>` : ""}
+        <p class="fine">${!used ? `<b>Not in use:</b> ${claim === "public" ? "this board is open to anyone with the link" : "anyone signed in can claim and nothing is limited"}, so the list isn't needed. It's kept in case you change that.`
+          : claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add can claim.` : `Add people to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>
+        <div class="big-count"><b>${sc.member_count || 0}</b><span>${esc((sc.member_count === 1 ? L.participant.one : L.participant.many).toLowerCase())}</span></div></section>` : ""; })()}
     </aside>
     </div>
     <script>
@@ -707,9 +720,9 @@ function newSchedulePage({ user, flash }) {
           <h2>Settings</h2>
           <p class="muted tight">Filled in for the structure you picked. Change any of them.</p>
           <fieldset class="q"><legend>Who can claim?</legend><div class="choice-row three">
-            ${opt("claim", "public", "Anyone with the link", "You get a share link and QR code. People just enter a name and email.")}
-            ${opt("claim", "family", "Anyone signed in", "People sign in with their email and find it under My Claims.")}
-            ${opt("claim", "roster", "Only people I add", "You add the people who can claim, like a team roster.")}</div></fieldset>
+            ${opt("claim", "public", "Anyone with the link", claimHelp().public)}
+            ${opt("claim", "family", "Anyone signed in", claimHelp().family)}
+            ${opt("claim", "roster", "Only people I add", claimHelp().roster.replace("this board's list", "the list you make"))}</div></fieldset>
           <fieldset class="q"><legend>Limit some things to certain people?</legend><div class="choice-row">
             ${opt("restrict", "no", "No", "Anyone who can claim can claim anything.")}
             ${opt("restrict", "yes", "Yes", "By group or tag, e.g. Salad only for 10U, Catching only for catchers.")}</div></fieldset>
@@ -789,13 +802,7 @@ function boardHeader(sc, L, depth, main, rounds, locked) {
         ${depth >= 3 && !locked ? `<a class="btn-ghost" href="/admin/import?s=${sc.id}">Import schedule</a>` : ""}
       </div>
     </section>
-    ${locked ? `<p class="rule">Archived: hidden from people and read-only. Reopen it from the Claim Boards page to make changes.</p>` : ""}
-    <div class="stat-tiles">
-      <div><span class="st-n">${sum("scheduled")}</span><span class="st-l">${esc(L.slot.many)}</span></div>
-      <div><span class="st-n">${sum("spots")}</span><span class="st-l">Total spots</span></div>
-      ${sum("claimed") ? `<div><span class="st-n">${sum("claimed")}</span><span class="st-l">Claimed</span></div>` : ""}
-      ${depth >= 3 ? `<div><span class="st-n">${rounds.length}</span><span class="st-l">${esc(L.middle.many)}</span></div>` : ""}
-    </div>`;
+    ${locked ? `<p class="rule">Archived: hidden from people and read-only. Reopen it from the Claim Boards page to make changes.</p>` : ""}`;
 }
 
 function setupPage({ user, flash, schedule: sc, rounds, standalone }) {

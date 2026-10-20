@@ -1418,3 +1418,7 @@ table.places input.addr { min-width: 280px; }
 .big-count span { color: var(--muted); font-size: 14px; }
 @media (max-width: 640px) { .ss-rows, .ss-form { margin-left: 0; } .ss-rows dt { flex-basis: 120px; } .inl-form .inl-name { min-width: 0; width: 100%; } }
 .event-line { margin: -4px 0 8px; font-size: 14px; color: var(--text-2); font-weight: 600; }
+.mode-opt .fine strong, .choice-body span strong { display: inline; font: inherit; font-weight: 700; color: var(--navy); text-transform: none; }
+.side-card.not-used { background: #fafbfc; }
+.side-card.not-used .ss-ico { background: #eef1f5; color: #94a3b8; }
+.side-card.not-used h2 { color: var(--muted); }
