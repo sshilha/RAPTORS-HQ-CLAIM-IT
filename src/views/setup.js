@@ -626,17 +626,30 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       ${depth >= 3 ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.grid()}</span><h2>${esc(L.activity.many)}</h2>
           <a class="btn-ghost" href="/admin/settings/activities?s=${sc.id}">${I.gear()} Manage</a></div>
         <p class="fine">${SC.activitiesFor(sc).length} ${esc(L.activity.many.toLowerCase())} with their default spots, colors, and limits.</p></section>` : ""}
-      ${SC.restricts(sc) || groups.length || tags.length ? `<section class="panel side-card${SC.restricts(sc) ? "" : " not-used"}"><div class="card-head"><span class="ss-ico">${I.tag()}</span><h2>${esc(L.group.many)} &amp; tags</h2>
-          <a class="btn-ghost" href="/admin/settings/groups?s=${sc.id}">${I.gear()} Manage</a></div>
-        <p class="fine">${SC.restricts(sc) ? `Used to limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people.`
-          : `<b>Not in use:</b> ${claim === "public" ? "this board is open to anyone with the link, so nothing is limited by team or tag." : `"Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}" is set to No.`} They're kept in case you turn it back on.`}</p>
-        <div class="chip-line"><span class="q-lab">${esc(L.group.many)} (${groups.length})</span>${groups.length ? chips(groups) : `<span class="fine">None yet</span>`}</div>
-        <div class="chip-line"><span class="q-lab">Tags (${tags.length})</span>${tags.length ? chips(tags) : `<span class="fine">None yet</span>`}</div></section>` : ""}
-      ${(() => { const used = SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules)); return used || sc.member_count ? `<section class="panel side-card${used ? "" : " not-used"}"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span><h2>${esc(L.participant.many)}</h2>
-          <a class="btn-ghost" href="/admin/members?s=${sc.id}">${I.gear()} Manage</a></div>
-        <p class="fine">${!used ? `<b>Not in use:</b> ${claim === "public" ? "this board is open to anyone with the link" : "anyone signed in can claim and nothing is limited"}, so the list isn't needed. It's kept in case you change that.`
-          : claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add can claim.` : `Add people to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>
-        <div class="big-count"><b>${sc.member_count || 0}</b><span>${esc((sc.member_count === 1 ? L.participant.one : L.participant.many).toLowerCase())}</span></div></section>` : ""; })()}
+      ${(() => {
+        const thing = esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase());
+        const tagsUsed = SC.restricts(sc);
+        const peopleUsed = SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules));
+        const turnOn = `<button type="button" class="link-dark turn-on" data-open="who">Turn on</button>`;
+        const off = (text) => `<p class="fine off-note"><span class="pill">Not in use</span> ${text} ${turnOn}</p>`;
+        const head = (icon, title, href, used) => `<div class="card-head"><span class="ss-ico">${icon}</span><h2>${title}</h2>
+          <a class="btn-ghost" href="${href}">${I.gear()} Manage</a></div>`;
+        return `<section class="panel side-card${tagsUsed ? "" : " not-used"}">
+          ${head(I.tag(), `${esc(L.group.many)} &amp; tags`, `/admin/settings/groups?s=${sc.id}`, tagsUsed)}
+          ${tagsUsed ? `<p class="fine">Used to limit some ${thing} to certain people.</p>`
+            : off(claim === "public" ? "This board is open to anyone with the link, so nothing can be limited by team or tag."
+              : `"Limit some ${thing} to certain people" is set to No.`)}
+          <div class="chip-line"><span class="q-lab">${esc(L.group.many)} (${groups.length})</span>${groups.length ? chips(groups) : `<span class="fine">None yet</span>`}</div>
+          <div class="chip-line"><span class="q-lab">Tags (${tags.length})</span>${tags.length ? chips(tags) : `<span class="fine">None yet</span>`}</div>
+        </section>
+        <section class="panel side-card${peopleUsed ? "" : " not-used"}">
+          ${head(I.userCheck(), esc(L.participant.many), `/admin/members?s=${sc.id}`, peopleUsed)}
+          ${peopleUsed ? `<p class="fine">${claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add can claim.` : `Add people to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>`
+            : off(claim === "public" ? `This board is open to anyone with the link, so it doesn't use a list of ${esc(L.participant.many.toLowerCase())}.`
+              : `Anyone signed in can claim and nothing is limited, so the list isn't needed.`)}
+          <div class="big-count"><b>${sc.member_count || 0}</b><span>${esc((sc.member_count === 1 ? L.participant.one : L.participant.many).toLowerCase())}</span></div>
+        </section>`;
+      })()}
     </aside>
     </div>
     <script>
@@ -668,6 +681,10 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
         x.querySelector(".inl-cancel").addEventListener("click", function () { f.reset(); f.hidden = true; v.hidden = false; x.classList.remove("open"); });
       });
       document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".ss.open .ss-cancel, .inl.open .inl-cancel").forEach(function (c) { c.click(); }); });
+      document.querySelectorAll(".turn-on").forEach(function (b) {
+        b.addEventListener("click", function () { var sec = document.getElementById("ss-" + b.dataset.open); if (!sec) return;
+          sec.scrollIntoView({ behavior: "smooth", block: "center" }); var e = sec.querySelector(".ss-edit"); if (e && !e.hidden) e.click(); });
+      });
       var h = location.hash && document.querySelector(location.hash.replace("#q-", "#ss-"));
       if (h) { h.classList.add("just-saved"); setTimeout(function () { h.classList.remove("just-saved"); }, 1800); }
     })();

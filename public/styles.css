@@ -1422,3 +1422,9 @@ table.places input.addr { min-width: 280px; }
 .side-card.not-used { background: #fafbfc; }
 .side-card.not-used .ss-ico { background: #eef1f5; color: #94a3b8; }
 .side-card.not-used h2 { color: var(--muted); }
+.side-card.not-used .chip-s, .side-card.not-used .big-count { opacity: .6; }
+.card-head .pill { font-size: 12px; }
+.off-note .turn-on { background: none; border: 0; padding: 0; cursor: pointer; font-weight: 700; color: var(--navy-2); text-decoration: underline; font-size: inherit; }
+.card-head h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.card-head .btn-ghost { flex: none; }
+.off-note .pill { margin-right: 4px; vertical-align: 1px; }
