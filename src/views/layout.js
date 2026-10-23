@@ -9,7 +9,7 @@ function flashHtml(flash = {}) {
 }
 
 // Everything that lives under Settings in the bottom nav
-const SETTINGS_AREA = ["home", "setup", "seasons", "rounds", "programs", "import", "athletes", "members", "activities", "groups", "schedule", "settings"];
+const SETTINGS_AREA = ["home", "setup", "seasons", "rounds", "programs", "import", "athletes", "members", "activities", "groups", "schedule", "settings", "rules"];
 
 function head(title) {
   return `<!DOCTYPE html>
@@ -68,7 +68,7 @@ function bottomNav(tab, admin, coach) {
 function topNav(tab, admin, coach) {
   const active = SETTINGS_AREA.includes(tab) ? (tab === "settings" ? "app" : "settings") : tab || "home";
   const items = [["home", "/dashboard", "My Claims"], ...(admin ? [["settings", "/admin/settings", "Claim Boards"]] : []),
-    ...(admin || coach ? [["checkin", "/checkin", "Check-in"]] : []), ...(admin ? [["reports", "/admin/reports", "Reports"], ["app", "/admin/settings/app", "⚙ App"]] : [])];
+    ...(admin || coach ? [["checkin", "/checkin", "Check-in"]] : []), ...(admin ? [["reports", "/admin/reports", "Reports"]] : [])];
   return `<nav class="top-nav" aria-label="Main">${items.map(([k, href, label]) =>
     `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>`;
 }
@@ -105,6 +105,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
     ${admin || coach ? topNav(tab, admin, coach) : ""}
     <span class="spacer"></span>
     <div class="who"><b>${esc(user.email)}</b>
+      ${admin ? `<a class="app-link" href="/admin/settings/app"${tab === "settings" ? ' aria-current="page"' : ""}>⚙ App settings</a>` : ""}
       <form method="post" action="/logout"><button class="link-btn" type="submit">Sign out</button></form></div>
   </div>
 </header>

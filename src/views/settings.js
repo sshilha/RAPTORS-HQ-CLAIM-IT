@@ -57,7 +57,7 @@ function activitiesPage({ user, flash, sc, list, usage }) {
   });
 }
 
-function groupsPage({ user, flash, sc, usage, others = [] }) {
+function groupsPage({ user, flash, sc, usage, others = [], embed = false }) {
   const L = SC.labels(sc);
   const q = `?s=${sc.id}`;
   const groups = SC.groupsFor(sc), presets = SC.presetsFor(sc);
@@ -65,32 +65,27 @@ function groupsPage({ user, flash, sc, usage, others = [] }) {
   const acts = SC.activitiesFor(sc);
   const training = !acts.length || acts.includes("Hitting");
   const pick = (re, fb) => acts.find((a) => re.test(a)) || fb;
-  const ex = { act: pick(/hitting/i, acts[0] || "Hitting"), act2: pick(/catch/i, acts[1] || acts[0] || "Catching"),
+  const one = SC.depthOf(sc) === 1;
+  const ex = { act: one ? "Salad" : pick(/hitting/i, acts[0] || "Hitting"), act2: one ? "Grill cook" : pick(/catch/i, acts[1] || acts[0] || "Catching"),
     group: groups.length > 1 ? `${groups[0]} and ${groups[1]}` : groups[0] || (training ? "12U–18U" : "Adults"),
     tag: (sc.tags || [])[0] || (training ? "Catcher" : "Bartender") };
-  return page({
-    title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash,
-    body: `<section class="panel"><h1>${esc(L.group.many)} &amp; tags</h1>
-      <p class="why-note">Shown because Setup says <b>some ${esc((SC.depthOf(sc) > 1 ? L.activity.many : L.slot.many).toLowerCase())} are limited to certain people</b>. <a href="/admin/setup/schedule?s=${sc.id}#who">Change that</a></p>
-      <p class="lede">Use this only if some ${esc(L.activity.many.toLowerCase())} should be claimable by <b>certain people only</b>. If anyone can claim anything, skip this step.</p>
-      <div class="explain">
-        <div><b>${esc(L.group.many)}</b> sort ${esc(L.participant.many.toLowerCase())} into one group each, like ages (12U, 14U) or teams. When you add ${esc(SC.an(L.activity.one))} you pick which ${esc(L.group.many.toLowerCase())} it's for.
-          <div class="fine">Example: ${esc(ex.act)} only for ${esc(ex.group)}.</div></div>
-        <div><b>Tags</b> are extra labels a person can have several of, like Catcher or Pitcher. You check them on each person in the <b>${esc(L.participant.many)}</b> step, then set "Only for" on ${esc(SC.an(L.activity.one))}.
-          <div class="fine">Example: ${esc(ex.act2)} only for people tagged ${esc(ex.tag)}.</div></div>
-      </div>
-      ${others.length ? `<form method="post" action="/admin/settings/groups/copy${q}" class="copy-from">
-        <span class="label-like">Copy from another board</span>
+  const body = `<section class="panel page-intro" id="teams">
+      <h2>${esc(L.group.many)} &amp; tags</h2>
+      <p class="fine">These decide who can claim what. Set them up here, give them to the ${esc(L.participant.many.toLowerCase())} below,
+        then choose who each ${esc((SC.depthOf(sc) > 1 ? L.activity.one : L.slot.one).toLowerCase())} is for with its <b>Who</b> setting.</p>
+      ${others.length ? `<details class="copy-from-d"><summary>Copy ${esc(L.group.many.toLowerCase())} and tags from another board</summary>
+        <form method="post" action="/admin/settings/groups/copy${q}" class="copy-from">
         <select name="from" required aria-label="Board to copy from"><option value="">Pick a board…</option>
           ${others.map((x) => `<option value="${x.id}">${esc(x.name)} (${(x.groups || []).length} ${esc(SC.labels(x).group.many.toLowerCase())}${(x.tags || []).length ? `, ${(x.tags || []).length} tags` : ""})</option>`).join("")}</select>
         <button class="btn-ghost" type="submit">Copy</button>
-        <span class="fine">Adds their ${esc(L.group.many.toLowerCase())}, tags, and shortcuts. Anything already here stays.</span>
-      </form>` : ""}
+        <span class="fine">Adds theirs to this board. Anything already here stays.</span></form></details>` : ""}
     </section>
     <div class="settings-2">
     <section class="panel" id="groups">
       <h2 class="banner">${esc(L.group.many)}</h2>
-      <p class="fine">Each person is in one. Pick a person's ${esc(L.group.one.toLowerCase())} in the ${esc(L.participant.many)} step.</p>
+      <p class="card-def">Each person is on <b>one</b>, like an age group or team.<span class="ex">e.g. ${esc(require("../examples").forDepth(SC.depthOf(sc)).group)}</span></p>
+      <form method="post" action="/admin/settings/groups${q}" class="inline-add tag-add"><label>New ${esc(L.group.one.toLowerCase())}<input name="name" maxlength="30" required placeholder="e.g. ${esc(require("../examples").forDepth(SC.depthOf(sc)).groupNames)}"></label>
+        <button class="btn-small" type="submit">Add</button></form>
       ${groups.length ? `<ul class="list-edit">${groups.map((g, i) => { const u = usage[g] || {}; return `<li>
         ${moveBtns(`/admin/settings/groups/move${q}`, g, i, groups.length)}
         <form method="post" action="/admin/settings/groups/rename${q}" class="inline-edit">
@@ -98,28 +93,30 @@ function groupsPage({ user, flash, sc, usage, others = [] }) {
           <button class="btn-ghost" type="submit">Rename</button></form>
         <span class="fine">${pl(u.members || 0, L.participant.one.toLowerCase())}</span>
         <form method="post" action="/admin/settings/groups/remove${q}" onsubmit="return confirm('Remove ${esc(g)}?${u.members ? ` ${u.members} will have no ${esc(L.group.one.toLowerCase())}.` : ""}')"><input type="hidden" name="name" value="${esc(g)}"><button class="x" type="submit" aria-label="Remove ${esc(g)}">×</button></form>
-      </li>`; }).join("")}</ul>` : `<p class="muted">None yet.</p>`}
-      <form method="post" action="/admin/settings/groups${q}" class="inline-add"><label>New ${esc(L.group.one.toLowerCase())}<input name="name" maxlength="30" required placeholder="e.g. 12U, Varsity, Adults"></label>
-        <button class="btn-small" type="submit">Add</button></form>
+      </li>`; }).join("")}</ul>` : `<p class="muted small items-empty">None yet. They'll show here.</p>`}
     </section>
 
     <section class="panel" id="tags">
       <h2 class="banner">Tags</h2>
-      <p class="fine">A person can have several. They appear as checkboxes next to each person in the ${esc(L.participant.many)} step, and as "Only for" choices when you add ${esc(SC.an(L.activity.one))}. People without the tag won't see it.</p>
+      <p class="card-def">Extra labels; a person can have <b>several</b>.<span class="ex">e.g. ${esc(require("../examples").forDepth(SC.depthOf(sc)).tag)}</span></p>
+      <form method="post" action="/admin/settings/tags${q}" class="inline-add tag-add"><label>New tag<input name="name" maxlength="30" required placeholder="e.g. ${esc(require("../examples").forDepth(SC.depthOf(sc)).tagNames)}"></label>
+        <button class="btn-small" type="submit">Add</button></form>
       ${(sc.tags || []).length ? `<ul class="list-edit">${sc.tags.map((t) => { const u = usage[`tag:${t}`] || {}; return `<li>
         <form method="post" action="/admin/settings/tags/rename${q}" class="inline-edit">
           <input type="hidden" name="original" value="${esc(t)}"><input name="name" value="${esc(t)}" maxlength="30" aria-label="Tag name">
           <button class="btn-ghost" type="submit">Rename</button></form>
         <span class="fine">${pl(u.members || 0, L.participant.one.toLowerCase())}, required by ${u.programs || 0}</span>
         <form method="post" action="/admin/settings/tags/remove${q}" onsubmit="return confirm('Remove the ${esc(t)} tag? Anything that required it opens to everyone.')"><input type="hidden" name="name" value="${esc(t)}"><button class="x" type="submit" aria-label="Remove ${esc(t)}">×</button></form>
-      </li>`; }).join("")}</ul>` : `<p class="muted">No tags yet.</p>`}
-      <form method="post" action="/admin/settings/tags${q}" class="inline-add"><label>New tag<input name="name" maxlength="30" required placeholder="e.g. Catcher"></label>
-        <button class="btn-small" type="submit">Add</button></form>
+      </li>`; }).join("")}</ul>` : `<p class="muted small items-empty">No tags yet. They'll show here.</p>`}
     </section>
 
-    <section class="panel" id="presets"><details>
-      <summary class="banner-sum">Setup shortcuts <span class="fine-inline">(a time-saver for you; people claiming never see these)</span></summary>
-      <p class="fine">Buttons that check several ${esc(L.group.many.toLowerCase())} at once when you add ${esc(SC.an(L.activity.one))}. For example, a "12U–18U" button checks 12U, 14U, 16U, and 18U in one click. Only worth setting up if you have lots of ${esc(L.group.many.toLowerCase())}.</p>
+${SC.depthOf(sc) >= 3 ? `    <section class="panel" id="presets"><details>
+      <summary class="banner-sum">${esc(L.group.one)} shortcuts <span class="fine-inline">(optional time-saver, only you see these)</span></summary>
+      <div class="explain-1">
+        <p><b>What they're for:</b> when you add ${esc(SC.an(L.activity.one.toLowerCase()))} to a ${esc(L.middle.one.toLowerCase())}, you check which ${esc(L.group.many.toLowerCase())} it's for.
+          If you often pick the same set, save it here as a shortcut. It shows up as a button there that checks all of them in one click.</p>
+        <p class="fine"><b>Example:</b> a shortcut named <b>12U–18U</b> with 12U, 14U, 16U, and 18U checked. Adding Hitting for the older girls is then one click instead of four.</p>
+      </div>
       ${presets.map((p) => `<form method="post" action="/admin/settings/presets${q}" class="preset-edit">
         <input type="hidden" name="original" value="${esc(p.name)}">
         <input name="name" value="${esc(p.name)}" maxlength="30" aria-label="Shortcut name" class="w-name">
@@ -132,9 +129,10 @@ function groupsPage({ user, flash, sc, usage, others = [] }) {
         <span class="ages">${groups.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"> ${esc(g)}</label>`).join("")}</span>
         <button class="btn-small" type="submit">Add</button>
       </form>` : `<p class="muted">Add ${esc(L.group.many.toLowerCase())} first.</p>`}
-    </details></section>
-    </div>`,
-  });
+    </details></section>` : ""}
+    </div>`;
+  if (embed) return body;
+  return page({ title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash, body });
 }
 
 function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, mapsKey = "" }) {

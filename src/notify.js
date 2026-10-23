@@ -37,7 +37,7 @@ const templates = {
     subject: `Claimed: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
     heading: `Spot claimed for ${r.first_name}!`,
     extra: r.starts_at ? `You can cancel online until ${fmtDateTime(cancelDeadline(r.starts_at, r.cancel_hours))}. Giving it up lets someone else claim it.`
-      : "Can't make it? Give it up online so someone else can claim it.",
+      : "Can't make it? Cancel in the app so someone else can claim it.",
   }),
   waitlisted: (r) => ({
     subject: `Waitlisted: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
@@ -50,8 +50,8 @@ const templates = {
     extra: `${r.first_name} moved off the waitlist. If you can't make it, give the spot up online so someone else can claim it.`,
   }),
   canceled: (r) => ({
-    subject: `Spot given up: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
-    heading: `${r.first_name}'s spot was given up`,
+    subject: `Spot canceled: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
+    heading: `${r.first_name}'s spot was canceled`,
     extra: `The spot is open for someone else to claim.`,
   }),
   sessionCanceled: (r) => ({

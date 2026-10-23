@@ -9,27 +9,28 @@ function groupSelect(sc, value, attrs = "") {
 
 function needBanner(sc, L) {
   const SCm = require("../schedules");
-  const why = SCm.claimMode(sc) === "roster" ? `Setup says <b>only people you add</b> can claim` : `Setup says <b>some things are limited to certain people</b>`;
-  const link = ` <a href="/admin/setup/schedule?s=${sc.id}#who">Change that</a>`;
-  return `<p class="why-note">Shown because ${why}.${link}</p>` + needBannerBody(sc, L);
+  return needHelp(sc, L) + (SCm.needsPeople(sc) ? `<p class="ex">e.g. ${esc(require("../examples").forDepth(SCm.depthOf(sc)).person)}</p>` : "");
 }
-function needBannerBody(sc, L) {
+function needHelp(sc, L) {
   const SCm = require("../schedules");
-  if (SCm.claimMode(sc) === "roster") return `<div class="need yes"><b>Only the ${esc(L.participant.many.toLowerCase())} listed here can claim on this board.</b> Add each one, with their ${esc(L.group.one.toLowerCase())}${SCm.restricts(sc) ? " and tags" : ""}, and link a parent or contact email so they can sign in.</div>`;
-  if (SCm.restricts(sc)) return `<div class="need yes"><b>Add people here to give them a ${esc(L.group.one.toLowerCase())} or tags.</b> Anyone signed in can still claim things that aren't limited; limited ones need the right ${esc(L.group.one.toLowerCase())} or tag.</div>`;
-  return `<div class="need no"><b>Not needed for this board.</b> It's open to ${SCm.claimMode(sc) === "public" ? "anyone with the link" : "anyone signed in"}, so people just claim spots.</div>`;
+  const p = esc(L.participant.many.toLowerCase()), g = esc(L.group.one.toLowerCase());
+  if (SCm.claimMode(sc) === "roster") return `<p class="fine page-help">Only the ${p} listed here can claim on <b>${esc(sc.name)}</b>. Add each one with their ${g}${SCm.restricts(sc) ? " and tags" : ""}, plus a parent or contact email so they can sign in and see their own.</p>`;
+  if (SCm.restricts(sc)) return `<p class="fine page-help">Give people their ${g} and tags here. Anyone signed in can still claim things that aren't limited; limited ones need the matching ${g} or tag.</p>`;
+  return `<p class="fine page-help"><b>Not in use on this board.</b> It's open to ${SCm.claimMode(sc) === "public" ? "anyone with the link" : "anyone signed in"}, so people just claim spots. <a href="/admin/setup/schedule?s=${sc.id}">Back to settings</a></p>`;
 }
 
-function membersPage({ user, flash, sc, members, others, group, total }) {
+function membersPage({ user, flash, sc, members, others, group, total, teams = "" }) {
   const L = SC.labels(sc);
   const groups = SC.groupsFor(sc);
   const tags = sc.tags || [];
   const back = `/admin/members?s=${sc.id}${group ? `&g=${encodeURIComponent(group)}` : ""}`;
   return page({
-    title: `${L.participant.many} · ${sc.name}`, tab: "members", user, flash,
-    body: `<section class="panel">
-      <div class="athlete-head"><div><h1>${esc(L.participant.many)}</h1>
-        <p class="muted tight">${total} in ${esc(sc.name)}.</p></div>
+    title: `${L.group.many}, tags & ${L.participant.many.toLowerCase()} · ${sc.name}`, tab: "members", user, flash,
+    body: `<h1 class="page-title">${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</h1>
+    ${teams}
+    <section class="panel" id="people">
+      <div class="athlete-head"><div><h2>${esc(L.participant.many)}</h2>
+        <p class="muted tight">${total} on ${esc(sc.name)}</p></div>
         <a class="btn-small" href="#add">+ Add</a></div>
       ${needBanner(sc, L)}
       ${groups.length ? `<nav class="chip-filter" aria-label="Filter by ${esc(L.group.one.toLowerCase())}">

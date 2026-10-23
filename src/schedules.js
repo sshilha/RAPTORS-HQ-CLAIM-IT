@@ -36,7 +36,7 @@ const levelKeys = (sc) => LEVEL_KEYS[depthOf(sc)];
 
 const PRESET_LABELS = {
   training: { ...DEFAULT_LABELS, depth: 3, claim: "roster", restrict: true },
-  volunteer: { depth: 2, claim: "family", restrict: false, activity: ["Area", "Areas"], slot: ["Shift", "Shifts"], middle: ["Round", "Rounds"],
+  volunteer: { depth: 2, claim: "family", restrict: false, activity: ["Category", "Categories"], slot: ["Item", "Items"], middle: ["Round", "Rounds"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
   list: { depth: 1, calendar: false, claim: "public", restrict: false, slot: ["Item", "Items"], activity: ["Item", "Items"], middle: ["Round", "Rounds"],
     participant: ["Volunteer", "Volunteers"], group: ["Team", "Teams"] },
@@ -108,8 +108,8 @@ async function ensureStructure(sc) {
   if (!r) {
     const R = require("./rounds");
     r = (await query(
-      `INSERT INTO rounds (name, starts_on, ends_on, location, activity_defaults, activity_limits, schedule_id, is_main, signup_mode)
-       VALUES ($1, CURRENT_DATE, CURRENT_DATE + 730, $2, '{}', '{}', $3, true, $4) RETURNING *`,
+      `INSERT INTO rounds (name, starts_on, ends_on, location, activity_defaults, activity_limits, schedule_id, is_main, signup_mode, unlock_hours)
+       VALUES ($1, CURRENT_DATE, CURRENT_DATE + 730, $2, '{}', '{}', $3, true, $4, NULL) RETURNING *`,
       [sc.name, null, sc.id, claimMode(sc)])).rows[0];
     void R;
   }

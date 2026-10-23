@@ -163,7 +163,7 @@ router.post("/activities", wrap(async (req, res) => {
   if (!req.body.color) a.color = COLORS.find((x) => !c.activities.some((y) => y.color === x)) || COLORS[c.activities.length % COLORS.length];
   c.activities.push(a);
   await catalog.save(c);
-  go(res, acts(sc), { ok: `Added ${name}.` });
+  go(res, require("./util").dest(req, acts(sc)), { ok: `Added ${name}.` });
 }));
 
 router.post("/activities/update", wrap(async (req, res) => {
@@ -205,6 +205,9 @@ router.post("/activities/remove", wrap(async (req, res) => {
 // ---------- a schedule's groups + shortcuts ----------
 router.get("/groups", wrap(async (req, res) => {
   const { sc } = req.sched;
+  // Teams & tags now share a page with the people list
+  const q = new URLSearchParams({ s: sc.id, ...(req.query.ok ? { ok: req.query.ok } : {}), ...(req.query.err ? { err: req.query.err } : {}) });
+  return res.redirect(`/admin/members?${q}#teams`);
   const usage = {};
   for (const g of SC.groupsFor(sc)) usage[g] = await G.usage(sc.id, g);
   for (const t of sc.tags || []) usage[`tag:${t}`] = await G.tagUsage(sc.id, t);

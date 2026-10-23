@@ -45,7 +45,6 @@ function homePage({ user, flash, active, archivedCount }) {
       <div><h1>Claim boards</h1>
         <p class="muted tight">Pick a ${esc(LABELS.schedule.toLowerCase())} to set up its calendar, groups, activities, and people, or start a new one.</p></div>
       <div class="head-actions">
-        <a class="btn-ghost" href="/admin/settings/app">⚙ App</a>
         <a class="btn-small" href="/admin/setup/new">+ New ${esc(LABELS.schedule.toLowerCase())}</a>
       </div>
     </section>

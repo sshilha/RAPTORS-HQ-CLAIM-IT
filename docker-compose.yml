@@ -1,0 +1,15 @@
+# Local PostgreSQL for development (needs Docker Desktop). Start it with:  npm run db
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: raptors
+      POSTGRES_PASSWORD: raptors
+      POSTGRES_DB: claimit
+    ports:
+      - "5432:5432"
+    volumes:
+      - claimit-data:/var/lib/postgresql/data
+volumes:
+  claimit-data:

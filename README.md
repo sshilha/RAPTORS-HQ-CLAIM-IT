@@ -38,17 +38,17 @@ as chosen. Each one is called a **Claim Board** by default (changeable under ⚙
 **Levels.** Each Claim Board has 1–4 levels that you name (Claim Board settings); the last level
 is what people claim, with a number of spots:
 - 1 level: a simple list (e.g. Task: "Bring a case of water", 6 spots).
-- 2 levels: e.g. Area › Shift. Areas are made right on the board (just a name); each shift/item
+- 2 levels (Categories & items): e.g. Concessions › Grill 8–10 AM, or Desserts › Brownies. Areas are made right on the board (just a name); each shift/item
   has its own spots and, if the board has dates, its own date and time. No calendar builder.
 - 3 levels: e.g. Round › Activity › Session (Winter Training).
 - 4 levels: e.g. Day › Area › Station › Shift.
 Boards with 1–2 levels show three numbered steps on their page (1 Add items, 2 Rules: per-person
-limit, waitlist, when claiming opens, a question to ask when people claim (your wording;
-optionally required; answers shown to others or kept private), and for dated boards the give-it-up
-deadline; 3 Publish &
+limit, waitlist, when claiming opens, open leftover spots (Never, or N days/hours before: anyone can take spots still open, even past
+their limit; default Never on 1–2 level boards), a question to ask when people claim (your wording;
+optionally required; answers shown to others or kept private), and for dated boards the cancel deadline; 3 Publish &
 share, with the share link only for "Anyone with the link") and keep their rules (who signs up, limits, unlocking, waitlist, publish) on the
 board's Setup page. Anything claimable can have a date and time, or be an undated item with a name;
-undated items show as a list on My Claims and the public page, and have no give-it-up deadline.
+undated items show as a list on My Claims and the public page, and have no cancel deadline.
 The number of levels can change only while the board is empty.
 
 **Do things have dates and times?** No: people pick from a list (put the day in the board's name,
@@ -77,7 +77,11 @@ Tabs that aren't needed don't appear: "Anyone with the link" boards never show T
 People (visitors are anonymous, so limits don't apply).
 
 **Navigation:** on computers the main links are in the top bar (My Claims · Claim Boards ·
-Reports · ⚙ App); phones keep the bottom bar.
+Check-in · Reports); phones keep the bottom bar. ⚙ App settings is a small admin-only link by the
+email and Sign out. The board screen is home base: its header has the name, event date and location (edit in place),
+Share (public boards) and a large Publish/Unpublish; the left column is the work (items, categories
+& items, or activities then rounds); the right column summarizes Board settings, Rules, and Teams,
+tags & people, each with Manage. Every other board page shows a trail back to the board.
 
 **Board page:** one header (name, Draft/Published, ⚙ Settings, Publish board), stat tiles (items,
 spots, claimed), then for 1–2 level boards two columns: **Manage items** on the left; **Rules**
@@ -304,3 +308,31 @@ public/styles.css  styles
 - Authentication decision once SportsEngine responds (SSO vs. email allowlist + private-page link)
 - SportsEngine CSV import for athletes and parent emails
 - Reminder emails the day before a session
+
+## Run it on your computer (no Railway needed)
+
+1. Install **Node.js 20 or newer** (nodejs.org, LTS) and **Docker Desktop** (for the database).
+2. In the project folder:
+   ```
+   npm install
+   copy .env.example .env      (Mac/Linux: cp .env.example .env)
+   npm run db                  starts PostgreSQL in Docker
+   npm run local               starts the app; restarts when you change a file
+   ```
+3. Or just double-click **Start Claim It.bat** (Windows): it installs packages the first time, starts the
+   app, and opens the browser. Close its window to stop the app.
+4. Open http://localhost:3000 and sign in with an email from ADMIN_EMAILS. With
+   DEV_SHOW_LINK=true the sign-in link appears on screen (and in the terminal).
+
+Tables are created automatically on first start. Data stays between runs; to start fresh:
+`docker compose down -v`.
+
+**No Docker?** Install PostgreSQL directly (postgresql.org) and point DATABASE_URL at it, or use
+a free hosted database (Neon or Supabase) and paste its connection string into DATABASE_URL.
+
+**Test from your phone:** on the same Wi-Fi, set APP_URL to http://YOUR-COMPUTER-IP:3000 (find the
+IP with `ipconfig`), restart, and open that address on the phone. Windows may ask to allow Node
+through the firewall: allow it on private networks.
+
+**Let someone else try it:** run a tunnel such as `npx cloudflared tunnel --url http://localhost:3000`
+(or ngrok), set APP_URL to the https address it prints, and restart.

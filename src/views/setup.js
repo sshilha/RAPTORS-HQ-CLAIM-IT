@@ -91,10 +91,10 @@ function itemRow(it, r, locked, L) {
         ${SC.depthOf(CUR) === 1 ? `<label class="mini">Attendance${attendanceSelect(it.attendance ?? null, !!CUR.track_attendance, `form="${f}"`)}</label>` : ""}
       </div>
       <div class="ir-edit-actions">
-        <button class="btn-small" type="submit" form="${f}">Save</button>
-        <button type="button" class="btn-ghost" onclick="var row=this.closest('.irow'); row.classList.remove('editing'); document.getElementById('${f}').reset(); row.querySelectorAll('[form=${f}]').forEach(function(el){ el.value = el.defaultValue; });">Cancel</button>
-        <span class="spacer"></span>
         <form method="post" action="/admin/rounds/${r.id}/items/${it.id}/delete" onsubmit="return confirm('Remove ${esc((it.title || "this").replace(/'/g, ""))}?')">${back(`items-${r.id}`)}<button class="link-dark danger-link" type="submit">Remove</button></form>
+        <span class="spacer"></span>
+        <button type="button" class="btn-ghost" onclick="var row=this.closest('.irow'); row.classList.remove('editing'); document.getElementById('${f}').reset(); row.querySelectorAll('[form=${f}]').forEach(function(el){ el.value = el.defaultValue; });">Cancel</button>
+        <button class="btn-small" type="submit" form="${f}">Save</button>
       </div>
     </div>`}
   </li>`;
@@ -121,23 +121,26 @@ function itemAdd(r, programId, L, placeholder) {
 function areasPanel(r, locked, L) {
   const areas = r.types || [];
   return `<div class="areas" id="items-${r.id}">${require("../locations").datalist()}
+    ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/areas" class="area-add">
+      <span class="ia-title">Add ${esc(SC.an(L.activity.one))}</span>${back(`items-${r.id}`)}
+      <input name="name" required maxlength="40" placeholder="e.g. ${SC.usesCalendar(CUR) ? "Concessions" : "Desserts"}" aria-label="New ${esc(L.activity.one.toLowerCase())}">
+      <button class="btn-small" type="submit">Add ${esc(L.activity.one.toLowerCase())}</button></form>`}
+    ${areas.length ? `<h3 class="ilist-head">Your ${esc(L.activity.many.toLowerCase())} <span class="fine-inline">(${areas.length})</span></h3>` : ""}
     ${areas.length ? areas.map((t) => {
       const its = (r.items || []).filter((i) => i.program_id === t.id);
       return `<section class="area">
         <div class="area-head">
           ${locked ? `<h3>${esc(t.activity)}</h3>` : `<form method="post" action="/admin/rounds/${r.id}/areas/${t.id}" class="area-name">${back(`items-${r.id}`)}
             <input name="name" value="${esc(t.activity)}" maxlength="40" required aria-label="${esc(L.activity.one)} name"><button class="btn-ghost" type="submit">Rename</button>
-            ${attendanceSelect(t.attendance ?? null, !!CUR.track_attendance, `onchange="this.form.submit()" aria-label="Attendance" class="att-sel"`)}</form>`}
+            <label class="att-lab">Attendance ${attendanceSelect(t.attendance ?? null, !!CUR.track_attendance, `onchange="this.form.submit()" class="att-sel"`)}</label></form>`}
           <span class="fine">${its.length} ${esc((its.length === 1 ? L.slot.one : L.slot.many).toLowerCase())} · ${its.reduce((n, i) => n + i.claimed, 0)}/${its.reduce((n, i) => n + i.capacity, 0)} claimed</span>
           ${locked || its.length ? "" : `<form method="post" action="/admin/rounds/${r.id}/areas/${t.id}/delete" onsubmit="return confirm('Remove ${esc(t.activity)}?')">${back(`items-${r.id}`)}<button class="x" type="submit" aria-label="Remove ${esc(t.activity)}">×</button></form>`}
         </div>
-        ${locked ? "" : itemAdd(r, t.id, L, SC.usesCalendar(CUR) ? `e.g. Morning shift` : `e.g. 9:00–11:00 AM`)}
+        ${locked ? "" : itemAdd(r, t.id, L, SC.usesCalendar(CUR) ? `e.g. Grill` : `e.g. Brownies`)}
         ${its.length ? `<ul class="ilist">${its.map((it) => itemRow(it, r, locked, L)).join("")}</ul>` : `<p class="muted small items-empty">No ${esc(L.slot.many.toLowerCase())} yet.</p>`}
       </section>`;
-    }).join("") : `<p class="muted">Start with ${esc(SC.an(L.activity.one))}, like <i>Concessions</i> or <i>Ticket Booth</i>. Then add its ${esc(L.slot.many.toLowerCase())}.</p>`}
-    ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/areas" class="area-add">${back(`items-${r.id}`)}
-      <input name="name" required maxlength="40" placeholder="e.g. Concessions" aria-label="New ${esc(L.activity.one.toLowerCase())}">
-      <button class="btn-small" type="submit">+ Add ${esc(L.activity.one.toLowerCase())}</button></form>`}
+    }).join("") : `<p class="muted small items-empty">No ${esc(L.activity.many.toLowerCase())} yet. Add one above, then add its ${esc(L.slot.many.toLowerCase())}.</p>`}
+
   </div>`;
 }
 
@@ -243,7 +246,7 @@ function typesPart(r, locked, L, acts, anchor) {
 `;
 }
 
-// When claiming opens, and (for dated boards) how late a spot can be given up
+// When claiming opens, and (for dated boards) how late a spot can be canceled
 function timingForm(r, locked, anchor, L) {
   const { inputParts } = require("../time");
   const at = r.booking_opens_at ? inputParts(r.booking_opens_at) : null;
@@ -255,9 +258,9 @@ function timingForm(r, locked, anchor, L) {
       <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At</label>
       <input type="datetime-local" name="booking_opens_at" value="${at ? `${at.date}T${at.time}` : ""}" aria-label="Opens at" onfocus="this.form.opens[1].checked=true"></div>
     <p class="fine">Set a time so everyone gets a fair shot, e.g. "claims open Monday at 7:00 PM".</p>
-    ${dated ? `<div class="tf-row"><span class="label-like">Give-it-up deadline</span>
+    ${dated ? `<div class="tf-row"><span class="label-like">Cancel deadline</span>
       <input type="number" name="cancel_hours" min="0" max="336" value="${r.cancel_hours ?? 24}" class="spots-in" aria-label="Hours before"> hours before it starts</div>
-    <p class="fine">After this, people can't give up a spot online (use 0 for any time). ${esc(L.slot.many)} without a date can always be given up.</p>` : ""}
+    <p class="fine">After this, people can't cancel a spot in the app (use 0 for any time). ${esc(L.slot.many)} without a date can always be canceled.</p>` : ""}
     ${locked ? "" : `<button class="btn-ghost" type="submit">Save timing</button>`}
     </fieldset></form>`;
 }
@@ -275,7 +278,7 @@ function rulesSummary(r, L, acts) {
   }
   parts.push(r.waitlist ? "Waitlist on" : "No waitlist");
   parts.push(r.booking_opens_at ? `Opens ${fmtDateTime(r.booking_opens_at)}` : "Opens right away");
-  if (SC.usesCalendar(CUR)) parts.push(r.cancel_hours ? `Give up ${r.cancel_hours}h before` : "Give up any time");
+  if (SC.usesCalendar(CUR)) parts.push(r.cancel_hours ? `Cancel up to ${r.cancel_hours}h before` : "Cancel any time");
   return parts.join(" · ");
 }
 
@@ -289,7 +292,8 @@ const publishForm = (r, name, cls = "") => {
 };
 
 // The rules, read as a short list; Edit rules turns the card into one form with one Save
-function rulesCard(r, locked, L, acts) {
+// The rule fields, shared by the board's summary card and the Rules page
+function rulesParts(r, L, acts) {
   const { limitFor } = require("../rounds");
   const { fmtDateTime, inputParts } = require("../time");
   const dated = SC.usesCalendar(CUR);
@@ -302,31 +306,40 @@ function rulesCard(r, locked, L, acts) {
     ["Per person", perPerson],
     ["Waitlist", r.waitlist ? "On" : "Off"],
     ["Claiming opens", r.booking_opens_at ? fmtDateTime(r.booking_opens_at) : "Right away"],
-    ...(dated ? [["Give-it-up deadline", r.cancel_hours ? `${r.cancel_hours} hours before` : "Any time"]] : []),
+    ...(dated ? [["Cancel deadline", r.cancel_hours ? `${r.cancel_hours} hours before` : "Any time"]] : []),
+    ...(dated ? [["Open leftover spots", r.unlock_hours == null ? "Never" : r.unlock_hours % 24 === 0 ? `${r.unlock_hours / 24} day${r.unlock_hours === 24 ? "" : "s"} before` : `${r.unlock_hours} hour${r.unlock_hours === 1 ? "" : "s"} before`]] : []),
     ["Question", r.ask_note ? `"${r.note_label || "Your answer"}"${[r.note_required ? "required" : "", r.note_public !== false ? "shown to others" : "private"].filter(Boolean).map((x) => ` · ${x}`).join("")}` : "None"],
   ];
   const slots = L.slot.many.toLowerCase();
-  return `<section class="panel side-card rules-card" id="rules-${r.id}">
-    <div class="bc-head"><h2>Rules</h2>${locked ? "" : `<button type="button" class="link-dark rc-edit" onclick="this.closest('.rules-card').classList.add('editing')">Edit</button>`}</div>
-    <dl class="rc-list">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
-    ${locked ? "" : `<form method="post" action="/admin/rounds/${r.id}/rules" class="rc-form">${back(`rules-${r.id}`)}
-      <fieldset><legend>How many can each person claim?</legend>
+  return {
+    rows,
+    per: `      <fieldset><legend>How many can each person claim?</legend>
         ${lim.map(([a, n], k) => `<div class="rc-limit"><input type="hidden" name="lname_${k}" value="${esc(a)}">
           ${depth > 1 ? `<span class="rc-act">${esc(a)}</span>` : ""}
           <input type="number" name="lim_${k}" min="1" max="50" value="${n ?? 2}" class="spots-in"${n == null ? " disabled" : ""} aria-label="Limit${depth > 1 ? ` for ${esc(a)}` : ""}">
           <label class="radio-row"><input type="checkbox" name="unl_${k}" value="1"${n == null ? " checked" : ""} onchange="this.closest('.rc-limit').querySelector('input[type=number]').disabled=this.checked"> Unlimited</label></div>`).join("")}
-      </fieldset>
-      <fieldset><legend>Waitlist</legend>
+      </fieldset>`,
+    wait: `      <fieldset><legend>Waitlist</legend>
         <label class="radio-row"><input type="checkbox" name="waitlist" value="1"${r.waitlist ? " checked" : ""}> When ${esc(slots)} fill up, let people join a waitlist</label>
-      </fieldset>
-      <fieldset><legend>When claiming opens</legend>
+      </fieldset>`,
+    opens: `      <fieldset><legend>When claiming opens</legend>
         <label class="radio-row"><input type="radio" name="opens" value="now"${at ? "" : " checked"}> Right away (once published)</label>
         <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At <input type="datetime-local" name="booking_opens_at" value="${at ? `${at.date}T${at.time}` : ""}" onfocus="this.form.opens[1].checked=true"></label>
-      </fieldset>
-      ${dated ? `<fieldset><legend>Give-it-up deadline</legend>
+      </fieldset>`,
+    cancel: `      ${dated ? `<fieldset><legend>Cancel deadline</legend>
         <label class="radio-row"><input type="number" name="cancel_hours" min="0" max="336" value="${r.cancel_hours ?? 24}" class="spots-in"> hours before it starts (0 = any time)</label>
-      </fieldset>` : ""}
-      <fieldset><legend>Ask a question when they claim</legend>
+        <p class="fine">People can cancel their spot in the app until then. After that, they'd need to ask you, and you can always remove someone yourself.</p>
+      </fieldset>` : ""}`,
+    leftover: `      ${dated ? `<fieldset><legend>Open leftover spots to everyone</legend>
+        <p class="fine">Only matters with a per-person limit. Spots still open this close to the start can be claimed by anyone, even people who've reached their limit, and they don't count toward it. Shown with 🔓.</p>
+        <label class="radio-row"><input type="radio" name="leftover" value="never"${r.unlock_hours == null ? " checked" : ""}> Never (limits always apply)</label>
+        <label class="radio-row"><input type="radio" name="leftover" value="before"${r.unlock_hours == null ? "" : " checked"}>
+          <input type="number" name="leftover_n" min="1" max="1440" value="${r.unlock_hours == null ? 1 : r.unlock_hours % 24 === 0 ? r.unlock_hours / 24 : r.unlock_hours}" class="spots-in" onfocus="this.form.leftover[1].checked=true">
+          <select name="leftover_unit" onfocus="this.form.leftover[1].checked=true"><option value="days"${r.unlock_hours != null && r.unlock_hours % 24 === 0 ? " selected" : ""}>days</option><option value="hours"${r.unlock_hours != null && r.unlock_hours % 24 !== 0 ? " selected" : ""}>hours</option></select>
+          before it starts</label>
+        <p class="ex">e.g. ${esc(SC.depthOf(CUR) === 2 ? "1 Concessions shift per person, but any shift still open 1 day before is up for grabs" : "1 snack slot per family, but any still open 2 days before can be taken by anyone")}</p>
+      </fieldset>` : ""}`,
+    question: `      <fieldset><legend>Ask a question when they claim</legend>
         <label class="radio-row"><input type="checkbox" name="ask_note" value="1"${r.ask_note ? " checked" : ""} onchange="var b=this.closest('fieldset').querySelector('.rc-note'); b.hidden=!this.checked; b.querySelector('input[name=note_label]').required=this.checked;"> Ask a question</label>
         <div class="rc-note"${r.ask_note ? "" : " hidden"}>
           <input name="note_label" maxlength="80" value="${esc(r.note_label || "")}" placeholder="e.g. What will you bring? or T-shirt size?" aria-label="Question"${r.ask_note ? " required" : ""}>
@@ -334,11 +347,64 @@ function rulesCard(r, locked, L, acts) {
           <label class="radio-row"><input type="checkbox" name="note_public" value="1"${r.note_public !== false ? " checked" : ""}> Show answers to others, next to their name</label>
           <p class="fine">Turn that off for private answers (like allergies). You always see the answers on the claimed list and in reports.</p>
         </div>
-      </fieldset>
-      <div class="rc-actions"><button class="btn-small" type="submit">Save rules</button>
-        <button type="button" class="btn-ghost" onclick="var c=this.closest('.rules-card'); c.classList.remove('editing'); this.form.reset();">Cancel</button></div>
-    </form>`}
+      </fieldset>`,
+  };
+}
+
+// Board screen: a short summary of the rules, with Manage
+function rulesCard(r, locked, L, acts) {
+  const { rows } = rulesParts(r, L, acts);
+  const I = require("./icons");
+  return `<section class="panel side-card" id="rules-${r.id}">
+    <div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Rules</h2>
+      ${locked ? "" : `<a class="btn-ghost" href="/admin/setup/rules?s=${CUR.id}">${I.gear()} Manage</a>`}</div>
+    <dl class="rc-list">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
   </section>`;
+}
+
+// The Rules page: everything grouped, one Save
+function rulesPage({ user, flash, sc, main }) {
+  CUR = sc;
+  const L = SC.labels(sc);
+  const acts = SC.activitiesFor(sc, { activeOnly: true });
+  const I = require("./icons");
+  if (SC.depthOf(sc) >= 3 || !main) return page({ title: `Rules · ${sc.name}`, tab: "rules", user, flash, xwide: true,
+    body: `<section class="panel"><h1>Rules</h1><p class="lede">On this board, each ${esc(L.middle.one.toLowerCase())} has its own rules for now: open a ${esc(L.middle.one.toLowerCase())} on the board and use its <b>Limits</b>. They'll move here in the next update.</p>
+      <a class="btn-ghost" href="/admin/setup?s=${sc.id}">Back to the board</a></section>` });
+  const P = rulesParts(main, L, acts);
+  const row = (k) => P.rows.find((r) => r[0] === k);
+  const rows = (keys) => `<dl class="ss-rows">${keys.map(row).filter(Boolean).map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>`;
+  const action = `/admin/rounds/${main.id}/rules`, ret = `/admin/setup/rules?s=${sc.id}`;
+  const sec = (id, icon, title, sub, keys, inner) => `<section class="ss" id="rg-${id}">
+      <div class="ss-head"><span class="ss-ico">${icon}</span><div class="ss-titles"><h3>${title}</h3><p class="fine">${sub}</p></div>
+        <button type="button" class="btn-ghost ss-edit">${I.pencil()} Edit</button></div>
+      <div class="ss-view">${rows(keys)}</div>
+      <form method="post" action="${action}" class="ss-form rc-form rules-fields" hidden>
+        <input type="hidden" name="q" value="${id}"><input type="hidden" name="return_to" value="${ret}">${inner}
+        <div class="q-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost ss-cancel">Cancel</button></div>
+      </form></section>`;
+  return page({ title: `Rules · ${sc.name}`, tab: "rules", user, flash, xwide: true,
+    body: `<h1 class="page-title">Rules</h1>
+    <div class="settings-one"><section class="panel setup-panel">
+      ${sec("limits", I.users(), "Limits", "How much each person can claim, and what happens when things fill up.", ["Per person", "Open leftover spots", "Waitlist"], P.per + P.leftover + P.wait)}
+      ${sec("timing", I.calendar(), "Timing", "When claiming opens, and how late people can cancel.", ["Claiming opens", "Cancel deadline"], P.opens + P.cancel)}
+      ${sec("question", I.check(), "Question", "Something to ask people when they claim.", ["Question"], P.question)}
+    </section></div>
+    <script>
+    (function () {
+      document.querySelectorAll(".ss").forEach(function (sec) {
+        var f = sec.querySelector(".ss-form"), v = sec.querySelector(".ss-view"), b = sec.querySelector(".ss-edit");
+        b.addEventListener("click", function () {
+          document.querySelectorAll(".ss.open .ss-cancel").forEach(function (c) { c.click(); });
+          f.hidden = false; v.hidden = true; b.hidden = true; sec.classList.add("open");
+        });
+        sec.querySelector(".ss-cancel").addEventListener("click", function () { f.reset(); f.hidden = true; v.hidden = false; b.hidden = false; sec.classList.remove("open"); });
+      });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".ss.open .ss-cancel").forEach(function (c) { c.click(); }); });
+      var h = location.hash && document.querySelector(location.hash);
+      if (h && h.classList.contains("ss")) { h.classList.add("just-saved"); setTimeout(function () { h.classList.remove("just-saved"); }, 1800); }
+    })();
+    </script>` });
 }
 
 // Publish & share: a short checklist before publishing; the link and QR once it's live
@@ -353,7 +419,7 @@ function publishCard(r, locked, L) {
     ${mode === "public" ? shareBox(r) : ""}
     ${locked ? "" : publishForm(r, CUR.name)}
   </section>`;
-  const check = (ok, text) => `<li class="${ok ? "ok" : ""}"><span class="ck">${ok ? "✓" : ""}</span>${text}</li>`;
+  const check = (ok, text) => `<li class="${ok ? "ok" : ""}"><span class="ck">${ok ? "✓" : ""}</span><span>${text}</span></li>`;
   return `<section class="panel side-card">
     <div class="bc-head"><h2>Ready to publish?</h2><span class="pill warn">Draft</span></div>
     <ul class="checklist">
@@ -366,20 +432,13 @@ function publishCard(r, locked, L) {
   </section>`;
 }
 
-// 1-2 level boards: manage on the left, rules + publishing on the right
+// 1-2 level boards: the work column
 function boardBlock(r, locked, L, acts) {
-  const anchor = `round-${r.id}`;
   const depth = SC.depthOf(CUR);
-  return `<div class="board-cols" id="${anchor}">
-    <section class="panel bc-main">
+  return `<section class="panel bc-main" id="round-${r.id}">
       <div class="bc-head"><h2>${depth === 2 ? `${esc(L.activity.many)} &amp; ${esc(L.slot.many.toLowerCase())}` : esc(L.slot.many)}</h2></div>
       ${depth === 2 ? areasPanel(r, locked, L) : itemsPanel(r, locked, L)}
-    </section>
-    <aside class="bc-side">
-      ${publishCard(r, locked, L)}
-      ${rulesCard(r, locked, L, acts)}
-    </aside>
-  </div>`;
+    </section>`;
 }
 
 function roundBlock(r, locked, L, acts) {
@@ -503,8 +562,9 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       <form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete the ${esc(sc.name)} schedule?')">
         <button class="btn-ghost danger" type="submit"${counts.items ? " disabled" : ""}>Delete ${esc(sc.name)}</button></form>
     </section>` });
-  const radio = (name, value, cur, title, text) => `<label class="mode-opt"><input type="radio" name="${name}" value="${value}" data-label="${esc(title.replace(/<[^>]+>/g, ""))}"${cur === value ? " checked" : ""}><span><b>${title}</b>${text ? `<span class="fine">${text}</span>` : ""}</span></label>`;
+  const radio = (name, value, cur, title, text, ex) => `<label class="mode-opt"><input type="radio" name="${name}" value="${value}" data-label="${esc(title.replace(/<[^>]+>/g, ""))}"${cur === value ? " checked" : ""}><span><b>${title}</b>${text ? `<span class="fine">${text}</span>` : ""}${ex ? `<span class="ex">e.g. ${esc(ex)}</span>` : ""}</span></label>`;
   const claim = SC.claimMode(sc), pick = SC.pickMode(sc), depth = SC.depthOf(sc);
+  const EX = require("../examples").forDepth(depth);
   const CLAIM = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" };
   const VIEWS = { list: "No dates: a list", dlist: "Dates and times: list view", calendar: "Dates and times: calendar", both: "Dates and times: list & calendar" };
   const WHO = { initial: "First name + initial", full: "Full names", off: "Hidden" };
@@ -525,34 +585,17 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
   // inline editors in the header (name, event date, location)
   const inline = (id, view, form) => `<span class="inl" id="inl-${id}"><span class="inl-view">${view}<button type="button" class="pencil" aria-label="Edit">${I.pencil()}</button></span>
       <form method="post" action="${action}" class="inl-form" hidden><input type="hidden" name="q" value="${id}">${form}
-        <button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost inl-cancel">Cancel</button></form></span>`;
+        <button type="button" class="btn-ghost inl-cancel">Cancel</button><button class="btn-small" type="submit">Save</button></form></span>`;
   const dates = eventDates(sc);
   return page({
     title: `Settings · ${sc.name}`, tab, user, flash, xwide: true,
-    body: `<section class="board-head settings-head">
-      <div class="bh-main">
-        <div class="bh-title">${inline("name", `<h1>${esc(sc.name)}</h1>`, `<input name="name" required maxlength="60" value="${esc(sc.name)}" class="inl-name" aria-label="Board name">`)}
-          ${sc.archived_at ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Draft</span>`}
-</div>
-        <div class="meta-line">
-          <span class="meta">${I.calendar()} ${inline("date", `Event date: <b>${dates ? esc(dates) : "Not set"}</b>`,
-            `<input type="date" name="event_date" value="${sc.event_date ? String(sc.event_date).slice(0, 10) : ""}" aria-label="Event date">
-             <span class="fine">to</span><input type="date" name="event_end" value="${sc.event_end ? String(sc.event_end).slice(0, 10) : ""}" aria-label="End date (optional)">`)}</span>
-          <span class="meta">${I.pin()} ${inline("place", `Location: <b>${sc.event_location ? P.link(sc.event_location) : "Not set"}</b>`,
-            `<input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Turn Two Athletics" aria-label="Location">${P.datalist()}`)}</span>
-          ${SC.restricts(sc) ? `<span class="meta">${I.users()} ${esc(L.group.many)}: <b>${groups.length}</b></span>
-            <span class="meta">${I.tag()} Tags: ${tags.length ? chips(tags) : "<b>none</b>"}</span>` : ""}
-        </div>
-      </div>
-      <div class="bh-actions"><a class="btn-small" href="/admin/setup?s=${sc.id}">Open board</a></div>
-    </section>
-
-    <div class="board-cols">
+    body: `<h1 class="page-title">Board settings</h1>
+    <div class="settings-one">
     <section class="panel setup-panel" id="setup-form">
       <div class="bc-head"><h2>Board setup</h2></div>
 
       ${sec("structure", I.layers(), "Structure",
-        `How the board is organized, and what things are called. <b>Rename anything here</b> (e.g. Items → Donations).`,
+        `How the board is organized, and what things are called. <b>Rename anything here</b> (e.g. ${depth === 1 ? "Items → Donations" : depth === 2 ? "Items → Shifts, or Categories → Areas" : "Sessions → Practices"}).<span class="ex">e.g. ${esc(EX.levels)}</span>`,
         rows([["Levels", `${depth} level${depth === 1 ? "" : "s"}: <b>${levelLine}</b>`], ["People", `${esc(L.participant.many)} in ${esc(L.group.many.toLowerCase())}`]]),
         `${counts.items ? `<input type="hidden" name="depth" value="${depth}">` : `<label class="field-l">Levels under the board<select name="depth">
             ${[1, 2, 3, 4].map((n) => `<option value="${n}"${depth === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select>
@@ -574,15 +617,15 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
       ${sec("who", I.users(), "Who can claim", "Who can see this board and claim from it, and whether some things are limited.",
         rows([["Who can claim", `${CLAIM[claim]}<div class="fine">${{ public: "No sign-in needed; anyone with the link.", family: `Anyone who signs in, not just ${esc(require("../config").LABELS.org_name || "your organization")}.`, roster: `Only the ${esc(L.participant.many.toLowerCase())} on this board's list.` }[claim]}</div>`], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
         `<div class="opt-row three">
-          ${radio("claim", "public", claim, "Anyone with the link", claimHelp(L).public)}
-          ${radio("claim", "family", claim, "Anyone signed in", claimHelp(L).family)}
-          ${radio("claim", "roster", claim, "Only people I add", claimHelp(L).roster)}
+          ${radio("claim", "public", claim, "Anyone with the link", claimHelp(L).public, EX.claim.public)}
+          ${radio("claim", "family", claim, "Anyone signed in", claimHelp(L).family, EX.claim.family)}
+          ${radio("claim", "roster", claim, "Only people I add", claimHelp(L).roster, EX.claim.roster)}
         </div>
         <div class="sub-q" data-restrict${claim === "public" ? " hidden" : ""}>
           <p class="q-label">Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people?</p>
           <div class="opt-row">
             ${radio("restrict", "no", sc.restricted ? "yes" : "no", "No", "Anyone who can claim can claim anything.")}
-            ${radio("restrict", "yes", sc.restricted ? "yes" : "no", `Yes, by ${esc(L.group.one.toLowerCase())} or tag`, `e.g. ${depth === 1 ? "Salad only for 10U" : "Catching only for catchers"}.`)}
+            ${radio("restrict", "yes", sc.restricted ? "yes" : "no", `Yes, by ${esc(L.group.one.toLowerCase())} or tag`, "", EX.restrict)}
           </div>
         </div>
         <p class="fine" data-public-note${claim === "public" ? "" : " hidden"}>With "Anyone with the link" people are anonymous, so there's nothing to limit by ${esc(L.group.one.toLowerCase())} or tag.</p>`)}
@@ -591,66 +634,39 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
         rows([["Dates &amp; views", VIEWS[pick] || VIEWS.calendar], ["Who's going", WHO[sc.family_names || "initial"]]]),
         `<p class="q-label">Do things have dates and times?</p>
         <div class="opt-row">
-          ${radio("dated", "no", pick === "list" ? "no" : "yes", "No", "It's all one day or there are no set times. People pick from a list.")}
-          ${radio("dated", "yes", pick === "list" ? "no" : "yes", "Yes", `${esc(L.slot.many)} have dates and times.`)}
+          ${radio("dated", "no", pick === "list" ? "no" : "yes", "No", "It's all one day or there are no set times. People pick from a list.", EX.datedNo)}
+          ${radio("dated", "yes", pick === "list" ? "no" : "yes", "Yes", `${esc(L.slot.many)} have dates and times.`, EX.datedYes)}
         </div>
         <div class="sub-q" data-views${pick === "list" ? " hidden" : ""}>
           <p class="q-label">Available views</p>
           <div class="opt-row three">
-            ${radio("pick", "list", pick === "dlist" ? "list" : pick, "List", "A day-by-day list with dates and times.")}
-            ${radio("pick", "calendar", ["calendar", "list"].includes(pick) ? "calendar" : pick, "Calendar", "People pick days on a calendar.")}
-            ${radio("pick", "both", pick, "Both", "People can switch between the two.")}
+            ${radio("pick", "list", pick === "dlist" ? "list" : pick, "List", "A day-by-day list with dates and times.", EX.viewList)}
+            ${radio("pick", "calendar", ["calendar", "list"].includes(pick) ? "calendar" : pick, "Calendar", "People pick days on a calendar.", EX.viewCal)}
+            ${radio("pick", "both", pick, "Both", "People can switch between the two.", "the calendar for planning, the list for a quick look")}
           </div>
         </div>
         <p class="q-label">Who's going</p>
         <div class="opt-row three">
-          ${radio("family_names", "initial", sc.family_names || "initial", "First name + initial", "e.g. Ava S.")}
-          ${radio("family_names", "full", sc.family_names || "initial", "Full names", "e.g. Ava Smith")}
-          ${radio("family_names", "off", sc.family_names || "initial", "Hidden", "Only how many spots are open")}
+          ${radio("family_names", "initial", sc.family_names || "initial", "First name + initial", "", EX.whoGoing)}
+          ${radio("family_names", "full", sc.family_names || "initial", "Full names", "", EX.whoGoing.replace(/(\w+) (\w)\./g, (m, f, l) => `${f} ${({ S: "Smith", K: "Klein", P: "Peters", R: "Reed" })[l] || l + "…"}`))}
+          ${radio("family_names", "off", sc.family_names || "initial", "Hidden", "Only how many spots are open", "2 of 4 spots open")}
         </div>
         <p class="fine">Emails and contact details are never shown.</p>`)}
 
       ${sec("attendance", I.check(), "Attendance", "Whether attendance is taken, and the coaches who can take it.",
         rows([["Track attendance", sc.track_attendance ? "Yes, by default" : "No, not by default"], ["Coaches", (counts.coaches || []).length ? esc(counts.coaches.join(", ")) : "None"]]),
         `<div class="opt-row">
-          ${radio("track", "off", sc.track_attendance ? "on" : "off", "No, not by default", "")}
-          ${radio("track", "on", sc.track_attendance ? "on" : "off", "Yes, by default", "")}
+          ${radio("track", "off", sc.track_attendance ? "on" : "off", "No, not by default", "Turn it on for just the ones that need it.", "")}
+          ${radio("track", "on", sc.track_attendance ? "on" : "off", "Yes, by default", "", EX.attendance)}
         </div>
         <p class="fine">${depth >= 2 ? `Each ${esc(L.activity.one.toLowerCase())} can change this (e.g. track Hitting, not Cage Time).` : `Each ${esc(L.slot.one.toLowerCase())} can change this.`}</p>
         <label class="field-l"><span>Coaches who can take attendance <span class="opt">(one email per line)</span></span>
-          <textarea name="coaches" rows="${Math.max(2, (counts.coaches || []).length + 1)}" placeholder="coach@example.com">${esc((counts.coaches || []).join("\n"))}</textarea></label>
-        <p class="fine">They sign in with their email and only see Check-in. Admins can always take attendance.</p>`)}
+          <textarea name="coaches" rows="${Math.max(2, (counts.coaches || []).length + 1)}" placeholder="e.g. coach@example.com, one per line">${esc((counts.coaches || []).join("\n"))}</textarea></label>
+        <p class="fine">They sign in with their email and only see Check-in. Admins can always take attendance.</p>
+        <p class="ex">e.g. ${esc(EX.coaches)}</p>`)}
     </section>
 
-    <aside class="bc-side">
-      ${depth >= 3 ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.grid()}</span><h2>${esc(L.activity.many)}</h2>
-          <a class="btn-ghost" href="/admin/settings/activities?s=${sc.id}">${I.gear()} Manage</a></div>
-        <p class="fine">${SC.activitiesFor(sc).length} ${esc(L.activity.many.toLowerCase())} with their default spots, colors, and limits.</p></section>` : ""}
-      ${(() => {
-        const thing = esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase());
-        const tagsUsed = SC.restricts(sc);
-        const peopleUsed = SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules));
-        const turnOn = `<button type="button" class="link-dark turn-on" data-open="who">Turn on</button>`;
-        const off = (text) => `<p class="fine off-note"><span class="pill">Not in use</span> ${text} ${turnOn}</p>`;
-        const head = (icon, title, href, used) => `<div class="card-head"><span class="ss-ico">${icon}</span><h2>${title}</h2>
-          <a class="btn-ghost" href="${href}">${I.gear()} Manage</a></div>`;
-        return `<section class="panel side-card${tagsUsed ? "" : " not-used"}">
-          ${head(I.tag(), `${esc(L.group.many)} &amp; tags`, `/admin/settings/groups?s=${sc.id}`, tagsUsed)}
-          ${tagsUsed ? `<p class="fine">Used to limit some ${thing} to certain people.</p>`
-            : off(claim === "public" ? "This board is open to anyone with the link, so nothing can be limited by team or tag."
-              : `"Limit some ${thing} to certain people" is set to No.`)}
-          <div class="chip-line"><span class="q-lab">${esc(L.group.many)} (${groups.length})</span>${groups.length ? chips(groups) : `<span class="fine">None yet</span>`}</div>
-          <div class="chip-line"><span class="q-lab">Tags (${tags.length})</span>${tags.length ? chips(tags) : `<span class="fine">None yet</span>`}</div>
-        </section>
-        <section class="panel side-card${peopleUsed ? "" : " not-used"}">
-          ${head(I.userCheck(), esc(L.participant.many), `/admin/members?s=${sc.id}`, peopleUsed)}
-          ${peopleUsed ? `<p class="fine">${claim === "roster" ? `Only the ${esc(L.participant.many.toLowerCase())} you add can claim.` : `Add people to give them a ${esc(L.group.one.toLowerCase())} or tags.`}</p>`
-            : off(claim === "public" ? `This board is open to anyone with the link, so it doesn't use a list of ${esc(L.participant.many.toLowerCase())}.`
-              : `Anyone signed in can claim and nothing is limited, so the list isn't needed.`)}
-          <div class="big-count"><b>${sc.member_count || 0}</b><span>${esc((sc.member_count === 1 ? L.participant.one : L.participant.many).toLowerCase())}</span></div>
-        </section>`;
-      })()}
-    </aside>
+
     </div>
     <script>
     (function () {
@@ -698,12 +714,12 @@ function newSchedulePage({ user, flash }) {
   const levels = (l) => SC.LEVEL_KEYS[l.depth].map((k) => l[k][1]).join(" › ");
   const CHOICES = [
     ["list", "📋", "Item list", "1 level", "Donations, a potluck, team snacks", "Bring a case of water · 10 spots"],
-    ["volunteer", "🙋", "Areas & shifts", "2 levels", "Tournament or fundraiser volunteers", "Concessions › 9:00–11:00 AM · 4 spots"],
+    ["volunteer", "🗂️", "Categories & items", "2 levels", "Volunteer jobs by area, a potluck by course, donations by type", "Concessions › Grill 8–10 AM, or Desserts › Brownies"],
     ["training", "🥎", "Rounds & sessions", "3 levels", "Training with rounds, limits, and a calendar", "Round 1 › Hitting 12U–18U › Mon 6:00 PM"],
     ["event", "🏆", "Event days", "4 levels", "A multi-day event with areas and stations", "Saturday › Concessions › Grill › 8–10 AM"],
   ];
-  const opt = (name, value, title, text) => `<label class="choice"><input type="radio" name="${name}" value="${value}">
-    <span class="choice-body"><b>${title}</b><span>${text}</span></span><span class="choice-check" aria-hidden="true">✓</span></label>`;
+  const opt = (name, value, title, text, exKey) => `<label class="choice"><input type="radio" name="${name}" value="${value}">
+    <span class="choice-body"><b>${title}</b><span>${text}</span>${exKey ? `<span class="ex" data-ex="${exKey}"></span>` : ""}</span><span class="choice-check" aria-hidden="true">✓</span></label>`;
   return page({
     title: "New", tab: "home", user, flash,
     body: `<a class="back" href="/admin/settings">All ${esc(LABELS.schedules.toLowerCase())}</a>
@@ -737,18 +753,18 @@ function newSchedulePage({ user, flash }) {
           <h2>Settings</h2>
           <p class="muted tight">Filled in for the structure you picked. Change any of them.</p>
           <fieldset class="q"><legend>Who can claim?</legend><div class="choice-row three">
-            ${opt("claim", "public", "Anyone with the link", claimHelp().public)}
-            ${opt("claim", "family", "Anyone signed in", claimHelp().family)}
-            ${opt("claim", "roster", "Only people I add", claimHelp().roster.replace("this board's list", "the list you make"))}</div></fieldset>
+            ${opt("claim", "public", "Anyone with the link", claimHelp().public, "claim.public")}
+            ${opt("claim", "family", "Anyone signed in", claimHelp().family, "claim.family")}
+            ${opt("claim", "roster", "Only people I add", claimHelp().roster.replace("this board's list", "the list you make"), "claim.roster")}</div></fieldset>
           <fieldset class="q"><legend>Limit some things to certain people?</legend><div class="choice-row">
             ${opt("restrict", "no", "No", "Anyone who can claim can claim anything.")}
-            ${opt("restrict", "yes", "Yes", "By group or tag, e.g. Salad only for 10U, Catching only for catchers.")}</div></fieldset>
+            ${opt("restrict", "yes", "Yes", "By team or tag.", "restrict")}</div></fieldset>
           <fieldset class="q"><legend>Do things have dates and times?</legend><div class="choice-row">
-            ${opt("dated", "no", "No", "It's all one day or there are no set times. People pick from a list.")}
-            ${opt("dated", "yes", "Yes", "Things have dates and times.")}</div></fieldset>
+            ${opt("dated", "no", "No", "It's all one day or there are no set times. People pick from a list.", "datedNo")}
+            ${opt("dated", "yes", "Yes", "Things have dates and times.", "datedYes")}</div></fieldset>
           <fieldset class="q" id="wz-views"><legend>Available views</legend><div class="choice-row three">
-            ${opt("pick", "list", "List", "A day-by-day list with dates and times. No calendar.")}
-            ${opt("pick", "calendar", "Calendar", "People pick days on a calendar.")}
+            ${opt("pick", "list", "List", "A day-by-day list with dates and times. No calendar.", "viewList")}
+            ${opt("pick", "calendar", "Calendar", "People pick days on a calendar.", "viewCal")}
             ${opt("pick", "both", "Both: List &amp; Calendar", "People can switch between the calendar and a day-by-day list.")}</div></fieldset>
           <div class="wz-summary" aria-live="polite"><span class="label-like">Summary</span><p id="wz-sum"></p></div>
         </div>
@@ -765,13 +781,22 @@ function newSchedulePage({ user, flash }) {
     (function () {
       var D = ${JSON.stringify(Object.fromEntries(Object.entries(PRE).map(([k, v]) => [k, { claim: v.claim, restrict: v.restrict ? "yes" : "no", dated: v.calendar === false ? "no" : "yes", depth: v.depth }])))};
       var NAMES = ${JSON.stringify(Object.fromEntries(CHOICES.map(([k, , t, d]) => [k, t + " (" + d + ")"])))};
+      var EXAMPLES = ${JSON.stringify(require("../examples").BY_DEPTH)};
       var form = document.getElementById("wz"), step = 1, touched = {};
       var $ = function (sel) { return form.querySelector(sel); };
       var val = function (n) { var el = form.querySelector('input[name="' + n + '"]:checked'); return el ? el.value : ""; };
       function set(n, v) { if (touched[n]) return; var el = form.querySelector('input[name="' + n + '"][value="' + v + '"]'); if (el) el.checked = true; }
       function defaults() { var d = D[val("preset")]; if (!d) return; set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated); if (!val("pick")) set("pick", "calendar"); refresh();
         var err = document.getElementById("wz-pick-err"); if (err) err.hidden = true; }
+      function examples() {
+        var d = (D[val("preset")] || {}).depth, ex = EXAMPLES[d];
+        form.querySelectorAll("[data-ex]").forEach(function (el) {
+          var v = ex && el.dataset.ex.split(".").reduce(function (o, k) { return o && o[k]; }, ex);
+          el.textContent = v ? "e.g. " + v : ""; el.hidden = !v;
+        });
+      }
       function refresh() {
+        examples();
         document.getElementById("wz-views").hidden = val("dated") !== "yes";
         var rq = document.querySelector('input[name="restrict"]').closest("fieldset"); rq.hidden = val("claim") === "public";
         var who = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" }[val("claim")] || "";
@@ -805,24 +830,84 @@ function newSchedulePage({ user, flash }) {
   });
 }
 
+// Board screen header: name, status, event details (all editable in place), Share and Publish
 function boardHeader(sc, L, depth, main, rounds, locked) {
-  const all = depth <= 2 ? (main ? [main] : []) : rounds;
-  const sum = (k) => all.reduce((n, r) => n + (r[k] || 0), 0);
+  const I = require("./icons"), P = require("../locations");
   const published = depth <= 2 ? !!(main && main.published_at) : rounds.some((r) => r.published_at);
   const status = locked ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">${depth <= 2 ? "Published" : "Live"}</span>` : `<span class="pill warn">Draft</span>`;
-  return `<section class="board-head">
-      <div class="bh-main"><div class="bh-title"><h1>${esc(sc.name)}</h1>${status}</div>
-        ${eventDates(sc) || sc.event_location ? `<div class="meta-line">${eventDates(sc) ? `<span class="meta">${require("./icons").calendar()} <b>${esc(eventDates(sc))}</b></span>` : ""}
-          ${sc.event_location ? `<span class="meta">${require("./icons").pin()} <b>${require("../locations").link(sc.event_location)}</b></span>` : ""}</div>` : ""}</div>
+  const action = `/admin/setup/schedules/${sc.id}?s=${sc.id}`;
+  const ret = `<input type="hidden" name="return_to" value="/admin/setup?s=${sc.id}">`;
+  const inline = (id, view, form) => locked ? `<span class="inl">${view}</span>` : `<span class="inl" id="inl-${id}"><span class="inl-view">${view}<button type="button" class="pencil" aria-label="Edit">${I.pencil()}</button></span>
+      <form method="post" action="${action}" class="inl-form" hidden><input type="hidden" name="q" value="${id}">${ret}${form}
+        <button type="button" class="btn-ghost inl-cancel">Cancel</button><button class="btn-small" type="submit">Save</button></form></span>`;
+  const dates = eventDates(sc);
+  const share = depth <= 2 && main && main.published_at && SC.claimMode(sc) === "public"
+    ? `<details class="share-pop"><summary class="btn-ghost btn-lg">Share</summary><div class="share-panel">${shareBox(main)}</div></details>` : "";
+  return `<section class="board-head settings-head">
+      <div class="bh-main">
+        <div class="bh-title">${inline("name", `<h1>${esc(sc.name)}</h1>`, `<input name="name" required maxlength="60" value="${esc(sc.name)}" class="inl-name" aria-label="Board name">`)}${status}</div>
+        <div class="meta-line">
+          <span class="meta">${I.calendar()} ${inline("date", `Event date: <b>${dates ? esc(dates) : "Not set"}</b>`,
+            `<input type="date" name="event_date" value="${sc.event_date ? String(sc.event_date).slice(0, 10) : ""}" aria-label="Event date">
+             <span class="fine">to</span><input type="date" name="event_end" value="${sc.event_end ? String(sc.event_end).slice(0, 10) : ""}" aria-label="End date (optional)">`)}</span>
+          <span class="meta">${I.pin()} ${inline("place", `Location: <b>${sc.event_location ? P.link(sc.event_location) : "Not set"}</b>`,
+            `<input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Turn Two Athletics" aria-label="Location">${P.datalist()}`)}</span>
+        </div>
+      </div>
       <div class="bh-actions">
-        <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">⚙ ${esc(require("../config").LABELS.schedule)} settings</a>
         ${depth >= 3 && !locked ? `<a class="btn-ghost" href="/admin/import?s=${sc.id}">Import schedule</a>` : ""}
+        ${share}
+        ${depth <= 2 && main && !locked ? publishForm(main, sc.name, "btn-lg") : ""}
       </div>
     </section>
     ${locked ? `<p class="rule">Archived: hidden from people and read-only. Reopen it from the Claim Boards page to make changes.</p>` : ""}`;
 }
 
-function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
+// Right column: what's set, with Manage
+function sideCards(sc, L, depth, main, locked, acts, counts) {
+  const I = require("./icons");
+  const claim = SC.claimMode(sc), pick = SC.pickMode(sc);
+  const CLAIM = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" };
+  const VIEWS = { list: "No dates (a list)", dlist: "Dates · list view", calendar: "Dates · calendar", both: "Dates · list & calendar" };
+  const manage = (href, on = true) => locked ? "" : on ? `<a class="btn-ghost" href="${href}">${I.gear()} Manage</a>` : `<span class="btn-ghost is-off" aria-disabled="true">${I.gear()} Manage</span>`;
+  const rows = (list) => `<dl class="rc-list">${list.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>`;
+  const settings = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.layers()}</span><h2>Board settings</h2>${manage(`/admin/setup/schedule?s=${sc.id}`)}</div>
+    ${rows([["Structure", esc(SC.levelKeys(sc).map((k) => L[k].many).join(" › "))], ["Who can claim", CLAIM[claim]], ["How people see it", VIEWS[pick] || VIEWS.calendar],
+      ["Attendance", `${sc.track_attendance ? "Tracked" : "Not tracked"}${(counts.coaches || []).length ? ` · ${counts.coaches.length} coach${counts.coaches.length === 1 ? "" : "es"}` : ""}`]])}</section>`;
+  const rules = depth <= 2 && main ? rulesCard(main, locked, L, acts)
+    : `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Rules</h2></div>
+      <p class="fine">Each ${esc(L.middle.one.toLowerCase())} has its own limits and timing for now (open a ${esc(L.middle.one.toLowerCase())} below). They'll move to one Rules page in the next update.</p></section>`;
+  const tagsUsed = SC.restricts(sc), peopleUsed = SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules));
+  const used = tagsUsed || peopleUsed;
+  const groups = SC.groupsFor(sc), tags = sc.tags || [];
+  const people = `<section class="panel side-card${used ? "" : " not-used"}"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span>
+      <h2>${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</h2>${manage(`/admin/members?s=${sc.id}`, used)}</div>
+    ${used ? "" : `<p class="fine off-note"><span class="pill">Not in use</span> ${claim === "public" ? "This board is open to anyone with the link, so it doesn't use teams, tags, or a list of people." : "Anyone signed in can claim and nothing is limited."}
+      <a class="link-dark" href="/admin/setup/schedule?s=${sc.id}#ss-who">Turn on</a></p>`}
+    ${rows([[esc(L.group.many), groups.length ? esc(groups.join(", ")) : "None"], ["Tags", tags.length ? esc(tags.join(", ")) : "None"], [esc(L.participant.many), String(sc.member_count || 0)]])}</section>`;
+  return `<aside class="bc-side">${settings}${rules}${people}</aside>`;
+}
+
+// Rounds boards: their activities, right in the work column
+function activitiesPanel(sc, L, locked) {
+  const list = SC.activitiesFor(sc);
+  const { metaFor } = require("../config");
+  return `<section class="panel" id="activities">
+    <div class="bc-head"><h2>${esc(L.activity.many)}</h2>${locked ? "" : `<a class="btn-ghost" href="/admin/settings/activities?s=${sc.id}">Edit details</a>`}</div>
+    ${locked ? "" : `<form method="post" action="/admin/settings/activities?s=${sc.id}" class="item-add2"><input type="hidden" name="return_to" value="/admin/setup?s=${sc.id}#activities">
+      <span class="ia-title">Add ${esc(SC.an(L.activity.one))}</span>
+      <label class="mini ia-name">Name<input name="name" required maxlength="40" placeholder="e.g. ${esc(require("../examples").forDepth(SC.depthOf(sc)).group.split(" ")[0])}" class="ir-title"></label>
+      <label class="mini">Default spots<input type="number" name="default_spots" min="1" max="500" placeholder="e.g. 12" class="spots-in"></label>
+      <button class="btn-small" type="submit">Add ${esc(L.activity.one.toLowerCase())}</button></form>`}
+    <h3 class="ilist-head">Your ${esc(L.activity.many.toLowerCase())} <span class="fine-inline">(${list.length})</span></h3>
+    ${list.length ? `<ul class="act-list">${list.map((a) => { const m = metaFor(a, sc.id); return `<li>${swatch(a)}<b>${esc(a)}</b>
+      <span class="fine">${m.default_spots ? `${m.default_spots} spots by default` : ""}${m.active === false ? " · hidden" : ""}</span></li>`; }).join("")}</ul>`
+      : `<p class="muted small items-empty">None yet. Add one above, then add it to a ${esc(L.middle.one.toLowerCase())}.</p>`}
+  </section>`;
+}
+
+
+function setupPage({ user, flash, schedule: sc, rounds, standalone, counts = {} }) {
   CUR = sc;
   const L = SC.labels(sc);
   const acts = SC.activitiesFor(sc, { activeOnly: true });
@@ -833,11 +918,13 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
   return page({
     title: sc.name, tab: "setup", user, flash, xwide: true,
     body: `${boardHeader(sc, L, depth, main, sorted, locked)}
-    ${depth <= 2 ? (main ? boardBlock(main, locked, L, acts) : "") : `<section class="panel">
+    <div class="board-cols"><div class="bc-left">
+    ${depth <= 2 ? (main ? boardBlock(main, locked, L, acts) : "") : activitiesPanel(sc, L, locked) + `<section class="panel">
       <h2 class="season-title">${esc(L.middle.many)}</h2>
       <div class="rounds">${sorted.length ? sorted.map((r) => roundBlock(r, locked, L, acts)).join("") : `<p class="muted">No ${esc(L.middle.many.toLowerCase())} yet. Add the first one below.</p>`}</div>
       ${locked ? "" : newRoundForm(null, [...sorted].reverse(), true, L)}
     </section>`}
+    </div>${sideCards(sc, L, depth, main, locked, acts, counts)}</div>
 
     ${standalone.length ? `<section class="panel">
       <details class="add-round"><summary>Standalone programs (${standalone.length})</summary>
@@ -848,6 +935,15 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
     ${FOR_PICK_JS}
     <script>
     (function () {
+      document.querySelectorAll(".inl").forEach(function (x) {
+        var f = x.querySelector(".inl-form"), v = x.querySelector(".inl-view"); if (!f) return;
+        x.querySelector(".pencil").addEventListener("click", function () {
+          document.querySelectorAll(".inl.open .inl-cancel").forEach(function (c) { c.click(); });
+          f.hidden = false; v.hidden = true; x.classList.add("open"); var i = f.querySelector("input:not([type=hidden])"); if (i) i.focus();
+        });
+        x.querySelector(".inl-cancel").addEventListener("click", function () { f.reset(); f.hidden = true; v.hidden = false; x.classList.remove("open"); });
+      });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".inl.open .inl-cancel").forEach(function (c) { c.click(); }); });
       // Open whatever the last action pointed at
       var id = location.hash.slice(1);
       var el = id && document.getElementById(id);
@@ -878,4 +974,4 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone }) {
   });
 }
 
-module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates };
+module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates, rulesPage };

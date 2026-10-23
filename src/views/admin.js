@@ -14,24 +14,25 @@ const STEPS = [
   ["groups", (sc) => `/admin/settings/groups?s=${sc.id}`, (L) => `${L.group.many} & tags`, (sc) => `${(sc.groups || []).length}${(sc.tags || []).length ? ` + ${(sc.tags || []).length} tag${(sc.tags || []).length === 1 ? "" : "s"}` : ""}`, ["groups"]],
   ["members", (sc) => `/admin/members?s=${sc.id}`, (L) => L.participant.many, (sc) => String(sc.member_count || 0), ["members", "athletes"]],
 ];
+// Every board screen: a trail back to the board (the board is home base)
 function settingsNav(tab, user) {
   const sched = user && user.sched;
   const { LABELS } = require("../config");
-  if (tab === "home" || !sched || !sched.sc) return "";
-  const homeLink = `<a class="crumb" href="/admin/settings">← All ${esc(LABELS.schedules.toLowerCase())}</a>`;
-  if (tab === "settings") return `<nav class="crumbs no-print">${homeLink}</nav>`;
+  if (tab === "home" || tab === "settings" || !sched || !sched.sc) return "";
   const sc = sched.sc;
-  if (tab === "setup") return `<nav class="crumbs no-print">${homeLink}</nav>`;
-  if (BOARD_AREA.includes(tab)) return `<nav class="crumbs no-print">${homeLink}<a class="crumb" href="/admin/setup?s=${sc.id}">${esc(sc.name)}</a>
-      ${sc.archived_at ? `<span class="pill">Archived</span>` : ""}</nav>`;
   const SC = require("../schedules");
-  const cur = STEPS.find((t) => t[4].includes(tab));
-  if (!cur) return "";
-  // the settings page has its own header; the pages it links to get a way back
-  if (cur[0] === "structure") return `<nav class="crumbs no-print">${homeLink}</nav>`;
-  return `<nav class="crumbs no-print">${homeLink}<a class="crumb" href="/admin/setup/schedule?s=${sc.id}">← ${esc(sc.name)} settings</a></nav>`;
+  const L = SC.labels(sc);
+  const here = { schedule: "Board settings", "schedule-more": "Board settings", "schedule-archive": "Archive or delete", rules: "Rules",
+    members: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, athletes: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`,
+    groups: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, activities: L.activity.many, import: "Import schedule",
+    rounds: L.middle.one, programs: L.middle.one, seasons: L.middle.one }[tab];
+  const trail = [`<a href="/admin/settings">${esc(LABELS.schedules)}</a>`,
+    tab === "setup" ? `<span aria-current="page">${esc(sc.name)}</span>` : `<a href="/admin/setup?s=${sc.id}">${esc(sc.name)}</a>`];
+  if (here && tab !== "setup") trail.push(`<span aria-current="page">${esc(here)}</span>`);
+  return `<nav class="trail no-print" aria-label="You are here">${trail.join(`<span class="sep">›</span>`)}${sc.archived_at ? ` <span class="pill">Archived</span>` : ""}</nav>`;
 }
-const page = (opts) => layout({ ...opts, admin: true, wide: true, body: settingsNav(opts.tab, opts.user) + opts.body });
+const SAME_WIDTH = ["members", "athletes", "groups", "activities", "schedule", "setup", "rules"];
+const page = (opts) => layout({ ...opts, admin: true, wide: true, xwide: opts.xwide || SAME_WIDTH.includes(opts.tab), body: settingsNav(opts.tab, opts.user) + opts.body });
 
 const ageChecks = (selected = []) => `<fieldset class="checks"><legend>Groups</legend>
   ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="age_groups" value="${g}"${selected.includes(g) ? " checked" : ""}> ${g}</label>`).join("")}

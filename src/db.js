@@ -244,6 +244,14 @@ async function migrate() {
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS event_date DATE;
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS event_end DATE;
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS event_location TEXT;
+    -- One time: 1-2 level boards never showed "unlock leftover spots", so their hidden 7-day default goes to Never
+    CREATE TABLE IF NOT EXISTS app_flags (name TEXT PRIMARY KEY);
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM app_flags WHERE name='main_unlock_never') THEN
+        UPDATE rounds SET unlock_hours = NULL WHERE is_main AND unlock_hours = 168;
+        INSERT INTO app_flags VALUES ('main_unlock_never');
+      END IF;
+    END $$;
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,

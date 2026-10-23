@@ -4,7 +4,7 @@ const auth = require("../auth");
 const { AGE_GROUPS, ACTIVITIES } = require("../config");
 const v = require("../views/setup");
 const SC = require("../schedules");
-const { wrap, flashFrom, go, int, str } = require("./util");
+const { wrap, flashFrom, go, int, str, dest } = require("./util");
 
 const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
@@ -44,7 +44,15 @@ router.get("/", wrap(async (req, res) => {
      WHERE r.schedule_id=$1 AND s.canceled_at IS NULL AND ($2 OR s.starts_at IS NULL)
      ORDER BY s.starts_at NULLS FIRST, s.id`, [schedule.id, SC.depthOf(schedule) <= 2])).rows;
   for (const r of rounds) r.items = items.filter((i) => i.round_id === r.id);
-  res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedule, rounds, standalone }));
+  const coaches = (await query(`SELECT email FROM schedule_coaches WHERE schedule_id=$1 ORDER BY email`, [schedule.id])).rows.map((r) => r.email);
+  res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedule, rounds, standalone, counts: { coaches } }));
+}));
+
+// The board's Rules page (1-2 level boards; rounds boards keep per-round rules for now)
+router.get("/rules", wrap(async (req, res) => {
+  const sc = req.sched.sc;
+  const main = SC.depthOf(sc) <= 2 ? await SC.ensureStructure(sc) : null;
+  res.send(v.rulesPage({ user: req.user, flash: flashFrom(req), sc, main }));
 }));
 
 router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: req.user, flash: flashFrom(req) }))));
@@ -163,7 +171,7 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   const sc2 = await SC.get(id);
   await SC.ensureStructure(sc2); // a 1-level board's built-in activity follows the level name
   const L2 = SC.labels(sc2);
-  const back = `/admin/setup/schedule?s=${id}${/^[a-z]+$/.test(b.q || "") ? `#q-${b.q}` : ""}`;
+  const back = dest(req, `/admin/setup/schedule?s=${id}${/^[a-z]+$/.test(b.q || "") ? `#q-${b.q}` : ""}`);
   go(res, back, badCoaches.length
     ? { err: `Saved, but these coach emails weren't valid and were left out: ${badCoaches.join(", ")}` }
     : { ok: "Saved." });

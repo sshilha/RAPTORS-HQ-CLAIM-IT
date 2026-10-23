@@ -1428,3 +1428,73 @@ table.places input.addr { min-width: 280px; }
 .card-head h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .card-head .btn-ghost { flex: none; }
 .off-note .pill { margin-right: 4px; vertical-align: 1px; }
+
+/* Teams & tags page: compact intro, definitions on each card */
+.page-intro h1 { margin: 0 0 4px; }
+.page-intro .fine { margin: 0; max-width: 760px; }
+.copy-from-d { margin-top: 8px; font-size: 14px; }
+.copy-from-d > summary { cursor: pointer; color: var(--navy-2); font-weight: 600; }
+.copy-from-d .copy-from { border-top: 0; padding-top: 6px; margin-top: 4px; }
+.card-def { margin: 0 0 10px; font-size: 14px; color: var(--text-2); }
+.explain-1 { background: #f8fafc; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0 12px; font-size: 14px; }
+.explain-1 p { margin: 0 0 6px; } .explain-1 p:last-child { margin: 0; }
+.page-help { margin: 4px 0 10px; font-size: 14px; max-width: 760px; }
+.btn-ghost.is-off { opacity: .45; cursor: not-allowed; pointer-events: none; }
+
+/* ---------- where am I: trail + Board/Settings tabs ---------- */
+.trail { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); margin: 2px 0 10px; }
+.trail a { color: var(--navy-2); font-weight: 600; text-decoration: none; }
+.trail a:hover { text-decoration: underline; }
+.trail [aria-current] { color: var(--navy); font-weight: 700; }
+.trail .sep { color: #b6c0cf; }
+.board-tabs { display: flex; gap: 6px; align-items: flex-end; border-bottom: 1px solid var(--line); margin: 0 0 16px; }
+.board-tabs a { display: flex; flex-direction: column; text-decoration: none; color: var(--muted); font: 700 15px var(--body);
+  padding: 8px 16px 9px; border: 1px solid transparent; border-bottom: 0; border-radius: 10px 10px 0 0; margin-bottom: -1px; }
+.board-tabs a .bt-sub { font: 500 12px var(--body); color: #94a3b8; }
+.board-tabs a:hover { color: var(--navy); background: #f8fafc; }
+.board-tabs a[aria-current="page"] { color: var(--navy); background: #fff; border-color: var(--line); box-shadow: inset 0 3px 0 var(--accent); }
+.board-tabs .pill { margin: 0 0 8px auto; }
+/* App settings by the email */
+.who .app-link { color: #cbd5e1; font-size: 13px; text-decoration: none; }
+.who .app-link:hover, .who .app-link[aria-current] { color: var(--accent); }
+.tag-add { margin-bottom: 10px; background: var(--accent-tint); border: 1px solid #d9efb0; border-radius: 10px; padding: 10px; }
+.ex { display: block; margin-top: 3px; font-size: 12px; font-style: italic; color: #8a96a8; }
+p.ex { margin: 2px 0 8px; }
+.ss-titles .ex { display: block; }
+.mode-opt .ex, .choice-body .ex, .ex { font-weight: 400 !important; }
+.area-add { background: var(--accent-tint); border: 1px solid #d9efb0; border-style: solid; flex-wrap: wrap; }
+.area-add .ia-title { flex: 1 1 100%; font: 700 14px var(--body); color: var(--accent-ink); }
+.area-add input { background: #fff; }
+.att-lab { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--body); color: var(--muted); text-transform: none; }
+.rc-form select { width: auto; padding: 5px 8px; font-size: 14px; }
+.page-title { margin: 0 0 14px; }
+.rules-page { display: flex; flex-direction: column; }
+.rules-page.rc-form { display: flex; }
+.rules-group .rules-fields { margin: 10px 0 0 50px; display: flex; flex-direction: column; gap: 14px; }
+.rules-group fieldset { border-bottom: 0; padding-bottom: 0; }
+@media (max-width: 640px) { .rules-group .rules-fields { margin-left: 0; } }
+
+/* ---------- board screen: home base ---------- */
+.btn-lg { font-size: 17px !important; padding: 12px 26px !important; }
+.bh-actions { align-items: flex-start; }
+.share-pop { position: relative; }
+.share-pop > summary { list-style: none; cursor: pointer; }
+.share-pop > summary::-webkit-details-marker { display: none; }
+.share-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: min(460px, 90vw); background: #fff; border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: 0 10px 30px rgba(11, 25, 48, .18); padding: 12px; }
+.bc-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.act-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.act-list li { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: #fff; }
+.act-list li b { font-weight: 600; color: var(--navy); }
+.act-list .fine { margin-left: auto; }
+.settings-one { max-width: 900px; }
+.side-card .rc-list dd { text-align: right; }
+.card-head h2 { white-space: normal; overflow: visible; font-size: 17px; line-height: 1.25; }
+
+/* Save/Cancel sit on the right, with the main action last (Cancel · Save) */
+.q-actions, .for-actions, .rc-actions { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: 8px; }
+.ir-edit-actions { justify-content: flex-start; }
+.rules-fields.ss-form { gap: 14px; }
+.rules-fields.ss-form[hidden] { display: none !important; }
+.rules-fields.ss-form:not([hidden]) { display: flex !important; flex-direction: column; }
+.setup-panel > .ss:first-child { border-top: 0; padding-top: 4px; }

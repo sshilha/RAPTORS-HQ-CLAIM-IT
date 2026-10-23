@@ -36,7 +36,14 @@ router.get("/", wrap(async (req, res) => {
      WHERE NOT EXISTS (SELECT 1 FROM schedule_members m WHERE m.schedule_id=$1 AND m.athlete_id=a.id)
      ORDER BY a.last_name, a.first_name`, [sc.id])).rows;
   const total = (await query(`SELECT count(*)::int AS n FROM schedule_members WHERE schedule_id=$1`, [sc.id])).rows[0].n;
-  res.send(v.membersPage({ user: req.user, flash: flashFrom(req), sc, members, others, group, total }));
+  // Teams & tags live on the same page, above the people
+  const G = require("../groups"), SCx = require("../schedules");
+  const usage = {};
+  for (const g of SCx.groupsFor(sc)) usage[g] = await G.usage(sc.id, g);
+  for (const t of sc.tags || []) usage[`tag:${t}`] = await G.tagUsage(sc.id, t);
+  const boards = req.sched.list.filter((x) => x.id !== sc.id && ((x.groups || []).length || (x.tags || []).length));
+  const teams = require("../views/settings").groupsPage({ user: req.user, sc, usage, others: boards, embed: true });
+  res.send(v.membersPage({ user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams }));
 }));
 
 // A brand-new person, added to this schedule

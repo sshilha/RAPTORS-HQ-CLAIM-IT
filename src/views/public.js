@@ -29,7 +29,7 @@ function sheetPage({ user, round: r, slots, flash }) {
       <h1>${esc(r.name)}</h1>
       ${r.event_date || r.event_location || r.location ? `<p class="muted tight">${[r.event_date ? esc(require("./setup").eventDates(r)) : "", (r.event_location || r.location) ? P.link(r.event_location || r.location) : ""].filter(Boolean).join(" · ")}</p>` : ""}
       ${user ? `<p class="fine">Signed in as ${esc(user.email)}. Your spots also show under <a href="/dashboard">My Claims</a>.</p>`
-        : `<p class="fine">Pick a time, tap <b>Claim it</b>, and enter a name and email. No account needed. Already claimed a spot? <a href="/">Sign in</a> with your email to see or give it up.</p>`}
+        : `<p class="fine">Pick a time, tap <b>Claim it</b>, and enter a name and email. No account needed. Already claimed a spot? <a href="/">Sign in</a> with your email to see or cancel it.</p>`}
     </section>
     ${days.length ? days.map((d) => `<section class="panel pub-day">
       <h2 class="banner">${esc(longDay(d))}</h2>
@@ -75,7 +75,7 @@ function donePage({ user, round: r, slot: s, values, status }) {
     body: `<section class="panel done-card">
       <h1>${status === "confirmed" ? "Spot claimed!" : "You're on the waitlist"}</h1>
       <p class="lede"><strong>${esc(values.first_name)} ${esc(values.last_name)}</strong>, ${esc(s.starts_at ? `${longDay(s.day)}, ${fmtTime(s.starts_at)}–${fmtTime(s.ends_at)}` : s.title || "Anytime")}${require("../config").metaFor(s.activity, r.schedule_id).item_list ? "" : ` (${esc(typeLabel(s.activity, s.age_groups, s.required_tags))})`}.</p>
-      <p>We emailed a confirmation to <strong>${esc(values.email)}</strong>. To see or give up your spots, <a href="/">sign in</a> with that email.</p>
+      <p>We emailed a confirmation to <strong>${esc(values.email)}</strong>. To see or cancel your spots, <a href="/">sign in</a> with that email.</p>
       <p><a class="btn-small" href="/s/${r.share_token}">Claim another spot</a></p>
     </section>`,
   });

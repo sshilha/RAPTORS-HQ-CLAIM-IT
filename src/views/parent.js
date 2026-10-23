@@ -50,12 +50,12 @@ function usagePanel(programs, { title = "This round" } = {}) {
 function cancelControl(r, back) {
   const deadline = r.starts_at ? cancelDeadline(r.starts_at, r.cancel_hours) : null; // undated items: no deadline
   const canCancel = r.status === "waitlisted" || !deadline || new Date() < deadline;
-  if (!canCancel) return `<span class="fine">Too late to give it up online. Contact your coach.</span>`;
+  if (!canCancel) return `<span class="fine">Too late to cancel in the app. Contact the organizer.</span>`;
   return `<form method="post" action="/reservations/${r.id}/cancel"
-      onsubmit="return confirm('${r.status === "confirmed" ? "Give up this spot? It will open for someone else." : "Leave the waitlist?"}')">
+      onsubmit="return confirm('${r.status === "confirmed" ? "Cancel this spot? It will open for someone else." : "Leave the waitlist?"}')">
       <input type="hidden" name="return_to" value="${esc(back)}">
-      <button class="btn-ghost" type="submit">${r.status === "confirmed" ? "Give it up" : "Leave waitlist"}</button>
-    </form>${r.status === "confirmed" && deadline ? `<span class="fine">Give it up by ${esc(fmtDateTime(deadline))}</span>` : ""}`;
+      <button class="btn-ghost" type="submit">${r.status === "confirmed" ? "Cancel my spot" : "Leave waitlist"}</button>
+    </form>${r.status === "confirmed" && deadline ? `<span class="fine">Cancel by ${esc(fmtDateTime(deadline))}</span>` : ""}`;
 }
 
 function athleteTabs(athletes, current, hrefFor) {
@@ -232,8 +232,8 @@ function actionFor(p, s, athlete, back, compact) {
   if (s.my_status) {
     const r = { id: s.my_id, status: s.my_status, starts_at: s.starts_at, cancel_hours: p.cancel_hours };
     return `${s.my_status === "confirmed" ? `<span class="pill ok">Claimed</span>` : `<span class="pill wait">Waitlist #${s.my_pos}</span>`}${s.my_note ? `<span class="my-note">${esc(s.my_note)}</span>` : ""}
-      ${compact ? `<form method="post" action="/reservations/${s.my_id}/cancel" onsubmit="return confirm('Give up this spot?')">
-          <input type="hidden" name="return_to" value="${esc(back)}"><button class="link-dark sm" type="submit">Give it up</button></form>` : cancelControl(r, back)}`;
+      ${compact ? `<form method="post" action="/reservations/${s.my_id}/cancel" onsubmit="return confirm('Cancel this spot?')">
+          <input type="hidden" name="return_to" value="${esc(back)}"><button class="link-dark sm" type="submit">Cancel</button></form>` : cancelControl(r, back)}`;
   }
   if (!bookingOpen(p)) return `<button class="btn-small" disabled>${compact ? "Soon" : `Opens ${esc(fmtDateTime(p.booking_opens_at))}`}</button>`;
   if (open <= 0 && !p.waitlistOn) return `<button class="btn-small" disabled>Full</button>`;

@@ -140,7 +140,7 @@ router.post("/reservations/:id/cancel", wrap(async (req, res) => {
     const r = await booking.cancelReservation({ userId: req.user.id, reservationId: id });
     notify("canceled", id);
     r.promoted.forEach((pid) => notify("promoted", pid));
-    go(res, back, { ok: r.wasStatus === "confirmed" ? "Spot given up. It's open for someone else now." : "Removed from the waitlist." });
+    go(res, back, { ok: r.wasStatus === "confirmed" ? "Spot canceled. It's open for someone else now." : "Removed from the waitlist." });
   } catch (e) {
     if (e instanceof booking.BookingError) return go(res, back, { err: e.message });
     throw e;
