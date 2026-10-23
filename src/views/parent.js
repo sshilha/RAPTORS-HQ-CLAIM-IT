@@ -50,7 +50,7 @@ function usagePanel(programs, { title = "This round" } = {}) {
 function cancelControl(r, back) {
   const deadline = r.starts_at ? cancelDeadline(r.starts_at, r.cancel_hours) : null; // undated items: no deadline
   const canCancel = r.status === "waitlisted" || !deadline || new Date() < deadline;
-  if (!canCancel) return `<span class="fine">Too late to cancel in the app. Contact the organizer.</span>`;
+  if (!canCancel) return `<span class="fine">Too late to cancel in the app. Contact ${p.contact_name || p.contact_info ? esc([p.contact_name, p.contact_info].filter(Boolean).join(", ")) : "the organizer"}.</span>`;
   return `<form method="post" action="/reservations/${r.id}/cancel"
       onsubmit="return confirm('${r.status === "confirmed" ? "Cancel this spot? It will open for someone else." : "Leave the waitlist?"}')">
       <input type="hidden" name="return_to" value="${esc(back)}">
@@ -116,6 +116,8 @@ function itemsList(programs, athlete, back, going = {}) {
     <h3 class="banner">${esc(require("../config").metaFor(p.activity, p.schedule_id).item_list ? p.schedule_name || p.activity
       : `${p.schedule_name ? `${p.schedule_name} › ` : ""}${p.section ? `${p.section} › ` : ""}${typeLabel(p.activity, p.age_groups, p.required_tags)}`)}</h3>
     ${p.event_date || p.event_location ? `<p class="event-line">${[p.event_date ? esc(require("./setup").eventDates(p)) : "", p.event_location ? P.link(p.event_location) : ""].filter(Boolean).join(" · ")}</p>` : ""}
+    ${p.board_description ? `<p class="board-note">${esc(p.board_description)}</p>` : ""}
+    ${p.contact_name || p.contact_info ? `<p class="fine organizer">Questions? ${esc([p.contact_name, p.contact_info].filter(Boolean).join(", "))}</p>` : ""}
     <ul class="sess-list">${items.map((s) => { const open = s.capacity - s.confirmed; return `<li class="sess${s.my_status ? " mine" : ""}${open > 0 ? "" : " full"}">
       <div class="sess-main"><div class="sess-time">${esc(s.title || "Spot")}</div>
         ${(s.only_groups || []).length || (s.only_tags || []).length ? `<div class="sess-meta">${esc([...(s.only_groups || []), ...(s.only_tags || [])].join(" or "))} only</div>` : ""}

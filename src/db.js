@@ -252,6 +252,10 @@ async function migrate() {
         INSERT INTO app_flags VALUES ('main_unlock_never');
       END IF;
     END $$;
+    -- What the board is: a note for people, and who runs it
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS description TEXT;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS contact_name TEXT;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS contact_info TEXT;
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,

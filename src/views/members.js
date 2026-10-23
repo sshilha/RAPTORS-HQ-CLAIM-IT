@@ -25,8 +25,9 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
   const tags = sc.tags || [];
   const back = `/admin/members?s=${sc.id}${group ? `&g=${encodeURIComponent(group)}` : ""}`;
   return page({
-    title: `${L.group.many}, tags & ${L.participant.many.toLowerCase()} · ${sc.name}`, tab: "members", user, flash,
-    body: `<h1 class="page-title">${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</h1>
+    title: `${sc.name} ${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, tab: "members", user, flash,
+    body: `<div class="page-top"><h1 class="page-title">${esc(sc.name)} <span class="h-sub">${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</span></h1>
+      <a class="btn-ghost" href="/admin/setup?s=${sc.id}">← Back to ${esc(sc.name)}</a></div>
     ${teams}
     <section class="panel" id="people">
       <div class="athlete-head"><div><h2>${esc(L.participant.many)}</h2>

@@ -303,6 +303,7 @@ async function bookingOptions(athlete) {
     `SELECT p.*, r.name AS round_name, r.activity_limits, r.priority_limit AS round_limit, r.unlock_hours, r.waitlist AS round_waitlist,
        r.signup_mode, r.schedule_id, sc.labels AS schedule_labels, sc.name AS schedule_name, sc.family_names, sc.pick_mode,
        r.ask_note, r.note_label, r.note_required, sc.event_date, sc.event_end, sc.event_location,
+       sc.description AS board_description, sc.contact_name, sc.contact_info,
        m.athlete_id AS member_id, m.group_name AS member_group, m.tags AS member_tags
      FROM programs p LEFT JOIN rounds r ON r.id=p.round_id LEFT JOIN seasons se ON se.id=r.season_id
      LEFT JOIN schedules sc ON sc.id=r.schedule_id

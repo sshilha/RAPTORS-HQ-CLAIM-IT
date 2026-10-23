@@ -49,11 +49,7 @@ router.get("/", wrap(async (req, res) => {
 }));
 
 // The board's Rules page (1-2 level boards; rounds boards keep per-round rules for now)
-router.get("/rules", wrap(async (req, res) => {
-  const sc = req.sched.sc;
-  const main = SC.depthOf(sc) <= 2 ? await SC.ensureStructure(sc) : null;
-  res.send(v.rulesPage({ user: req.user, flash: flashFrom(req), sc, main }));
-}));
+router.get("/rules", wrap(async (req, res) => res.redirect(`/admin/setup/schedule?s=${req.sched.sc.id}#rg-limits`))); // Rules live in Settings now
 
 router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: req.user, flash: flashFrom(req) }))));
 
@@ -66,7 +62,8 @@ router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req
   const part = req.path.endsWith("/archive") ? "archive" : "structure";
   const coaches = (await query(`SELECT email FROM schedule_coaches WHERE schedule_id=$1 ORDER BY email`, [sc.id])).rows.map((r) => r.email);
   const published = (await query(`SELECT 1 FROM rounds WHERE schedule_id=$1 AND published_at IS NOT NULL LIMIT 1`, [sc.id])).rowCount > 0;
-  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, counts: { items: Number(counts.items), members: Number(counts.members), coaches, published } }));
+  const main = SC.depthOf(sc) <= 2 ? await SC.ensureStructure(sc) : null;
+  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, main, counts: { items: Number(counts.items), members: Number(counts.members), coaches, published } }));
 }));
 
 // ---------- schedules ----------
@@ -138,6 +135,9 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     await query(`UPDATE schedules SET event_date=$2, event_end=$3 WHERE id=$1`, [id, d1, d2]);
   }
   if (b.event_location !== undefined) await query(`UPDATE schedules SET event_location=$2 WHERE id=$1`, [id, str(b.event_location).slice(0, 80) || null]);
+  if (b.description !== undefined) await query(`UPDATE schedules SET description=$2 WHERE id=$1`, [id, String(b.description || "").trim().slice(0, 600) || null]);
+  if (b.contact_name !== undefined) await query(`UPDATE schedules SET contact_name=$2, contact_info=$3 WHERE id=$1`,
+    [id, str(b.contact_name).slice(0, 60) || null, str(b.contact_info).slice(0, 80) || null]);
   // Who's going, attendance default, coaches (one email per line)
   if (["full", "initial", "off"].includes(b.family_names)) await query(`UPDATE schedules SET family_names=$2 WHERE id=$1`, [id, b.family_names]);
   if (b.track) await query(`UPDATE schedules SET track_attendance=$2 WHERE id=$1`, [id, b.track === "on"]);

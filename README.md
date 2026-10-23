@@ -336,3 +336,13 @@ through the firewall: allow it on private networks.
 
 **Let someone else try it:** run a tunnel such as `npx cloudflared tunnel --url http://localhost:3000`
 (or ngrok), set APP_URL to the https address it prints, and restart.
+
+
+## Board pages (1-2 levels)
+- **Claim Boards card → Edit**: what the board *is*: name, event date and location, a description shown to
+  people, an organizer (shown to people and in confirmation emails), and the structure (levels and names).
+- **Board → Setup screen** (*Name Setup*): the work (items or categories & items), Publish/Unpublish and
+  Share, and summary cards for Settings and Teams, tags & people.
+- **Settings** (*Name Settings*): how people interact with it: Who can claim, How people see it, Limits,
+  Timing, Question, Attendance; each with Edit → Cancel · Save.
+- **Teams, tags & people** (*Name Teams, tags & volunteers*): teams and tags, then the people list.

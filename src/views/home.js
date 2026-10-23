@@ -6,6 +6,41 @@ const { niceRange } = require("./rounds");
 
 const pl = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
+// "What the board is": name, event, note for people, organizer, structure. Opened from the card.
+function editDialog(sc) {
+  const P = require("../locations");
+  const S = require("./setup");
+  const v = (x) => esc(x == null ? "" : String(x).slice(0, 10));
+  return `<dialog class="edit-dlg" id="edit-${sc.id}" aria-labelledby="edit-${sc.id}-t">
+    <form method="post" action="/admin/setup/schedules/${sc.id}?s=${sc.id}" class="dlg-form">
+      <input type="hidden" name="return_to" value="/admin/settings">
+      <div class="dlg-head"><h2 id="edit-${sc.id}-t">Edit ${esc(sc.name)}</h2>
+        <button type="button" class="dlg-x" aria-label="Close" onclick="this.closest('dialog').close()">×</button></div>
+      <div class="dlg-body">
+        <h3>The basics</h3>
+        <label class="field-l">Name<input name="name" required maxlength="60" value="${esc(sc.name)}"></label>
+        <div class="field-row">
+          <label class="field-l"><span>Event date <span class="opt">(optional)</span></span><input type="date" name="event_date" value="${v(sc.event_date)}"></label>
+          <label class="field-l"><span>End date <span class="opt">(if more than one day)</span></span><input type="date" name="event_end" value="${v(sc.event_end)}"></label>
+        </div>
+        <label class="field-l"><span>Location <span class="opt">(optional)</span></span><input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Turn Two Athletics"></label>
+        <label class="field-l"><span>Description <span class="opt">(optional, shown to people at the top of the board)</span></span>
+          <textarea name="description" rows="3" maxlength="600" placeholder="e.g. Drop donations at the concession stand by 7:30 AM Saturday.">${esc(sc.description || "")}</textarea></label>
+        <h3>Organizer <span class="opt">(optional)</span></h3>
+        <p class="fine">Shown to people with the board and in confirmation emails, so they know who to ask.</p>
+        <div class="field-row">
+          <label class="field-l">Name<input name="contact_name" maxlength="60" value="${esc(sc.contact_name || "")}" placeholder="e.g. Jane Smith"></label>
+          <label class="field-l">Email or phone<input name="contact_info" maxlength="80" value="${esc(sc.contact_info || "")}" placeholder="e.g. jane@example.com"></label>
+        </div>
+        <h3>Structure</h3>
+        <p class="fine">How the board is organized, and what things are called. Rename anything here (e.g. Items → Donations).</p>
+        ${S.levelsTable(sc, !sc.empty)}
+      </div>
+      <div class="q-actions dlg-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost" onclick="this.closest('form').reset(); this.closest('dialog').close()">Cancel</button></div>
+    </form>
+  </dialog>`;
+}
+
 function card(sc, archived) {
   const L = SC.labels(sc);
   const low = (x) => x.toLowerCase();
@@ -26,7 +61,7 @@ function card(sc, archived) {
     </a>
     <div class="sc-actions">
       <a class="btn-small" href="/admin/setup?s=${sc.id}">${archived ? "View" : "Open"}</a>
-      <a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">Settings</a>
+      ${archived ? "" : `<button type="button" class="btn-ghost" onclick="document.getElementById('edit-${sc.id}').showModal()">Edit</button>`}
       <a class="btn-ghost" href="/admin/setup/schedules/${sc.id}/copy">Copy</a>
       <form method="post" action="/admin/setup/schedules/${sc.id}/archive?s=${sc.id}"
         ${archived ? "" : `onsubmit="return confirm('Archive ${esc(sc.name)}? People won\'t see anything in it. Nothing is deleted, and you can reopen it any time.')"`}>
@@ -35,6 +70,7 @@ function card(sc, archived) {
       ${archived && sc.empty ? `<form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete ${esc(sc.name)} for good?')">
         <button class="btn-ghost danger" type="submit">Delete</button></form>` : ""}
     </div>
+    ${archived ? "" : editDialog(sc)}
   </div>`;
 }
 
@@ -51,7 +87,8 @@ function homePage({ user, flash, active, archivedCount }) {
     <h2 class="list-title">Active ${esc(LABELS.schedules.toLowerCase())}</h2>
     ${active.length ? `<div class="sched-grid">${active.map((x) => card(x, false)).join("")}</div>`
       : `<section class="panel"><div class="empty"><p>No active ${esc(LABELS.schedules.toLowerCase())}.</p><p class="muted"><a href="/admin/setup/new">Create one</a> to get started.</p></div></section>`}
-    <p class="archived-link"><a href="/admin/settings/archived">View archived ${esc(LABELS.schedules.toLowerCase())}${archivedCount ? ` (${archivedCount})` : ""}</a></p>`,
+    <p class="archived-link"><a href="/admin/settings/archived">View archived ${esc(LABELS.schedules.toLowerCase())}${archivedCount ? ` (${archivedCount})` : ""}</a></p>
+    ${require("../locations").datalist()}`,
   });
 }
 

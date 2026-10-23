@@ -9,10 +9,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 async function loadReservation(id) {
   const { rows } = await query(
     `SELECT r.*, a.first_name, a.last_name, s.starts_at, s.ends_at, s.location, s.coach, s.notes, s.title,
-            p.name AS program_name, p.cancel_hours,
+            p.name AS program_name, p.cancel_hours, sc.contact_name, sc.contact_info, sc.description AS board_description,
             ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS emails
      FROM reservations r JOIN athletes a ON a.id=r.athlete_id
      JOIN training_sessions s ON s.id=r.session_id JOIN programs p ON p.id=s.program_id
+     LEFT JOIN rounds rd ON rd.id=p.round_id LEFT JOIN schedules sc ON sc.id=rd.schedule_id
      WHERE r.id=$1`,
     [id]
   );
@@ -26,6 +27,8 @@ function details(r) {
     r.location && `Location: ${r.location}${require("./locations").mapUrl(r.location) ? ` (directions: ${require("./locations").mapUrl(r.location)})` : ""}`,
     r.coach && `Coach: ${r.coach}`,
     r.notes,
+    r.board_description,
+    (r.contact_name || r.contact_info) && `Questions? ${[r.contact_name, r.contact_info].filter(Boolean).join(", ")}`,
   ].filter(Boolean);
   return { html: `<p style="line-height:1.6">${lines.map(esc).join("<br>")}</p>`, text: lines.join("\n") };
 }
@@ -36,7 +39,7 @@ const templates = {
   confirmed: (r) => ({
     subject: `Claimed: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,
     heading: `Spot claimed for ${r.first_name}!`,
-    extra: r.starts_at ? `You can cancel online until ${fmtDateTime(cancelDeadline(r.starts_at, r.cancel_hours))}. Giving it up lets someone else claim it.`
+    extra: r.starts_at ? `You can cancel in the app until ${fmtDateTime(cancelDeadline(r.starts_at, r.cancel_hours))}, so someone else can claim it.`
       : "Can't make it? Cancel in the app so someone else can claim it.",
   }),
   waitlisted: (r) => ({
@@ -47,7 +50,7 @@ const templates = {
   promoted: (r) => ({
     subject: `Spot opened: claimed for ${r.first_name}, ${r.program_name}`,
     heading: `A spot opened and it's claimed for ${r.first_name}`,
-    extra: `${r.first_name} moved off the waitlist. If you can't make it, give the spot up online so someone else can claim it.`,
+    extra: `${r.first_name} moved off the waitlist. If you can't make it, cancel in the app so someone else can claim it.`,
   }),
   canceled: (r) => ({
     subject: `Spot canceled: ${r.first_name}, ${r.program_name}: ${itemLabel(r)}`,

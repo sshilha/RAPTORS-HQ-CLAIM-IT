@@ -362,49 +362,27 @@ function rulesCard(r, locked, L, acts) {
   </section>`;
 }
 
-// The Rules page: everything grouped, one Save
-function rulesPage({ user, flash, sc, main }) {
-  CUR = sc;
-  const L = SC.labels(sc);
-  const acts = SC.activitiesFor(sc, { activeOnly: true });
+// Limits, Timing, Question as setup sections (Edit → Cancel · Save), for the Settings page
+function rulesSections(sc, main, L, acts, ret) {
   const I = require("./icons");
-  if (SC.depthOf(sc) >= 3 || !main) return page({ title: `Rules · ${sc.name}`, tab: "rules", user, flash, xwide: true,
-    body: `<section class="panel"><h1>Rules</h1><p class="lede">On this board, each ${esc(L.middle.one.toLowerCase())} has its own rules for now: open a ${esc(L.middle.one.toLowerCase())} on the board and use its <b>Limits</b>. They'll move here in the next update.</p>
-      <a class="btn-ghost" href="/admin/setup?s=${sc.id}">Back to the board</a></section>` });
+  if (!main) return [["limits", I.users(), "Limits", `Set in each ${esc(L.middle.one.toLowerCase())} for now: open a ${esc(L.middle.one.toLowerCase())} on the board and use its <b>Limits</b>.`],
+    ["timing", I.calendar(), "Timing", `Set in each ${esc(L.middle.one.toLowerCase())} for now.`]].map(([id, icon, title, sub]) =>
+    `<section class="ss" id="rg-${id}"><div class="ss-head"><span class="ss-ico">${icon}</span><div class="ss-titles"><h3>${title}</h3><p class="fine">${sub}</p></div></div></section>`).join("");
+  CUR = sc;
   const P = rulesParts(main, L, acts);
   const row = (k) => P.rows.find((r) => r[0] === k);
   const rows = (keys) => `<dl class="ss-rows">${keys.map(row).filter(Boolean).map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>`;
-  const action = `/admin/rounds/${main.id}/rules`, ret = `/admin/setup/rules?s=${sc.id}`;
   const sec = (id, icon, title, sub, keys, inner) => `<section class="ss" id="rg-${id}">
       <div class="ss-head"><span class="ss-ico">${icon}</span><div class="ss-titles"><h3>${title}</h3><p class="fine">${sub}</p></div>
         <button type="button" class="btn-ghost ss-edit">${I.pencil()} Edit</button></div>
       <div class="ss-view">${rows(keys)}</div>
-      <form method="post" action="${action}" class="ss-form rc-form rules-fields" hidden>
+      <form method="post" action="/admin/rounds/${main.id}/rules" class="ss-form rc-form rules-fields" hidden>
         <input type="hidden" name="q" value="${id}"><input type="hidden" name="return_to" value="${ret}">${inner}
         <div class="q-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost ss-cancel">Cancel</button></div>
       </form></section>`;
-  return page({ title: `Rules · ${sc.name}`, tab: "rules", user, flash, xwide: true,
-    body: `<h1 class="page-title">Rules</h1>
-    <div class="settings-one"><section class="panel setup-panel">
-      ${sec("limits", I.users(), "Limits", "How much each person can claim, and what happens when things fill up.", ["Per person", "Open leftover spots", "Waitlist"], P.per + P.leftover + P.wait)}
-      ${sec("timing", I.calendar(), "Timing", "When claiming opens, and how late people can cancel.", ["Claiming opens", "Cancel deadline"], P.opens + P.cancel)}
-      ${sec("question", I.check(), "Question", "Something to ask people when they claim.", ["Question"], P.question)}
-    </section></div>
-    <script>
-    (function () {
-      document.querySelectorAll(".ss").forEach(function (sec) {
-        var f = sec.querySelector(".ss-form"), v = sec.querySelector(".ss-view"), b = sec.querySelector(".ss-edit");
-        b.addEventListener("click", function () {
-          document.querySelectorAll(".ss.open .ss-cancel").forEach(function (c) { c.click(); });
-          f.hidden = false; v.hidden = true; b.hidden = true; sec.classList.add("open");
-        });
-        sec.querySelector(".ss-cancel").addEventListener("click", function () { f.reset(); f.hidden = true; v.hidden = false; b.hidden = false; sec.classList.remove("open"); });
-      });
-      document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".ss.open .ss-cancel").forEach(function (c) { c.click(); }); });
-      var h = location.hash && document.querySelector(location.hash);
-      if (h && h.classList.contains("ss")) { h.classList.add("just-saved"); setTimeout(function () { h.classList.remove("just-saved"); }, 1800); }
-    })();
-    </script>` });
+  return sec("limits", I.users(), "Limits", "How much each person can claim, and what happens when things fill up.", ["Per person", "Open leftover spots", "Waitlist"], P.per + P.leftover + P.wait)
+    + sec("timing", I.calendar(), "Timing", "When claiming opens, and how late people can cancel.", ["Claiming opens", "Cancel deadline"], P.opens + P.cancel)
+    + sec("question", I.check(), "Question", "Something to ask people when they claim.", ["Question"], P.question);
 }
 
 // Publish & share: a short checklist before publishing; the link and QR once it's live
@@ -522,6 +500,26 @@ const LEVEL_INFO = {
   group: () => ["How people are sorted, so things can be limited to certain groups.", "12U, Team, Level"],
 };
 
+// Levels and what they're called (the board's structure), used by the board's Edit window
+function levelsTable(sc, hasItems) {
+  const L = SC.labels(sc), depth = SC.depthOf(sc);
+  return `${hasItems ? `<p class="fine"><b>${depth} level${depth === 1 ? "" : "s"}</b>, set once a board has things on it. To restructure, copy the board without its calendar.</p><input type="hidden" name="depth" value="${depth}">`
+      : `<label class="field-l">Levels<select name="depth">
+          ${[1, 2, 3, 4].map((n) => `<option value="${n}"${depth === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select>
+          <span class="fine">You can change this while the board is empty. The last level is always what people claim.</span></label>`}
+    <div class="table-wrap"><table class="levels">
+      <thead><tr><th>Level</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
+      <tbody>${SC.levelKeys(sc).map((k, i, all) => `<tr>
+        <td><strong>Level ${i + 1}</strong>${i === all.length - 1 ? ` <span class="pill ok claim-pill">Claimed</span>` : ""}<div class="fine">e.g. ${esc(LEVEL_INFO[k](i === all.length - 1)[1])}</div></td>
+        <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required aria-label="Level ${i + 1} singular"></td>
+        <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required aria-label="Level ${i + 1} plural"></td></tr>`).join("")}
+        ${["participant", "group"].map((k) => `<tr class="people-row">
+        <td><strong>${k === "participant" ? "People" : "People's groups"}</strong><div class="fine">e.g. ${esc(LEVEL_INFO[k]()[1])}</div></td>
+        <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required></td>
+        <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required></td></tr>`).join("")}
+      </tbody></table></div>`;
+}
+
 // Plain-language descriptions of "Who can claim", used by the wizard and Settings
 function claimHelp(L) {
   const org = require("../config").LABELS.org_name || "your organization";
@@ -541,7 +539,7 @@ function eventDates(sc) {
   return `${f(sc.event_date, { month: "short", day: "numeric" })} – ${f(sc.event_end, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
-function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
+function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null }) {
   const L = SC.labels(sc);
   const I = require("./icons");
   const P = require("../locations");
@@ -588,31 +586,11 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
         <button type="button" class="btn-ghost inl-cancel">Cancel</button><button class="btn-small" type="submit">Save</button></form></span>`;
   const dates = eventDates(sc);
   return page({
-    title: `Settings · ${sc.name}`, tab, user, flash, xwide: true,
-    body: `<h1 class="page-title">Board settings</h1>
+    title: `${sc.name} Settings`, tab, user, flash, xwide: true,
+    body: `<div class="page-top"><h1 class="page-title">${esc(sc.name)} <span class="h-sub">Settings</span></h1>
+      <a class="btn-ghost" href="/admin/setup?s=${sc.id}">← Back to ${esc(sc.name)}</a></div>
     <div class="settings-one">
     <section class="panel setup-panel" id="setup-form">
-      <div class="bc-head"><h2>Board setup</h2></div>
-
-      ${sec("structure", I.layers(), "Structure",
-        `How the board is organized, and what things are called. <b>Rename anything here</b> (e.g. ${depth === 1 ? "Items → Donations" : depth === 2 ? "Items → Shifts, or Categories → Areas" : "Sessions → Practices"}).<span class="ex">e.g. ${esc(EX.levels)}</span>`,
-        rows([["Levels", `${depth} level${depth === 1 ? "" : "s"}: <b>${levelLine}</b>`], ["People", `${esc(L.participant.many)} in ${esc(L.group.many.toLowerCase())}`]]),
-        `${counts.items ? `<input type="hidden" name="depth" value="${depth}">` : `<label class="field-l">Levels under the board<select name="depth">
-            ${[1, 2, 3, 4].map((n) => `<option value="${n}"${depth === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select>
-            <span class="fine">You can change this while the board is empty. The last level is always what people claim.</span></label>`}
-         <div class="table-wrap"><table class="levels">
-          <thead><tr><th>Level</th><th>What it is</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
-          <tbody>${SC.levelKeys(sc).map((k, i, all) => { const info = LEVEL_INFO[k](i === all.length - 1); return `<tr>
-            <td><strong>Level ${i + 1}</strong>${i === all.length - 1 ? `<div class="pill ok claim-pill">Claimed</div>` : ""}</td>
-            <td class="def">${esc(info[0])}<div class="fine">e.g. ${esc(info[1])}</div></td>
-            <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required aria-label="Level ${i + 1} singular"></td>
-            <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required aria-label="Level ${i + 1} plural"></td></tr>`; }).join("")}
-            ${["participant", "group"].map((k) => { const info = LEVEL_INFO[k](); return `<tr class="people-row">
-            <td><strong>${k === "participant" ? "People" : "People's groups"}</strong></td><td class="def">${esc(info[0])}<div class="fine">e.g. ${esc(info[1])}</div></td>
-            <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required></td>
-            <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required></td></tr>`; }).join("")}
-          </tbody></table></div>
-         ${counts.items ? `<p class="fine">The number of levels is set once a board has ${esc(L.slot.many.toLowerCase())}. To restructure, copy the board without its calendar.</p>` : ""}`)}
 
       ${sec("who", I.users(), "Who can claim", "Who can see this board and claim from it, and whether some things are limited.",
         rows([["Who can claim", `${CLAIM[claim]}<div class="fine">${{ public: "No sign-in needed; anyone with the link.", family: `Anyone who signs in, not just ${esc(require("../config").LABELS.org_name || "your organization")}.`, roster: `Only the ${esc(L.participant.many.toLowerCase())} on this board's list.` }[claim]}</div>`], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
@@ -653,6 +631,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure" }) {
         </div>
         <p class="fine">Emails and contact details are never shown.</p>`)}
 
+      ${rulesSections(sc, main, L, SC.activitiesFor(sc, { activeOnly: true }), `/admin/setup/schedule?s=${sc.id}`)}
       ${sec("attendance", I.check(), "Attendance", "Whether attendance is taken, and the coaches who can take it.",
         rows([["Track attendance", sc.track_attendance ? "Yes, by default" : "No, not by default"], ["Coaches", (counts.coaches || []).length ? esc(counts.coaches.join(", ")) : "None"]]),
         `<div class="opt-row">
@@ -830,29 +809,23 @@ function newSchedulePage({ user, flash }) {
   });
 }
 
-// Board screen header: name, status, event details (all editable in place), Share and Publish
+// Board screen header: "<name> Setup", status, event details (edited from the board's card), Share and Publish
 function boardHeader(sc, L, depth, main, rounds, locked) {
   const I = require("./icons"), P = require("../locations");
   const published = depth <= 2 ? !!(main && main.published_at) : rounds.some((r) => r.published_at);
   const status = locked ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">${depth <= 2 ? "Published" : "Live"}</span>` : `<span class="pill warn">Draft</span>`;
-  const action = `/admin/setup/schedules/${sc.id}?s=${sc.id}`;
-  const ret = `<input type="hidden" name="return_to" value="/admin/setup?s=${sc.id}">`;
-  const inline = (id, view, form) => locked ? `<span class="inl">${view}</span>` : `<span class="inl" id="inl-${id}"><span class="inl-view">${view}<button type="button" class="pencil" aria-label="Edit">${I.pencil()}</button></span>
-      <form method="post" action="${action}" class="inl-form" hidden><input type="hidden" name="q" value="${id}">${ret}${form}
-        <button type="button" class="btn-ghost inl-cancel">Cancel</button><button class="btn-small" type="submit">Save</button></form></span>`;
   const dates = eventDates(sc);
   const share = depth <= 2 && main && main.published_at && SC.claimMode(sc) === "public"
     ? `<details class="share-pop"><summary class="btn-ghost btn-lg">Share</summary><div class="share-panel">${shareBox(main)}</div></details>` : "";
+  const meta = [dates ? `<span class="meta">${I.calendar()} <b>${esc(dates)}</b></span>` : "",
+    sc.event_location ? `<span class="meta">${I.pin()} <b>${P.link(sc.event_location)}</b></span>` : "",
+    sc.contact_name || sc.contact_info ? `<span class="meta">${I.users()} Organizer: <b>${esc([sc.contact_name, sc.contact_info].filter(Boolean).join(", "))}</b></span>` : ""].filter(Boolean);
   return `<section class="board-head settings-head">
       <div class="bh-main">
-        <div class="bh-title">${inline("name", `<h1>${esc(sc.name)}</h1>`, `<input name="name" required maxlength="60" value="${esc(sc.name)}" class="inl-name" aria-label="Board name">`)}${status}</div>
-        <div class="meta-line">
-          <span class="meta">${I.calendar()} ${inline("date", `Event date: <b>${dates ? esc(dates) : "Not set"}</b>`,
-            `<input type="date" name="event_date" value="${sc.event_date ? String(sc.event_date).slice(0, 10) : ""}" aria-label="Event date">
-             <span class="fine">to</span><input type="date" name="event_end" value="${sc.event_end ? String(sc.event_end).slice(0, 10) : ""}" aria-label="End date (optional)">`)}</span>
-          <span class="meta">${I.pin()} ${inline("place", `Location: <b>${sc.event_location ? P.link(sc.event_location) : "Not set"}</b>`,
-            `<input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Turn Two Athletics" aria-label="Location">${P.datalist()}`)}</span>
-        </div>
+        <div class="bh-title"><h1>${esc(sc.name)} <span class="h-sub">Setup</span></h1>${status}</div>
+        ${meta.length ? `<div class="meta-line">${meta.join("")}</div>` : ""}
+        ${sc.description ? `<p class="board-desc">${esc(sc.description)}</p>` : ""}
+        ${!locked && !meta.length && !sc.description ? `<p class="fine">Add an event date, location, description, or organizer with <b>Edit</b> on this board's card in <a href="/admin/settings">${esc(require("../config").LABELS.schedules)}</a>.</p>` : ""}
       </div>
       <div class="bh-actions">
         ${depth >= 3 && !locked ? `<a class="btn-ghost" href="/admin/import?s=${sc.id}">Import schedule</a>` : ""}
@@ -871,12 +844,17 @@ function sideCards(sc, L, depth, main, locked, acts, counts) {
   const VIEWS = { list: "No dates (a list)", dlist: "Dates · list view", calendar: "Dates · calendar", both: "Dates · list & calendar" };
   const manage = (href, on = true) => locked ? "" : on ? `<a class="btn-ghost" href="${href}">${I.gear()} Manage</a>` : `<span class="btn-ghost is-off" aria-disabled="true">${I.gear()} Manage</span>`;
   const rows = (list) => `<dl class="rc-list">${list.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>`;
-  const settings = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.layers()}</span><h2>Board settings</h2>${manage(`/admin/setup/schedule?s=${sc.id}`)}</div>
-    ${rows([["Structure", esc(SC.levelKeys(sc).map((k) => L[k].many).join(" › "))], ["Who can claim", CLAIM[claim]], ["How people see it", VIEWS[pick] || VIEWS.calendar],
+  let ruleRows = [];
+  if (depth <= 2 && main) {
+    const R = rulesParts(main, L, acts).rows;
+    const g = (k) => (R.find((r) => r[0] === k) || [])[1];
+    ruleRows = [["Per person", esc(g("Per person"))], ["Waitlist", esc(g("Waitlist"))],
+      ...(g("Cancel deadline") ? [["Cancel deadline", esc(g("Cancel deadline"))]] : []), ["Question", esc(g("Question"))]];
+  } else ruleRows = [["Limits &amp; timing", `Set in each ${esc(L.middle.one.toLowerCase())}`]];
+  const settings = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Settings</h2>${manage(`/admin/setup/schedule?s=${sc.id}`)}</div>
+    ${rows([["Who can claim", CLAIM[claim]], ["How people see it", VIEWS[pick] || VIEWS.calendar], ...ruleRows,
       ["Attendance", `${sc.track_attendance ? "Tracked" : "Not tracked"}${(counts.coaches || []).length ? ` · ${counts.coaches.length} coach${counts.coaches.length === 1 ? "" : "es"}` : ""}`]])}</section>`;
-  const rules = depth <= 2 && main ? rulesCard(main, locked, L, acts)
-    : `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Rules</h2></div>
-      <p class="fine">Each ${esc(L.middle.one.toLowerCase())} has its own limits and timing for now (open a ${esc(L.middle.one.toLowerCase())} below). They'll move to one Rules page in the next update.</p></section>`;
+  const rules = "";
   const tagsUsed = SC.restricts(sc), peopleUsed = SC.needsPeople(sc) || (claim !== "public" && (sc.has_roster || sc.has_tag_rules));
   const used = tagsUsed || peopleUsed;
   const groups = SC.groupsFor(sc), tags = sc.tags || [];
@@ -974,4 +952,4 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone, counts = {} 
   });
 }
 
-module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates, rulesPage };
+module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates, levelsTable };

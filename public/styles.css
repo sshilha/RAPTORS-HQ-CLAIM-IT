@@ -1498,3 +1498,25 @@ p.ex { margin: 2px 0 8px; }
 .rules-fields.ss-form[hidden] { display: none !important; }
 .rules-fields.ss-form:not([hidden]) { display: flex !important; flex-direction: column; }
 .setup-panel > .ss:first-child { border-top: 0; padding-top: 4px; }
+
+/* ---------- board Edit window (Claim Boards card) ---------- */
+.edit-dlg { border: 0; border-radius: 16px; padding: 0; width: min(720px, 94vw); max-height: 90vh; box-shadow: 0 20px 60px rgba(11, 25, 48, .35); }
+.edit-dlg::backdrop { background: rgba(11, 25, 48, .45); }
+.dlg-form { display: flex; flex-direction: column; max-height: 90vh; }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.dlg-head h2 { margin: 0; font: 700 19px var(--body); color: var(--navy); }
+.dlg-x { background: none; border: 0; font-size: 26px; line-height: 1; cursor: pointer; color: var(--muted); }
+.dlg-body { padding: 14px 20px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.dlg-body h3 { margin: 10px 0 0; font: 700 15px var(--body); color: var(--navy); }
+.dlg-body .field-l { max-width: none; }
+.dlg-body textarea { font: 400 14px var(--body); padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dlg-actions { padding: 12px 20px; border-top: 1px solid var(--line); margin: 0; }
+@media (max-width: 640px) { .field-row { grid-template-columns: 1fr; } }
+.board-desc { margin: 6px 0 0; max-width: 760px; color: var(--text-2); font-size: 15px; }
+.bh-title h1 .h-sub { font-weight: 500; color: var(--muted); }
+.page-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.page-top .page-title { margin: 0; }
+.page-title .h-sub { font-weight: 500; color: var(--muted); }
+.board-note { margin: 0 0 6px; font-size: 14px; color: var(--text-2); background: #f8fafc; border-left: 3px solid var(--accent); padding: 6px 10px; border-radius: 0 8px 8px 0; }
+.organizer { margin: 0 0 8px; }

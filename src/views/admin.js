@@ -22,7 +22,7 @@ function settingsNav(tab, user) {
   const sc = sched.sc;
   const SC = require("../schedules");
   const L = SC.labels(sc);
-  const here = { schedule: "Board settings", "schedule-more": "Board settings", "schedule-archive": "Archive or delete", rules: "Rules",
+  const here = { schedule: "Settings", "schedule-more": "Settings", "schedule-archive": "Archive or delete", rules: "Rules",
     members: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, athletes: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`,
     groups: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, activities: L.activity.many, import: "Import schedule",
     rounds: L.middle.one, programs: L.middle.one, seasons: L.middle.one }[tab];
