@@ -346,3 +346,16 @@ through the firewall: allow it on private networks.
 - **Settings** (*Name Settings*): how people interact with it: Who can claim, How people see it, Limits,
   Timing, Question, Attendance; each with Edit → Cancel · Save.
 - **Teams, tags & people** (*Name Teams, tags & volunteers*): teams and tags, then the people list.
+
+
+## The container engine (in progress)
+`src/engine/` holds the new model every board will run on: **board → containers (up to 3 deep) →
+items → claims**. Settings set on the board, a container, or an item flow down until something lower
+overrides them: who can claim here (only narrows), per-person limit (every limit on the path applies),
+attendance, claiming opens, cancel deadline, open leftover spots, waitlist, location. Board-only: who
+can get in at all, one Publish, and the claim question. Containers can have a *visible from* date.
+Tests: `npm test` (uses the DATABASE_URL in .env; use a scratch database: it clears the engine tables).
+Stage 2 (done): the board Setup screen runs on the engine: drill down (?n=container), add/rename/remove
+containers and items, a Settings card per container (Edit opens the overrides; each value shows Set here /
+From <container> / Board default), one board-level Publish. Board-wide defaults are on the Settings page.
+Not yet on the engine: what people see and claim (stage 4), check-in, reports, copy board.

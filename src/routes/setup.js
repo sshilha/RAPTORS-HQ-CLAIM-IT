@@ -10,42 +10,23 @@ const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
 
 router.get("/", wrap(async (req, res) => {
-  const schedule = req.sched.sc;
-  const main = await SC.ensureStructure(schedule);
-  // 2-level boards: every area on the board has its place in the built-in round
-  if (main && SC.depthOf(schedule) === 2) {
-    const have = new Set((await query(`SELECT activity FROM programs WHERE round_id=$1`, [main.id])).rows.map((r) => r.activity));
-    for (const a of SC.activitiesFor(schedule)) if (!have.has(a)) await require("../rounds").ensureProgram({ query }, main, a, [], {});
+  const sc = req.sched.sc;
+  const E = require("../engine");
+  // where we are: the board, or a container inside it (?n=)
+  let chain = [];
+  const n = int(req.query.n);
+  if (n) {
+    chain = await E.nodeChain(n);
+    if (!chain.length || chain[0].schedule_id !== sc.id) return go(res, `/admin/setup?s=${sc.id}`, { err: "That isn't on this board." });
   }
-  const rounds = (await query(
-    `SELECT r.*,
-       (SELECT count(*)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id
-          WHERE p.round_id=r.id AND s.canceled_at IS NULL) AS scheduled,
-       (SELECT count(*)::int FROM reservations x JOIN training_sessions s ON s.id=x.session_id
-          JOIN programs p ON p.id=s.program_id WHERE p.round_id=r.id AND x.status='confirmed') AS claimed,
-       (SELECT coalesce(sum(s.capacity),0)::int FROM training_sessions s JOIN programs p ON p.id=s.program_id
-          WHERE p.round_id=r.id AND s.canceled_at IS NULL) AS spots
-     FROM rounds r WHERE r.schedule_id=$1 ORDER BY r.starts_on`, [schedule.id])).rows;
-  const types = (await query(
-    `SELECT p.*, (SELECT count(*)::int FROM training_sessions s WHERE s.program_id=p.id AND s.canceled_at IS NULL) AS scheduled
-     FROM programs p WHERE p.round_id IS NOT NULL`)).rows
-    .sort((a, b) => ACTIVITIES.indexOf(a.activity) - ACTIVITIES.indexOf(b.activity) ||
-      AGE_GROUPS.indexOf(a.age_groups[0]) - AGE_GROUPS.indexOf(b.age_groups[0]));
-  const standalone = (await query(
-    `SELECT p.id, p.name, p.archived,
-       (SELECT count(*)::int FROM training_sessions s WHERE s.program_id=p.id AND s.canceled_at IS NULL AND s.starts_at > now()) AS upcoming
-     FROM programs p WHERE p.round_id IS NULL ORDER BY p.archived, p.name`)).rows;
-  for (const r of rounds) r.types = types.filter((t) => t.round_id === r.id);
-  const items = (await query(
-    `SELECT s.*, p.round_id, p.activity, p.age_groups, p.required_tags, p.section, p.attendance AS p_attendance,
-       (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='confirmed') AS claimed,
-       (SELECT count(*)::int FROM reservations x WHERE x.session_id=s.id AND x.status='waitlisted') AS waitlisted
-     FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id
-     WHERE r.schedule_id=$1 AND s.canceled_at IS NULL AND ($2 OR s.starts_at IS NULL)
-     ORDER BY s.starts_at NULLS FIRST, s.id`, [schedule.id, SC.depthOf(schedule) <= 2])).rows;
-  for (const r of rounds) r.items = items.filter((i) => i.round_id === r.id);
-  const coaches = (await query(`SELECT email FROM schedule_coaches WHERE schedule_id=$1 ORDER BY email`, [schedule.id])).rows.map((r) => r.email);
-  res.send(v.setupPage({ user: req.user, flash: flashFrom(req), schedule, rounds, standalone, counts: { coaches } }));
+  const here = chain[chain.length - 1] || null;
+  const depth = SC.depthOf(sc);
+  const showsItems = chain.length === depth - 1;
+  const kids = showsItems ? null : await E.children(sc.id, here ? here.id : null);
+  const list = showsItems ? await E.items(sc.id, here ? here.id : null) : null;
+  const eff = E.effectiveAt(sc, chain);
+  const totals = await E.boardTotals(sc.id);
+  res.send(require("../views/board").boardSetupPage({ user: req.user, flash: flashFrom(req), sc, chain, kids, list, eff, totals }));
 }));
 
 // The board's Rules page (1-2 level boards; rounds boards keep per-round rules for now)
@@ -82,18 +63,27 @@ router.post("/schedules", wrap(async (req, res) => {
   const pickMode = !dated ? "list" : b0.pick === "both" ? "both" : b0.pick === "list" ? "dlist" : "calendar";
   const calendar = pickMode !== "list";
   const src = null; // groups are copied later from the Groups & tags step, if needed
+  // renamed levels from the Structure step win over the structure's defaults
+  for (const k of ["middle", "section", "activity", "slot", "participant", "group"]) {
+    const one = clean(b0[`${k}_one`]), many = clean(b0[`${k}_many`]);
+    if (one && many) labels[k] = [one, many];
+  }
+  const dateOk = (x) => /^\d{4}-\d{2}-\d{2}$/.test(str(x)) ? str(x) : null;
+  const evStart = dateOk(b0.event_date), evEnd = evStart && dateOk(b0.event_end) > evStart ? dateOk(b0.event_end) : null;
   const sort = (await query(`SELECT coalesce(max(sort),0)+1 AS n FROM schedules`)).rows[0].n;
-  const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets, depth, use_calendar, pick_mode, claim_mode, restricted)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+  const { rows } = await query(`INSERT INTO schedules (name, labels, sort, groups, presets, depth, use_calendar, pick_mode, claim_mode, restricted,
+      event_date, event_end, event_location, description, contact_name, contact_info)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
     [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth, calendar, pickMode,
-     claim, restrict]);
+     claim, restrict, evStart, evEnd, clean(b0.event_location, 80) || null, String(b0.description || "").trim().slice(0, 600) || null,
+     clean(b0.contact_name, 60) || null, clean(b0.contact_info, 80) || null]);
   await SC.refreshGroups();
   await SC.ensureStructure(await SC.get(rows[0].id));
   const L = SC.labels({ labels });
-  go(res, depth <= 2 ? `/admin/setup?s=${rows[0].id}` : `/admin/settings/activities?s=${rows[0].id}`, { ok: depth === 1
-    ? `Created ${name}. Add its ${L.slot.many.toLowerCase()} below. (Its settings are on the board's card under Settings.)`
-    : depth === 2 ? `Created ${name}. Add its first ${L.activity.one.toLowerCase()} below, then its ${L.slot.many.toLowerCase()}.`
-    : `Created ${name}. Step 2: add its ${L.activity.many.toLowerCase()}. Steps 3–4 (${L.group.many.toLowerCase()} and ${L.participant.many.toLowerCase()}) are only needed for roster-only claims. Then Open board to add ${depth >= 3 ? `${L.middle.many.toLowerCase()} and ` : ""}${L.slot.many.toLowerCase()}.` });
+  const first = SC.levelKeys({ depth })[0];
+  go(res, `/admin/setup?s=${rows[0].id}`, { ok: depth === 1
+    ? `Created ${name}. Add its ${L.slot.many.toLowerCase()} below.`
+    : `Created ${name}. Add its first ${L[first].one.toLowerCase()} below, then open it to keep going.` });
 }));
 
 // Number of levels: only while the board is empty (nothing to restructure)

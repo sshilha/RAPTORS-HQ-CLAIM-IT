@@ -23,7 +23,8 @@ function editDialog(sc) {
           <label class="field-l"><span>Event date <span class="opt">(optional)</span></span><input type="date" name="event_date" value="${v(sc.event_date)}"></label>
           <label class="field-l"><span>End date <span class="opt">(if more than one day)</span></span><input type="date" name="event_end" value="${v(sc.event_end)}"></label>
         </div>
-        <label class="field-l"><span>Location <span class="opt">(optional)</span></span><input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Turn Two Athletics"></label>
+        <label class="field-l"><span>Main location <span class="opt">(optional)</span></span><input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Carson Park">
+          <span class="fine">Areas and items can have their own location too, like the concession stand. Set those on the board.</span></label>
         <label class="field-l"><span>Description <span class="opt">(optional, shown to people at the top of the board)</span></span>
           <textarea name="description" rows="3" maxlength="600" placeholder="e.g. Drop donations at the concession stand by 7:30 AM Saturday.">${esc(sc.description || "")}</textarea></label>
         <h3>Organizer <span class="opt">(optional)</span></h3>
@@ -34,8 +35,10 @@ function editDialog(sc) {
         </div>
         <h3>Structure</h3>
         <p class="fine">How the board is organized, and what things are called. Rename anything here (e.g. Items → Donations).</p>
-        ${S.levelsTable(sc, !sc.empty)}
+        ${S.levelsTable(sc, !sc.empty, sc.level_counts || [])}
       </div>
+      <script>document.currentScript.closest("form").addEventListener("change", function (e) {
+        if (e.target.name === "dated") { var v = this.querySelector(".dlg-views"); if (v) v.hidden = e.target.value !== "yes"; } });</script>
       <div class="q-actions dlg-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost" onclick="this.closest('form').reset(); this.closest('dialog').close()">Cancel</button></div>
     </form>
   </dialog>`;

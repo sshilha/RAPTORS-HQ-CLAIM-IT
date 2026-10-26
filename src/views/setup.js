@@ -492,32 +492,54 @@ function seasonBlock(s, rounds, allRounds, first, L, acts) {
 }
 
 const LEVEL_INFO = {
-  middle: () => ["A period or part with its own dates and rules (limits, unlocking, who signs up).", "Round, Day, Week"],
-  section: () => ["Groups the next level into sections.", "Area, Field, Team"],
-  activity: (last) => [last ? "What people claim, with spots." : "A kind of thing to claim, with default spots, limits, and who can claim it.", "Activity, Area, Role"],
+  middle: () => ["The top grouping, like a season part or a day. Settings here (limits, timing, who can claim) cover everything inside it.", "Round, Day, Week"],
+  section: () => ["A grouping inside the level above, like an area of a tournament. Its settings cover what's inside it.", "Area, Field, Team"],
+  activity: (last) => [last ? "What people claim, with spots." : "A grouping of what people claim, like an activity or area. Its settings (who, limits, attendance) cover what's inside it.", "Activity, Area, Category"],
   slot: () => ["What people claim. It has a number of spots, and can have a date and time or just be a named item.", "Session, Shift, Task, Item"],
   participant: () => ["The people who use this board. They can be kids, parents, or anyone.", "Athlete, Volunteer"],
   group: () => ["How people are sorted, so things can be limited to certain groups.", "12U, Team, Level"],
 };
 
 // Levels and what they're called (the board's structure), used by the board's Edit window
-function levelsTable(sc, hasItems) {
-  const L = SC.labels(sc), depth = SC.depthOf(sc);
-  return `${hasItems ? `<p class="fine"><b>${depth} level${depth === 1 ? "" : "s"}</b>, set once a board has things on it. To restructure, copy the board without its calendar.</p><input type="hidden" name="depth" value="${depth}">`
+function levelsTable(sc, hasItems, counts = []) {
+  const L = SC.labels(sc), depth = SC.depthOf(sc), keys = SC.levelKeys(sc);
+  const pick = SC.pickMode(sc);
+  const radio = (name, value, cur, title, text) => `<label class="mode-opt"><input type="radio" name="${name}" value="${value}"${cur === value ? " checked" : ""}><span><b>${title}</b>${text ? `<span class="fine">${text}</span>` : ""}</span></label>`;
+  const total = counts.reduce((a, b) => a + b, 0);
+  return `<div class="struct-now">
+      <p class="fine">This board has <b>${depth} level${depth === 1 ? "" : "s"}</b>. Each level holds the one below it, and the last level is what people claim.</p>
+      <ol class="struct-levels">${keys.map((k, i) => `<li><b>Level ${i + 1}: ${esc(L[k].many)}${i === keys.length - 1 ? ` <span class="pill ok claim-pill">Claimed</span>` : ""}</b>
+        <span class="fine">${esc(LEVEL_INFO[k](i === keys.length - 1)[0])}</span><span class="struct-count">${counts[i] ?? 0} now</span></li>`).join("")}</ol>
+    </div>
+    ${hasItems ? `<p class="lock-note">🔒 <b>The number of levels is locked</b> because this board already has ${total} thing${total === 1 ? "" : "s"} on it. To use a different number of levels, copy the board without its contents and set up the copy. Renaming the levels below is always fine.</p><input type="hidden" name="depth" value="${depth}">`
       : `<label class="field-l">Levels<select name="depth">
           ${[1, 2, 3, 4].map((n) => `<option value="${n}"${depth === n ? " selected" : ""}>${n} level${n === 1 ? "" : "s"}</option>`).join("")}</select>
-          <span class="fine">You can change this while the board is empty. The last level is always what people claim.</span></label>`}
+          <span class="fine">You can change this while the board is empty.</span></label>`}
+    <p class="q-label">What things are called</p>
     <div class="table-wrap"><table class="levels">
-      <thead><tr><th>Level</th><th>Called (one)</th><th>Called (many)</th></tr></thead>
-      <tbody>${SC.levelKeys(sc).map((k, i, all) => `<tr>
-        <td><strong>Level ${i + 1}</strong>${i === all.length - 1 ? ` <span class="pill ok claim-pill">Claimed</span>` : ""}<div class="fine">e.g. ${esc(LEVEL_INFO[k](i === all.length - 1)[1])}</div></td>
+      <thead><tr><th>Level</th><th>One</th><th>Many</th></tr></thead>
+      <tbody>${keys.map((k, i) => `<tr>
+        <td><strong>Level ${i + 1}</strong>${i === keys.length - 1 ? ` <span class="pill ok claim-pill">Claimed</span>` : ""}<div class="fine">e.g. ${esc(LEVEL_INFO[k](i === keys.length - 1)[1])}</div></td>
         <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required aria-label="Level ${i + 1} singular"></td>
         <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required aria-label="Level ${i + 1} plural"></td></tr>`).join("")}
         ${["participant", "group"].map((k) => `<tr class="people-row">
-        <td><strong>${k === "participant" ? "People" : "People's groups"}</strong><div class="fine">e.g. ${esc(LEVEL_INFO[k]()[1])}</div></td>
+        <td><strong>${k === "participant" ? "People" : "Their groups"}</strong><div class="fine">e.g. ${esc(LEVEL_INFO[k]()[1])}</div></td>
         <td><input name="${k}_one" value="${esc(L[k].one)}" maxlength="24" required></td>
         <td><input name="${k}_many" value="${esc(L[k].many)}" maxlength="24" required></td></tr>`).join("")}
-      </tbody></table></div>`;
+      </tbody></table></div>
+    <p class="q-label">Do ${esc(L.slot.many.toLowerCase())} have dates and times?</p>
+    <div class="opt-row">
+      ${radio("dated", "no", pick === "list" ? "no" : "yes", "No", "People pick from a list.")}
+      ${radio("dated", "yes", pick === "list" ? "no" : "yes", "Yes", `Each ${esc(L.slot.one.toLowerCase())} has a date and time.`)}
+    </div>
+    <div class="sub-q dlg-views"${pick === "list" ? " hidden" : ""}>
+      <p class="q-label">Available views</p>
+      <div class="opt-row three">
+        ${radio("pick", "list", pick === "dlist" ? "list" : pick, "List", "Day by day.")}
+        ${radio("pick", "calendar", ["calendar", "list"].includes(pick) ? "calendar" : pick, "Calendar", "A month calendar.")}
+        ${radio("pick", "both", pick, "Both", "People can switch.")}
+      </div>
+    </div>`;
 }
 
 // Plain-language descriptions of "Who can claim", used by the wizard and Settings
@@ -608,30 +630,15 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
         </div>
         <p class="fine" data-public-note${claim === "public" ? "" : " hidden"}>With "Anyone with the link" people are anonymous, so there's nothing to limit by ${esc(L.group.one.toLowerCase())} or tag.</p>`)}
 
-      ${sec("see", I.calendar(), "How people see it", "Whether things have dates, which views people get, and what they see of who's going.",
-        rows([["Dates &amp; views", VIEWS[pick] || VIEWS.calendar], ["Who's going", WHO[sc.family_names || "initial"]]]),
-        `<p class="q-label">Do things have dates and times?</p>
-        <div class="opt-row">
-          ${radio("dated", "no", pick === "list" ? "no" : "yes", "No", "It's all one day or there are no set times. People pick from a list.", EX.datedNo)}
-          ${radio("dated", "yes", pick === "list" ? "no" : "yes", "Yes", `${esc(L.slot.many)} have dates and times.`, EX.datedYes)}
-        </div>
-        <div class="sub-q" data-views${pick === "list" ? " hidden" : ""}>
-          <p class="q-label">Available views</p>
-          <div class="opt-row three">
-            ${radio("pick", "list", pick === "dlist" ? "list" : pick, "List", "A day-by-day list with dates and times.", EX.viewList)}
-            ${radio("pick", "calendar", ["calendar", "list"].includes(pick) ? "calendar" : pick, "Calendar", "People pick days on a calendar.", EX.viewCal)}
-            ${radio("pick", "both", pick, "Both", "People can switch between the two.", "the calendar for planning, the list for a quick look")}
-          </div>
-        </div>
-        <p class="q-label">Who's going</p>
-        <div class="opt-row three">
+      ${sec("see", I.calendar(), "Who's going", "What people see of who has claimed each one. Emails and contact details are never shown.",
+        rows([["Shown as", WHO[sc.family_names || "initial"]]]),
+        `<div class="opt-row three">
           ${radio("family_names", "initial", sc.family_names || "initial", "First name + initial", "", EX.whoGoing)}
           ${radio("family_names", "full", sc.family_names || "initial", "Full names", "", EX.whoGoing.replace(/(\w+) (\w)\./g, (m, f, l) => `${f} ${({ S: "Smith", K: "Klein", P: "Peters", R: "Reed" })[l] || l + "…"}`))}
           ${radio("family_names", "off", sc.family_names || "initial", "Hidden", "Only how many spots are open", "2 of 4 spots open")}
-        </div>
-        <p class="fine">Emails and contact details are never shown.</p>`)}
+        </div>`)}
 
-      ${rulesSections(sc, main, L, SC.activitiesFor(sc, { activeOnly: true }), `/admin/setup/schedule?s=${sc.id}`)}
+      ${require("./board").boardDefaultsSections(sc)}
       ${sec("attendance", I.check(), "Attendance", "Whether attendance is taken, and the coaches who can take it.",
         rows([["Track attendance", sc.track_attendance ? "Yes, by default" : "No, not by default"], ["Coaches", (counts.coaches || []).length ? esc(counts.coaches.join(", ")) : "None"]]),
         `<div class="opt-row">
@@ -714,7 +721,20 @@ function newSchedulePage({ user, flash }) {
           <h2>Board details</h2>
           <p class="muted tight">Give it a name people will recognize.</p>
           <label class="field">Board name<input name="name" id="wz-name" required maxlength="60" autocomplete="off" placeholder="e.g. Winter Training 2026–27"></label>
-          <div class="tip"><b>Helpful tip</b>Use a season or event name people will recognize, like "Winter Training 2026–27" or "Raptors Rumble Concessions, Sat Feb 7".</div>
+          <div class="tip"><b>Helpful tip</b>Use a season or event name people will recognize, like "Winter Training 2026–27" or "Raptors Rumble Concessions".</div>
+          <div class="field-row">
+            <label class="field-l"><span>Event date <span class="opt">(optional)</span></span><input type="date" name="event_date"></label>
+            <label class="field-l"><span>End date <span class="opt">(if more than one day)</span></span><input type="date" name="event_end"></label>
+          </div>
+          <label class="field-l"><span>Main location <span class="opt">(optional)</span></span><input name="event_location" list="app-locations" maxlength="80" placeholder="e.g. Carson Park">
+            <span class="fine">Areas and items can have their own location too, like the concession stand.</span></label>
+          ${require("../locations").datalist()}
+          <label class="field-l"><span>Description <span class="opt">(optional, shown to people at the top)</span></span>
+            <textarea name="description" rows="2" maxlength="600" placeholder="e.g. Drop donations at the concession stand by 7:30 AM Saturday."></textarea></label>
+          <div class="field-row">
+            <label class="field-l"><span>Organizer <span class="opt">(optional)</span></span><input name="contact_name" maxlength="60" placeholder="e.g. Jane Smith"></label>
+            <label class="field-l"><span>Organizer email or phone</span><input name="contact_info" maxlength="80" placeholder="e.g. jane@example.com"></label>
+          </div>
         </div>
 
         <div class="wz-step" data-step="2" hidden>
@@ -726,6 +746,21 @@ function newSchedulePage({ user, flash }) {
             <span class="choice-icon" aria-hidden="true">${icon}</span>
             <span class="choice-body"><b>${title} <em>${depth}</em></b><span class="lv">${esc(levels(PRE[k]))}</span><span>${esc(use)}</span><span class="ex">e.g. ${esc(ex)}</span></span>
             <span class="choice-check" aria-hidden="true">✓</span></label>`).join("")}</div>
+          <div class="wz-names" id="wz-names" hidden>
+            <p class="q-label">What things are called <span class="fine-inline">(filled in for you; rename if you like)</span></p>
+            <div class="table-wrap"><table class="levels"><thead><tr><th>Level</th><th>One</th><th>Many</th></tr></thead><tbody>
+              ${["middle", "section", "activity", "slot", "participant", "group"].map((k) => `<tr data-key="${k}">
+                <td><strong class="lvl-name"></strong><div class="fine lvl-help"></div></td>
+                <td><input name="${k}_one" maxlength="24" aria-label="${k} singular"></td><td><input name="${k}_many" maxlength="24" aria-label="${k} plural"></td></tr>`).join("")}
+            </tbody></table></div>
+          </div>
+          <fieldset class="q" id="wz-dated" hidden><legend>Do things have dates and times?</legend><div class="choice-row">
+            ${opt("dated", "no", "No", "It's all one day or there are no set times. People pick from a list.", "datedNo")}
+            ${opt("dated", "yes", "Yes", "Things have dates and times.", "datedYes")}</div></fieldset>
+          <fieldset class="q" id="wz-views"><legend>Available views</legend><div class="choice-row three">
+            ${opt("pick", "list", "List", "A day-by-day list with dates and times. No calendar.", "viewList")}
+            ${opt("pick", "calendar", "Calendar", "People pick days on a calendar.", "viewCal")}
+            ${opt("pick", "both", "Both: List &amp; Calendar", "People can switch between the calendar and a day-by-day list.")}</div></fieldset>
         </div>
 
         <div class="wz-step" data-step="3" hidden>
@@ -738,13 +773,6 @@ function newSchedulePage({ user, flash }) {
           <fieldset class="q"><legend>Limit some things to certain people?</legend><div class="choice-row">
             ${opt("restrict", "no", "No", "Anyone who can claim can claim anything.")}
             ${opt("restrict", "yes", "Yes", "By team or tag.", "restrict")}</div></fieldset>
-          <fieldset class="q"><legend>Do things have dates and times?</legend><div class="choice-row">
-            ${opt("dated", "no", "No", "It's all one day or there are no set times. People pick from a list.", "datedNo")}
-            ${opt("dated", "yes", "Yes", "Things have dates and times.", "datedYes")}</div></fieldset>
-          <fieldset class="q" id="wz-views"><legend>Available views</legend><div class="choice-row three">
-            ${opt("pick", "list", "List", "A day-by-day list with dates and times. No calendar.", "viewList")}
-            ${opt("pick", "calendar", "Calendar", "People pick days on a calendar.", "viewCal")}
-            ${opt("pick", "both", "Both: List &amp; Calendar", "People can switch between the calendar and a day-by-day list.")}</div></fieldset>
           <div class="wz-summary" aria-live="polite"><span class="label-like">Summary</span><p id="wz-sum"></p></div>
         </div>
 
@@ -758,14 +786,32 @@ function newSchedulePage({ user, flash }) {
     </section>
     <script>
     (function () {
-      var D = ${JSON.stringify(Object.fromEntries(Object.entries(PRE).map(([k, v]) => [k, { claim: v.claim, restrict: v.restrict ? "yes" : "no", dated: v.calendar === false ? "no" : "yes", depth: v.depth }])))};
+      var D = ${JSON.stringify(Object.fromEntries(Object.entries(PRE).map(([k, v]) => [k, { claim: v.claim, restrict: v.restrict ? "yes" : "no", dated: v.calendar === false ? "no" : "yes", depth: v.depth,
+        names: Object.fromEntries(["middle", "section", "activity", "slot", "participant", "group"].map((x) => [x, v[x] || SC.PRESET_LABELS.training[x] || [x, x + "s"]])) }])))};
+      var KEYS = ${JSON.stringify(SC.LEVEL_KEYS)};
+      var HELP = ${JSON.stringify({ middle: LEVEL_INFO.middle(false)[0], section: LEVEL_INFO.section(false)[0], activity: LEVEL_INFO.activity(false)[0], slot: LEVEL_INFO.slot(true)[0], participant: LEVEL_INFO.participant()[0], group: LEVEL_INFO.group()[0] })};
+      var namesTouched = false;
+      function names() {
+        var d = D[val("preset")]; if (!d) return;
+        var keys = KEYS[d.depth];
+        document.querySelectorAll("#wz-names tr[data-key]").forEach(function (tr) {
+          var k = tr.dataset.key, i = keys.indexOf(k), people = k === "participant" || k === "group";
+          tr.hidden = !(people || i >= 0);
+          tr.querySelectorAll("input").forEach(function (inp) { inp.disabled = tr.hidden; });
+          tr.querySelector(".lvl-name").textContent = people ? (k === "participant" ? "People" : "Their groups") : "Level " + (i + 1) + (i === keys.length - 1 ? " (claimed)" : "");
+          tr.querySelector(".lvl-help").textContent = HELP[k] || "";
+          if (!namesTouched) { tr.querySelector('input[name$="_one"]').value = d.names[k][0]; tr.querySelector('input[name$="_many"]').value = d.names[k][1]; }
+        });
+        document.getElementById("wz-names").hidden = false; document.getElementById("wz-dated").hidden = false;
+      }
+      document.getElementById("wz-names").addEventListener("input", function () { namesTouched = true; });
       var NAMES = ${JSON.stringify(Object.fromEntries(CHOICES.map(([k, , t, d]) => [k, t + " (" + d + ")"])))};
       var EXAMPLES = ${JSON.stringify(require("../examples").BY_DEPTH)};
       var form = document.getElementById("wz"), step = 1, touched = {};
       var $ = function (sel) { return form.querySelector(sel); };
       var val = function (n) { var el = form.querySelector('input[name="' + n + '"]:checked'); return el ? el.value : ""; };
       function set(n, v) { if (touched[n]) return; var el = form.querySelector('input[name="' + n + '"][value="' + v + '"]'); if (el) el.checked = true; }
-      function defaults() { var d = D[val("preset")]; if (!d) return; set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated); if (!val("pick")) set("pick", "calendar"); refresh();
+      function defaults() { var d = D[val("preset")]; if (!d) return; set("claim", d.claim); set("restrict", d.restrict); set("dated", d.dated); if (!val("pick")) set("pick", "calendar"); names(); refresh();
         var err = document.getElementById("wz-pick-err"); if (err) err.hidden = true; }
       function examples() {
         var d = (D[val("preset")] || {}).depth, ex = EXAMPLES[d];

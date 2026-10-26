@@ -8,7 +8,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "local": "node --env-file=.env --watch server.js",
-    "db": "docker compose up -d db"
+    "db": "docker compose up -d db",
+    "test": "node --env-file=.env test/engine.test.js"
   },
   "engines": {
     "node": ">=20"

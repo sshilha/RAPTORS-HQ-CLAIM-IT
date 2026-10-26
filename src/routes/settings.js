@@ -35,19 +35,23 @@ function readActivity(b) {
 const { query } = require("../db");
 async function boardRows() {
   const rows = (await query(`SELECT sc.*,
-      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id AND NOT r.is_main) AS sheets,
-      (SELECT count(*)::int FROM training_sessions t JOIN programs p ON p.id=t.program_id JOIN rounds r ON r.id=p.round_id
-         WHERE r.schedule_id=sc.id AND t.canceled_at IS NULL) AS items,
-      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL AND r.ends_on >= CURRENT_DATE) AS live_sheets,
+      (SELECT count(*)::int FROM board_nodes n WHERE n.schedule_id=sc.id) AS containers,
+      (SELECT count(*)::int FROM board_nodes n WHERE n.schedule_id=sc.id AND n.parent_id IS NULL) AS sheets,
+      (SELECT count(*)::int FROM board_items i WHERE i.schedule_id=sc.id AND i.canceled_at IS NULL) AS items,
       (SELECT count(*)::int FROM schedule_members m WHERE m.schedule_id=sc.id) AS members,
-      (SELECT count(*)::int FROM reservations x JOIN training_sessions t ON t.id=x.session_id JOIN programs p ON p.id=t.program_id
-         JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=sc.id AND x.status='confirmed' AND t.starts_at > now()) AS claimed,
-      (SELECT count(*)::int FROM rounds r WHERE r.schedule_id=sc.id AND NOT r.is_main) AS item_rounds,
-      (SELECT to_char(min(t.starts_at) AT TIME ZONE 'America/Chicago', 'Dy, Mon FMDD at FMHH12:MI AM') FROM training_sessions t
-         JOIN programs p ON p.id=t.program_id JOIN rounds r ON r.id=p.round_id
-         WHERE r.schedule_id=sc.id AND r.published_at IS NOT NULL AND t.canceled_at IS NULL AND t.starts_at > now()) AS next
+      (SELECT count(*)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id
+         WHERE i.schedule_id=sc.id AND c.status='confirmed' AND (i.starts_at IS NULL OR i.starts_at > now())) AS claimed,
+      (SELECT to_char(min(i.starts_at) AT TIME ZONE 'America/Chicago', 'Dy, Mon FMDD at FMHH12:MI AM') FROM board_items i
+         WHERE i.schedule_id=sc.id AND i.canceled_at IS NULL AND i.starts_at > now()) AS next
     FROM schedules sc ORDER BY sc.sort, sc.id`)).rows;
-  for (const r of rows) { r.live = r.live_sheets > 0 && !r.archived_at; r.activities = SC.activitiesFor(r).length; r.empty = r.item_rounds === 0 && r.items === 0; }
+  const lv = (await query(`WITH RECURSIVE t AS (SELECT id, schedule_id, 1 AS d FROM board_nodes WHERE parent_id IS NULL
+      UNION ALL SELECT n.id, n.schedule_id, t.d + 1 FROM board_nodes n JOIN t ON n.parent_id = t.id)
+    SELECT schedule_id, d, count(*)::int AS n FROM t GROUP BY schedule_id, d`)).rows;
+  for (const r of rows) {
+    r.live = !!r.published_at && !r.archived_at; r.activities = r.containers; r.empty = r.containers === 0 && r.items === 0;
+    const depth = Math.min(4, Math.max(1, r.depth || 1));
+    r.level_counts = Array.from({ length: depth }, (_, i) => i === depth - 1 ? r.items : (lv.find((x) => x.schedule_id === r.id && x.d === i + 1) || {}).n || 0);
+  }
   return rows;
 }
 

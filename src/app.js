@@ -28,6 +28,7 @@ app.use("/admin", async (req, res, next) => {
 app.use("/admin/import", require("./routes/import"));
 app.use("/admin/rounds", require("./routes/rounds"));
 app.use("/admin/seasons", require("./routes/seasons"));
+app.use("/admin/b", require("./routes/board")); // container engine actions
 app.use("/admin/setup", require("./routes/setup"));
 app.use("/admin/members", require("./routes/members"));
 app.use("/admin/settings", require("./routes/settings"));
@@ -49,6 +50,7 @@ async function start() {
   await require("./catalog").load(); // activities, age groups, shortcuts, locations
   await require("./schedules").ensureDefault(); // existing data becomes the first schedule
   await auth.loadAdmins();
+  await require("./engine/schema").migrate(); // containers, items, claims (the new engine)
   await require("./locations").migrate(); // saved places (names from older lists, addresses added in ⚙ App)
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
