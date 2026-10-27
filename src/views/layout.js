@@ -9,7 +9,7 @@ function flashHtml(flash = {}) {
 }
 
 // Everything that lives under Settings in the bottom nav
-const SETTINGS_AREA = ["home", "setup", "seasons", "rounds", "programs", "import", "athletes", "members", "activities", "groups", "schedule", "settings", "rules"];
+const SETTINGS_AREA = ["home", "setup", "seasons", "rounds", "programs", "import", "athletes", "members", "activities", "groups", "schedule", "settings", "rules", "people"];
 
 function head(title) {
   return `<!DOCTYPE html>
@@ -36,7 +36,7 @@ function head(title) {
 </head>`;
 }
 
-const foot = () => `<footer class="foot">${esc(LABELS.org_name || LABELS.app_name)}</footer>`;
+const foot = (user, tab) => `<footer class="foot">${user && tab === "home" ? `<p class="foot-change">Is your info wrong (name, team, email, phone)? <a href="/request-change">Request a change</a></p>` : ""}${esc(LABELS.org_name || LABELS.app_name)}</footer>`;
 
 // Signed-out pages use the dark sign-in gate, like the tryout app's admin login
 function gateLayout({ title, body, flash }) {
@@ -82,7 +82,7 @@ function publicLayout({ title, body, flash }) {
   <span class="spacer"></span><a class="link-btn" href="/">Sign in</a>
 </div></header>
 <main class="page">${flashHtml(flash)}${body}</main>
-${foot()}
+${foot(user, tab)}
 </body>
 </html>`;
 }
@@ -110,7 +110,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   </div>
 </header>
 <main class="page${w}${ro}">${flashHtml(flash)}${body}</main>
-${foot()}
+${foot(user, tab)}
 ${admin || coach ? bottomNav(tab, admin, coach) : ""}
 </body>
 </html>`;

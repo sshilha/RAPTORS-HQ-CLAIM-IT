@@ -105,6 +105,13 @@ router.post("/places/:id/remove", wrap(async (req, res) => {
   go(res, app("places"), { ok: `Removed ${cur ? cur.name : "it"}. Anything that used it keeps the name, just without a map link.` });
 }));
 
+router.post("/app/change-email", wrap(async (req, res) => {
+  const e = require("../auth").normalizeEmail(req.body.email);
+  if (!require("../auth").isValidEmail(e)) return go(res, "/admin/settings/app#change", { err: "Enter a valid email." });
+  const c = catalog.current(); c.change_email = e; await catalog.save(c);
+  go(res, "/admin/settings/app#change", { ok: `Change requests now go to ${e}.` });
+}));
+
 router.get("/app", wrap(async (req, res) => {
   const admins = (await require("../db").query(`SELECT a.*, u.last_login_at FROM app_admins a LEFT JOIN users u ON u.email=a.email ORDER BY a.email`)).rows;
   const used = Object.fromEntries((await require("../db").query(

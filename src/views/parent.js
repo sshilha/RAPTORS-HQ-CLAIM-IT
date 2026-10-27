@@ -312,4 +312,19 @@ function dayPage({ user, athletes, athlete, programs, date, prevDay, nextDay, ad
   });
 }
 
-module.exports = { dashboardPage, dayPage };
+function changeRequestPage({ user, flash, people }) {
+  return layout({ title: "Request a change", user, flash, tab: "home",
+    body: `<a class="back" href="/dashboard">← My Claims</a>
+    <section class="panel"><h1>Request a change</h1>
+      <p class="lede">Is a name, team, email, or phone number wrong? Tell us and an admin will fix it.</p>
+      <form method="post" action="/request-change" class="stack">
+        <label>Who is it about?<select name="who">
+          <option value="">Me (${esc(user.email)})</option>
+          ${people.map((p) => `<option>${esc(`${p.first_name} ${p.last_name}`.trim())}</option>`).join("")}</select></label>
+        <label>What should change?<textarea name="message" rows="5" required maxlength="2000" placeholder="e.g. Ava moved to the 14U team. Our new phone number is 715-555-0123."></textarea></label>
+        <div class="q-actions"><button class="btn-small" type="submit">Send request</button><a class="btn-ghost" href="/dashboard">Cancel</a></div>
+      </form></section>` });
+}
+
+module.exports = {
+  changeRequestPage, dashboardPage, dayPage };

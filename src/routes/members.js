@@ -14,10 +14,7 @@ const home = (sc, anchor = "") => `/admin/members?s=${sc.id}${anchor}`;
 async function linkParents(athleteId, raw) {
   const emails = String(raw || "").split(/[,;\s]+/).map(auth.normalizeEmail).filter(Boolean);
   const bad = emails.filter((e) => !auth.isValidEmail(e));
-  for (const e of emails.filter(auth.isValidEmail)) {
-    const u = await auth.findOrCreateUser(e);
-    await query(`INSERT INTO parent_athletes (user_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [u.id, athleteId]);
-  }
+  for (const e of emails.filter(auth.isValidEmail)) await require("../people").linkParent(athleteId, e);
   return bad;
 }
 
@@ -32,9 +29,9 @@ router.get("/", wrap(async (req, res) => {
      WHERE m.schedule_id=$1 AND ($2 = '' OR coalesce(m.group_name,'') = $2 OR ($2 LIKE 'tag:%' AND substr($2, 5) = ANY(m.tags)))
      ORDER BY m.group_name NULLS LAST, a.last_name, a.first_name`, [sc.id, group === "none" ? "" : group])).rows;
   const others = (await query(
-    `SELECT a.id, a.first_name, a.last_name, a.self_user_id FROM athletes a
-     WHERE NOT EXISTS (SELECT 1 FROM schedule_members m WHERE m.schedule_id=$1 AND m.athlete_id=a.id)
-     ORDER BY a.last_name, a.first_name`, [sc.id])).rows;
+    `SELECT a.id, a.first_name, a.last_name, a.self_user_id, a.kind, a.team, a.se_group, a.roles, a.email FROM athletes a
+     WHERE a.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM schedule_members m WHERE m.schedule_id=$1 AND m.athlete_id=a.id)
+     ORDER BY lower(a.last_name), lower(a.first_name)`, [sc.id])).rows;
   const total = (await query(`SELECT count(*)::int AS n FROM schedule_members WHERE schedule_id=$1`, [sc.id])).rows[0].n;
   // Teams & tags live on the same page, above the people
   const G = require("../groups"), SCx = require("../schedules");
@@ -74,6 +71,8 @@ function guess(headers) {
     name: find(/^name$/, /full name/, /player name/, /athlete name/, /participant name/),
     group: find(/^team$/, /team name/, /^group/, /age group/, /division/, /^level/),
     tags: find(/^tags?$/, /position/),
+    cteam: find(/^team$/, /team name/, /current team/),
+    se: find(/sportsengine group/, /^se group/, /program/, /registration/, /^season/, /^group$/),
     emails: h.map((x, i) => (/e-?mail/.test(x) ? i : -1)).filter((i) => i >= 0),
   };
 }
@@ -88,7 +87,8 @@ function readRows(rows, map) {
     }
     const emails = [...new Set(map.emails.flatMap((i) => String(r[i] || "").split(/[\s,;]+/)).map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))];
     out.push({ first: first.slice(0, 40), last: last.slice(0, 40), group: map.group >= 0 ? (r[map.group] || "").slice(0, 30) : "",
-      tags: map.tags >= 0 ? String(r[map.tags] || "").split(/[,;/]+/).map((t) => t.trim()).filter(Boolean) : [], emails });
+      tags: map.tags >= 0 ? String(r[map.tags] || "").split(/[,;/]+/).map((t) => t.trim()).filter(Boolean) : [], emails,
+      cteam: map.cteam >= 0 ? (r[map.cteam] || "").slice(0, 40) : "", se: map.se >= 0 ? (r[map.se] || "").slice(0, 60) : "" });
   }
   return out;
 }
@@ -114,7 +114,7 @@ async function plan(sc, rows, map) {
 const mapFrom = (b, headers) => {
   const g = guess(headers);
   const pick = (k) => (b[`col_${k}`] === undefined ? g[k] : int(b[`col_${k}`]) ?? -1);
-  return { first: pick("first"), last: pick("last"), name: pick("name"), group: pick("group"), tags: pick("tags"),
+  return { first: pick("first"), last: pick("last"), name: pick("name"), group: pick("group"), tags: pick("tags"), cteam: pick("cteam"), se: pick("se"),
     emails: b.col_emails === undefined && !b.mapped ? g.emails : [].concat(b.col_emails || []).map(int).filter((x) => x >= 0) };
 };
 router.post("/import/preview", wrap(async (req, res) => {
@@ -141,6 +141,8 @@ router.post("/import/commit", wrap(async (req, res) => {
     if (p.status === "skip") { skipped++; continue; }
     let id = p.athleteId;
     if (!id) { id = (await query(`INSERT INTO athletes (first_name, last_name) VALUES ($1,$2) RETURNING id`, [p.first, p.last])).rows[0].id; added++; }
+    // the People directory: current team and SportsEngine group (only when the file has them)
+    if (p.cteam || p.se) await query(`UPDATE athletes SET team=COALESCE(NULLIF($2,''), team), se_group=COALESCE(NULLIF($3,''), se_group) WHERE id=$1`, [id, p.cteam, p.se]);
     const group = groups.find((g) => p.group && g.toLowerCase() === p.group.toLowerCase()) || null;
     const ptags = p.tagMatch.filter((t) => tags.includes(t));
     const ex = (await query(`SELECT tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, id])).rows[0];

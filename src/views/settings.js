@@ -143,7 +143,7 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
     title: "App settings", tab: "settings", user, flash,
     body: `<section class="panel"><h1>App settings</h1>
       <p class="muted tight">Things that apply across the whole app. Everything else lives inside each ${esc((al.schedule || ["Claim Board"])[0])}.</p>
-      <nav class="jump"><a href="#labels">Name</a><a href="#places">Locations</a><a href="#admins">Administrators</a></nav></section>
+      <nav class="jump"><a href="/admin/people"><b>People →</b></a><a href="#labels">Name</a><a href="#places">Locations</a><a href="#admins">Administrators</a></nav></section>
     <section class="panel" id="labels">
       <h2 class="banner">App name</h2>
       <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
@@ -191,6 +191,13 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
       }
     </script>
     <script async src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&libraries=places&callback=initPlaces"></script>` : ""}
+
+    <section class="panel" id="change">
+      <h2 class="banner">Change requests</h2>
+      <p class="fine">People can't edit their own details. They send a request from My Claims, and it's emailed here so an admin can update People.</p>
+      <form method="post" action="/admin/settings/app/change-email" class="inline-add"><label>Send change requests to<input type="email" name="email" required value="${esc(c.change_email || "info@chippewavalleyraptors.com")}"></label>
+        <button class="btn-small" type="submit">Save</button></form>
+    </section>
 
     <section class="panel" id="admins">
       <h2 class="banner">Administrators</h2>

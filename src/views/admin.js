@@ -18,7 +18,7 @@ const STEPS = [
 function settingsNav(tab, user) {
   const sched = user && user.sched;
   const { LABELS } = require("../config");
-  if (tab === "home" || tab === "settings" || !sched || !sched.sc) return "";
+  if (tab === "home" || tab === "settings" || tab === "people" || !sched || !sched.sc) return "";
   const sc = sched.sc;
   const SC = require("../schedules");
   const L = SC.labels(sc);

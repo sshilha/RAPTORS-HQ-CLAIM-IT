@@ -43,6 +43,25 @@ router.post("/me", wrap(async (req, res) => {
   go(res, `/dashboard?a=${me.id}`, { ok: `You're set up, ${first}. Pick a day to sign up.` });
 }));
 
+// ---------- request a change to your info (admins make the change) ----------
+router.get("/request-change", wrap(async (req, res) => {
+  const people = (await query(`SELECT a.* FROM parent_athletes pa JOIN athletes a ON a.id=pa.athlete_id
+     WHERE pa.user_id=$1 AND a.archived_at IS NULL ORDER BY a.first_name`, [req.user.id])).rows;
+  res.send(require("../views/parent").changeRequestPage({ user: req.user, flash: flashFrom(req), people }));
+}));
+router.post("/request-change", wrap(async (req, res) => {
+  const msg = String(req.body.message || "").trim().slice(0, 2000);
+  if (!msg) return go(res, "/request-change", { err: "Tell us what should change." });
+  const who = String(req.body.who || "").slice(0, 120);
+  const to = require("../catalog").current().change_email || "info@chippewavalleyraptors.com";
+  const { esc } = require("../views/layout");
+  await require("../email").sendEmail({ to, subject: `Change request from ${req.user.email}${who ? ` about ${who}` : ""}`,
+    text: `From: ${req.user.email}\nAbout: ${who || "(not given)"}\n\n${msg}\n\nMake the change in Claim It under App settings → People.`,
+    html: require("../email").shell("Change request", `<p><b>From:</b> ${esc(req.user.email)}<br><b>About:</b> ${esc(who || "(not given)")}</p>
+      <p style="white-space:pre-wrap">${esc(msg)}</p><p style="color:#64748b">Make the change in Claim It under App settings → People.</p>`) });
+  go(res, "/dashboard", { ok: "Thanks! Your change request was sent. An admin will update it." });
+}));
+
 router.get("/dashboard", wrap(async (req, res) => {
   const athletes = await myAthletes(req.user.id);
   const admin = auth.isAdmin(req.user);

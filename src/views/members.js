@@ -37,7 +37,7 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
       <div class="add-people" id="add">
         <div class="ap-tabs" role="tablist">
           <button type="button" role="tab" class="ap-tab on" data-ap="new" aria-selected="true">New ${esc(L.participant.one.toLowerCase())}</button>
-          <button type="button" role="tab" class="ap-tab" data-ap="existing" aria-selected="false">Someone already in the app${others.length ? ` (${others.length})` : ""}</button>
+          <button type="button" role="tab" class="ap-tab" data-ap="existing" aria-selected="false">From People${others.length ? ` (${others.length})` : ""}</button>
         </div>
         <form method="post" action="/admin/members?s=${sc.id}" class="grid-form ap-pane" data-ap="new">
           <div><label>First name<input name="first_name" required maxlength="40"></label></div>
@@ -51,10 +51,16 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
           <div class="full ap-actions"><button class="btn-small" type="submit">Add ${esc(L.participant.one.toLowerCase())}</button></div>
         </form>
         <div class="ap-pane" data-ap="existing" hidden>
-          <p class="fine">People already in the app, from other boards, public sign-ups, or parents who added themselves. Adding them links the same person (with their parents and history) instead of making a duplicate.</p>
-          ${others.length ? `<input type="search" class="ap-search" placeholder="Type to find someone…" aria-label="Find someone">` : ""}
+          <p class="fine">Everyone in the app's <a href="/admin/people">People</a> directory who isn't on this board yet. Filter by their current team or SportsEngine group, check who to add, then pick their ${esc(L.group.one.toLowerCase())} here.</p>
+          ${others.length ? (() => { const uniq = (k) => [...new Set(others.map((o) => o[k]).filter(Boolean))].sort();
+            const sel = (k, label) => uniq(k).length ? `<select class="ap-f" data-f="${k}" aria-label="${label}"><option value="">${label}: any</option>${uniq(k).map((x) => `<option>${esc(x)}</option>`).join("")}</select>` : "";
+            return `<div class="ap-filter"><input type="search" class="ap-search" placeholder="Type to find someone…" aria-label="Find someone">
+              <select class="ap-f" data-f="kind" aria-label="Kind"><option value="">Everyone</option><option value="athlete">Athletes</option><option value="adult">Adults</option></select>
+              ${sel("team", "Current team")}${sel("se_group", "SportsEngine group")}
+              <button type="button" class="link-dark ap-all">Check all shown</button></div>`; })() : ""}
           ${others.length ? `<form method="post" action="/admin/members/add?s=${sc.id}" class="stack ap-existing">
-          <div class="ap-list">${others.map((a) => `<label class="ap-person"><input type="checkbox" name="athlete_id" value="${a.id}"> ${esc(a.last_name)}, ${esc(a.first_name)}${a.self_user_id ? ` <span class="fine">(adult)</span>` : ""}</label>`).join("")}</div>
+          <div class="ap-list">${others.map((a) => `<label class="ap-person" data-kind="${a.kind}" data-team="${esc(a.team || "")}" data-se_group="${esc(a.se_group || "")}"><input type="checkbox" name="athlete_id" value="${a.id}"> ${a.first_name || a.last_name ? `${esc(a.last_name)}, ${esc(a.first_name)}` : esc(a.email || "(no name)")}
+            <span class="fine">${[a.kind === "adult" ? ((a.roles || []).join(", ") || "adult") : "", a.team, a.se_group].filter(Boolean).map(esc).join(" · ")}</span></label>`).join("")}</div>
           <span class="fine ap-count">Check everyone to add.</span>
           <label>${esc(L.group.one)}${groupSelect(sc, null)}</label>
           <div class="ap-actions"><button class="btn-small" type="submit">Add to ${esc(sc.name)}</button></div>
@@ -110,8 +116,19 @@ const ADD_PEOPLE_JS = `<script>
     document.querySelectorAll(".ap-pane").forEach(function (p) { p.hidden = p.dataset.ap !== t.dataset.ap; });
   }); });
   var q = document.querySelector(".ap-search");
-  if (q) q.addEventListener("input", function () { var v = q.value.toLowerCase();
-    document.querySelectorAll(".ap-person").forEach(function (o) { o.hidden = !!v && o.textContent.toLowerCase().indexOf(v) < 0; }); });
+  function filt() {
+    var v = q ? q.value.toLowerCase() : "", f = {};
+    document.querySelectorAll(".ap-f").forEach(function (s) { if (s.value) f[s.dataset.f] = s.value; });
+    document.querySelectorAll(".ap-person").forEach(function (o) {
+      var ok = (!v || o.textContent.toLowerCase().indexOf(v) >= 0);
+      for (var k in f) if (o.dataset[k] !== f[k]) ok = false;
+      o.hidden = !ok; });
+  }
+  if (q) q.addEventListener("input", filt);
+  document.querySelectorAll(".ap-f").forEach(function (s) { s.addEventListener("change", filt); });
+  var all = document.querySelector(".ap-all");
+  if (all) all.addEventListener("click", function () { document.querySelectorAll(".ap-person").forEach(function (o) { if (!o.hidden) o.querySelector("input").checked = true; });
+    var fx = document.querySelector(".ap-existing"); if (fx) fx.dispatchEvent(new Event("change")); });
   var f = document.querySelector(".ap-existing");
   if (f) { f.addEventListener("change", function () { var n = f.querySelectorAll("input[name=athlete_id]:checked").length;
       f.querySelector(".ap-count").textContent = n ? n + " checked" : "Check everyone to add."; });
@@ -161,7 +178,8 @@ function importPreview({ user, flash, sc, headers, map, data, people, newGroups,
       <p class="fine">These were guessed from your column names. Change any that are wrong, and the preview updates.</p>
       <div class="imp-grid">
         ${col("first", "First name")}${col("last", "Last name")}${col("name", "Or one full-name column")}
-        ${col("group", `${esc(L.group.one)}`)}${col("tags", "Tags <span class=\"opt\">(comma-separated)</span>")}
+        ${col("group", `${esc(L.group.one)} on this board`)}${col("tags", "Tags <span class=\"opt\">(comma-separated)</span>")}
+        ${col("cteam", "Current team <span class=\"opt\">(for People)</span>")}${col("se", "SportsEngine group <span class=\"opt\">(for People)</span>")}
         <fieldset class="field-l imp-emails"><span>Parent / contact emails <span class="opt">(check all that apply)</span></span>
           ${headers.map((h, i) => `<label class="radio-row"><input type="checkbox" name="col_emails" value="${i}"${map.emails.includes(i) ? " checked" : ""} onchange="this.form.submit()"> ${esc(h || `Column ${i + 1}`)}</label>`).join("")}
           <input type="hidden" name="col_emails" value="-1"></fieldset>
@@ -169,7 +187,7 @@ function importPreview({ user, flash, sc, headers, map, data, people, newGroups,
     </form>
     <form method="post" action="/admin/members/import/commit?s=${sc.id}" class="panel">
       <input type="hidden" name="data" value="${esc(data)}"><input type="hidden" name="mapped" value="1">
-      ${["first", "last", "name", "group", "tags"].map((k) => `<input type="hidden" name="col_${k}" value="${map[k]}">`).join("")}
+      ${["first", "last", "name", "group", "tags", "cteam", "se"].map((k) => `<input type="hidden" name="col_${k}" value="${map[k]}">`).join("")}
       ${map.emails.map((i) => `<input type="hidden" name="col_emails" value="${i}">`).join("")}
       <h2>Step 3: Check and import</h2>
       <p class="imp-sum"><b>${people.length}</b> rows · <b>${count("new")}</b> new · <b>${count("existing")}</b> already in the app (they'll be linked, not duplicated) · <b>${count("here")}</b> already on this board (updated) · <b>${count("skip")}</b> skipped</p>

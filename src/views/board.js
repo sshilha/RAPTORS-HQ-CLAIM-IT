@@ -7,6 +7,18 @@ const I = require("./icons");
 const P = require("../locations");
 const { fmtRange, inputParts, fmtDateTime } = require("../time");
 
+
+// Safari/Firefox: a text box inside a radio's <label> can't be typed in (clicks go to the radio).
+// Keep the radio + its words in the label and put any boxes beside it.
+function unnest(html) {
+  return html.replace(/<label class="radio-row">([\s\S]*?)<\/label>/g, (whole, inner) => {
+    const controls = [...inner.matchAll(/<(input|select)\b/g)];
+    if (controls.length < 2) return whole;
+    const cut = controls[1].index;
+    return `<div class="radio-row"><label class="rr">${inner.slice(0, cut)}</label>${inner.slice(cut)}</div>`;
+  });
+}
+
 const word = (sc, i, many = true) => { const L = SC.labels(sc), k = SC.levelKeys(sc)[i]; return (many ? L[k].many : L[k].one); };
 const hrs = (h) => h % 24 === 0 && h ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} hour${h === 1 ? "" : "s"}`;
 const whoText = (w) => !w || !w.mode ? "Same as above" : w.mode === "signed_in" ? "Anyone signed in" : w.mode === "list" ? "Only people on the list"
@@ -33,7 +45,8 @@ function settingRows(sc, eff, own, at) {
 }
 
 // The form for overriding settings on a container (Same as above = clear the override)
-function settingsForm(sc, node, eff) {
+function settingsForm(sc, node, eff) { return unnest(settingsFormRaw(sc, node, eff)); }
+function settingsFormRaw(sc, node, eff) {
   const own = node.settings || {};
   const set = (k) => Object.prototype.hasOwnProperty.call(own, k) && own[k] !== undefined;
   const dated = SC.usesCalendar(sc);
@@ -240,7 +253,8 @@ function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, tot
 }
 
 // Settings page: the board-wide defaults (Limits, Timing, Question), each Edit -> Cancel · Save
-function boardDefaultsSections(sc) {
+function boardDefaultsSections(sc) { return unnest(boardDefaultsSectionsRaw(sc)); }
+function boardDefaultsSectionsRaw(sc) {
   const s = sc.settings || {}, q = sc.question || {};
   const dated = SC.usesCalendar(sc);
   const eff = require("../engine").effectiveAt(sc, []);
