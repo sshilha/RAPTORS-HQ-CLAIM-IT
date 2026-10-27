@@ -32,8 +32,37 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
     <section class="panel" id="people">
       <div class="athlete-head"><div><h2>${esc(L.participant.many)}</h2>
         <p class="muted tight">${total} on ${esc(sc.name)}</p></div>
-        <a class="btn-small" href="#add">+ Add</a></div>
+        <span class="head-btns"><a class="btn-ghost" href="/admin/members/import?s=${sc.id}">⇪ Import from a spreadsheet</a></span></div>
       ${needBanner(sc, L)}
+      <div class="add-people" id="add">
+        <div class="ap-tabs" role="tablist">
+          <button type="button" role="tab" class="ap-tab on" data-ap="new" aria-selected="true">New ${esc(L.participant.one.toLowerCase())}</button>
+          <button type="button" role="tab" class="ap-tab" data-ap="existing" aria-selected="false">Someone already in the app${others.length ? ` (${others.length})` : ""}</button>
+        </div>
+        <form method="post" action="/admin/members?s=${sc.id}" class="grid-form ap-pane" data-ap="new">
+          <div><label>First name<input name="first_name" required maxlength="40"></label></div>
+          <div><label>Last name<input name="last_name" required maxlength="40"></label></div>
+          <div><label>${esc(L.group.one)}${groupSelect(sc, null)}</label></div>
+          <div class="full"><span class="field-lbl">Tags</span>
+            ${(sc.tags || []).length ? `<div class="tag-checks">${sc.tags.map((t) => `<label class="tag-box"><input type="checkbox" name="tags" value="${esc(t)}"> ${esc(t)}</label>`).join("")}</div>`
+              : `<span class="fine">No tags yet. Add tags like Catcher or Pitcher in ${esc(L.group.many)} &amp; tags above, then they'll show here.</span>`}</div>
+          <div class="full"><label>Parent or contact emails<input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label>
+            <span class="fine">They sign in with these to claim spots. For an adult signing up themselves, use their own email.</span></div>
+          <div class="full ap-actions"><button class="btn-small" type="submit">Add ${esc(L.participant.one.toLowerCase())}</button></div>
+        </form>
+        <div class="ap-pane" data-ap="existing" hidden>
+          <p class="fine">People already in the app, from other boards, public sign-ups, or parents who added themselves. Adding them links the same person (with their parents and history) instead of making a duplicate.</p>
+          ${others.length ? `<input type="search" class="ap-search" placeholder="Type to find someone…" aria-label="Find someone">` : ""}
+          ${others.length ? `<form method="post" action="/admin/members/add?s=${sc.id}" class="stack ap-existing">
+          <div class="ap-list">${others.map((a) => `<label class="ap-person"><input type="checkbox" name="athlete_id" value="${a.id}"> ${esc(a.last_name)}, ${esc(a.first_name)}${a.self_user_id ? ` <span class="fine">(adult)</span>` : ""}</label>`).join("")}</div>
+          <span class="fine ap-count">Check everyone to add.</span>
+          <label>${esc(L.group.one)}${groupSelect(sc, null)}</label>
+          <div class="ap-actions"><button class="btn-small" type="submit">Add to ${esc(sc.name)}</button></div>
+        </form>` : `<p class="muted">Everyone in the app is already on ${esc(sc.name)}.</p>`}
+      
+        </div>
+      </div>
+      <h3 class="ilist-head">Your ${esc(L.participant.many.toLowerCase())} <span class="fine-inline">(${total})</span></h3>
       ${groups.length ? `<nav class="chip-filter" aria-label="Filter by ${esc(L.group.one.toLowerCase())}">
         <a href="/admin/members?s=${sc.id}"${!group ? ' aria-current="page"' : ""}>All</a>
         ${groups.map((g) => `<a href="/admin/members?s=${sc.id}&g=${encodeURIComponent(g)}"${group === g ? ' aria-current="page"' : ""}>${esc(g)}</a>`).join("")}
@@ -68,32 +97,97 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
       ${tags.length ? "" : `<p class="fine">Need tags like Catcher or Pitcher? Add them in the ${esc(L.group.many)} &amp; tags step.</p>`}
     </section>
 
-    <div class="settings-2" id="add">
-      <section class="panel">
-        <h2 class="banner">New ${esc(L.participant.one.toLowerCase())}</h2>
-        <form method="post" action="/admin/members?s=${sc.id}" class="grid-form">
-          <div><label>First name<input name="first_name" required maxlength="40"></label></div>
-          <div><label>Last name<input name="last_name" required maxlength="40"></label></div>
-          <div><label>${esc(L.group.one)}${groupSelect(sc, null)}</label></div>
-          <div><label>Team (optional)<input name="team" maxlength="40"></label></div>
-          <div class="full"><label>Parent or contact emails<input name="parent_emails" placeholder="mom@example.com, dad@example.com"></label>
-            <span class="fine">They sign in with these to claim spots. For an adult signing up themselves, use their own email.</span></div>
-          <div class="full"><button class="btn-small" type="submit">Add ${esc(L.participant.one.toLowerCase())}</button></div>
-        </form>
-      </section>
-      <section class="panel">
-        <h2 class="banner">Add someone already in the app</h2>
-        <p class="fine">People from other schedules, public sign-ups, or parents who added themselves.</p>
-        ${others.length ? `<form method="post" action="/admin/members/add?s=${sc.id}" class="stack">
-          <label>People<select name="athlete_id" multiple size="${Math.min(10, Math.max(4, others.length))}" required>
-            ${others.map((a) => `<option value="${a.id}">${esc(a.last_name)}, ${esc(a.first_name)}${a.self_user_id ? " (adult)" : ""}</option>`).join("")}</select></label>
-          <span class="fine">Hold Ctrl (or ⌘) to pick several.</span>
-          <label>${esc(L.group.one)}${groupSelect(sc, null)}</label>
-          <button class="btn-small" type="submit">Add to ${esc(sc.name)}</button>
-        </form>` : `<p class="muted">Everyone in the app is already in ${esc(sc.name)}.</p>`}
-      </section>
-    </div>`,
+    </div>
+    ${ADD_PEOPLE_JS}`,
   });
 }
 
-module.exports = { membersPage, groupSelect };
+// ---------- import from a spreadsheet ----------
+const ADD_PEOPLE_JS = `<script>
+(function () {
+  document.querySelectorAll(".ap-tab").forEach(function (t) { t.addEventListener("click", function () {
+    document.querySelectorAll(".ap-tab").forEach(function (x) { var on = x === t; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); });
+    document.querySelectorAll(".ap-pane").forEach(function (p) { p.hidden = p.dataset.ap !== t.dataset.ap; });
+  }); });
+  var q = document.querySelector(".ap-search");
+  if (q) q.addEventListener("input", function () { var v = q.value.toLowerCase();
+    document.querySelectorAll(".ap-person").forEach(function (o) { o.hidden = !!v && o.textContent.toLowerCase().indexOf(v) < 0; }); });
+  var f = document.querySelector(".ap-existing");
+  if (f) { f.addEventListener("change", function () { var n = f.querySelectorAll("input[name=athlete_id]:checked").length;
+      f.querySelector(".ap-count").textContent = n ? n + " checked" : "Check everyone to add."; });
+    f.addEventListener("submit", function (e) { if (!f.querySelector("input[name=athlete_id]:checked")) { e.preventDefault(); f.querySelector(".ap-count").textContent = "Check at least one person."; } }); }
+})();
+</script>`;
+
+function importPage({ user, flash, sc }) {
+  const L = SC.labels(sc);
+  return page({ title: `Import ${L.participant.many.toLowerCase()} · ${sc.name}`, tab: "members", user, flash,
+    body: `<div class="page-top"><h1 class="page-title">${esc(sc.name)} <span class="h-sub">Import ${esc(L.participant.many.toLowerCase())}</span></h1>
+      <a class="btn-ghost" href="/admin/members?s=${sc.id}">← Back to ${esc(L.participant.many.toLowerCase())}</a></div>
+    <section class="panel">
+      <h2>Step 1: Your spreadsheet</h2>
+      <p class="fine">Use a <b>CSV file</b> (like a SportsEngine roster export, or any spreadsheet saved as CSV), or copy the rows from Excel or Google Sheets and paste them below.
+        The first row should be the column names. Nothing is saved until you check the preview.</p>
+      <form method="post" action="/admin/members/import/preview?s=${sc.id}" class="stack" id="imp-form">
+        <label class="field-l">Choose a CSV file<input type="file" accept=".csv,text/csv,.txt" id="imp-file"></label>
+        <label class="field-l"><span>…or paste the rows here</span><textarea name="data" id="imp-data" rows="10" required
+          placeholder="First Name,Last Name,Team,Parent Email&#10;Ava,Smith,12U,jane@example.com&#10;Mia,Klein,14U,tom@example.com"></textarea></label>
+        <div class="q-actions"><button class="btn-small" type="submit">Preview</button></div>
+      </form>
+      <p class="ex">e.g. columns we recognize: First Name, Last Name (or one Name column), Team / Group / Age Group, Tags / Position, and any column with "email" in it.</p>
+    </section>
+    <script>
+      document.getElementById("imp-file").addEventListener("change", function () {
+        var f = this.files && this.files[0]; if (!f) return;
+        var r = new FileReader(); r.onload = function () { document.getElementById("imp-data").value = r.result; }; r.readAsText(f);
+      });
+    </script>` });
+}
+
+function importPreview({ user, flash, sc, headers, map, data, people, newGroups, newTags }) {
+  const L = SC.labels(sc);
+  const col = (k, label, multiple = false) => `<label class="field-l"><span>${label}</span>
+    <select name="col_${k}"${multiple ? ` multiple size="${Math.min(5, headers.length + 1)}"` : ""} onchange="this.form.submit()">
+      ${multiple ? "" : `<option value="-1">— Not in my file —</option>`}
+      ${headers.map((h, i) => `<option value="${i}"${(multiple ? map[k].includes(i) : map[k] === i) ? " selected" : ""}>${esc(h || `Column ${i + 1}`)}</option>`).join("")}</select></label>`;
+  const count = (st) => people.filter((p) => p.status === st).length;
+  const label = { new: ["New", "ok"], existing: ["Already in the app", "info"], here: ["Already on this board", "info"], skip: ["Skipped: no name", "warn"] };
+  return page({ title: `Import ${L.participant.many.toLowerCase()} · ${sc.name}`, tab: "members", user, flash, xwide: true,
+    body: `<div class="page-top"><h1 class="page-title">${esc(sc.name)} <span class="h-sub">Import ${esc(L.participant.many.toLowerCase())}</span></h1>
+      <a class="btn-ghost" href="/admin/members/import?s=${sc.id}">← Start over</a></div>
+    <form method="post" action="/admin/members/import/preview?s=${sc.id}" class="panel imp-map">
+      <input type="hidden" name="data" value="${esc(data)}"><input type="hidden" name="mapped" value="1">
+      <h2>Step 2: Match the columns</h2>
+      <p class="fine">These were guessed from your column names. Change any that are wrong, and the preview updates.</p>
+      <div class="imp-grid">
+        ${col("first", "First name")}${col("last", "Last name")}${col("name", "Or one full-name column")}
+        ${col("group", `${esc(L.group.one)}`)}${col("tags", "Tags <span class=\"opt\">(comma-separated)</span>")}
+        <fieldset class="field-l imp-emails"><span>Parent / contact emails <span class="opt">(check all that apply)</span></span>
+          ${headers.map((h, i) => `<label class="radio-row"><input type="checkbox" name="col_emails" value="${i}"${map.emails.includes(i) ? " checked" : ""} onchange="this.form.submit()"> ${esc(h || `Column ${i + 1}`)}</label>`).join("")}
+          <input type="hidden" name="col_emails" value="-1"></fieldset>
+      </div>
+    </form>
+    <form method="post" action="/admin/members/import/commit?s=${sc.id}" class="panel">
+      <input type="hidden" name="data" value="${esc(data)}"><input type="hidden" name="mapped" value="1">
+      ${["first", "last", "name", "group", "tags"].map((k) => `<input type="hidden" name="col_${k}" value="${map[k]}">`).join("")}
+      ${map.emails.map((i) => `<input type="hidden" name="col_emails" value="${i}">`).join("")}
+      <h2>Step 3: Check and import</h2>
+      <p class="imp-sum"><b>${people.length}</b> rows · <b>${count("new")}</b> new · <b>${count("existing")}</b> already in the app (they'll be linked, not duplicated) · <b>${count("here")}</b> already on this board (updated) · <b>${count("skip")}</b> skipped</p>
+      ${newGroups.length ? `<label class="radio-row imp-new"><input type="checkbox" name="add_groups" value="1" checked> Add ${newGroups.length} new ${esc((newGroups.length === 1 ? L.group.one : L.group.many).toLowerCase())} from the file: <b>${esc(newGroups.join(", "))}</b>
+        <span class="fine">(unchecked: those people are added without a ${esc(L.group.one.toLowerCase())})</span></label>` : ""}
+      ${newTags.length ? `<label class="radio-row imp-new"><input type="checkbox" name="add_tags" value="1" checked> Add ${newTags.length} new tag${newTags.length === 1 ? "" : "s"}: <b>${esc(newTags.join(", "))}</b></label>` : ""}
+      <div class="table-wrap"><table class="imp-table"><thead><tr><th></th><th>Name</th><th>${esc(L.group.one)}</th><th>Tags</th><th>Parent emails</th></tr></thead><tbody>
+        ${people.map((p) => `<tr class="st-${p.status}"><td><span class="pill ${label[p.status][1]}">${label[p.status][0]}</span></td>
+          <td>${esc(`${p.first} ${p.last}`.trim()) || "<span class='fine'>(blank)</span>"}</td>
+          <td>${p.group ? (p.groupMatch ? esc(p.groupMatch) : `${esc(p.group)} <span class="fine">(new)</span>`) : "<span class='fine'>—</span>"}</td>
+          <td>${esc((p.tagMatch || p.tags).join(", ")) || "<span class='fine'>—</span>"}</td>
+          <td class="fine">${esc(p.emails.join(", ")) || "—"}</td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="q-actions"><button class="btn-small" type="submit"${count("new") + count("existing") + count("here") ? "" : " disabled"}>Import ${count("new") + count("existing") + count("here")} ${esc(L.participant.many.toLowerCase())}</button>
+        <a class="btn-ghost" href="/admin/members?s=${sc.id}">Cancel</a></div>
+    </form>` });
+}
+
+module.exports = {
+  importPage,
+  importPreview, membersPage, groupSelect };

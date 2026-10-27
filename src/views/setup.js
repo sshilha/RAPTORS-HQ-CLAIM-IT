@@ -726,9 +726,8 @@ function newSchedulePage({ user, flash }) {
             <label class="field-l"><span>Event date <span class="opt">(optional)</span></span><input type="date" name="event_date"></label>
             <label class="field-l"><span>End date <span class="opt">(if more than one day)</span></span><input type="date" name="event_end"></label>
           </div>
-          <label class="field-l"><span>Main location <span class="opt">(optional)</span></span><input name="event_location" list="app-locations" maxlength="80" placeholder="e.g. Carson Park">
+          <label class="field-l"><span>Main location <span class="opt">(optional)</span></span>${require("../locations").picker("event_location", "")}
             <span class="fine">Areas and items can have their own location too, like the concession stand.</span></label>
-          ${require("../locations").datalist()}
           <label class="field-l"><span>Description <span class="opt">(optional, shown to people at the top)</span></span>
             <textarea name="description" rows="2" maxlength="600" placeholder="e.g. Drop donations at the concession stand by 7:30 AM Saturday."></textarea></label>
           <div class="field-row">
@@ -784,6 +783,7 @@ function newSchedulePage({ user, flash }) {
         </div>
       </form>
     </section>
+    ${require("../locations").placeDialog()}
     <script>
     (function () {
       var D = ${JSON.stringify(Object.fromEntries(Object.entries(PRE).map(([k, v]) => [k, { claim: v.claim, restrict: v.restrict ? "yes" : "no", dated: v.calendar === false ? "no" : "yes", depth: v.depth,

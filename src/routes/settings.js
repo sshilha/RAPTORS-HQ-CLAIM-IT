@@ -72,10 +72,15 @@ const { query: q } = require("../db");
 const P = require("../locations");
 router.post("/places", wrap(async (req, res) => {
   const name = clean(req.body.name, 80), address = clean(req.body.address, 200) || null;
-  if (!name) return go(res, app("places"), { err: "Enter a name for the place." });
-  if (P.find(name)) return go(res, app("places"), { err: `${name} is already saved. Edit it in the list.` });
+  const quick = req.get("X-Requested-With") === "fetch"; // the "Add new location" pop-up
+  if (!name) return quick ? res.status(400).json({ error: "Enter a name for the place." }) : go(res, app("places"), { err: "Enter a name for the place." });
+  if (P.find(name)) {
+    if (quick) return res.json({ place: P.find(name), existed: true });
+    return go(res, app("places"), { err: `${name} is already saved. Edit it in the list.` });
+  }
   await q(`INSERT INTO app_locations (name, address) VALUES ($1,$2)`, [name, address]);
   await P.load();
+  if (quick) return res.json({ place: P.find(name) });
   go(res, app("places"), { ok: `Saved ${name}.${address ? "" : " Add its address so people get directions."}` });
 }));
 router.post("/places/:id", wrap(async (req, res) => {

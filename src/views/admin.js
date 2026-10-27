@@ -203,7 +203,6 @@ const athletePage = ({ user, athlete: a, parents, memberships, schedules, claims
     <form method="post" action="/admin/athletes/${a.id}" class="grid-form">
       <div><label>First name<input name="first_name" required value="${esc(a.first_name)}"></label></div>
       <div><label>Last name<input name="last_name" required value="${esc(a.last_name)}"></label></div>
-      <div><label>Team (optional)<input name="team" value="${esc(a.team)}"></label></div>
       <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
     </form>
   </section>

@@ -359,3 +359,15 @@ Stage 2 (done): the board Setup screen runs on the engine as an outline: every c
 (open/close in place; remembered per board), add/rename/remove containers and items inside them, a Settings card per container (Edit opens the overrides; each value shows Set here /
 From <container> / Board default), one board-level Publish. Board-wide defaults are on the Settings page.
 Not yet on the engine: what people see and claim (stage 4), check-in, reports, copy board.
+
+
+## People (⚙ App settings → People)
+One directory of everyone: **athletes** (current team, SportsEngine group, birth year, jersey #, notes,
+linked parents) and **adults** (email to sign in, phone, organization, current team, SportsEngine group,
+notes) with roles **Parent / Coach / Volunteer** (a person can have several). Each person's page shows
+their family links, the boards they're on (team, tags, claims), and, for coaches, which boards they take
+attendance on. Parents linked by email anywhere become directory adults automatically. On a board,
+**From People** picks from the directory (filter by kind, current team, SportsEngine group; Check all
+shown). Imports also fill current team and SportsEngine group. Only admins edit details; people use
+**Request a change** (bottom of My Claims), emailed to the address set in App settings → Change requests
+(default info@chippewavalleyraptors.com).

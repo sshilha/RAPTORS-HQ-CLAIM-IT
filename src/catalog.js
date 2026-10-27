@@ -39,6 +39,7 @@ function normalize(c) {
     app_labels: c.app_labels || require("./config").DEFAULT_CATALOG.app_labels,
     board_settings_moved: !!c.board_settings_moved,
     seasons_flattened: !!c.seasons_flattened,
+    change_email: typeof c.change_email === "string" && c.change_email ? c.change_email : "info@chippewavalleyraptors.com",
     places_migrated: !!c.places_migrated,
   };
 }

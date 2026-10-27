@@ -293,7 +293,7 @@ router.post("/athletes/:id", wrap(async (req, res) => {
   const id = int(req.params.id);
   const first = str(req.body.first_name).slice(0, 40), last = str(req.body.last_name).slice(0, 40);
   if (!first || !last) return go(res, `/admin/athletes/${id}`, { err: "Enter a first and last name." });
-  await query(`UPDATE athletes SET first_name=$1, last_name=$2, team=$3 WHERE id=$4`, [first, last, str(req.body.team) || null, id]);
+  await query(`UPDATE athletes SET first_name=$1, last_name=$2 WHERE id=$3`, [first, last, id]);
   go(res, `/admin/athletes/${id}`, { ok: "Saved." });
 }));
 

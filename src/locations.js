@@ -43,4 +43,60 @@ async function migrate() {
   await load();
 }
 
-module.exports = { load, all, find, mapUrl, link, datalist, migrate };
+// A dropdown of saved places, with "Add new location..." (opens the pop-up from placeDialog())
+function picker(name, value, attrs = "") {
+  const cur = String(value || "").trim();
+  const known = CACHE.some((l) => l.name.toLowerCase() === cur.toLowerCase());
+  return `<select name="${name}" class="place-picker" data-prev="${esc(cur)}" ${attrs}>
+    <option value="">— None —</option>
+    ${CACHE.map((l) => `<option value="${esc(l.name)}"${l.name.toLowerCase() === cur.toLowerCase() ? " selected" : ""}>${esc(l.name)}${l.address ? ` · ${esc(l.address)}` : ""}</option>`).join("")}
+    ${cur && !known ? `<option value="${esc(cur)}" selected>${esc(cur)} (not saved)</option>` : ""}
+    <option value="__new">＋ Add new location…</option>
+  </select>`;
+}
+function placeDialog() {
+  return `<dialog class="edit-dlg place-dlg" id="place-dlg" aria-labelledby="place-dlg-t">
+    <form class="dlg-form" id="place-form">
+      <div class="dlg-head"><h2 id="place-dlg-t">Add a location</h2><button type="button" class="dlg-x" aria-label="Close" data-place-cancel>×</button></div>
+      <div class="dlg-body">
+        <p class="fine">It's saved to your locations (⚙ App settings → Locations), so you can pick it on any board.</p>
+        <label class="field-l">Name<input name="name" required maxlength="80" placeholder="e.g. Carson Park"></label>
+        <label class="field-l"><span>Address <span class="opt">(optional, so people get directions)</span></span><input name="address" maxlength="200" placeholder="e.g. 400 Carson Park Dr, Eau Claire, WI"></label>
+        <p class="alert" id="place-err" hidden></p>
+      </div>
+      <div class="q-actions dlg-actions"><button class="btn-small" type="submit">Save location</button><button type="button" class="btn-ghost" data-place-cancel>Cancel</button></div>
+    </form>
+  </dialog>
+  <script>
+  (function () {
+    var dlg = document.getElementById("place-dlg"), form = document.getElementById("place-form"), err = document.getElementById("place-err"), from = null;
+    function back() { if (from) from.value = from.dataset.prev || ""; dlg.close(); }
+    document.addEventListener("change", function (e) {
+      var s = e.target; if (!s.classList || !s.classList.contains("place-picker")) return;
+      if (s.value === "__new") { from = s; form.reset(); err.hidden = true; dlg.showModal(); form.name.focus(); } else s.dataset.prev = s.value;
+    });
+    dlg.querySelectorAll("[data-place-cancel]").forEach(function (b) { b.addEventListener("click", back); });
+    dlg.addEventListener("cancel", function (e) { e.preventDefault(); back(); });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      fetch("/admin/settings/places", { method: "POST", headers: { "X-Requested-With": "fetch", "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ name: form.name.value, address: form.address.value }) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok) { err.textContent = x.j.error || "Couldn't save that."; err.hidden = false; return; }
+          var p = x.j.place, label = p.name + (p.address ? " · " + p.address : "");
+          document.querySelectorAll("select.place-picker").forEach(function (s) {
+            if (![].some.call(s.options, function (o) { return o.value === p.name; })) {
+              var o = new Option(label, p.name); s.insertBefore(o, s.querySelector('option[value="__new"]'));
+            }
+          });
+          if (from) { from.value = p.name; from.dataset.prev = p.name; from.dispatchEvent(new Event("input", { bubbles: true })); }
+          dlg.close();
+        })
+        .catch(function () { err.textContent = "Couldn't save that. Check your connection and try again."; err.hidden = false; });
+    });
+  })();
+  </script>`;
+}
+
+module.exports = { load, all, find, mapUrl, link, datalist, migrate, picker, placeDialog };

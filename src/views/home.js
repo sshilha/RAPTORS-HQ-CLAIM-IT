@@ -23,7 +23,7 @@ function editDialog(sc) {
           <label class="field-l"><span>Event date <span class="opt">(optional)</span></span><input type="date" name="event_date" value="${v(sc.event_date)}"></label>
           <label class="field-l"><span>End date <span class="opt">(if more than one day)</span></span><input type="date" name="event_end" value="${v(sc.event_end)}"></label>
         </div>
-        <label class="field-l"><span>Main location <span class="opt">(optional)</span></span><input name="event_location" list="app-locations" maxlength="80" value="${esc(sc.event_location || "")}" placeholder="e.g. Carson Park">
+        <label class="field-l"><span>Main location <span class="opt">(optional)</span></span>${require("../locations").picker("event_location", sc.event_location)}
           <span class="fine">Areas and items can have their own location too, like the concession stand. Set those on the board.</span></label>
         <label class="field-l"><span>Description <span class="opt">(optional, shown to people at the top of the board)</span></span>
           <textarea name="description" rows="3" maxlength="600" placeholder="e.g. Drop donations at the concession stand by 7:30 AM Saturday.">${esc(sc.description || "")}</textarea></label>
@@ -91,7 +91,8 @@ function homePage({ user, flash, active, archivedCount }) {
     ${active.length ? `<div class="sched-grid">${active.map((x) => card(x, false)).join("")}</div>`
       : `<section class="panel"><div class="empty"><p>No active ${esc(LABELS.schedules.toLowerCase())}.</p><p class="muted"><a href="/admin/setup/new">Create one</a> to get started.</p></div></section>`}
     <p class="archived-link"><a href="/admin/settings/archived">View archived ${esc(LABELS.schedules.toLowerCase())}${archivedCount ? ` (${archivedCount})` : ""}</a></p>
-    ${require("../locations").datalist()}`,
+    ${require("../locations").datalist()}
+    ${require("../locations").placeDialog()}`,
   });
 }
 

@@ -54,11 +54,105 @@ router.post("/", wrap(async (req, res) => {
   const group = SC.groupsFor(sc).includes(str(req.body.group)) ? str(req.body.group) : null;
   if (!first || !last) return go(res, home(sc, "#add"), { err: `Enter the ${L.participant.one.toLowerCase()}'s first and last name.` });
   const dupe = (await query(`SELECT id FROM athletes WHERE lower(first_name)=lower($1) AND lower(last_name)=lower($2)`, [first, last])).rows[0];
-  const a = (await query(`INSERT INTO athletes (first_name, last_name, team) VALUES ($1,$2,$3) RETURNING id`, [first, last, str(req.body.team) || null])).rows[0];
-  await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name) VALUES ($1,$2,$3)`, [sc.id, a.id, group]);
+  const tags = [].concat(req.body.tags || []).map(String).filter((t) => (sc.tags || []).includes(t));
+  const a = (await query(`INSERT INTO athletes (first_name, last_name) VALUES ($1,$2) RETURNING id`, [first, last])).rows[0];
+  await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name, tags) VALUES ($1,$2,$3,$4)`, [sc.id, a.id, group, tags]);
   const bad = await linkParents(a.id, req.body.parent_emails);
   go(res, home(sc), bad.length ? { err: `Added ${first}, but these emails weren't valid: ${bad.join(", ")}` }
-    : { ok: `Added ${first} ${last}${group ? ` to ${group}` : ""}.` + (dupe ? ` (There's already a ${first} ${last}; if that's the same person, use "Add someone already in the app" next time.)` : "") });
+    : { ok: `Added ${first} ${last}${group ? ` to ${group}` : ""}${tags.length ? `, tagged ${tags.join(", ")}` : ""}.` + (dupe ? ` (There's already a ${first} ${last}; if that's the same person, use "Add someone already in the app" next time.)` : "") });
+}));
+
+// ---------- import from a spreadsheet (CSV file or pasted rows) ----------
+const CSV = require("../csv");
+// Which column is which, guessed from the headers
+function guess(headers) {
+  const h = headers.map((x) => x.toLowerCase());
+  const find = (...res) => { for (const re of res) { const i = h.findIndex((x) => re.test(x)); if (i >= 0) return i; } return -1; };
+  return {
+    first: find(/^first/, /first name/, /participant first/, /player first/, /athlete first/),
+    last: find(/^last/, /last name/, /participant last/, /player last/, /athlete last/),
+    name: find(/^name$/, /full name/, /player name/, /athlete name/, /participant name/),
+    group: find(/^team$/, /team name/, /^group/, /age group/, /division/, /^level/),
+    tags: find(/^tags?$/, /position/),
+    emails: h.map((x, i) => (/e-?mail/.test(x) ? i : -1)).filter((i) => i >= 0),
+  };
+}
+function readRows(rows, map) {
+  const out = [];
+  for (const r of rows) {
+    let first = map.first >= 0 ? r[map.first] || "" : "", last = map.last >= 0 ? r[map.last] || "" : "";
+    if ((!first || !last) && map.name >= 0 && r[map.name]) {
+      const full = r[map.name].trim();
+      if (full.includes(",")) { const [l, f] = full.split(",").map((x) => x.trim()); first = first || f; last = last || l; }
+      else { const parts = full.split(/\s+/); first = first || parts.slice(0, -1).join(" ") || parts[0]; last = last || (parts.length > 1 ? parts[parts.length - 1] : ""); }
+    }
+    const emails = [...new Set(map.emails.flatMap((i) => String(r[i] || "").split(/[\s,;]+/)).map((e) => e.trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))];
+    out.push({ first: first.slice(0, 40), last: last.slice(0, 40), group: map.group >= 0 ? (r[map.group] || "").slice(0, 30) : "",
+      tags: map.tags >= 0 ? String(r[map.tags] || "").split(/[,;/]+/).map((t) => t.trim()).filter(Boolean) : [], emails });
+  }
+  return out;
+}
+router.get("/import", wrap(async (req, res) => res.send(v.importPage({ user: req.user, flash: flashFrom(req), sc: req.sched.sc }))));
+async function plan(sc, rows, map) {
+  const people = readRows(rows, map);
+  const groups = SC.groupsFor(sc);
+  const ci = (a, b) => a.toLowerCase() === b.toLowerCase();
+  for (const p of people) {
+    p.groupMatch = p.group ? groups.find((g) => ci(g, p.group)) || null : null;
+    p.tagMatch = p.tags.map((t) => (sc.tags || []).find((x) => ci(x, t)) || t);
+    if (!p.first || !p.last) { p.status = "skip"; continue; }
+    const hit = (await query(`SELECT a.id, EXISTS (SELECT 1 FROM schedule_members m WHERE m.athlete_id=a.id AND m.schedule_id=$3) AS here
+      FROM athletes a WHERE lower(a.first_name)=lower($1) AND lower(a.last_name)=lower($2) ORDER BY a.id LIMIT 1`, [p.first, p.last, sc.id])).rows[0];
+    p.athleteId = hit ? hit.id : null; p.status = hit ? (hit.here ? "here" : "existing") : "new";
+    p.groupMatch = p.group ? groups.find((g) => ci(g, p.group)) || null : null;
+    p.tagMatch = p.tags.map((t) => (sc.tags || []).find((x) => ci(x, t)) || t);
+  }
+  const newGroups = [...new Set(people.filter((p) => p.status !== "skip" && p.group && !p.groupMatch).map((p) => p.group))];
+  const newTags = [...new Set(people.flatMap((p) => p.status === "skip" ? [] : p.tagMatch.filter((t) => !(sc.tags || []).includes(t))))];
+  return { people, newGroups, newTags };
+}
+const mapFrom = (b, headers) => {
+  const g = guess(headers);
+  const pick = (k) => (b[`col_${k}`] === undefined ? g[k] : int(b[`col_${k}`]) ?? -1);
+  return { first: pick("first"), last: pick("last"), name: pick("name"), group: pick("group"), tags: pick("tags"),
+    emails: b.col_emails === undefined && !b.mapped ? g.emails : [].concat(b.col_emails || []).map(int).filter((x) => x >= 0) };
+};
+router.post("/import/preview", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  const rows = CSV.parse(req.body.data);
+  if (rows.length < 2) return go(res, `/admin/members/import?s=${sc.id}`, { err: "That file has no rows under its headings. Make sure the first row is the column names." });
+  const headers = rows[0], body = rows.slice(1);
+  const map = mapFrom(req.body, headers);
+  const p = await plan(sc, body, map);
+  res.send(v.importPreview({ user: req.user, flash: flashFrom(req), sc, headers, map, data: req.body.data, ...p }));
+}));
+router.post("/import/commit", wrap(async (req, res) => {
+  const { sc } = req.sched;
+  const rows = CSV.parse(req.body.data);
+  const headers = rows[0] || [], map = mapFrom(req.body, headers);
+  const { people, newGroups, newTags } = await plan(sc, rows.slice(1), map);
+  const G = require("../groups");
+  if (req.body.add_groups && newGroups.length) for (const g of newGroups) await G.add(await SC.get(sc.id), g);
+  if (req.body.add_tags && newTags.length) for (const t of newTags) await G.addTag(await SC.get(sc.id), t);
+  const fresh = await SC.get(sc.id);
+  const groups = SC.groupsFor(fresh), tags = fresh.tags || [];
+  let added = 0, linked = 0, updated = 0, skipped = 0, emails = 0;
+  for (const p of people) {
+    if (p.status === "skip") { skipped++; continue; }
+    let id = p.athleteId;
+    if (!id) { id = (await query(`INSERT INTO athletes (first_name, last_name) VALUES ($1,$2) RETURNING id`, [p.first, p.last])).rows[0].id; added++; }
+    const group = groups.find((g) => p.group && g.toLowerCase() === p.group.toLowerCase()) || null;
+    const ptags = p.tagMatch.filter((t) => tags.includes(t));
+    const ex = (await query(`SELECT tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, id])).rows[0];
+    if (ex) { await query(`UPDATE schedule_members SET group_name=COALESCE($3, group_name), tags=$4 WHERE schedule_id=$1 AND athlete_id=$2`,
+        [sc.id, id, group, [...new Set([...(ex.tags || []), ...ptags])]]); updated++; }
+    else { await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name, tags) VALUES ($1,$2,$3,$4)`, [sc.id, id, group, ptags]); if (p.athleteId) linked++; }
+    if (p.emails.length) { await linkParents(id, p.emails.join(",")); emails += p.emails.length; }
+  }
+  const L = SC.labels(sc);
+  go(res, `/admin/members?s=${sc.id}#people`, { ok: [`Imported ${added + linked + updated} ${L.participant.many.toLowerCase()}`,
+    added ? `${added} new` : "", linked ? `${linked} already in the app, now on this board` : "", updated ? `${updated} already here, updated` : "",
+    skipped ? `${skipped} rows skipped (no name)` : "", emails ? `${emails} parent emails linked` : ""].filter(Boolean).join(" · ") + "." });
 }));
 
 // Someone already in the app (from another schedule, a public sign-up, a parent) joins this schedule
