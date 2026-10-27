@@ -20,7 +20,9 @@ function settingRows(sc, eff, own, at) {
   const mine = (own && own.limit != null) ? `${own.limit} per person here` : "No limit of its own";
   const all = eff.limits.length ? eff.limits.map((l) => `${l.limit} in ${l.kind === "board" ? "the board" : l.name}`).join(", ") : "None";
   return [
-    ["Who can claim here", whoText(own && own.who), own && own.who ? "Set here" : eff.who.length ? `Narrowed above (${eff.who.map((w) => w.name).join(", ")})` : "Same as the board"],
+    at === "board"
+      ? ["Who can claim", { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" }[SC.claimMode(sc)], "The board's front door"]
+      : ["Who can claim here", whoText(own && own.who), own && own.who ? "Set here" : eff.who.length ? `Narrowed above (${eff.who.map((w) => w.name).join(", ")})` : "Same as the board"],
     ["Per-person limit", at === "board" ? (own && own.limit != null ? `${own.limit} per person on the board` : "Unlimited") : mine, at === "board" ? "Board" : `All limits that apply: ${all}`],
     ...(dated ? [["Claiming opens", when(eff.opens_at), src("opens_at")], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time", src("cancel_hours")],
       ["Open leftover spots", eff.leftover_hours == null ? "Never" : `${hrs(eff.leftover_hours)} before`, src("leftover_hours")]] : [["Claiming opens", when(eff.opens_at), src("opens_at")]]),
@@ -88,7 +90,7 @@ function settingsForm(sc, node, eff) {
       ${opt("visible", "", vf ? "at" : "", "Always (once the board is published)")}
       <label class="radio-row"><input type="radio" name="visible" value="at"${vf ? " checked" : ""}> Hidden until <input type="datetime-local" name="visible_from" value="${vf ? `${vf.date}T${vf.time}` : ""}" onfocus="this.form.visible[1].checked=true"></label>
     </fieldset>
-    <div class="q-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost" onclick="this.closest('dialog').close()">Cancel</button></div>
+    <div class="q-actions"><button class="btn-small" type="submit">Save</button><button type="button" class="btn-ghost" onclick="this.closest('form').reset(); this.closest('dialog').close()">Cancel</button></div>
   </form>`;
 }
 
@@ -120,60 +122,73 @@ function itemRowE(sc, it) {
     </div></li>`;
 }
 
-function boardSetupPage({ user, flash, sc, chain, kids, list, eff, totals, coaches = [] }) {
+// The board as an outline: every container with a twisty, its contents (and Add form) inside
+function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, totals }) {
   const L = SC.labels(sc);
   const depth = SC.depthOf(sc);
-  const here = chain[chain.length - 1] || null;            // the container we're in (null = the board itself)
-  const level = chain.length;                              // 0 = board
-  const showsItems = level === depth - 1;
-  const childWord = showsItems ? L.slot : { one: word(sc, level, false), many: word(sc, level) };
   const dated = SC.usesCalendar(sc);
-  const url = (n) => `/admin/setup?s=${sc.id}${n ? `&n=${n}` : ""}`;
-  const parent = here ? here.id : "";
   const locked = !!sc.archived_at;
   const published = !!sc.published_at;
-  // header
+  const levelWord = (i) => { const k = SC.levelKeys(sc)[i]; return L[k]; };     // i = 0 .. depth-1 (last = items)
   const status = locked ? `<span class="pill">Archived</span>` : published ? `<span class="pill ok">Published</span>` : `<span class="pill warn">Draft</span>`;
   const pubForm = locked ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
-      <input type="hidden" name="return_to" value="${url(parent)}"><button class="${published ? "btn-ghost" : "btn-small"} btn-lg" type="submit">${published ? "Unpublish" : "Publish board"}</button></form>`;
-  const path = [`<a href="${url()}">${esc(sc.name)}</a>`, ...chain.map((n, i) => i === chain.length - 1 ? `<span aria-current="page">${esc(n.name)}</span>` : `<a href="${url(n.id)}">${esc(n.name)}</a>`)];
-  // left: what's inside this level
-  const addContainer = locked ? "" : `<form method="post" action="/admin/b/${sc.id}/nodes" class="item-add2">
-      <input type="hidden" name="parent_id" value="${parent}"><span class="ia-title">Add ${esc(SC.an(childWord.one.toLowerCase()))}</span>
-      <label class="mini ia-name">Name<input name="name" required maxlength="60" placeholder="e.g. ${esc(level === 0 && depth >= 3 ? "Round 1" : depth === 2 ? "Concessions" : "Hitting 12U–18U")}" class="ir-title"></label>
-      <button class="btn-small" type="submit">Add ${esc(childWord.one.toLowerCase())}</button></form>`;
-  const addItem = locked ? "" : `<form method="post" action="/admin/b/${sc.id}/items" class="item-add2">
-      <input type="hidden" name="node_id" value="${parent}"><span class="ia-title">Add ${esc(SC.an(L.slot.one.toLowerCase()))}</span>
-      <label class="mini ia-name">Name<input name="title" required maxlength="80" placeholder="e.g. ${dated ? "Mon 6:00 PM" : "Bring a case of water"}" class="ir-title"></label>
+      <button class="${published ? "btn-ghost" : "btn-small"} btn-lg" type="submit">${published ? "Unpublish" : "Publish board"}</button></form>`;
+  const addContainer = (parentId, w) => locked ? "" : `<form method="post" action="/admin/b/${sc.id}/nodes" class="item-add2 add-c">
+      <input type="hidden" name="parent_id" value="${parentId || ""}">
+      <label class="mini ia-name">Add ${esc(SC.an(w.one.toLowerCase()))}<input name="name" required maxlength="60" placeholder="${esc(w.one)} name" class="ir-title"></label>
+      <button class="btn-small" type="submit">Add ${esc(w.one.toLowerCase())}</button></form>`;
+  const addItem = (nodeId) => locked ? "" : `<form method="post" action="/admin/b/${sc.id}/items" class="item-add2">
+      <input type="hidden" name="node_id" value="${nodeId || ""}"><span class="ia-title">Add ${esc(SC.an(L.slot.one.toLowerCase()))}</span>
+      <label class="mini ia-name">Name<input name="title" required maxlength="80" placeholder="e.g. ${dated ? "Grill" : "Bring a case of water"}" class="ir-title"></label>
       ${dated ? `<label class="mini">Date<input type="date" name="date"></label><label class="mini">Start<input type="time" name="start_time"></label><label class="mini">End<input type="time" name="end_time"></label>` : ""}
       <label class="mini">Spots<input type="number" name="capacity" min="1" max="500" required placeholder="e.g. 4" class="spots-in"></label>
       <label class="mini"><span>Location <span class="opt">(optional)</span></span><input name="location" list="app-locations" maxlength="80" placeholder="e.g. Pavilion" class="ir-loc"></label>
       <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button></form>`;
-  const badge = (n) => { const s = n.settings || {}, b = [];
-    if (s.who && s.who.mode) b.push(whoText(s.who)); if (s.limit != null) b.push(`${s.limit} per person`);
-    if (n.visible_from) b.push(`Hidden until ${fmtDateTime(n.visible_from)}`); if (s.opens_at) b.push(`Opens ${fmtDateTime(s.opens_at)}`);
-    if (s.attendance === true) b.push("Attendance"); if (s.waitlist === true) b.push("Waitlist");
+  const badge = (n) => { const st = n.settings || {}, b = [];
+    if (st.who && st.who.mode) b.push(whoText(st.who)); if (st.limit != null) b.push(`${st.limit} per person`);
+    if (n.visible_from) b.push(`Hidden until ${fmtDateTime(n.visible_from)}`); if (st.opens_at) b.push(`Opens ${fmtDateTime(st.opens_at)}`);
+    if (st.attendance === true) b.push("Attendance"); if (st.waitlist === true) b.push("Waitlist"); if (st.location) b.push(`📍 ${st.location}`);
     return b.map((x) => `<span class="nbadge">${esc(x)}</span>`).join(""); };
-  const nextWord = level + 1 < depth - 1 ? word(sc, level + 1) : L.slot.many;
-  const containerList = kids && kids.length ? `<ul class="node-list">${kids.map((n) => `<li class="node-card">
-      <a class="nc-main" href="${url(n.id)}"><b>${esc(n.name)}</b>
-        <span class="fine">${level + 1 < depth - 1 ? `${n.containers} ${esc(nextWord.toLowerCase())} · ` : ""}${n.items} ${esc(L.slot.many.toLowerCase())} · ${n.spots} spots${n.claimed ? ` · ${n.claimed} claimed` : ""}</span>
-        <span class="nbadges">${badge(n)}</span></a>
-      <a class="btn-ghost" href="${url(n.id)}">Open ›</a></li>`).join("")}</ul>`
-    : `<p class="muted small items-empty">No ${esc(childWord.many.toLowerCase())} yet. Add one above.</p>`;
-  const itemList = list && list.length ? `<ul class="ilist">${list.map((it) => itemRowE(sc, it)).join("")}</ul>` : `<p class="muted small items-empty">Nothing added yet. Your ${esc(L.slot.many.toLowerCase())} will show here.</p>`;
-  // right: settings in force here
-  const rowsHtml = (rows) => `<dl class="rc-list">${rows.map(([k, v, s]) => `<div><dt>${k}</dt><dd>${v}<span class="src">${esc(s)}</span></dd></div>`).join("")}</dl>`;
-  const settingsCard = here
-    ? `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Settings for ${esc(here.name)}</h2>
-        ${locked ? "" : `<button type="button" class="btn-ghost" onclick="document.getElementById('node-set').showModal()">${I.pencil()} Edit</button>`}</div>
-        ${rowsHtml(settingRows(sc, eff, here.settings || {}, "node"))}
-        ${here.visible_from ? `<p class="fine">Hidden from people until ${esc(fmtDateTime(here.visible_from))}.</p>` : ""}</section>
-      <dialog class="edit-dlg" id="node-set"><div class="dlg-head"><h2>Settings for ${esc(here.name)}</h2><button type="button" class="dlg-x" onclick="this.closest('dialog').close()">×</button></div>
-        <div class="dlg-body">${settingsForm(sc, here, require("../engine").effectiveAt(sc, chain.slice(0, -1)))}</div></dialog>`
-    : `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Settings</h2><a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">${I.gear()} Manage</a></div>
-        ${rowsHtml(settingRows(sc, eff, sc.settings || {}, "board"))}
-        <p class="fine">Board-wide defaults. Any ${esc(depth > 1 ? word(sc, 0, false).toLowerCase() : "level")} can change them for what's inside it.</p></section>`;
+  const rowsHtml = (rows) => `<dl class="rc-list">${rows.map(([k, v, src]) => `<div><dt>${k}</dt><dd>${v}<span class="src">${esc(src)}</span></dd></div>`).join("")}</dl>`;
+  const dialogs = [];
+  const render = (t, lvl) => {
+    const n = t.node;
+    const isLastContainer = lvl === depth - 2;           // its children are items
+    const childW = isLastContainer ? L.slot : levelWord(lvl + 1);
+    const c = t.count;
+    dialogs.push(`<dialog class="edit-dlg" id="set-${n.id}"><div class="dlg-head"><h2>Settings for ${esc(n.name)}</h2><button type="button" class="dlg-x" onclick="this.closest('dialog').close()">×</button></div>
+      <div class="dlg-body"><details class="in-force"><summary>What applies here now</summary>${rowsHtml(settingRows(sc, t.eff, n.settings || {}, "node"))}</details>
+        ${settingsForm(sc, n, t.inherited)}</div></dialog>`);
+    return `<details class="tnode lvl-${lvl}" id="node-${n.id}" data-id="${n.id}"${open.has(n.id) ? " open" : ""}>
+      <summary><span class="tw" aria-hidden="true"></span>
+        <span class="tn-main"><b>${esc(n.name)}</b>
+          <span class="fine">${isLastContainer ? "" : `${c.containers} ${esc((c.containers === 1 ? childW.one : childW.many).toLowerCase())} · `}${c.items} ${esc((c.items === 1 ? L.slot.one : L.slot.many).toLowerCase())} · ${c.spots} spots${c.claimed ? ` · ${c.claimed} claimed` : ""}</span>
+          <span class="nbadges">${badge(n)}</span></span>
+        ${locked ? "" : `<span class="tn-actions">
+          <button type="button" class="btn-ghost sm" onclick="event.preventDefault(); document.getElementById('set-${n.id}').showModal()">${I.gear()} Settings</button>
+          <span class="node-more"><button type="button" class="btn-ghost sm" onclick="event.preventDefault(); this.nextElementSibling.hidden = !this.nextElementSibling.hidden">⋯</button>
+            <span class="node-menu" hidden onclick="event.stopPropagation()">
+              <form method="post" action="/admin/b/${sc.id}/nodes/${n.id}" class="rename-f"><input name="name" value="${esc(n.name)}" maxlength="60" required aria-label="Name"><button class="btn-small" type="submit">Rename</button></form>
+              <form method="post" action="/admin/b/${sc.id}/nodes/${n.id}/delete" onsubmit="return confirm('Remove ${esc(n.name.replace(/'/g, ""))} and everything inside it?')"><button class="link-dark danger-link" type="submit">Remove ${esc(n.name)}</button></form>
+            </span></span></span>`}
+      </summary>
+      <div class="tbody">
+        ${isLastContainer
+          ? addItem(n.id) + (t.items.length ? `<ul class="ilist">${t.items.map((it) => itemRowE(sc, it)).join("")}</ul>` : `<p class="muted small items-empty">No ${esc(L.slot.many.toLowerCase())} yet.</p>`)
+          : addContainer(n.id, childW) + (t.kids.length ? t.kids.map((k) => render(k, lvl + 1)).join("") : `<p class="muted small items-empty">No ${esc(childW.many.toLowerCase())} yet.</p>`)}
+      </div>
+    </details>`;
+  };
+  const topW = depth === 1 ? L.slot : levelWord(0);
+  const left = depth === 1
+    ? addItem(null) + `<h3 class="ilist-head">Your ${esc(L.slot.many.toLowerCase())} <span class="fine-inline">(${topItems.length})</span></h3>` +
+      (topItems.length ? `<ul class="ilist">${topItems.map((it) => itemRowE(sc, it)).join("")}</ul>` : `<p class="muted small items-empty">Nothing added yet. Your ${esc(L.slot.many.toLowerCase())} will show here.</p>`)
+    : addContainer(null, topW) + `<div class="tree-tools"><h3 class="ilist-head">Your ${esc(topW.many.toLowerCase())} <span class="fine-inline">(${tree.length})</span></h3>
+        ${tree.length ? `<span><button type="button" class="link-dark" data-tree="open">Open all</button> · <button type="button" class="link-dark" data-tree="close">Close all</button></span>` : ""}</div>` +
+      (tree.length ? `<div class="tree">${tree.map((t) => render(t, 0)).join("")}</div>` : `<p class="muted small items-empty">No ${esc(topW.many.toLowerCase())} yet. Add one above.</p>`);
+  const boardCard = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Settings</h2><a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">${I.gear()} Manage</a></div>
+      ${rowsHtml(settingRows(sc, eff, sc.settings || {}, "board"))}
+      <p class="fine">Board-wide defaults. ${depth > 1 ? `Use <b>Settings</b> on any ${esc(levelWord(0).one.toLowerCase())} to change them for what's inside it.` : ""}</p></section>`;
   const peopleCard = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span><h2>${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</h2>
       <a class="btn-ghost" href="/admin/members?s=${sc.id}">${I.gear()} Manage</a></div>
     <dl class="rc-list"><div><dt>${esc(L.group.many)}</dt><dd>${esc(SC.groupsFor(sc).join(", ") || "None")}</dd></div><div><dt>Tags</dt><dd>${esc((sc.tags || []).join(", ") || "None")}</dd></div>
@@ -188,34 +203,38 @@ function boardSetupPage({ user, flash, sc, chain, kids, list, eff, totals, coach
         ${sc.description ? `<p class="board-desc">${esc(sc.description)}</p>` : ""}</div>
       <div class="bh-actions">${pubForm}</div>
     </section>
-    ${depth > 1 ? `<nav class="drill" aria-label="Where you are in the board">${path.join(`<span class="sep">›</span>`)}</nav>` : ""}
     ${P.datalist()}
     <div class="board-cols"><div class="bc-left">
-      <section class="panel bc-main">
-        <div class="bc-head"><h2>${here ? `${esc(here.name)}: ` : ""}${esc(childWord.many)}</h2>
-          ${here && !locked ? `<details class="node-more"><summary class="btn-ghost">⋯</summary><div class="node-menu">
-            <form method="post" action="/admin/b/${sc.id}/nodes/${here.id}" class="rename-f"><input name="name" value="${esc(here.name)}" maxlength="60" required aria-label="Name"><button class="btn-small" type="submit">Rename</button></form>
-            <form method="post" action="/admin/b/${sc.id}/nodes/${here.id}/delete" onsubmit="return confirm('Remove ${esc(here.name.replace(/'/g, ""))} and everything inside it?')"><button class="link-dark danger-link" type="submit">Remove ${esc(here.name)}</button></form></div></details>` : ""}</div>
-        ${showsItems ? addItem + `<h3 class="ilist-head">Your ${esc(L.slot.many.toLowerCase())} <span class="fine-inline">(${(list || []).length})</span></h3>` + itemList
-          : addContainer + `<h3 class="ilist-head">Your ${esc(childWord.many.toLowerCase())} <span class="fine-inline">(${(kids || []).length})</span></h3>` + containerList}
-      </section>
+      <section class="panel bc-main"><div class="bc-head"><h2>${esc(depth === 1 ? L.slot.many : SC.levelKeys(sc).map((k) => L[k].many).join(" › "))}</h2></div>${left}</section>
     </div>
-    <aside class="bc-side">${settingsCard}${here ? "" : peopleCard}</aside></div>
+    <aside class="bc-side">${boardCard}${peopleCard}</aside></div>
+    ${dialogs.join("")}
     <script>
-      // Times need a date: Start/End stay off until the date is filled in
+    (function () {
+      var KEY = "claimit-open-${sc.id}";
+      var saved = []; try { saved = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) {}
+      document.querySelectorAll("details.tnode").forEach(function (d) {
+        if (saved.indexOf(d.dataset.id) >= 0) d.open = true;
+        d.addEventListener("toggle", function () {
+          var ids = [].map.call(document.querySelectorAll("details.tnode[open]"), function (x) { return x.dataset.id; });
+          try { localStorage.setItem(KEY, JSON.stringify(ids)); } catch (e) {}
+        });
+      });
+      document.querySelectorAll("[data-tree]").forEach(function (b) { b.addEventListener("click", function () {
+        var o = b.dataset.tree === "open"; document.querySelectorAll("details.tnode").forEach(function (d) { d.open = o; }); }); });
+      ${focus ? `var f = document.getElementById("node-${focus}"); if (f) { f.open = true; f.scrollIntoView({ block: "start" }); f.classList.add("just-saved"); setTimeout(function () { f.classList.remove("just-saved"); }, 1600); }` : ""}
+      // times need a date
       document.querySelectorAll(".item-add2, .ir-fields").forEach(function (box) {
         var dateEl = box.querySelector('input[name=date]'); if (!dateEl) return;
         var times = box.querySelectorAll('input[name=start_time], input[name=end_time]');
-        function sync() {
-          var has = !!dateEl.value;
-          times.forEach(function (t) { t.disabled = !has; if (!has) t.value = ""; t.title = has ? "" : "Pick a date first"; t.placeholder = has ? "" : "Pick a date first"; });
-        }
+        function sync() { var has = !!dateEl.value; times.forEach(function (t) { t.disabled = !has; if (!has) t.value = ""; t.title = has ? "" : "Pick a date first"; }); }
         dateEl.addEventListener("input", sync); dateEl.addEventListener("change", sync); sync();
       });
       document.querySelectorAll(".node-settings").forEach(function (f) {
         function sync() { var t = f.querySelector('input[name=who_mode][value=teams]'); var p = f.querySelector('.who-pick'); if (p) p.hidden = !(t && t.checked); }
         f.addEventListener("change", sync); sync();
       });
+    })();
     </script>`,
   });
 }

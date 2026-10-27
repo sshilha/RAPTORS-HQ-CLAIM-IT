@@ -12,21 +12,31 @@ router.use(auth.requireUser, auth.requireAdmin);
 router.get("/", wrap(async (req, res) => {
   const sc = req.sched.sc;
   const E = require("../engine");
-  // where we are: the board, or a container inside it (?n=)
-  let chain = [];
-  const n = int(req.query.n);
-  if (n) {
-    chain = await E.nodeChain(n);
-    if (!chain.length || chain[0].schedule_id !== sc.id) return go(res, `/admin/setup?s=${sc.id}`, { err: "That isn't on this board." });
-  }
-  const here = chain[chain.length - 1] || null;
-  const depth = SC.depthOf(sc);
-  const showsItems = chain.length === depth - 1;
-  const kids = showsItems ? null : await E.children(sc.id, here ? here.id : null);
-  const list = showsItems ? await E.items(sc.id, here ? here.id : null) : null;
-  const eff = E.effectiveAt(sc, chain);
+  // the whole board as a tree: every container, and the items at the bottom
+  const nodes = (await query(`SELECT * FROM board_nodes WHERE schedule_id=$1 ORDER BY sort, id`, [sc.id])).rows;
+  const items = (await query(`SELECT i.*,
+      (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') AS claimed,
+      (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='waitlisted') AS waitlisted
+    FROM board_items i WHERE i.schedule_id=$1 AND i.canceled_at IS NULL ORDER BY i.starts_at NULLS FIRST, i.sort, i.id`, [sc.id])).rows;
+  const byParent = (pid) => nodes.filter((n) => (n.parent_id || null) === (pid || null));
+  const build = (pid, chain) => byParent(pid).map((n) => {
+    const c = [...chain, n];
+    const kids = build(n.id, c);
+    const own = items.filter((it) => it.node_id === n.id);
+    const all = (x) => [...x.items, ...x.kids.flatMap(all)];
+    const t = { node: n, chain: c, eff: E.effectiveAt(sc, c), inherited: E.effectiveAt(sc, chain), kids, items: own };
+    const every = all(t);
+    t.count = { containers: kids.length, items: every.length, spots: every.reduce((a, b) => a + b.capacity, 0), claimed: every.reduce((a, b) => a + b.claimed, 0) };
+    return t;
+  });
+  const tree = build(null, []);
+  const topItems = items.filter((it) => !it.node_id);
+  // ?n= : the part to show open (after adding or saving something in it)
+  const focus = int(req.query.n) || null;
+  const open = new Set();
+  if (focus) { let x = nodes.find((n) => n.id === focus); while (x) { open.add(x.id); x = nodes.find((n) => n.id === x.parent_id); } }
   const totals = await E.boardTotals(sc.id);
-  res.send(require("../views/board").boardSetupPage({ user: req.user, flash: flashFrom(req), sc, chain, kids, list, eff, totals }));
+  res.send(require("../views/board").boardSetupPage({ user: req.user, flash: flashFrom(req), sc, tree, topItems, open, focus, eff: E.effectiveAt(sc, []), totals }));
 }));
 
 // The board's Rules page (1-2 level boards; rounds boards keep per-round rules for now)
