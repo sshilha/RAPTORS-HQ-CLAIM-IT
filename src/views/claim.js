@@ -11,11 +11,8 @@ const evDates = (b) => (b.event_date ? require("./setup").eventDates(b) : "");
 function homePage({ user, flash, upcoming, boards, extra, admin }) {
   return page({ title: "My Claims", user, flash, admin,
     body: `<h1 class="mc-title">My Claims</h1>
-    ${extra.length ? `<details class="panel mc-extra" open><summary><span class="tw" aria-hidden="true"></span><b>🔓 Extra spots open</b><span class="tw-sum">${extra.length}</span></summary>
-      <p class="fine">These still have open spots. They can be claimed even if a limit was reached, and they don't count toward it.</p>
-      <ul class="mc-rows">${extra.map((x) => `<li><div class="mc-what"><b>${esc(slotName(x.row.item))}</b>
-          <span>${esc([x.board.name, ...x.row.chain.map((n) => n.name)].join(" › "))} · ${x.row.open} open</span></div>
-        <a class="btn-small big" href="/b/${x.board.id}?p=${x.person.id}#i${x.row.item.id}">Claim for ${esc(Who(x.person))}</a></li>`).join("")}</ul></details>` : ""}
+    ${extra.length ? `<div class="mc-extra-line">${[...extra.reduce((m, x) => { const k = `${x.board.id}:${x.person.id}`; if (!m.has(k)) m.set(k, { ...x, n: 0 }); m.get(k).n++; return m; }, new Map()).values()]
+      .map((x) => `<a href="/b/${x.board.id}?p=${x.person.self_user_id ? "me" : x.person.id}">🔓 <b>${x.n} extra spot${x.n === 1 ? " is" : "s are"} open</b> on ${esc(x.board.name)} for ${esc(Who(x.person))}. <span>See them ›</span></a>`).join("")}</div>` : ""}
     <section class="panel"><h2>Your upcoming claims</h2>
       ${upcoming.length ? [...upcoming.reduce((m, c) => m.set(c.board_name, [...(m.get(c.board_name) || []), c]), new Map())].map(([bname, cs], gi) => `<details class="mc-tw lvl-0"${gi < 2 ? " open" : ""}>
         <summary><span class="tw" aria-hidden="true"></span><b>${esc(bname)}</b><span class="tw-sum"><span class="ok">${cs.length} claimed</span>${cs[0] && cs[0].starts_at ? ` · next ${esc(slotName({ starts_at: cs[0].starts_at, ends_at: cs[0].ends_at }).split(",").slice(0, 2).join(","))}` : ""}</span></summary>
@@ -50,7 +47,7 @@ function rowHtml(board, person, r, back) {
   let action;
   if (r.mine) {
     const canCancel = !r.cancelBy || new Date() < new Date(r.cancelBy);
-    action = `<span class="state ok">${r.mine.status === "waitlisted" ? "On the waitlist" : `Claimed ✓`}</span>
+    action = `<span class="state ok">${r.mine.status === "waitlisted" ? "On the waitlist" : `Claimed ✓`}</span>${r.mine.counts === false ? `<span class="fine">doesn't count toward limits (open leftover spot)</span>` : ""}
       ${canCancel ? `<form method="post" action="/claims/${r.mine.id}/cancel" onsubmit="return confirm('Cancel this spot?')"><input type="hidden" name="back" value="${esc(back)}"><button class="link-dark" type="submit">Cancel</button></form>`
         : `<span class="fine">Too late to cancel in the app${board.contact_name || board.contact_info ? `. Contact ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""}.</span>`}`;
   } else if (r.canClaim) {
@@ -71,22 +68,20 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const dated = rows.some((r) => r.item.starts_at);
   const base = person ? `/b/${board.id}?p=${person.self_user_id ? "me" : person.id}` : `/b/${board.id}?`;
   const back = `${base}${mode === "cal" ? "&v=cal" : ""}${month ? `&m=${month}` : ""}${day ? `&d=${day}` : ""}`;
-  // nested twisties by container (Round 1 ▸ 12U–18U ▸ Hitting); rows at the bottom
+  // one section per activity (the container right above the items); the path above it is a small breadcrumb
+  const limitOf = (nodeId) => view.limits.find((L) => L.kind === "node" && L.id === nodeId);
+  const groupsOf = (list) => { const g = new Map(); for (const r of list) { const leaf = r.chain[r.chain.length - 1]; const k = leaf ? leaf.id : 0;
+      if (!g.has(k)) g.set(k, { leaf, crumb: r.chain.slice(0, -1).map((n) => n.name), rows: [] }); g.get(k).rows.push(r); } return [...g.values()]; };
   const tally = (list) => { const open = list.filter((r) => r.canClaim).length, mine = list.filter((r) => r.mine).length;
     return [open ? `${open} open` : "", mine ? `<span class="ok">${mine} claimed ✓</span>` : ""].filter(Boolean).join(" · ") || "nothing open"; };
-  const tree = (list, depth = 0) => {
-    const here = list.filter((r) => r.chain.length === depth), deeper = list.filter((r) => r.chain.length > depth);
-    const groups = new Map();
-    for (const r of deeper) { const n = r.chain[depth]; if (!groups.has(n.id)) groups.set(n.id, { node: n, rows: [] }); groups.get(n.id).rows.push(r); }
-    const only = groups.size === 1;
-    return (here.length ? `<ul class="mc-rows">${here.map((r) => rowHtml(board, person, r, back)).join("")}</ul>` : "")
-      + [...groups.values()].map(({ node, rows: rs }) => {
-        const open = only || rs.some((r) => r.mine || r.canClaim);
-        return `<details class="mc-tw lvl-${depth}" data-id="${node.id}"${open ? " open" : ""}><summary><span class="tw" aria-hidden="true"></span><b>${esc(node.name)}</b><span class="tw-sum">${tally(rs)}</span></summary>
-          <div class="mc-tw-body">${tree(rs, depth + 1)}</div></details>`;
-      }).join("");
-  };
-  const listHtml = (list) => list.length ? tree(list) : `<p class="muted">Nothing here${day ? " on this day" : ""}.</p>`;
+  const listHtml = (list) => list.length ? groupsOf(list).map(({ leaf, crumb, rows: rs }) => {
+      const L = leaf && limitOf(leaf.id);
+      return `<details class="mc-sec" data-id="${leaf ? leaf.id : 0}" open><summary><span class="tw" aria-hidden="true"></span>
+        <span class="sec-t">${crumb.length ? `<small>${esc(crumb.join(" › "))}</small>` : ""}<b>${leaf ? esc(leaf.name) : esc(board.name)}</b></span>
+        ${L ? `<span class="sec-lim${L.left ? "" : " none"}">${L.left ? `${L.left} of ${L.limit} left` : `all ${L.limit} used`} for ${esc(Who(person))}</span>` : ""}
+        <span class="tw-sum">${tally(rs)}</span></summary>
+        <ul class="mc-rows">${rs.map((r) => rowHtml(board, person, r, back)).join("")}</ul></details>`;
+    }).join("") : `<p class="muted">Nothing here${day ? " on this day" : ""}.</p>`;
   const flat = (list) => list.length ? `<ul class="mc-rows">${list.map((r) => rowHtml(board, person, r, back)).join("")}</ul>` : `<p class="muted">Nothing here on this day.</p>`;
   const where = (L) => (L.kind === "board" ? "on this board" : `in ${esc(L.name)}`);
   const limitNotes = view.limits.map((L) => L.left
@@ -122,11 +117,12 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     <nav class="mc-people" aria-label="Who's signing up"><span>Signing up:</span>
       ${people.map((p) => `<a class="pchip${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? " on" : ""}" href="${pick(p)}">${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
     ${!person ? `<p class="mc-pickfirst">👆 Tap who's signing up to see what's available.</p>` : `
-    ${limitNotes.length || extra.length ? `<p class="mc-notes">${limitNotes.length ? `${esc(Who(person))}: ${view.limits.map((L) => L.left ? `<b>${L.left}</b> more ${where(L)}` : `all ${L.limit} used ${where(L)}`).join(" · ")}` : ""}${extra.length ? `${limitNotes.length ? " · " : ""}<span class="lo-tag">🔓 ${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}</p>` : ""}
+    ${(() => { const leafIds = new Set(rows.map((r) => (r.chain[r.chain.length - 1] || {}).id)); const top = view.limits.filter((L) => !(L.kind === "node" && leafIds.has(L.id)));
+      return top.length || extra.length ? `<p class="mc-notes">${top.length ? `${esc(Who(person))}: ${top.map((L) => L.left ? `<b>${L.left} of ${L.limit}</b> left ${where(L)}` : `all ${L.limit} used ${where(L)}`).join(" · ")}` : ""}${extra.length ? `${top.length ? " · " : ""}<span class="lo-tag">🔓 ${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}</p>` : ""; })()}
     ${dated ? `<nav class="mc-toggle" aria-label="View"><a href="${base}&v=list"${mode === "list" ? ' aria-current="page"' : ""}>☰ List</a><a href="${base}&v=cal"${mode === "cal" ? ' aria-current="page"' : ""}>📅 Calendar</a></nav>` : ""}
     <section class="panel mc-list">${mode === "cal" && dated ? cal : listHtml(rows)}</section>`}
     <script>(function () { var K = "mc-open-${board.id}", st = {}; try { st = JSON.parse(localStorage.getItem(K) || "{}"); } catch (e) {}
-      document.querySelectorAll("details.mc-tw").forEach(function (d) { if (d.dataset.id in st) d.open = st[d.dataset.id];
+      document.querySelectorAll("details.mc-sec").forEach(function (d) { if (d.dataset.id in st) d.open = st[d.dataset.id];
         d.addEventListener("toggle", function () { st[d.dataset.id] = d.open; try { localStorage.setItem(K, JSON.stringify(st)); } catch (e) {} }); });
       var h = location.hash && document.querySelector(location.hash); if (h) { var p = h.parentElement; while (p) { if (p.tagName === "DETAILS") p.open = true; p = p.parentElement; } h.scrollIntoView({ block: "center" }); }
     })();</script>` });

@@ -1808,3 +1808,37 @@ details.mc-tw.lvl-1 > .mc-tw-body, details.mc-tw.lvl-2 > .mc-tw-body { padding: 
   .mc-rows > li { padding: 10px; }
   .mc-bname { font-size: 20px; width: 100%; }
 }
+
+/* ---------- My Claims: activity sections, standout "Signing up", smaller switch ---------- */
+.mc-people { background: var(--navy); border: 0; padding: 10px 12px; gap: 8px; border-radius: 14px; }
+.mc-people > span { color: #fff; font-size: 16px; }
+.mc-people .pchip { background: transparent; border-color: rgba(255,255,255,.45); color: #fff; font-size: 17px; padding: 8px 20px; }
+.mc-people .pchip:hover { border-color: var(--accent); }
+.mc-people .pchip.on { background: var(--accent); border-color: var(--accent); color: var(--navy); box-shadow: 0 0 0 3px rgba(132,204,22,.35); }
+.mc-toggle { max-width: 260px; gap: 4px; margin: 2px 0 8px; }
+.mc-toggle a { padding: 5px 8px; font-size: 13px; border-width: 1px; border-radius: 8px; }
+details.mc-sec { border: 1px solid var(--line); border-radius: 12px; margin: 0 0 8px; background: #fff; }
+details.mc-sec > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; flex-wrap: wrap; }
+details.mc-sec > summary::-webkit-details-marker { display: none; }
+details.mc-sec[open] > summary .tw { transform: rotate(90deg); }
+details.mc-sec > .mc-rows { margin: 0; padding: 0 8px 8px; }
+.sec-t { display: flex; flex-direction: column; line-height: 1.2; }
+.sec-t small { font-size: 11px; color: var(--muted); font-weight: 600; }
+.sec-t b { font-size: 16px; color: var(--navy); }
+.sec-lim { font-size: 12px; font-weight: 700; color: var(--accent-ink); background: var(--accent-tint); border-radius: 999px; padding: 2px 10px; }
+.sec-lim.none { color: #9a3412; background: #fff1e6; }
+.mc-list { background: none; border: 0; box-shadow: none; padding: 0 !important; }
+.mc-extra-line { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
+.mc-extra-line a { display: block; padding: 10px 14px; border: 1px solid #bfdbfe; background: #f0f7ff; border-radius: 12px; color: var(--navy); text-decoration: none; font-size: 15px; }
+.mc-extra-line a span { font-weight: 800; color: #1d4ed8; white-space: nowrap; }
+@media (min-width: 900px) { .mc-rows > li { padding: 7px 12px; } .mc-what { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; } }
+@media (max-width: 640px) {
+  .mc-rows > li { flex-wrap: nowrap; align-items: center; }
+  .mc-rows > li:has(.claim-f input[name=note]), .mc-rows > li.mine { flex-wrap: wrap; }
+  .mc-act { width: auto; flex: none; }
+  .mc-act form, .claim-f { width: auto; }
+  .mc-rows > li:has(.claim-f input[name=note]) .mc-act, .mc-rows > li:has(.claim-f input[name=note]) .claim-f { width: 100%; }
+  .claim-f .btn-small.big { flex: none; padding: 9px 16px !important; }
+  .mc-what b { font-size: 14px; }
+}
+@media (max-width: 640px) { .mc-rows > li.mine .mc-act { width: 100%; flex: 1 1 100%; flex-wrap: wrap; } .mc-act .fine { white-space: normal; } }
