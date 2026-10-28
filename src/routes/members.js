@@ -29,7 +29,8 @@ router.get("/", wrap(async (req, res) => {
      WHERE m.schedule_id=$1 AND ($2 = '' OR coalesce(m.group_name,'') = $2 OR ($2 LIKE 'tag:%' AND substr($2, 5) = ANY(m.tags)))
      ORDER BY m.group_name NULLS LAST, a.last_name, a.first_name`, [sc.id, group === "none" ? "" : group])).rows;
   const others = (await query(
-    `SELECT a.id, a.first_name, a.last_name, a.self_user_id, a.kind, a.team, a.se_group, a.roles, a.email FROM athletes a
+    `SELECT a.id, a.first_name, a.last_name, a.self_user_id, a.kind, a.team, a.se_group, a.roles, a.email,
+       ARRAY(SELECT l.name FROM people_list_members m JOIN people_lists l ON l.id=m.list_id WHERE m.athlete_id=a.id) AS lists FROM athletes a
      WHERE a.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM schedule_members m WHERE m.schedule_id=$1 AND m.athlete_id=a.id)
      ORDER BY lower(a.last_name), lower(a.first_name)`, [sc.id])).rows;
   const total = (await query(`SELECT count(*)::int AS n FROM schedule_members WHERE schedule_id=$1`, [sc.id])).rows[0].n;
@@ -198,4 +199,5 @@ router.post("/:athleteId/remove", wrap(async (req, res) => {
   go(res, dest(req, home(sc)), { ok: `Removed from ${sc.name}. They stay in the app (and any other schedules), and their existing sign-ups are kept.` });
 }));
 
+router.importHelpers = { guess, readRows, mapFrom };
 module.exports = router;

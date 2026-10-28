@@ -18,17 +18,19 @@ async function directory() {
       ARRAY(SELECT trim(k.first_name||' '||k.last_name) FROM parent_athletes pa JOIN athletes k ON k.id=pa.athlete_id WHERE a.self_user_id IS NOT NULL AND pa.user_id=a.self_user_id ORDER BY k.first_name) AS kids,
       ARRAY(SELECT coalesce(nullif(trim(p.first_name||' '||p.last_name),''), u.email) FROM parent_athletes pa JOIN users u ON u.id=pa.user_id
             LEFT JOIN athletes p ON p.self_user_id=u.id AND p.kind='adult' WHERE pa.athlete_id=a.id AND a.kind='athlete' ORDER BY 1) AS parents,
-      ARRAY(SELECT sc.name FROM schedule_coaches c JOIN schedules sc ON sc.id=c.schedule_id WHERE a.email IS NOT NULL AND lower(c.email)=lower(a.email) ORDER BY sc.name) AS coaching
+      ARRAY(SELECT sc.name FROM schedule_coaches c JOIN schedules sc ON sc.id=c.schedule_id WHERE a.email IS NOT NULL AND lower(c.email)=lower(a.email) ORDER BY sc.name) AS coaching,
+      ARRAY(SELECT m.list_id FROM people_list_members m WHERE m.athlete_id=a.id) AS list_ids
     FROM athletes a WHERE a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name), a.id`)).rows;
 }
 
 router.get("/", wrap(async (req, res) => {
   const all = await directory();
-  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), se: str(req.query.se) };
+  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), se: str(req.query.se), list: int(req.query.list) || 0 };
   const shown = all.filter((p) => (!f.q || `${p.first_name} ${p.last_name} ${p.email || ""} ${p.phone || ""}`.toLowerCase().includes(f.q))
+    && (!f.list || (p.list_ids || []).includes(f.list))
     && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.se || p.se_group === f.se));
   const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [...new Set(all.map((p) => p.se_group).filter(Boolean))].sort();
-  res.send(v.directoryPage({ user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups }));
+  res.send(v.directoryPage({ user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
 }));
 
 function readPerson(b, kind) {
@@ -61,6 +63,105 @@ router.post("/", wrap(async (req, res) => {
   go(res, `/admin/people/${id}`, { ok: `Added ${p.first_name} ${p.last_name}.` });
 }));
 
+// ---------- lists ----------
+const back = (b, extra = "") => `/admin/people?${new URLSearchParams(Object.fromEntries(Object.entries({ list: b.list || "", ...extra }).filter(([, x]) => x)))}`;
+router.post("/lists", wrap(async (req, res) => {
+  const l = await PP.listNamed(req.body.name);
+  if (!l) return go(res, "/admin/people", { err: "Give the list a name." });
+  go(res, `/admin/people?list=${l.id}`, { ok: `List "${l.name}" is ready. Check people and use Add to list, or import a file into it.` });
+}));
+router.post("/lists/:id", wrap(async (req, res) => {
+  const id = int(req.params.id), name = clean(req.body.name, 60);
+  if (!name) return go(res, `/admin/people?list=${id}`, { err: "Enter a name." });
+  const dup = (await query(`SELECT 1 FROM people_lists WHERE lower(name)=lower($1) AND id<>$2`, [name, id])).rowCount;
+  if (dup) return go(res, `/admin/people?list=${id}`, { err: `There's already a list called ${name}.` });
+  await query(`UPDATE people_lists SET name=$2 WHERE id=$1`, [id, name]);
+  go(res, `/admin/people?list=${id}`, { ok: `Renamed to ${name}.` });
+}));
+router.post("/lists/:id/delete", wrap(async (req, res) => {
+  const l = (await query(`DELETE FROM people_lists WHERE id=$1 RETURNING name`, [int(req.params.id)])).rows[0];
+  go(res, "/admin/people", { ok: l ? `Deleted the list "${l.name}". The people on it are still in People.` : "Deleted." });
+}));
+// Check people, then add them to a list, move them from the list you're viewing to another, or take them off it
+router.post("/bulk", wrap(async (req, res) => {
+  const b = req.body;
+  const ids = [].concat(b.ids || []).map(int).filter(Boolean);
+  const from = int(b.list) || 0;
+  if (!ids.length) return go(res, back(b), { err: "Check at least one person first." });
+  let target = int(b.target) || 0;
+  if (b.target === "new") { const l = await PP.listNamed(b.new_name); if (!l) return go(res, back(b), { err: "Name the new list." }); target = l.id; }
+  const tname = target ? ((await query(`SELECT name FROM people_lists WHERE id=$1`, [target])).rows[0] || {}).name : null;
+  const n = `${ids.length} ${ids.length === 1 ? "person" : "people"}`;
+  if (b.action === "add") {
+    if (!tname) return go(res, back(b), { err: "Pick a list to add them to." });
+    await PP.addToList(target, ids);
+    return go(res, back(b), { ok: `Added ${n} to ${tname}.` });
+  }
+  if (b.action === "move") {
+    if (!from) return go(res, back(b), { err: "Open the list you're moving people from first." });
+    if (!tname) return go(res, back(b), { err: "Pick the list to move them to." });
+    await PP.addToList(target, ids);
+    if (target !== from) await query(`DELETE FROM people_list_members WHERE list_id=$1 AND athlete_id = ANY($2)`, [from, ids]);
+    return go(res, `/admin/people?list=${target}`, { ok: `Moved ${n} to ${tname}.` });
+  }
+  if (b.action === "remove") {
+    if (!from) return go(res, back(b), { err: "Open a list to take people off it." });
+    await query(`DELETE FROM people_list_members WHERE list_id=$1 AND athlete_id = ANY($2)`, [from, ids]);
+    return go(res, back(b), { ok: `Took ${n} off the list. They're still in People.` });
+  }
+  go(res, back(b), {});
+}));
+// One person's lists (from their page)
+router.post("/:id/lists", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  if (req.body.remove) await query(`DELETE FROM people_list_members WHERE list_id=$1 AND athlete_id=$2`, [int(req.body.remove), id]);
+  else {
+    const l = req.body.list === "new" ? await PP.listNamed(req.body.new_name) : (await query(`SELECT * FROM people_lists WHERE id=$1`, [int(req.body.list)])).rows[0];
+    if (!l) return go(res, `/admin/people/${id}#lists`, { err: "Pick a list." });
+    await PP.addToList(l.id, [id]);
+  }
+  go(res, `/admin/people/${id}#lists`, { ok: "Saved." });
+}));
+
+// ---------- import into the directory (no board) ----------
+const CSV = require("../csv");
+const H = () => require("./members").importHelpers;
+async function dirPlan(rows, map) {
+  const people = H().readRows(rows, map);
+  for (const p of people) {
+    if (!p.first || !p.last) { p.status = "skip"; continue; }
+    const hit = (await query(`SELECT id FROM athletes WHERE lower(first_name)=lower($1) AND lower(last_name)=lower($2) AND archived_at IS NULL ORDER BY id LIMIT 1`, [p.first, p.last])).rows[0];
+    p.athleteId = hit ? hit.id : null; p.status = hit ? "existing" : "new";
+  }
+  return people;
+}
+router.get("/import", wrap(async (req, res) => res.send(v.importPage({ user: req.user, flash: flashFrom(req) }))));
+router.post("/import/preview", wrap(async (req, res) => {
+  const rows = CSV.parse(req.body.data);
+  if (rows.length < 2) return go(res, "/admin/people/import", { err: "That file has no rows under its headings. Make sure the first row is the column names." });
+  const map = H().mapFrom(req.body, rows[0]);
+  if (req.body.col_cteam === undefined && map.cteam < 0 && map.group >= 0) map.cteam = map.group; // a "Team" column is their current team here
+  res.send(v.importPreview({ user: req.user, flash: flashFrom(req), headers: rows[0], map, data: req.body.data, people: await dirPlan(rows.slice(1), map), lists: await PP.lists() }));
+}));
+router.post("/import/commit", wrap(async (req, res) => {
+  const rows = CSV.parse(req.body.data);
+  const map = H().mapFrom(req.body, rows[0] || []);
+  const people = await dirPlan(rows.slice(1), map);
+  let added = 0, updated = 0, skipped = 0, emails = 0;
+  for (const p of people) {
+    if (p.status === "skip") { skipped++; continue; }
+    let id = p.athleteId;
+    if (!id) { id = (await query(`INSERT INTO athletes (first_name, last_name, team, se_group) VALUES ($1,$2,$3,$4) RETURNING id`, [p.first, p.last, p.cteam || null, p.se || null])).rows[0].id; added++; }
+    else { await query(`UPDATE athletes SET team=COALESCE(NULLIF($2,''), team), se_group=COALESCE(NULLIF($3,''), se_group) WHERE id=$1`, [id, p.cteam, p.se]); updated++; }
+    for (const e of p.emails) { await PP.linkParent(id, e); emails++; }
+    p.savedId = id;
+  }
+  const list = req.body.to_list === "new" ? await PP.listNamed(req.body.new_list) : int(req.body.to_list) ? (await query(`SELECT * FROM people_lists WHERE id=$1`, [int(req.body.to_list)])).rows[0] : null;
+  if (list) await PP.addToList(list.id, people.filter((p) => p.savedId).map((p) => p.savedId));
+  go(res, list ? `/admin/people?list=${list.id}` : "/admin/people", { ok: [`Imported ${added + updated} people into People${list ? `, on the list ${list.name}` : ""}`, added ? `${added} new` : "", updated ? `${updated} already here, updated` : "",
+    skipped ? `${skipped} rows skipped (no name)` : "", emails ? `${emails} parent emails linked` : ""].filter(Boolean).join(" · ") + ". They're not on any board yet: add them from a board's From People." });
+}));
+
 router.get("/:id", wrap(async (req, res) => {
   const id = int(req.params.id);
   const p = (await query(`SELECT * FROM athletes WHERE id=$1`, [id])).rows[0];
@@ -76,7 +177,8 @@ router.get("/:id", wrap(async (req, res) => {
   const athletes = p.kind === "adult" ? (await query(`SELECT id, first_name, last_name, team FROM athletes WHERE kind='athlete' AND archived_at IS NULL ORDER BY lower(last_name), lower(first_name)`)).rows : [];
   const allBoards = (await query(`SELECT id, name FROM schedules WHERE archived_at IS NULL ORDER BY name`)).rows;
   const coaching = p.email ? (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [p.email])).rows.map((r) => r.schedule_id) : [];
-  res.send(v.personPage({ user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching }));
+  const mine = (await query(`SELECT l.* FROM people_list_members m JOIN people_lists l ON l.id=m.list_id WHERE m.athlete_id=$1 ORDER BY lower(l.name)`, [id])).rows;
+  res.send(v.personPage({ user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists() }));
 }));
 
 router.post("/:id", wrap(async (req, res) => {

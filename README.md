@@ -371,3 +371,18 @@ attendance on. Parents linked by email anywhere become directory adults automati
 shown). Imports also fill current team and SportsEngine group. Only admins edit details; people use
 **Request a change** (bottom of My Claims), emailed to the address set in App settings → Change requests
 (default info@chippewavalleyraptors.com).
+
+
+## App settings
+A hub of cards (People · Locations · Administrators · App name & wording · Change requests), each opening
+its own page (/admin/settings/app?part=…). People can also be imported straight into the directory
+(/admin/people/import: current team, SportsEngine group, any number of parent email columns) without
+putting them on a board; add them to a board later from its From People tab.
+
+
+## People lists
+Named groups of people (2026 Season Athletes, 2026 Season Parents, Board Members). A person can be on
+several. On People: list chips filter the directory; check people (or the header box for all shown) and
+Add to list / Move from this list to another / Take off this list (+ New list right in the menu). Lists
+can be renamed or deleted (people stay). Imports can put everyone in the file on a list. Each person's page
+shows their lists. On a board's From People tab, filter by list and Check all shown.

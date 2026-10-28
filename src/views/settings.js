@@ -135,16 +135,13 @@ ${SC.depthOf(sc) >= 3 ? `    <section class="panel" id="presets"><details>
   return page({ title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash, body });
 }
 
-function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, mapsKey = "" }) {
+function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, mapsKey = "", part = "", counts = {} }) {
   const P = require("../locations");
   const al = c.app_labels || {};
   const { fmtDateTime } = require("../time");
-  return page({
-    title: "App settings", tab: "settings", user, flash,
-    body: `<section class="panel"><h1>App settings</h1>
-      <p class="muted tight">Things that apply across the whole app. Everything else lives inside each ${esc((al.schedule || ["Claim Board"])[0])}.</p>
-      <nav class="jump"><a href="/admin/people"><b>People →</b></a><a href="#labels">Name</a><a href="#places">Locations</a><a href="#admins">Administrators</a></nav></section>
-    <section class="panel" id="labels">
+  const I = require("./icons");
+  const sections = {
+    labels: ["App name & wording", `    <section class="panel" id="labels">
       <h2 class="banner">App name</h2>
       <form method="post" action="/admin/settings/labels" class="grid-form labels-form">
         <div><label>App name<input name="app_name" required maxlength="40" value="${esc(al.app_name)}" placeholder="Raptors Claim It"></label></div>
@@ -155,7 +152,8 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
         <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
       </form>
     </section>
-    <section class="panel" id="places">
+`],
+    places: ["Locations", `    <section class="panel" id="places">
       <h2 class="banner">Locations</h2>
       <p class="fine">Places you use often. Location boxes everywhere suggest these, and people see them as a 📍 link to directions. You can still type any location (like "Pavilion behind Field 2"); it just shows as plain text.</p>
       ${places.length ? `<div class="table-wrap"><table class="places">
@@ -192,14 +190,16 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
     </script>
     <script async src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&libraries=places&callback=initPlaces"></script>` : ""}
 
-    <section class="panel" id="change">
+`],
+    change: ["Change requests", `    <section class="panel" id="change">
       <h2 class="banner">Change requests</h2>
       <p class="fine">People can't edit their own details. They send a request from My Claims, and it's emailed here so an admin can update People.</p>
       <form method="post" action="/admin/settings/app/change-email" class="inline-add"><label>Send change requests to<input type="email" name="email" required value="${esc(c.change_email || "info@chippewavalleyraptors.com")}"></label>
         <button class="btn-small" type="submit">Save</button></form>
     </section>
 
-    <section class="panel" id="admins">
+`],
+    admins: ["Administrators", `    <section class="panel" id="admins">
       <h2 class="banner">Administrators</h2>
       <p class="fine">Administrators can open Settings and Reports and manage every ${esc((al.schedule || ["Claim Board"])[0])}. They sign in with their email like everyone else.</p>
       <ul class="res-list">
@@ -213,8 +213,30 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
       </ul>
       <form method="post" action="/admin/settings/admins" class="inline-add"><label>Add an administrator<input type="email" name="email" required placeholder="name@example.com"></label>
         <button class="btn-small" type="submit">Add</button></form>
-    </section>`,
-  });
+    </section>`],
+  };
+  if (sections[part]) return page({ title: `${sections[part][0]} · App settings`, tab: "settings", user, flash,
+    body: `<div class="page-top"><h1 class="page-title">App settings <span class="h-sub">${sections[part][0]}</span></h1>
+      <a class="btn-ghost" href="/admin/settings/app">← App settings</a></div>${sections[part][1]}` });
+  const card = (icon, title, summary, actions, note = "") => `<section class="panel side-card hub-card"><div class="card-head"><span class="ss-ico">${icon}</span><h2>${title}</h2></div>
+      <p class="hub-sum">${summary}</p>${note ? `<p class="fine">${note}</p>` : ""}<div class="hub-actions">${actions}</div></section>`;
+  const btn = (href, label, primary = false) => `<a class="${primary ? "btn-small" : "btn-ghost"}" href="${href}">${label}</a>`;
+  return page({ title: "App settings", tab: "settings", user, flash,
+    body: `<div class="page-top"><h1 class="page-title">App settings</h1></div>
+    <p class="muted">Things that apply across the whole app. Everything else lives inside each ${esc((al.schedule || ["Claim Board"])[0])}.</p>
+    <div class="hub-grid">
+      ${card(I.users(), "People", `<b>${counts.people || 0}</b> people · ${counts.athletes || 0} athletes · ${counts.adults || 0} adults`,
+        btn("/admin/people", "Manage", true) + btn("/admin/people/import", "⇪ Import"),
+        "Everyone in the app. Add people once here, then add them to any board.")}
+      ${card(I.pin(), "Locations", `<b>${places.length}</b> saved place${places.length === 1 ? "" : "s"}`, btn("/admin/settings/app?part=places", "Manage", true),
+        "Places with addresses, so people get directions.")}
+      ${card(I.userCheck(), "Administrators", `<b>${admins.length + envAdmins.filter((e) => !admins.some((a) => a.email === e)).length}</b> admin${admins.length + envAdmins.length === 1 ? "" : "s"}`,
+        btn("/admin/settings/app?part=admins", "Manage", true), "People who can set up boards and see everything.")}
+      ${card(I.gear(), "App name &amp; wording", `<b>${esc(require("../config").LABELS.app_name)}</b> · boards are called “${esc(require("../config").LABELS.schedule)}”`,
+        btn("/admin/settings/app?part=labels", "Edit", true))}
+      ${card(I.check(), "Change requests", `Sent to <b>${esc(c.change_email || "info@chippewavalleyraptors.com")}</b>`, btn("/admin/settings/app?part=change", "Edit", true),
+        "People ask here to fix their info; admins update People.")}
+    </div>` });
 }
 
 module.exports = { activitiesPage, groupsPage, appPage };

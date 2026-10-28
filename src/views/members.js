@@ -34,6 +34,7 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
         <p class="muted tight">${total} on ${esc(sc.name)}</p></div>
         <span class="head-btns"><a class="btn-ghost" href="/admin/members/import?s=${sc.id}">⇪ Import from a spreadsheet</a></span></div>
       ${needBanner(sc, L)}
+      <details class="where-d"><summary>Adding here vs. in People?</summary>${require("./people").WHERE_NOTE}</details>
       <div class="add-people" id="add">
         <div class="ap-tabs" role="tablist">
           <button type="button" role="tab" class="ap-tab on" data-ap="new" aria-selected="true">New ${esc(L.participant.one.toLowerCase())}</button>
@@ -56,10 +57,11 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
             const sel = (k, label) => uniq(k).length ? `<select class="ap-f" data-f="${k}" aria-label="${label}"><option value="">${label}: any</option>${uniq(k).map((x) => `<option>${esc(x)}</option>`).join("")}</select>` : "";
             return `<div class="ap-filter"><input type="search" class="ap-search" placeholder="Type to find someone…" aria-label="Find someone">
               <select class="ap-f" data-f="kind" aria-label="Kind"><option value="">Everyone</option><option value="athlete">Athletes</option><option value="adult">Adults</option></select>
+              ${(() => { const ls = [...new Set(others.flatMap((o) => o.lists || []))].sort(); return ls.length ? `<select class="ap-f" data-f="lists" aria-label="List"><option value="">List: any</option>${ls.map((x) => `<option>${esc(x)}</option>`).join("")}</select>` : ""; })()}
               ${sel("team", "Current team")}${sel("se_group", "SportsEngine group")}
               <button type="button" class="link-dark ap-all">Check all shown</button></div>`; })() : ""}
           ${others.length ? `<form method="post" action="/admin/members/add?s=${sc.id}" class="stack ap-existing">
-          <div class="ap-list">${others.map((a) => `<label class="ap-person" data-kind="${a.kind}" data-team="${esc(a.team || "")}" data-se_group="${esc(a.se_group || "")}"><input type="checkbox" name="athlete_id" value="${a.id}"> ${a.first_name || a.last_name ? `${esc(a.last_name)}, ${esc(a.first_name)}` : esc(a.email || "(no name)")}
+          <div class="ap-list">${others.map((a) => `<label class="ap-person" data-kind="${a.kind}" data-team="${esc(a.team || "")}" data-se_group="${esc(a.se_group || "")}" data-lists="${esc((a.lists || []).join("|"))}"><input type="checkbox" name="athlete_id" value="${a.id}"> ${a.first_name || a.last_name ? `${esc(a.last_name)}, ${esc(a.first_name)}` : esc(a.email || "(no name)")}
             <span class="fine">${[a.kind === "adult" ? ((a.roles || []).join(", ") || "adult") : "", a.team, a.se_group].filter(Boolean).map(esc).join(" · ")}</span></label>`).join("")}</div>
           <span class="fine ap-count">Check everyone to add.</span>
           <label>${esc(L.group.one)}${groupSelect(sc, null)}</label>
@@ -121,7 +123,7 @@ const ADD_PEOPLE_JS = `<script>
     document.querySelectorAll(".ap-f").forEach(function (s) { if (s.value) f[s.dataset.f] = s.value; });
     document.querySelectorAll(".ap-person").forEach(function (o) {
       var ok = (!v || o.textContent.toLowerCase().indexOf(v) >= 0);
-      for (var k in f) if (o.dataset[k] !== f[k]) ok = false;
+      for (var k in f) if (k === "lists" ? ("|" + o.dataset.lists + "|").indexOf("|" + f[k] + "|") < 0 : o.dataset[k] !== f[k]) ok = false;
       o.hidden = !ok; });
   }
   if (q) q.addEventListener("input", filt);

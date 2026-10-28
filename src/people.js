@@ -15,6 +15,17 @@ async function migrate() {
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS roles TEXT[] NOT NULL DEFAULT '{}';     -- parent, coach, volunteer
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
     CREATE INDEX IF NOT EXISTS idx_people_email ON athletes (lower(email));
+    -- Lists: named groups of people managed in bulk (2026 Season Athletes, Board Members...)
+    CREATE TABLE IF NOT EXISTS people_lists (
+      id SERIAL PRIMARY KEY, name TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_people_list_name ON people_lists (lower(name));
+    CREATE TABLE IF NOT EXISTS people_list_members (
+      list_id INTEGER NOT NULL REFERENCES people_lists(id) ON DELETE CASCADE,
+      athlete_id INTEGER NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+      added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (list_id, athlete_id)
+    );
     -- adults who signed up for themselves are adults
     UPDATE athletes SET kind='adult' WHERE self_user_id IS NOT NULL AND kind <> 'adult';
   `);
@@ -42,6 +53,22 @@ async function linkParent(athleteId, email) {
   await query(`INSERT INTO parent_athletes (user_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [user.id, athleteId]);
 }
 
+// Lists
+async function lists() {
+  return (await query(`SELECT l.*, (SELECT count(*)::int FROM people_list_members m JOIN athletes a ON a.id=m.athlete_id
+      WHERE m.list_id=l.id AND a.archived_at IS NULL) AS n FROM people_lists l ORDER BY lower(l.name)`)).rows;
+}
+// A list by name (made if needed)
+async function listNamed(name) {
+  const n = String(name || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (!n) return null;
+  return (await query(`SELECT * FROM people_lists WHERE lower(name)=lower($1)`, [n])).rows[0]
+    || (await query(`INSERT INTO people_lists (name) VALUES ($1) RETURNING *`, [n])).rows[0];
+}
+async function addToList(listId, ids) {
+  for (const id of ids) await query(`INSERT INTO people_list_members (list_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [listId, id]);
+}
+
 const display = (p) => (`${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email || "(no name)");
 
-module.exports = { migrate, ensureAdult, linkParent, display };
+module.exports = { migrate, ensureAdult, linkParent, display, lists, listNamed, addToList };

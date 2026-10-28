@@ -16,7 +16,7 @@ const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 const COLORS = ["#93c47d", "#7fa7d9", "#f6cf55", "#d0503f", "#9a85cc", "#5fb3b3", "#e69a4a", "#c27ba0", "#8d9db6", "#6aa84f"];
 const acts = (sc) => `/admin/settings/activities?s=${sc.id}`;
 const grps = (sc, anchor = "") => `/admin/settings/groups?s=${sc.id}${anchor}`;
-const app = (anchor) => `/admin/settings/app#${anchor}`;
+const app = (anchor) => `/admin/settings/app?part=${anchor}`;
 
 function readActivity(b) {
   const spots = int(b.default_spots), block = int(b.default_block), limit = int(b.default_limit);
@@ -73,43 +73,43 @@ const P = require("../locations");
 router.post("/places", wrap(async (req, res) => {
   const name = clean(req.body.name, 80), address = clean(req.body.address, 200) || null;
   const quick = req.get("X-Requested-With") === "fetch"; // the "Add new location" pop-up
-  if (!name) return quick ? res.status(400).json({ error: "Enter a name for the place." }) : go(res, app("places"), { err: "Enter a name for the place." });
+  if (!name) return quick ? res.status(400).json({ error: "Enter a name for the place." }) : go(res, "/admin/settings/app?part=places", { err: "Enter a name for the place." });
   if (P.find(name)) {
     if (quick) return res.json({ place: P.find(name), existed: true });
-    return go(res, app("places"), { err: `${name} is already saved. Edit it in the list.` });
+    return go(res, "/admin/settings/app?part=places", { err: `${name} is already saved. Edit it in the list.` });
   }
   await q(`INSERT INTO app_locations (name, address) VALUES ($1,$2)`, [name, address]);
   await P.load();
   if (quick) return res.json({ place: P.find(name) });
-  go(res, app("places"), { ok: `Saved ${name}.${address ? "" : " Add its address so people get directions."}` });
+  go(res, "/admin/settings/app?part=places", { ok: `Saved ${name}.${address ? "" : " Add its address so people get directions."}` });
 }));
 router.post("/places/:id", wrap(async (req, res) => {
   const id = int(req.params.id);
   const cur = P.all().find((l) => l.id === id);
   const name = clean(req.body.name, 80), address = clean(req.body.address, 200) || null;
-  if (!cur || !name) return go(res, app("places"), { err: "Enter a name." });
-  if (!same(cur.name, name) && P.find(name)) return go(res, app("places"), { err: `${name} is already saved.` });
+  if (!cur || !name) return go(res, "/admin/settings/app?part=places", { err: "Enter a name." });
+  if (!same(cur.name, name) && P.find(name)) return go(res, "/admin/settings/app?part=places", { err: `${name} is already saved.` });
   await q(`UPDATE app_locations SET name=$2, address=$3 WHERE id=$1`, [id, name, address]);
   if (cur.name !== name) { // everything that used the old name follows the rename
     await q(`UPDATE rounds SET location=$2 WHERE location=$1`, [cur.name, name]);
     await q(`UPDATE training_sessions SET location=$2 WHERE location=$1`, [cur.name, name]);
   }
   await P.load();
-  go(res, app("places"), { ok: `Saved ${name}.` });
+  go(res, "/admin/settings/app?part=places", { ok: `Saved ${name}.` });
 }));
 router.post("/places/:id/remove", wrap(async (req, res) => {
   const id = int(req.params.id);
   const cur = P.all().find((l) => l.id === id);
   await q(`DELETE FROM app_locations WHERE id=$1`, [id]);
   await P.load();
-  go(res, app("places"), { ok: `Removed ${cur ? cur.name : "it"}. Anything that used it keeps the name, just without a map link.` });
+  go(res, "/admin/settings/app?part=places", { ok: `Removed ${cur ? cur.name : "it"}. Anything that used it keeps the name, just without a map link.` });
 }));
 
 router.post("/app/change-email", wrap(async (req, res) => {
   const e = require("../auth").normalizeEmail(req.body.email);
-  if (!require("../auth").isValidEmail(e)) return go(res, "/admin/settings/app#change", { err: "Enter a valid email." });
+  if (!require("../auth").isValidEmail(e)) return go(res, "/admin/settings/app?part=change", { err: "Enter a valid email." });
   const c = catalog.current(); c.change_email = e; await catalog.save(c);
-  go(res, "/admin/settings/app#change", { ok: `Change requests now go to ${e}.` });
+  go(res, "/admin/settings/app?part=change", { ok: `Change requests now go to ${e}.` });
 }));
 
 router.get("/app", wrap(async (req, res) => {
@@ -117,8 +117,10 @@ router.get("/app", wrap(async (req, res) => {
   const used = Object.fromEntries((await require("../db").query(
     `SELECT location, count(*)::int AS n FROM (SELECT location FROM rounds UNION ALL SELECT location FROM training_sessions WHERE canceled_at IS NULL) x
      WHERE location IS NOT NULL GROUP BY location`)).rows.map((r) => [r.location.toLowerCase(), r.n]));
+  const counts = (await require("../db").query(`SELECT count(*)::int AS people, count(*) FILTER (WHERE kind='athlete')::int AS athletes,
+      count(*) FILTER (WHERE kind='adult')::int AS adults FROM athletes WHERE archived_at IS NULL`)).rows[0];
   res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins(),
-    places: require("../locations").all(), used, mapsKey: process.env.GOOGLE_MAPS_API_KEY || "" }));
+    places: require("../locations").all(), used, mapsKey: process.env.GOOGLE_MAPS_API_KEY || "", part: String(req.query.part || ""), counts }));
 }));
 
 router.post("/labels", wrap(async (req, res) => {
