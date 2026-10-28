@@ -246,4 +246,43 @@ async function boardTotals(boardId, db = { query }) {
       (SELECT count(*)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE i.schedule_id=$1 AND c.status='confirmed') AS claimed`, [boardId])).rows[0];
 }
 
-module.exports = { nodeChain, effectiveAt, children, items, boardTotals, ClaimError, createBoard, addNode, addItem, chainFor, effective, check, claim, cancel, cancelDeadline, setCapacity, nodeDepth, whoPasses };
+// ---------- what one person sees on a board ----------
+// Everything on the board this person may see, with whether they can claim each one and why not.
+// person = { athleteId, userId, member }   (member: their row on the board's list, or null)
+async function personView(boardId, person, now = new Date()) {
+  const board = (await query(`SELECT * FROM schedules WHERE id=$1`, [boardId])).rows[0];
+  if (!board) return null;
+  const nodes = (await query(`SELECT * FROM board_nodes WHERE schedule_id=$1 ORDER BY sort, id`, [boardId])).rows;
+  const items = (await query(`SELECT i.*,
+      (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') AS taken,
+      (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='waitlisted') AS waiting
+    FROM board_items i WHERE i.schedule_id=$1 AND i.canceled_at IS NULL ORDER BY i.starts_at NULLS FIRST, i.sort, i.id`, [boardId])).rows;
+  const mine = (await query(`SELECT c.* FROM board_claims c JOIN board_items i ON i.id=c.item_id
+    WHERE i.schedule_id=$1 AND c.athlete_id=$2 AND c.status<>'canceled'`, [boardId, person.athleteId])).rows;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const chainOf = (nodeId) => { const out = []; let n = byId.get(nodeId); while (n) { out.unshift(n); n = byId.get(n.parent_id); } return out; };
+  const under = (nodeId) => { const ids = new Set([nodeId]); let grew = true; while (grew) { grew = false; for (const n of nodes) if (ids.has(n.parent_id) && !ids.has(n.id)) { ids.add(n.id); grew = true; } } return ids; };
+  const counting = (scope) => mine.filter((c) => c.counts && (scope.kind === "board" || under(scope.id).has((items.find((i) => i.id === c.item_id) || {}).node_id))).length;
+  const out = [];
+  for (const it of items) {
+    const chain = { board, nodes: chainOf(it.node_id), item: it };
+    const eff = effective(chain);
+    const chk = check(chain, eff, person, now);
+    if (chk.hidden) continue;                                  // not for this person: don't show it
+    const my = mine.find((c) => c.item_id === it.id) || null;
+    let blockedBy = null;
+    if (chk.ok && !my && !chk.leftover) for (const L of eff.limits) { const n = counting(L); if (n >= L.limit) { blockedBy = { ...L, used: n }; break; } }
+    const full = it.taken >= it.capacity;
+    out.push({ item: it, chain: chain.nodes, eff, ok: chk.ok, reason: chk.ok ? null : chk.reason, leftover: !!chk.leftover, mine: my, blockedBy,
+      full, canClaim: chk.ok && !my && !blockedBy && (!full || eff.waitlist), open: it.capacity - it.taken,
+      cancelBy: cancelDeadline(it, eff) });
+  }
+  // limits on containers (and the board), with what's left, for plain-language notes
+  const limits = [];
+  if (board.settings && board.settings.limit != null) limits.push({ kind: "board", id: board.id, name: board.name, limit: Number(board.settings.limit) });
+  for (const n of nodes) if (n.settings && n.settings.limit != null) limits.push({ kind: "node", id: n.id, name: n.name, limit: Number(n.settings.limit) });
+  for (const L of limits) { L.used = counting(L); L.left = Math.max(0, L.limit - L.used); }
+  return { board, nodes, items: out, limits, mine };
+}
+
+module.exports = { personView, nodeChain, effectiveAt, children, items, boardTotals, ClaimError, createBoard, addNode, addItem, chainFor, effective, check, claim, cancel, cancelDeadline, setCapacity, nodeDepth, whoPasses };

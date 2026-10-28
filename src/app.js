@@ -36,6 +36,7 @@ app.use("/admin/settings", require("./routes/settings"));
 app.use("/admin/day", require("./routes/roster"));
 app.use("/admin/reports", require("./routes/reports"));
 app.use("/admin", require("./routes/admin"));
+app.use(require("./routes/claim")); // My Claims on the container engine (before the old family pages)
 app.use("/s", require("./routes/public")); // public sign-up sheets (no account needed)
 app.use("/checkin", require("./routes/checkin")); // attendance (admins + coaches)
 app.use(require("./routes/parent"));

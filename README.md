@@ -386,3 +386,12 @@ several. On People: list chips filter the directory; check people (or the header
 Add to list / Move from this list to another / Take off this list (+ New list right in the menu). Lists
 can be renamed or deleted (people stay). Imports can put everyone in the file on a list. Each person's page
 shows their lists. On a board's From People tab, filter by list and Check all shown.
+
+
+## Stage 4: My Claims (people) on the engine
+/dashboard: 🔓 Extra spots open (leftover spots claimable past limits), Your upcoming claims (Cancel), and
+Sign up for something (a card per board the person can use). /b/:sid: Who's signing up? (their kids and
+Me; skipped when there's one), then only what that person can claim, grouped by containers, with plain
+limit notes, big Claim buttons, the board's question, cancel deadlines, and List | Calendar (remembered).
+Claim/cancel/waitlist emails: src/engine/notify.js. Not yet on the engine: the public link (/s/...),
+Check-in, Reports.
