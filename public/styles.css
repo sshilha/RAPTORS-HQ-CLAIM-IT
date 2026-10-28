@@ -1645,3 +1645,4 @@ select.place-picker { width: 100%; padding: 10px 12px; font-size: 15px; }
 .dir-table .chip-s { white-space: normal; }
 div.radio-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 3px 0; font: 400 14px var(--body); color: var(--text-2); }
 div.radio-row label.rr { display: inline-flex; align-items: center; gap: 8px; margin: 0; font: inherit; color: inherit; text-transform: none; cursor: pointer; }
+.foot .ver { display: block; font-size: 11px; color: #a3adbb; margin-bottom: 2px; }

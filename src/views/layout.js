@@ -36,7 +36,8 @@ function head(title) {
 </head>`;
 }
 
-const foot = (user, tab) => `<footer class="foot">${user && tab === "home" ? `<p class="foot-change">Is your info wrong (name, team, email, phone)? <a href="/request-change">Request a change</a></p>` : ""}${esc(LABELS.org_name || LABELS.app_name)}</footer>`;
+const VERSION = `v${require("../../package.json").version}`;
+const foot = (user, tab) => `<footer class="foot">${user && require("../auth").isAdmin(user) ? `<span class="ver" title="App version">${VERSION}</span>` : ""}${user && tab === "home" ? `<p class="foot-change">Is your info wrong (name, team, email, phone)? <a href="/request-change">Request a change</a></p>` : ""}${esc(LABELS.org_name || LABELS.app_name)}</footer>`;
 
 // Signed-out pages use the dark sign-in gate, like the tryout app's admin login
 function gateLayout({ title, body, flash }) {
