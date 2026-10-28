@@ -5,7 +5,7 @@ const { page } = require("./admin");
 const SC = require("../schedules");
 const I = require("./icons");
 const P = require("../locations");
-const { fmtRange, inputParts, fmtDateTime } = require("../time");
+const { fmtRange, inputParts, fmtDateTime, slotName } = require("../time");
 
 
 // Safari/Firefox: a text box inside a radio's <label> can't be typed in (clicks go to the radio).
@@ -110,16 +110,16 @@ function settingsFormRaw(sc, node, eff) {
 function itemRowE(sc, it) {
   const dated = SC.usesCalendar(sc);
   const st = it.starts_at ? inputParts(it.starts_at) : null, en = it.ends_at ? inputParts(it.ends_at) : null;
-  const meta = [it.starts_at ? fmtRange(it.starts_at, it.ends_at) : "", `${it.capacity} spot${it.capacity === 1 ? "" : "s"}`, it.location ? `📍 ${it.location}` : ""].filter(Boolean);
+  const meta = [`${it.capacity} spot${it.capacity === 1 ? "" : "s"}`, it.location ? `📍 ${it.location}` : ""].filter(Boolean);
   const f = `it-${it.id}`;
   return `<li class="irow">
-    <div class="ir-view"><div class="ir-main"><b>${esc(it.title)}</b><span class="ir-meta">${meta.map(esc).join(" · ")}</span></div>
+    <div class="ir-view"><div class="ir-main"><b>${esc(slotName(it))}</b><span class="ir-meta">${meta.map(esc).join(" · ")}</span></div>
       <div class="ir-side"><span class="ir-claimed">${it.claimed ? `${it.claimed} claimed` : "No claims yet"}${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}</span>
         <button type="button" class="link-dark ir-edit-btn" onclick="this.closest('.irow').classList.add('editing')">Edit</button></div></div>
     <div class="ir-edit">
       <form id="${f}" method="post" action="/admin/b/${sc.id}/items/${it.id}"></form>
       <div class="ir-fields">
-        <label class="mini">Name<input form="${f}" name="title" value="${esc(it.title)}" maxlength="80" required class="ir-title" size="${Math.max(12, it.title.length + 2)}"></label>
+        <label class="mini">${dated ? `<span>Name <span class="opt">(optional)</span></span>` : "Name"}<input form="${f}" name="title" value="${esc(it.title)}" maxlength="80"${dated ? "" : " required"} class="ir-title" size="${Math.max(12, it.title.length + 2)}"${dated ? ' placeholder="e.g. Lower field"' : ""}></label>
         ${dated ? `<label class="mini">Date<input form="${f}" type="date" name="date" value="${st ? st.date : ""}"></label>
           <label class="mini">Start<input form="${f}" type="time" name="start_time" value="${st ? st.time : ""}"></label>
           <label class="mini">End<input form="${f}" type="time" name="end_time" value="${en ? en.time : ""}"></label>` : ""}
@@ -127,7 +127,7 @@ function itemRowE(sc, it) {
         <label class="mini">Location<input form="${f}" name="location" value="${esc(it.location || "")}" list="app-locations" maxlength="80" class="ir-loc" placeholder="Optional"></label>
       </div>
       <div class="ir-edit-actions">
-        <form method="post" action="/admin/b/${sc.id}/items/${it.id}/delete" onsubmit="return confirm('Remove ${esc(it.title.replace(/'/g, ""))}?')"><button class="link-dark danger-link" type="submit">Remove</button></form>
+        <form method="post" action="/admin/b/${sc.id}/items/${it.id}/delete" onsubmit="return confirm('Remove ${esc(slotName(it).replace(/'/g, ""))}?')"><button class="link-dark danger-link" type="submit">Remove</button></form>
         <span class="spacer"></span>
         <button type="button" class="btn-ghost" onclick="this.closest('.irow').classList.remove('editing'); document.getElementById('${f}').reset();">Cancel</button>
         <button class="btn-small" type="submit" form="${f}">Save</button>
@@ -152,8 +152,8 @@ function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, tot
       <button class="btn-small" type="submit">Add ${esc(w.one.toLowerCase())}</button></form>`;
   const addItem = (nodeId) => locked ? "" : `<form method="post" action="/admin/b/${sc.id}/items" class="item-add2">
       <input type="hidden" name="node_id" value="${nodeId || ""}"><span class="ia-title">Add ${esc(SC.an(L.slot.one.toLowerCase()))}</span>
-      <label class="mini ia-name">Name<input name="title" required maxlength="80" placeholder="e.g. ${dated ? "Grill" : "Bring a case of water"}" class="ir-title"></label>
       ${dated ? `<label class="mini">Date<input type="date" name="date"></label><label class="mini">Start<input type="time" name="start_time"></label><label class="mini">End<input type="time" name="end_time"></label>` : ""}
+      <label class="mini ia-name">${dated ? `<span>Name <span class="opt">(optional)</span></span>` : "Name"}<input name="title"${dated ? "" : " required"} maxlength="80" placeholder="e.g. ${dated ? "Lower field" : "Bring a case of water"}" class="ir-title"></label>
       <label class="mini">Spots<input type="number" name="capacity" min="1" max="500" required placeholder="e.g. 4" class="spots-in"></label>
       <label class="mini"><span>Location <span class="opt">(optional)</span></span><input name="location" list="app-locations" maxlength="80" placeholder="e.g. Pavilion" class="ir-loc"></label>
       <button class="btn-small" type="submit">Add ${esc(L.slot.one.toLowerCase())}</button></form>`;

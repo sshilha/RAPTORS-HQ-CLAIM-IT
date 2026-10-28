@@ -121,7 +121,7 @@ async function readItem(b) {
     if (str(b.end_time) <= str(b.start_time)) return { err: "The end time needs to be after the start time." };
     out.startsAt = await ts(str(b.date), str(b.start_time)); out.endsAt = await ts(str(b.date), str(b.end_time));
   }
-  if (!out.title) return { err: "Enter a name." };
+  if (!out.title && !out.startsAt) return { err: "Give it a name, or a date and time." };
   if (!int(b.capacity)) return { err: "Enter how many spots." };
   return out;
 }
@@ -129,7 +129,7 @@ router.post("/:sid/items", wrap(async (req, res) => {
   const sc = await board(req); const nodeId = int(req.body.node_id) || null;
   const v = await readItem(req.body); if (v.err) return go(res, at(sc.id, nodeId), { err: v.err });
   try { await E.addItem({ boardId: sc.id, nodeId, ...v }); } catch (e) { return fail(res, at(sc.id, nodeId), e); }
-  go(res, at(sc.id, nodeId), { ok: `Added "${v.title}" with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}.` });
+  go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}" with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}.` });
 }));
 router.post("/:sid/items/:iid", wrap(async (req, res) => {
   const sc = await board(req);
@@ -140,7 +140,7 @@ router.post("/:sid/items/:iid", wrap(async (req, res) => {
   if (v.capacity < taken) return go(res, at(sc.id, it.node_id), { err: `${taken} people already claimed it, so it needs at least ${taken} spots.` });
   await query(`UPDATE board_items SET title=$2, location=$3, starts_at=$4, ends_at=$5 WHERE id=$1`, [it.id, v.title, v.location, v.startsAt, v.endsAt]);
   const moved = await E.setCapacity(it.id, v.capacity);
-  go(res, at(sc.id, it.node_id), { ok: `Saved "${v.title}".${moved.length ? ` ${moved.length} moved off the waitlist.` : ""}` });
+  go(res, at(sc.id, it.node_id), { ok: `Saved "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}".${moved.length ? ` ${moved.length} moved off the waitlist.` : ""}` });
 }));
 router.post("/:sid/items/:iid/delete", wrap(async (req, res) => {
   const sc = await board(req);

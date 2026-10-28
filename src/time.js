@@ -31,4 +31,10 @@ const isLocal = (s) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s);
 const localSql = (n) => `($${n}::timestamp AT TIME ZONE '${TZ}')`;
 
 const localDate = (ts) => inputParts(ts).date;
-module.exports = { localDate, itemLabel, fmtDay, fmtTime, fmtDateTime, fmtRange, inputParts, isDate, isTime, isLocal, localSql };
+// An item's display name: its own name, or its date and time when it has none
+function slotName(it) {
+  const when = it.starts_at ? fmtRange(it.starts_at, it.ends_at) : "";
+  const t = String(it.title || "").trim();
+  return t && when ? `${when} · ${t}` : t || when || "Untitled";
+}
+module.exports = { slotName, localDate, itemLabel, fmtDay, fmtTime, fmtDateTime, fmtRange, inputParts, isDate, isTime, isLocal, localSql };
