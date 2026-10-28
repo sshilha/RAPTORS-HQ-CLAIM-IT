@@ -83,7 +83,7 @@ function publicLayout({ title, body, flash }) {
   <span class="spacer"></span><a class="link-btn" href="/">Sign in</a>
 </div></header>
 <main class="page">${flashHtml(flash)}${body}</main>
-${foot(user, tab)}
+${foot()}
 </body>
 </html>`;
 }

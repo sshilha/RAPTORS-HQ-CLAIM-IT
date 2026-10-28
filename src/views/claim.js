@@ -3,7 +3,7 @@ const { esc, layout } = require("./layout");
 const { slotName, fmtDateTime, inputParts } = require("../time");
 const P = require("../locations");
 
-const page = (o) => layout({ ...o, tab: "home" });
+const page = (o) => layout({ ...o, tab: "home", xwide: true });
 const who = (p) => (p && p.self_user_id ? "you" : p ? p.first_name : "");
 const Who = (p) => (p && p.self_user_id ? "You" : p ? p.first_name : "");
 const evDates = (b) => (b.event_date ? require("./setup").eventDates(b) : "");
@@ -11,18 +11,20 @@ const evDates = (b) => (b.event_date ? require("./setup").eventDates(b) : "");
 function homePage({ user, flash, upcoming, boards, extra, admin }) {
   return page({ title: "My Claims", user, flash, admin,
     body: `<h1 class="mc-title">My Claims</h1>
-    ${extra.length ? `<section class="panel mc-extra"><h2>🔓 Extra spots open</h2>
-      <p>These still have open spots. They can be claimed even if a limit was reached, and they don't count toward it.</p>
+    ${extra.length ? `<details class="panel mc-extra" open><summary><span class="tw" aria-hidden="true"></span><b>🔓 Extra spots open</b><span class="tw-sum">${extra.length}</span></summary>
+      <p class="fine">These still have open spots. They can be claimed even if a limit was reached, and they don't count toward it.</p>
       <ul class="mc-rows">${extra.map((x) => `<li><div class="mc-what"><b>${esc(slotName(x.row.item))}</b>
           <span>${esc([x.board.name, ...x.row.chain.map((n) => n.name)].join(" › "))} · ${x.row.open} open</span></div>
-        <a class="btn-small big" href="/b/${x.board.id}?p=${x.person.id}#i${x.row.item.id}">Claim for ${esc(Who(x.person))}</a></li>`).join("")}</ul></section>` : ""}
+        <a class="btn-small big" href="/b/${x.board.id}?p=${x.person.id}#i${x.row.item.id}">Claim for ${esc(Who(x.person))}</a></li>`).join("")}</ul></details>` : ""}
     <section class="panel"><h2>Your upcoming claims</h2>
-      ${upcoming.length ? `<ul class="mc-rows">${upcoming.map((c) => `<li class="${c.status === "waitlisted" ? "wl" : ""}">
-        <div class="mc-what"><b>${esc(slotName(c))}</b><span>${esc(c.self_user_id ? "You" : c.first_name)} · ${esc([c.board_name, c.path].filter(Boolean).join(" › "))}${c.status === "waitlisted" ? " · <b>on the waitlist</b>" : ""}</span>
+      ${upcoming.length ? [...upcoming.reduce((m, c) => m.set(c.board_name, [...(m.get(c.board_name) || []), c]), new Map())].map(([bname, cs], gi) => `<details class="mc-tw lvl-0"${gi < 2 ? " open" : ""}>
+        <summary><span class="tw" aria-hidden="true"></span><b>${esc(bname)}</b><span class="tw-sum"><span class="ok">${cs.length} claimed</span>${cs[0] && cs[0].starts_at ? ` · next ${esc(slotName({ starts_at: cs[0].starts_at, ends_at: cs[0].ends_at }).split(",").slice(0, 2).join(","))}` : ""}</span></summary>
+        <div class="mc-tw-body"><ul class="mc-rows">${cs.map((c) => `<li class="${c.status === "waitlisted" ? "wl" : ""}">
+        <div class="mc-what"><b>${esc(slotName(c))}</b><span>${esc(c.self_user_id ? "You" : c.first_name)}${c.path ? ` · ${esc(c.path)}` : ""}${c.status === "waitlisted" ? " · <b>on the waitlist</b>" : ""}</span>
           ${c.location ? `<span>${P.link(c.location)}</span>` : ""}</div>
         <form method="post" action="/claims/${c.id}/cancel" onsubmit="return confirm('Cancel this spot? It will open for someone else.')"><input type="hidden" name="back" value="/dashboard">
-          <button class="btn-ghost" type="submit">Cancel</button></form></li>`).join("")}</ul>`
-        : `<p class="muted big">Nothing claimed yet. Pick something to sign up for below.</p>`}
+          <button class="btn-ghost" type="submit">Cancel</button></form></li>`).join("")}</ul></div></details>`).join("")
+        : `<p class="muted">Nothing claimed yet. Pick something to sign up for below.</p>`}
     </section>
     <section class="panel"><h2>Sign up for something</h2>
       ${boards.length ? `<div class="mc-boards">${boards.map(({ board: b }) => `<a class="mc-board" href="/b/${b.id}">
@@ -30,7 +32,7 @@ function homePage({ user, flash, upcoming, boards, extra, admin }) {
           ${evDates(b) || b.event_location ? `<span>${esc([evDates(b), b.event_location].filter(Boolean).join(" · "))}</span>` : ""}
           ${b.description ? `<span class="desc">${esc(b.description.split(/\n/)[0].slice(0, 140))}</span>` : ""}
           <span class="go">Sign up ›</span></a>`).join("")}</div>`
-        : `<p class="muted big">There's nothing open for you to sign up for right now.</p>`}
+        : `<p class="muted">There's nothing open for you to sign up for right now.</p>`}
     </section>` });
 }
 
@@ -64,14 +66,28 @@ function rowHtml(board, person, r, back) {
 }
 
 function boardPage({ user, flash, board, person, who: people, view, mode, month, day }) {
+  view = view || { items: [], limits: [] };
   const rows = view.items;
   const dated = rows.some((r) => r.item.starts_at);
-  const base = `/b/${board.id}?p=${person.self_user_id ? "me" : person.id}`;
+  const base = person ? `/b/${board.id}?p=${person.self_user_id ? "me" : person.id}` : `/b/${board.id}?`;
   const back = `${base}${mode === "cal" ? "&v=cal" : ""}${month ? `&m=${month}` : ""}${day ? `&d=${day}` : ""}`;
-  // group rows by where they sit (Round 1 › 12U–18U › Hitting)
-  const groupRows = (list) => { const g = new Map(); for (const r of list) { const k = r.chain.map((n) => n.name).join(" › "); if (!g.has(k)) g.set(k, []); g.get(k).push(r); } return g; };
-  const listHtml = (list) => list.length ? [...groupRows(list)].map(([k, rs]) => `<section class="mc-group">${k ? `<h3>${esc(k)}</h3>` : ""}<ul class="mc-rows">${rs.map((r) => rowHtml(board, person, r, back)).join("")}</ul></section>`).join("")
-    : `<p class="muted big">Nothing here${day ? " on this day" : ""}.</p>`;
+  // nested twisties by container (Round 1 ▸ 12U–18U ▸ Hitting); rows at the bottom
+  const tally = (list) => { const open = list.filter((r) => r.canClaim).length, mine = list.filter((r) => r.mine).length;
+    return [open ? `${open} open` : "", mine ? `<span class="ok">${mine} claimed ✓</span>` : ""].filter(Boolean).join(" · ") || "nothing open"; };
+  const tree = (list, depth = 0) => {
+    const here = list.filter((r) => r.chain.length === depth), deeper = list.filter((r) => r.chain.length > depth);
+    const groups = new Map();
+    for (const r of deeper) { const n = r.chain[depth]; if (!groups.has(n.id)) groups.set(n.id, { node: n, rows: [] }); groups.get(n.id).rows.push(r); }
+    const only = groups.size === 1;
+    return (here.length ? `<ul class="mc-rows">${here.map((r) => rowHtml(board, person, r, back)).join("")}</ul>` : "")
+      + [...groups.values()].map(({ node, rows: rs }) => {
+        const open = only || rs.some((r) => r.mine || r.canClaim);
+        return `<details class="mc-tw lvl-${depth}" data-id="${node.id}"${open ? " open" : ""}><summary><span class="tw" aria-hidden="true"></span><b>${esc(node.name)}</b><span class="tw-sum">${tally(rs)}</span></summary>
+          <div class="mc-tw-body">${tree(rs, depth + 1)}</div></details>`;
+      }).join("");
+  };
+  const listHtml = (list) => list.length ? tree(list) : `<p class="muted">Nothing here${day ? " on this day" : ""}.</p>`;
+  const flat = (list) => list.length ? `<ul class="mc-rows">${list.map((r) => rowHtml(board, person, r, back)).join("")}</ul>` : `<p class="muted">Nothing here on this day.</p>`;
   const where = (L) => (L.kind === "board" ? "on this board" : `in ${esc(L.name)}`);
   const limitNotes = view.limits.map((L) => L.left
     ? `<li>${esc(Who(person))} can claim <b>${L.left}</b> more ${where(L)} <span class="fine">(${L.used} of ${L.limit} used)</span></li>`
@@ -95,21 +111,25 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     cal = `<div class="mc-cal"><div class="cal-head"><a class="btn-ghost" href="${base}&v=cal&m=${prev}">‹</a><b>${new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</b><a class="btn-ghost" href="${base}&v=cal&m=${next}">›</a></div>
       <div class="cal-grid">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((x) => `<div class="cw">${x}</div>`).join("")}${cells.join("")}</div>
       <p class="fine">Tap a day to see what's open.</p></div>
-      ${day ? `<h2 class="mc-day">${esc(new Date(day + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))}</h2>${listHtml(byDay[day] || [])}` : ""}`;
+      ${day ? `<h2 class="mc-day">${esc(new Date(day + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))}</h2>${flat(byDay[day] || [])}` : ""}`;
   }
+  const pick = (p) => `/b/${board.id}?p=${p.self_user_id ? "me" : p.id}${mode === "cal" ? "&v=cal" : ""}`;
+  const meta = [evDates(board), board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean);
   return page({ title: board.name, user, flash,
-    body: `<a class="back" href="/dashboard">My Claims</a>
-    <section class="panel mc-head"><h1>${esc(board.name)}</h1>
-      ${evDates(board) || board.event_location ? `<p class="mc-sub">${esc([evDates(board)].filter(Boolean).join(""))}${board.event_location ? `${evDates(board) ? " · " : ""}${P.link(board.event_location)}` : ""}</p>` : ""}
-      ${board.description ? `<p class="board-note">${esc(board.description)}</p>` : ""}
-      <div class="mc-person"><span>Signing up: <b>${person.self_user_id ? "Me" : `${esc(person.first_name)} ${esc(person.last_name || "")}`}</b></span>
-        ${people.length > 1 ? `<a class="btn-ghost" href="/b/${board.id}">Change</a>` : ""}</div>
-      ${limitNotes.length ? `<ul class="mc-limits">${limitNotes.join("")}</ul>` : ""}
-      ${extra.length ? `<p class="mc-lo">🔓 <b>${extra.length} extra spot${extra.length === 1 ? " is" : "s are"} open</b> to everyone, even past a limit. Look for <b>Open to everyone</b> below.</p>` : ""}
-    </section>
+    body: `<div class="mc-top"><a class="back" href="/dashboard">My Claims</a>
+      <h1 class="mc-bname">${esc(board.name)}</h1>${meta.length ? `<span class="mc-meta">${meta.map((x) => x.startsWith("<") ? x : esc(x)).join(" · ")}</span>` : ""}</div>
+    ${board.description ? `<p class="mc-desc">${esc(board.description)}</p>` : ""}
+    <nav class="mc-people" aria-label="Who's signing up"><span>Signing up:</span>
+      ${people.map((p) => `<a class="pchip${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? " on" : ""}" href="${pick(p)}">${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
+    ${!person ? `<p class="mc-pickfirst">👆 Tap who's signing up to see what's available.</p>` : `
+    ${limitNotes.length || extra.length ? `<p class="mc-notes">${limitNotes.length ? `${esc(Who(person))}: ${view.limits.map((L) => L.left ? `<b>${L.left}</b> more ${where(L)}` : `all ${L.limit} used ${where(L)}`).join(" · ")}` : ""}${extra.length ? `${limitNotes.length ? " · " : ""}<span class="lo-tag">🔓 ${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}</p>` : ""}
     ${dated ? `<nav class="mc-toggle" aria-label="View"><a href="${base}&v=list"${mode === "list" ? ' aria-current="page"' : ""}>☰ List</a><a href="${base}&v=cal"${mode === "cal" ? ' aria-current="page"' : ""}>📅 Calendar</a></nav>` : ""}
-    <section class="panel">${mode === "cal" && dated ? cal : listHtml(rows)}</section>
-    ${board.contact_name || board.contact_info ? `<p class="fine mc-contact">Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}</p>` : ""}` });
+    <section class="panel mc-list">${mode === "cal" && dated ? cal : listHtml(rows)}</section>`}
+    <script>(function () { var K = "mc-open-${board.id}", st = {}; try { st = JSON.parse(localStorage.getItem(K) || "{}"); } catch (e) {}
+      document.querySelectorAll("details.mc-tw").forEach(function (d) { if (d.dataset.id in st) d.open = st[d.dataset.id];
+        d.addEventListener("toggle", function () { st[d.dataset.id] = d.open; try { localStorage.setItem(K, JSON.stringify(st)); } catch (e) {} }); });
+      var h = location.hash && document.querySelector(location.hash); if (h) { var p = h.parentElement; while (p) { if (p.tagName === "DETAILS") p.open = true; p = p.parentElement; } h.scrollIntoView({ block: "center" }); }
+    })();</script>` });
 }
 
 module.exports = { homePage, whoPage, boardPage };

@@ -64,9 +64,15 @@ router.get("/b/:sid", wrap(async (req, res) => {
   const all = await boardsFor(req.user, people);
   const entry = all.find((x) => x.board.id === sid);
   if (!entry) return go(res, "/dashboard", { err: "That board isn't open to you right now." });
+  const ck = `ci_p_${sid}`;
   let pid = req.query.p === "me" ? "me" : int(req.query.p);
+  if (!pid && req.cookies && req.cookies[ck]) pid = req.cookies[ck] === "me" ? "me" : int(req.cookies[ck]);   // who they picked last time
   if (!pid && entry.who.length === 1) pid = entry.who[0].id || "me";
-  if (!pid) return res.send(v.whoPage({ user: req.user, flash: flashFrom(req), board: entry.board, who: entry.who }));
+  if (pid && pid !== "me" && !entry.who.some((p) => p.id === pid)) pid = null;
+  if (pid === "me" && !entry.who.some((p) => p.self_user_id)) pid = null;
+  const viewMode0 = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
+  if (!pid) return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0 }));
+  res.cookie(ck, String(pid), { maxAge: 180 * 864e5, sameSite: "lax" });
   if (pid === "me") {   // claiming for themselves: make sure they have a record
     if (!people.me) people.me = (await PP.ensureAdult(req.user.email)).person;
     pid = people.me.id;
