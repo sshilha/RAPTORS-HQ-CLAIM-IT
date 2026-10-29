@@ -145,17 +145,22 @@ async function claim({ itemId, athleteId, userId = null, note = null, member = u
     const q = chain.board.question;
     const cleanNote = q && q.label ? String(note || "").replace(/\s+/g, " ").trim().slice(0, 120) || null : null;
     if (q && q.label && q.required && !cleanNote) throw new ClaimError(`Please answer: ${q.label}`);
-    // limits (skipped for open leftover spots, which don't count)
-    if (!ok.leftover) for (const L of eff.limits) {
+    // limits: every limit on the path applies. An open leftover spot can go past a reached limit
+    // (that claim is an "extra" and doesn't count); under the limit, it counts like any other claim.
+    let extra = false;
+    for (const L of eff.limits) {
       const ids = L.kind === "board" ? (await db.query(`SELECT id FROM board_items WHERE schedule_id=$1`, [chain.board.id])).rows.map((r) => r.id) : await itemsUnder(L.id, db);
       const n = (await db.query(`SELECT count(*)::int AS n FROM board_claims WHERE athlete_id=$1 AND item_id = ANY($2) AND status<>'canceled' AND counts`, [athleteId, ids])).rows[0].n;
-      if (n >= L.limit) throw new ClaimError(`That's the limit: ${L.limit} per person ${L.kind === "board" ? "on this board" : `in ${L.name}`}.`);
+      if (n >= L.limit) {
+        if (ok.leftover) { extra = true; break; }
+        throw new ClaimError(`That's the limit: ${L.limit} per person ${L.kind === "board" ? "on this board" : `in ${L.name}`}.`);
+      }
     }
     const taken = (await db.query(`SELECT count(*)::int AS n FROM board_claims WHERE item_id=$1 AND status='confirmed'`, [itemId])).rows[0].n;
     let status = "confirmed";
     if (taken >= chain.item.capacity) { if (!eff.waitlist) throw new ClaimError("That's full."); status = "waitlisted"; }
     const c = (await db.query(`INSERT INTO board_claims (item_id, athlete_id, booked_by, status, counts, note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [itemId, athleteId, userId, status, !ok.leftover, cleanNote])).rows[0];
+      [itemId, athleteId, userId, status, !extra, cleanNote])).rows[0];
     await db.query("COMMIT");
     return c;
   } catch (e) { await db.query("ROLLBACK"); throw e; } finally { db.release(); }
@@ -259,6 +264,8 @@ async function personView(boardId, person, now = new Date()) {
     FROM board_items i WHERE i.schedule_id=$1 AND i.canceled_at IS NULL ORDER BY i.starts_at NULLS FIRST, i.sort, i.id`, [boardId])).rows;
   const mine = (await query(`SELECT c.* FROM board_claims c JOIN board_items i ON i.id=c.item_id
     WHERE i.schedule_id=$1 AND c.athlete_id=$2 AND c.status<>'canceled'`, [boardId, person.athleteId])).rows;
+  const goingRows = (await query(`SELECT c.item_id, c.status, c.note, a.first_name, a.last_name FROM board_claims c JOIN board_items i ON i.id=c.item_id
+    JOIN athletes a ON a.id=c.athlete_id WHERE i.schedule_id=$1 AND c.status='confirmed' ORDER BY c.created_at, c.id`, [boardId])).rows;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const chainOf = (nodeId) => { const out = []; let n = byId.get(nodeId); while (n) { out.unshift(n); n = byId.get(n.parent_id); } return out; };
   const under = (nodeId) => { const ids = new Set([nodeId]); let grew = true; while (grew) { grew = false; for (const n of nodes) if (ids.has(n.parent_id) && !ids.has(n.id)) { ids.add(n.id); grew = true; } } return ids; };
@@ -271,9 +278,12 @@ async function personView(boardId, person, now = new Date()) {
     if (chk.hidden) continue;                                  // not for this person: don't show it
     const my = mine.find((c) => c.item_id === it.id) || null;
     let blockedBy = null;
-    if (chk.ok && !my && !chk.leftover) for (const L of eff.limits) { const n = counting(L); if (n >= L.limit) { blockedBy = { ...L, used: n }; break; } }
+    if (chk.ok && !my) for (const L of eff.limits) { const n = counting(L); if (n >= L.limit) { blockedBy = { ...L, used: n }; break; } }
+    const extra = !!(chk.leftover && blockedBy);        // past a reached limit, but an open leftover spot
+    if (extra) blockedBy = null;
     const full = it.taken >= it.capacity;
-    out.push({ item: it, chain: chain.nodes, eff, ok: chk.ok, reason: chk.ok ? null : chk.reason, leftover: !!chk.leftover, mine: my, blockedBy,
+    out.push({ item: it, chain: chain.nodes, eff, ok: chk.ok, reason: chk.ok ? null : chk.reason, leftover: extra, mine: my, blockedBy,
+      going: goingRows.filter((g) => g.item_id === it.id),
       full, canClaim: chk.ok && !my && !blockedBy && (!full || eff.waitlist), open: it.capacity - it.taken,
       cancelBy: cancelDeadline(it, eff) });
   }
@@ -285,4 +295,28 @@ async function personView(boardId, person, now = new Date()) {
   return { board, nodes, items: out, limits, mine };
 }
 
-module.exports = { personView, nodeChain, effectiveAt, children, items, boardTotals, ClaimError, createBoard, addNode, addItem, chainFor, effective, check, claim, cancel, cancelDeadline, setCapacity, nodeDepth, whoPasses };
+// One-time fix: claims made before v0.4.4 inside a leftover window were saved as "doesn't count" even under
+// the limit. Re-check every active claim in the order it was made: it counts unless a limit was already full.
+async function recountClaims() {
+  const done = (await query(`SELECT 1 FROM app_flags WHERE name='claims_recount_v1'`)).rowCount;
+  if (done) return 0;
+  const claims = (await query(`SELECT c.* FROM board_claims c WHERE c.status<>'canceled' ORDER BY c.created_at, c.id`)).rows;
+  const counted = [];   // claims we've decided count: { athleteId, itemId }
+  let changed = 0;
+  for (const c of claims) {
+    const chain = await chainFor(c.item_id); if (!chain) continue;
+    const eff = effective(chain);
+    let over = false;
+    for (const L of eff.limits) {
+      const ids = new Set(L.kind === "board" ? (await query(`SELECT id FROM board_items WHERE schedule_id=$1`, [chain.board.id])).rows.map((r) => r.id) : await itemsUnder(L.id, { query }));
+      if (counted.filter((x) => x.athleteId === c.athlete_id && ids.has(x.itemId)).length >= L.limit) { over = true; break; }
+    }
+    const should = !over;
+    if (should) counted.push({ athleteId: c.athlete_id, itemId: c.item_id });
+    if (should !== c.counts) { await query(`UPDATE board_claims SET counts=$2 WHERE id=$1`, [c.id, should]); changed++; }
+  }
+  await query(`INSERT INTO app_flags (name) VALUES ('claims_recount_v1') ON CONFLICT DO NOTHING`);
+  return changed;
+}
+
+module.exports = { recountClaims, personView, nodeChain, effectiveAt, children, items, boardTotals, ClaimError, createBoard, addNode, addItem, chainFor, effective, check, claim, cancel, cancelDeadline, setCapacity, nodeDepth, whoPasses };

@@ -88,13 +88,60 @@ ${foot()}
 </html>`;
 }
 
-function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, tab, pub }) {
+// My Claims dashboard header (opt-in with dash: true). Same links and permissions as the regular header.
+const DI = {
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>',
+  board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>',
+  report: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2.5H6.5A2 2 0 0 0 4.5 4.5v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M8.5 13h7M8.5 17h7"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3.5"/><path d="M5.5 19c1.4-2.6 3.7-4 6.5-4s5.1 1.4 6.5 4"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+};
+function dashHeader(user, admin, coach) {
+  const items = [["/dashboard", "My Claims", DI.cal, true],
+    ...(admin ? [["/admin/settings", LABELS.schedules, DI.board]] : []),
+    ...(admin || coach ? [["/checkin", "Check-in", DI.check]] : []),
+    ...(admin ? [["/admin/reports", "Reports", DI.report]] : [])];
+  const role = admin ? "Administrator" : coach ? "Coach" : "Parent Account";
+  return `<header class="dh">
+  <div class="dh-in">
+    <a class="dh-logo" href="/dashboard"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
+    <nav class="dh-nav" aria-label="Main">${items.map(([href, label, icon, on]) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${icon}<span>${esc(label)}</span></a>`).join("")}</nav>
+    <div class="dh-right">
+      <details class="dh-acct"><summary>${DI.user}<span class="dh-who"><b>${esc(user.email)}</b><small>${role}</small></span>${DI.down}</summary>
+        <div class="dh-menu"><a href="/request-change">Request a change to my info</a>${admin ? `<a href="/admin/settings/app">App Settings</a>` : ""}
+          <form method="post" action="/logout"><button type="submit">Sign Out</button></form></div></details>
+      ${admin ? `<a class="dh-settings" href="/admin/settings/app">${DI.gear}<span>App Settings</span></a>` : ""}
+      <form method="post" action="/logout" class="dh-out"><button type="submit">Sign Out</button></form>
+    </div>
+    <details class="dh-burger"><summary aria-label="Menu">${DI.menu}</summary>
+      <div class="dh-sheet">
+        <div class="dh-sheet-who">${DI.user}<span><b>${esc(user.email)}</b><small>${role}</small></span></div>
+        ${items.map(([href, label, icon, on]) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${icon}${esc(label)}</a>`).join("")}
+        ${admin ? `<a href="/admin/settings/app">${DI.gear}App Settings</a>` : ""}
+        <a href="/request-change">${DI.report}Request a change to my info</a>
+        <form method="post" action="/logout"><button type="submit">Sign Out</button></form>
+      </div></details>
+  </div>
+</header>`;
+}
+
+function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, tab, pub, dash }) {
   const coach = !!(user && user.is_coach);
   if (user && require("../auth").isAdmin(user)) admin = admin || true; // admins always get their links
   if (pub && !user) return publicLayout({ title, body, flash });
   if (gate || !user) return gateLayout({ title, body, flash });
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
+  if (dash) return `${head(title)}
+<body class="member-area dash">
+${dashHeader(user, admin, coach)}
+<main class="dash-page">${flashHtml(flash)}${body}</main>
+${foot(user, tab)}
+</body>
+</html>`;
   return `${head(title)}
 <body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">
 <header class="appbar">

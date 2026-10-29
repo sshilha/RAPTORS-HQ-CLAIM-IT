@@ -105,6 +105,22 @@ const rejects = async (p, re) => { try { await p; } catch (e) { if (!(e instance
     const p = await E.setCapacity(H1.id, 2); assert.equal(p.length, 1); assert.equal(p[0].athlete_id, lee.a);
   });
 
+  console.log("Leftover window + limits");
+  const lw = await E.createBoard({ name: "Leftover window", depth: 2, claimMode: "family", settings: { leftover_hours: 168 } });
+  await publish(lw.id);
+  const dz = await E.addNode({ boardId: lw.id, name: "Defense", settings: { limit: 1 } });
+  const D1 = await E.addItem({ boardId: lw.id, nodeId: dz.id, title: "", capacity: 5, startsAt: inH(72), endsAt: inH(74) });
+  const D2 = await E.addItem({ boardId: lw.id, nodeId: dz.id, title: "", capacity: 5, startsAt: inH(96), endsAt: inH(98) });
+  const kid = await person("Kai", "Lane", null, null, [], "kai.parent@ex.com");
+  await t("inside a leftover window, a claim under the limit still counts", async () => {
+    const c = await E.claim({ itemId: D1.id, athleteId: kid.a, userId: kid.u }); assert.equal(c.counts, true);
+    const v = await E.personView(lw.id, { athleteId: kid.a, userId: kid.u, member: null });
+    assert.equal(v.limits.find((L) => L.name === "Defense").left, 0);
+  });
+  await t("...and once the limit is reached, a leftover spot is an extra that doesn't count", async () => {
+    const c = await E.claim({ itemId: D2.id, athleteId: kid.a, userId: kid.u }); assert.equal(c.counts, false);
+  });
+
   console.log("Timing and visibility");
   const r2 = await E.addNode({ boardId: tr.id, name: "Round 2", settings: { opens_at: inH(48).toISOString() } });
   const r2c = await E.addNode({ boardId: tr.id, parentId: r2.id, name: "Cage Time" });

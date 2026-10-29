@@ -54,6 +54,7 @@ async function start() {
   await auth.loadAdmins();
   await require("./engine/schema").migrate(); // containers, items, claims (the new engine)
   await require("./people").migrate(); // the People directory fields
+  { const n = await require("./engine").recountClaims(); if (n) console.log(`Recounted claims: ${n} fixed`); }
   await require("./locations").migrate(); // saved places (names from older lists, addresses added in ⚙ App)
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
