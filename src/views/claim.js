@@ -44,8 +44,9 @@ const audience = (b) => {
   return "Anyone signed in";
 };
 
-function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], who = 0, all = false, tab = "", allBoards = false }) {
-  const q = (o) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ who: who || "", all: all ? "1" : "", tab: tab === "vol" ? "vol" : "", boards: allBoards ? "all" : "", ...o }).filter(([, x]) => x))); const t = p.toString(); return `/dashboard${t ? `?${t}` : ""}`; };
+function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], who = 0, when = "upcoming", more = false, tab = "", allBoards = false }) {
+  const all = more;
+  const q = (o) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ who: who || "", when, more: more ? "1" : "", tab: tab === "vol" ? "vol" : "", boards: allBoards ? "all" : "", ...o }).filter(([, x]) => x))); const t = p.toString(); return `/dashboard${t ? `?${t}` : ""}`; };
   // alerts: one compact row per board + person
   const alerts = [...extra.reduce((m, x) => { const k = `${x.board.id}:${x.person.id}`; if (!m.has(k)) m.set(k, { ...x, n: 0 }); m.get(k).n++; return m; }, new Map()).values()];
   const alertRows = alerts.map((x, i) => `<a class="d-alert ${i % 2 ? "green" : "blue"}" href="/b/${x.board.id}?p=${x.person.self_user_id ? "me" : x.person.id}">
@@ -61,7 +62,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
     if (!rows.length) return "";
     return `<div class="d-group">
       <div class="d-group-h">${thumb("sm", { id: cs[0].schedule_id, image: cs[0].board_image ? 1 : null, image_at: cs[0].board_image_at, short_code: cs[0].board_code, name: cs[0].board_name })}<b>${esc(cs[0].board_name)}</b>
-        <span class="d-group-s"><b>${upcoming.length} claimed</b>${next ? ` · Next ${esc(shortDay(next.starts_at))}` : ""}</span></div>
+        <span class="d-group-s">${when === "past" ? `<b>${cs.length} done</b>${cs[0] && cs[0].starts_at ? ` · Latest ${esc(shortDay(cs[0].starts_at))}` : ""}` : `<b>${upcoming.length} claimed</b>${next ? ` · Next ${esc(shortDay(next.starts_at))}` : ""}`}</span></div>
       ${rows.map((c) => `<div class="d-claim${c.past ? " past" : ""}${c.status === "waitlisted" ? " wl" : ""}">${dayBlock(c.starts_at)}
         <div class="d-claim-b"><div class="d-claim-t"><b>${c.starts_at ? esc(timeRange(c.starts_at, c.ends_at)) : esc(c.title || "Anytime")}</b>${c.status === "waitlisted" ? `<span class="d-pill wl">Waitlist</span>` : ""}${c.past ? `<span class="d-pill">Done</span>` : ""}</div>
           <span>${esc([c.self_user_id ? "You" : c.first_name, ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}</span></div>
@@ -69,11 +70,15 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
             <input type="hidden" name="back" value="/dashboard"><button type="submit">${IC.trash}<span>Cancel</span></button></form>`
           : `<span class="d-late">Too late to cancel</span>`}
       </div>`).join("")}</div>`;
-  }).join("") + (!all && claims.length > LIMIT ? `<a class="d-more" href="${q({ all: "1" })}#claims">Show all ${claims.length} claims</a>` : "")
-    : `<div class="d-empty">${IC.cal}<b>${who ? "Nothing claimed for this person yet." : "No upcoming claims yet."}</b><span>Pick something under <i>Sign Up for Something</i> to get started.</span></div>`;
+  }).join("") + (!all && claims.length > LIMIT ? `<a class="d-more" href="${q({ more: "1" })}#claims">Show all ${claims.length}</a>` : "")
+    : `<div class="d-empty">${IC.cal}<b>${{ week: "Nothing claimed for the rest of this week.", "30": "Nothing claimed in the next 30 days.", upcoming: "No upcoming claims yet.", past: "No past claims yet." }[when]}</b>
+        <span>${when === "past" ? "Claims show here once they've happened." : when === "upcoming" ? "Pick something under <i>Sign Up for Something</i> to get started." : `<a href="${q({ when: "upcoming", more: "" })}#claims">See all upcoming</a>`}</span></div>`;
   // family filter
-  const famChips = family.length > 1 ? `<nav class="d-fam" aria-label="Show claims for">${[["", "All family members"], ...family.map((p) => [p.self_user_id ? "me" : String(p.id), p.self_user_id ? "Me (parent / volunteer)" : p.first_name])]
-    .map(([k, l]) => `<a href="${q({ who: k })}#claims"${String(who || "") === k ? ' aria-current="true"' : ""}>${esc(l)}</a>`).join("")}</nav>` : "";
+  const famChips = `<div class="d-filt">
+      ${family.length > 1 ? `<div class="d-filt-row"><span class="d-filt-l">Who</span><nav class="d-fam" aria-label="Show claims for">${[["", "All family"], ...family.map((p) => [p.self_user_id ? "me" : String(p.id), p.self_user_id ? "Me" : p.first_name])]
+        .map(([k, l]) => `<a href="${q({ who: k, more: "" })}#claims"${String(who || "") === k ? ' aria-current="true"' : ""}>${esc(l)}</a>`).join("")}</nav></div>` : ""}
+      <div class="d-filt-row"><span class="d-filt-l">When</span><nav class="d-fam" aria-label="Which claims">${[["week", "This week"], ["30", "Next 30 days"], ["upcoming", "All upcoming"], ["past", "Past"]]
+        .map(([k, l]) => `<a href="${q({ when: k, more: "" })}#claims"${when === k ? ' aria-current="true"' : ""}>${l}</a>`).join("")}</nav></div></div>`;
   // sign up: one list of everything open; each card says what kind it is. ?tab=vol shows just volunteer boards.
   const volOnly = tab === "vol";
   const list = volOnly ? boards.filter((b) => isVolunteer(b.board)) : boards;
@@ -95,8 +100,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
       ${alertRows ? `<div class="d-alerts">${alertRows}</div>` : ""}
       <div class="d-cols">
         <section class="d-card" id="claims">
-          <div class="d-card-h"><span class="d-card-ic">${IC.cal}</span><h2>Your Upcoming Claims</h2>
-            <a class="d-btn" href="${all ? q({ all: "" }) : q({ all: "1" })}#claims">${all ? "Upcoming Only" : "View All Claims"} ${IC.right}</a></div>
+          <div class="d-card-h"><span class="d-card-ic">${IC.cal}</span><h2>${when === "past" ? "Your Past Claims" : "Your Upcoming Claims"}</h2></div>
           ${famChips}
           ${claimsHtml}
         </section>

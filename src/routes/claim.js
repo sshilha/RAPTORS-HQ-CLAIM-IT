@@ -43,7 +43,14 @@ router.get("/dashboard", wrap(async (req, res) => {
   const people = await myPeople(req.user);
   const family = [...people.kids, ...(people.me ? [people.me] : [])];
   const ids = family.map((p) => p.id);
-  const all = req.query.all === "1";                       // View All Claims: include recent past ones too
+  // When: this week (through Saturday), next 30 days, all upcoming (default), or past. Remembered.
+  const when = ["week", "30", "upcoming", "past"].includes(req.query.when) ? req.query.when : req.cookies && ["week", "30", "upcoming", "past"].includes(req.cookies.ci_when) ? req.cookies.ci_when : "upcoming";
+  if (req.query.when) res.cookie("ci_when", when, { maxAge: 365 * 864e5, sameSite: "lax" });
+  const more = req.query.more === "1";
+  const range = { week: "AND i.starts_at > now() AND i.starts_at < (date_trunc('week', (now() AT TIME ZONE 'America/Chicago') + interval '1 day') + interval '6 days') AT TIME ZONE 'America/Chicago'",
+    "30": "AND i.starts_at > now() AND i.starts_at < now() + interval '30 days'",
+    upcoming: "AND (i.starts_at IS NULL OR i.starts_at > now())",
+    past: "AND i.starts_at <= now()" }[when];
   // family filter: everyone, one athlete, or "me" (the parent / volunteer)
   const who = req.query.who === "me" ? (people.me ? people.me.id : -1) : int(req.query.who) || 0;
   const shownIds = who ? ids.filter((x) => x === who) : ids;
@@ -53,9 +60,8 @@ router.get("/dashboard", wrap(async (req, res) => {
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id
-    WHERE c.athlete_id = ANY($1) AND c.status<>'canceled' AND sc.archived_at IS NULL
-      AND (i.starts_at IS NULL OR i.starts_at > now() ${all ? "- interval '90 days'" : ""})
-    ORDER BY i.starts_at NULLS LAST, c.id`, [shownIds])).rows : [];
+    WHERE c.athlete_id = ANY($1) AND c.status<>'canceled' AND sc.archived_at IS NULL ${range}
+    ORDER BY ${when === "past" ? "i.starts_at DESC" : "i.starts_at NULLS LAST"}, c.id`, [shownIds])).rows : [];
   // can each still be canceled in the app? (same rule as the board page: the cancel deadline in force)
   for (const c of claims) {
     const chain = await E.chainFor(c.item_id);
@@ -76,7 +82,7 @@ router.get("/dashboard", wrap(async (req, res) => {
     for (const r of view.items) if (r.leftover && r.canClaim && r.open > 0) extra.push({ board, person: p, row: r });
   }
   res.send(v.homePage({ user: req.user, flash: flashFrom(req), claims, boards, extra, admin: auth.isAdmin(req.user),
-    coach: !!req.user.is_coach, family, who: req.query.who === "me" ? "me" : who, all,
+    coach: !!req.user.is_coach, family, who: req.query.who === "me" ? "me" : who, when, more,
     tab: req.query.tab === "vol" ? "vol" : "", allBoards: req.query.boards === "all" }));
 }));
 

@@ -2315,3 +2315,9 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .b-none { color: var(--d-slate); font-style: italic; }
 .b-act .b-lim, .c-legend .b-lim { margin-left: 6px; font-size: 10px; padding: 1px 7px; }
 .b-facts .b-lim { margin-right: 4px; }
+/* Your Upcoming Claims: Who / When filters */
+.d-filt { display: flex; flex-direction: column; gap: 6px; margin: -2px 2px 10px; }
+.d-filt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.d-filt-l { font: 700 12px Inter, sans-serif; color: var(--d-slate); width: 40px; text-transform: uppercase; letter-spacing: .04em; }
+.d-filt .d-fam { margin: 0; }
+@media (max-width: 700px) { .d-filt-l { width: 100%; } }
