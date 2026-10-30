@@ -2321,3 +2321,15 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .d-filt-l { font: 700 12px Inter, sans-serif; color: var(--d-slate); width: 40px; text-transform: uppercase; letter-spacing: .04em; }
 .d-filt .d-fam { margin: 0; }
 @media (max-width: 700px) { .d-filt-l { width: 100%; } }
+/* account dropdown holds Request a change, App Settings, Sign Out */
+.dh-acct > summary { border-right: 0; padding-right: 0; }
+.dh-menu { min-width: 250px; padding: 6px; }
+.dh-menu a, .dh-menu button { display: flex; align-items: center; gap: 10px; }
+.dh-menu svg { width: 17px !important; height: 17px !important; color: #5B6B82; }
+.dh-menu form { margin: 4px 0 0; padding-top: 4px; border-top: 1px solid #E3E8F0; }
+.dh-signout { color: #b91c1c !important; } .dh-signout svg { color: #b91c1c !important; }
+/* footer: one line */
+.foot { font-size: 12px; color: #8a96a8; text-align: center; padding: 18px 12px 26px; }
+.foot .ver { display: inline; font-size: 12px; color: #8a96a8; margin: 0; }
+.foot-dot { margin: 0 4px; }
+.dh-menu { min-width: 270px; } .dh-menu a, .dh-menu button { white-space: nowrap; }
