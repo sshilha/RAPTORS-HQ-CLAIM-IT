@@ -204,12 +204,15 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const avail = (r) => r.full ? "Full" : `${r.open} of ${r.item.capacity} open`;
   const rowHtml2 = (r, o = {}) => `<div class="b-row${o.noDate ? " nod" : ""}${r.mine ? " mine" : ""}${r.leftover && !r.mine ? " lo" : ""}" id="i${r.item.id}">
       ${o.noDate ? "" : dayBlock(r.item.starts_at)}
-      <div class="b-row-main">${o.act ? `<span class="b-act" style="--c:${color((leafOf(r) || {}).id)}"><i></i>${esc((leafOf(r) || {}).name || "")}${r.chain.length > 1 ? `<small>${esc(r.chain.slice(0, -1).map((n) => n.name).join(" • "))}</small>` : ""}</span>` : ""}<b class="b-time">${r.item.starts_at ? esc(timeRange(r.item.starts_at, r.item.ends_at)) : esc(r.item.title || "Anytime")}</b>${r.item.starts_at && r.item.title ? `<span class="b-title">${esc(r.item.title)}</span>` : ""}</div>
+      <div class="b-row-main">${o.act ? `<span class="b-act" style="--c:${color((leafOf(r) || {}).id)}"><i></i>${esc((leafOf(r) || {}).name || "")}${r.chain.length > 1 ? `<small>${esc(r.chain.slice(0, -1).map((n) => n.name).join(" • "))}</small>` : ""}${limFor((leafOf(r) || {}).id)}</span>` : ""}<b class="b-time">${r.item.starts_at ? esc(timeRange(r.item.starts_at, r.item.ends_at)) : esc(r.item.title || "Anytime")}</b>${r.item.starts_at && r.item.title ? `<span class="b-title">${esc(r.item.title)}</span>` : ""}</div>
       <div class="b-row-meta"><span>${avail(r)}</span><span class="b-dot">•</span><span class="b-elig">${IC.people}${esc(whoLine(r))}</span>
         ${r.leftover && !r.mine ? `<span class="b-lo">🔓 Extra spot, doesn't count toward limits</span>` : ""}
         ${(r.item.location || r.eff.location) && (r.item.location || r.eff.location) !== board.event_location ? `<span class="b-loc">${IC.pin}${esc(r.item.location || r.eff.location)}</span>` : ""}
         ${going(r) ? `<span class="b-going">${esc(going(r))}</span>` : ""}</div>
       <div class="b-row-act">${action(r)}</div></div>`;
+  // this person's count for an activity, shown wherever that activity's name appears
+  const limFor = (leafId) => { const L = leafId && view.limits.find((x) => x.kind === "node" && x.id === leafId); if (!person || !L) return "";
+    return `<span class="b-lim${L.left ? "" : " none"}">${L.left ? `${L.left} of ${L.limit} left` : `all ${L.limit} used`}</span>`; };
   // sessions grouped by calendar day (in date order); undated ones stay as plain rows
   const dayKey = (r) => (r.item.starts_at ? inputParts(r.item.starts_at).date : "any");
   const dayGroups = (list) => [...list.reduce((m, r) => { const k = dayKey(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); return m; }, new Map())];
@@ -283,7 +286,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
         <span class="b-dlg-t"><b>${esc((leafOf(x) || {}).name || x.item.title || "Session")}</b><small>${esc(x.chain.slice(0, -1).map((n) => n.name).join(" • "))}</small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
         <div class="b-dlg-b"><dl class="b-facts"><div><dt>When</dt><dd>${esc(slotName(x.item))}</dd></div><div><dt>Spots</dt><dd>${avail(x)}</dd></div><div><dt>Who can claim</dt><dd>${esc(whoLine(x))}</dd></div>
           ${x.item.location || x.eff.location || board.event_location ? `<div><dt>Where</dt><dd>${P.link(x.item.location || x.eff.location || board.event_location)}</dd></div>` : ""}
-          ${going(x) ? `<div><dt>Going</dt><dd>${esc(going(x).replace(/^Going: /, ""))}</dd></div>` : ""}
+          ${limFor((leafOf(x) || {}).id) ? `<div><dt>${esc(Name)}</dt><dd>${limFor((leafOf(x) || {}).id)} in ${esc((leafOf(x) || {}).name)}</dd></div>` : ""}
+          <div><dt>Going</dt><dd>${going(x) ? esc(going(x).replace(/^Going: /, "")) : `<span class="b-none">No one yet</span>`}</dd></div>
           ${x.leftover && !x.mine ? `<div><dt>Note</dt><dd>🔓 Extra spot: doesn't count toward limits</dd></div>` : ""}</dl>
           <div class="b-dlg-act">${action(x, true)}</div></div></dialog>`).join("");
   // ---- header + toolbar ----
@@ -315,7 +319,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       ${dated ? `<nav class="b-view"><a href="${link({ v: "list", m: "" })}"${mode !== "cal" ? ' aria-current="true"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List View</a>
         <a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="true"' : ""}>${IC.cal}Calendar View</a></nav>` : ""}
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
-        <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
+        <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}${limFor(a.id)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
       ${mode !== "cal" && dated ? `<div class="b-group-w"><span class="b-group-l" id="grp-l">Group by</span><nav class="b-group" aria-labelledby="grp-l"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>${esc(require("../schedules").labels(board).activity.one)}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>Day</a></nav></div>` : ""}
       <form method="get" action="/b/${board.id}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
         ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}

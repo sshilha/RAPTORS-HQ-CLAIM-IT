@@ -2312,3 +2312,6 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .b-group-l { font: 600 12px Inter, sans-serif; color: var(--d-slate); }
 .b-group { padding: 2px; } .b-group a { padding: 5px 14px; }
 @media (max-width: 760px) { .b-group-w { width: 100%; margin-left: 0; } .b-group-w .b-group { width: 100%; } }
+.b-none { color: var(--d-slate); font-style: italic; }
+.b-act .b-lim, .c-legend .b-lim { margin-left: 6px; font-size: 10px; padding: 1px 7px; }
+.b-facts .b-lim { margin-right: 4px; }
