@@ -11,6 +11,12 @@ app.use(express.urlencoded({ extended: false, limit: "15mb" })); // room for upl
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(auth.loadUser);
+app.use((req, res, next) => {   // finish the Welcome step first (password etc.), then the rest of the app
+  if (!req.user || !require("./accounts").mustSetUp(req.user)) return next();
+  if (/^\/(welcome|logout|account\/email\/confirm|img\/|favicon|.*\.(css|js|png|jpg|svg|ico|webmanifest)$)/.test(req.path)) return next();
+  if (req.method !== "GET") return res.status(403).send("Finish setting up your account first.");
+  res.redirect("/welcome");
+});
 // Coaches (not admins) get a Check-in link; remember that on the signed-in user
 app.use(async (req, res, next) => {
   try { if (req.user && !auth.isAdmin(req.user)) req.user.is_coach = await require("./attendance").isCoach(req.user); next(); } catch (e) { next(e); }
@@ -30,6 +36,9 @@ app.use("/admin/rounds", require("./routes/rounds"));
 app.use("/admin/seasons", require("./routes/seasons"));
 app.use("/admin/b", require("./routes/board")); // container engine actions
 app.use("/admin/people", require("./routes/people")); // ⚙ App settings → People
+app.use("/admin/requests", require("./routes/requests")); // family / change requests to approve
+app.use("/admin/signins", require("./routes/signins")); // sign-in history for troubleshooting
+app.use("/account", require("./routes/account")); // My Account
 app.use("/admin/setup", require("./routes/setup"));
 app.use("/admin/members", require("./routes/members"));
 app.use("/admin/settings", require("./routes/settings"));
@@ -62,6 +71,7 @@ async function start() {
   await auth.loadAdmins();
   await require("./engine/schema").migrate(); // containers, items, claims (the new engine)
   await require("./people").migrate(); // the People directory fields
+  await require("./accounts").migrate(); // passwords, codes, family requests
   { const n = await require("./engine").recountClaims(); if (n) console.log(`Recounted claims: ${n} fixed`); }
   await require("./locations").migrate(); // saved places (names from older lists, addresses added in ⚙ App)
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);

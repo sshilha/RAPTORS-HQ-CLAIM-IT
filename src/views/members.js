@@ -15,7 +15,7 @@ function needHelp(sc, L) {
   const SCm = require("../schedules");
   const p = esc(L.participant.many.toLowerCase()), g = esc(L.group.one.toLowerCase());
   if (SCm.claimMode(sc) === "roster") return `<p class="fine page-help">Only the ${p} listed here can claim on <b>${esc(sc.name)}</b>. Add each one with their ${g}${SCm.restricts(sc) ? " and tags" : ""}, plus a parent or contact email so they can sign in and see their own.</p>`;
-  if (SCm.restricts(sc)) return `<p class="fine page-help">Give people their ${g} and tags here. Anyone signed in can still claim things that aren't limited; limited ones need the matching ${g} or tag.</p>`;
+  if (SCm.restricts(sc)) return `<p class="fine page-help">Give people their ${g} and tags here. Anyone with an account can still claim things that aren't limited; limited ones need the matching ${g} or tag.</p>`;
   return `<p class="fine page-help"><b>Not in use on this board.</b> It's open to ${SCm.claimMode(sc) === "public" ? "anyone with the link" : "anyone signed in"}, so people just claim spots. <a href="/admin/setup/schedule?s=${sc.id}">Back to settings</a></p>`;
 }
 

@@ -21,7 +21,7 @@ function unnest(html) {
 
 const word = (sc, i, many = true) => { const L = SC.labels(sc), k = SC.levelKeys(sc)[i]; return (many ? L[k].many : L[k].one); };
 const hrs = (h) => h % 24 === 0 && h ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} hour${h === 1 ? "" : "s"}`;
-const whoText = (w) => !w || !w.mode ? "Same as above" : w.mode === "signed_in" ? "Anyone signed in" : w.mode === "list" ? "Only people on the list"
+const whoText = (w) => !w || !w.mode ? "Same as above" : w.mode === "signed_in" ? "Anyone with an account" : w.mode === "list" ? "Only people on the list"
   : `Only ${[...(w.groups || []), ...(w.tags || [])].join(", ") || "certain people"}`;
 const when = (t) => t ? fmtDateTime(t) : "Right away";
 
@@ -33,7 +33,7 @@ function settingRows(sc, eff, own, at) {
   const all = eff.limits.length ? eff.limits.map((l) => `${l.limit} in ${l.kind === "board" ? "the board" : l.name}`).join(", ") : "None";
   return [
     at === "board"
-      ? ["Who can claim", { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" }[SC.claimMode(sc)], "The board's front door"]
+      ? ["Who can claim", { public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" }[SC.claimMode(sc)], "The board's front door"]
       : ["Who can claim here", whoText(own && own.who), own && own.who ? "Set here" : eff.who.length ? `Narrowed above (${eff.who.map((w) => w.name).join(", ")})` : "Same as the board"],
     ["Per-person limit", at === "board" ? (own && own.limit != null ? `${own.limit} per person on the board` : "Unlimited") : mine, at === "board" ? "Board" : `All limits that apply: ${all}`],
     ...(dated ? [["Claiming opens", when(eff.opens_at), src("opens_at")], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time", src("cancel_hours")],
@@ -60,7 +60,7 @@ function settingsFormRaw(sc, node, eff) {
   return `<form method="post" action="/admin/b/${sc.id}/nodes/${node.id}/settings" class="node-settings">
     <fieldset><legend>Who can claim here</legend>
       ${opt("who_mode", "", w.mode || "", `Same as above <span class="fine">(${esc(eff.who.length ? whoText(eff.who[eff.who.length - 1]) : "the board's setting")})</span>`)}
-      ${door === "public" ? opt("who_mode", "signed_in", w.mode, "Anyone signed in") : ""}
+      ${door === "public" ? opt("who_mode", "signed_in", w.mode, "Anyone with an account") : ""}
       ${door !== "roster" ? opt("who_mode", "list", w.mode, "Only people on the list") : ""}
       ${groups.length || tags.length ? opt("who_mode", "teams", w.mode, `Only certain ${esc(SC.labels(sc).group.many.toLowerCase())} or tags`) : `<p class="fine">Add ${esc(SC.labels(sc).group.many.toLowerCase())} or tags to limit by them.</p>`}
       <div class="who-pick">${groups.map((g) => `<label class="tag-box"><input type="checkbox" name="who_groups" value="${esc(g)}"${(w.groups || []).includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("")}

@@ -390,7 +390,7 @@ function publishCard(r, locked, L) {
   const mode = SC.claimMode(CUR);
   const n = r.scheduled || 0;
   const setupLink = `<a href="/admin/setup/schedule?s=${CUR.id}">change</a>`;
-  const who = { public: "Anyone with the link", family: "Anyone signed in", roster: `Only ${L.participant.many.toLowerCase()} you add` }[mode];
+  const who = { public: "Anyone with the link", family: "Anyone with an account", roster: `Only ${L.participant.many.toLowerCase()} you add` }[mode];
   if (r.published_at) return `<section class="panel side-card">
     <div class="bc-head"><h2>Publish &amp; share</h2><span class="pill ok">Live</span></div>
     <p class="fine">${mode === "public" ? "Share this link or QR code. Anyone with it can claim." : mode === "family" ? "People sign in and find it under <b>My Claims</b>." : `Your ${esc(L.participant.many.toLowerCase())} find it under <b>My Claims</b>.`}</p>
@@ -615,9 +615,9 @@ function claimHelp(L) {
   const org = require("../config").LABELS.org_name || "your organization";
   const people = (L ? L.participant.many : "people").toLowerCase();
   return {
-    public: `Anyone with the link or QR code can claim. No sign-in: they just type a name and email. <i>Best for public events and donations.</i>`,
-    family: `Anyone who signs in with an email can see it and claim, <strong>not limited to ${esc(org)}</strong>, and you don't keep a list. <i>Best when any help is welcome.</i>`,
-    roster: `Only the ${esc(people)} on this board's list can see it and claim. Parents see just their own kids. <i>Best for training or team-only events.</i>`,
+    public: `Anyone who has the link (or QR code) can claim with just a name and email, no account needed. People who already have an account also see it on My Claims. The link isn't secret, so anyone it's shared with can use it. <i>Best for volunteer sign-ups and public events.</i>`,
+    family: `Only people with an approved ${esc(org)} Claim It account can see it and claim. Newcomers can request an account, or you can send them an invite. <i>Best for club-wide events.</i>`,
+    roster: `Only the ${esc(people)} assigned to this board can claim, or a family member linked to them, claiming for them. <i>Best for training or team-only events.</i>`,
   };
 }
 
@@ -653,7 +653,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
   const radio = (name, value, cur, title, text, ex) => `<label class="mode-opt"><input type="radio" name="${name}" value="${value}" data-label="${esc(title.replace(/<[^>]+>/g, ""))}"${cur === value ? " checked" : ""}><span><b>${title}</b>${text ? `<span class="fine">${text}</span>` : ""}${ex ? `<span class="ex">e.g. ${esc(ex)}</span>` : ""}</span></label>`;
   const claim = SC.claimMode(sc), pick = SC.pickMode(sc), depth = SC.depthOf(sc);
   const EX = require("../examples").forDepth(depth);
-  const CLAIM = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" };
+  const CLAIM = { public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" };
   const VIEWS = { list: "No dates: a list", dlist: "Dates and times: list view", calendar: "Dates and times: calendar", both: "Dates and times: list & calendar" };
   const WHO = { initial: "First name + initial", full: "Full names", off: "Hidden" };
   const action = `/admin/setup/schedules/${sc.id}?s=${sc.id}`;
@@ -686,8 +686,8 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
         rows([["Who can claim", `${CLAIM[claim]}<div class="fine">${{ public: "No sign-in needed; anyone with the link.", family: `Anyone who signs in, not just ${esc(require("../config").LABELS.org_name || "your organization")}.`, roster: `Only the ${esc(L.participant.many.toLowerCase())} on this board's list.` }[claim]}</div>`], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
         `<div class="opt-row three">
           ${radio("claim", "public", claim, "Anyone with the link", claimHelp(L).public, EX.claim.public)}
-          ${radio("claim", "family", claim, "Anyone signed in", claimHelp(L).family, EX.claim.family)}
-          ${radio("claim", "roster", claim, "Only people I add", claimHelp(L).roster, EX.claim.roster)}
+          ${radio("claim", "family", claim, "Anyone with an account", claimHelp(L).family, EX.claim.family)}
+          ${radio("claim", "roster", claim, "Only people assigned to the board", claimHelp(L).roster, EX.claim.roster)}
         </div>
         <div class="sub-q" data-restrict${claim === "public" ? " hidden" : ""}>
           <p class="q-label">Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people?</p>
@@ -837,8 +837,8 @@ function newSchedulePage({ user, flash }) {
           <p class="muted tight">Filled in for the structure you picked. Change any of them.</p>
           <fieldset class="q"><legend>Who can claim?</legend><div class="choice-row three">
             ${opt("claim", "public", "Anyone with the link", claimHelp().public, "claim.public")}
-            ${opt("claim", "family", "Anyone signed in", claimHelp().family, "claim.family")}
-            ${opt("claim", "roster", "Only people I add", claimHelp().roster.replace("this board's list", "the list you make"), "claim.roster")}</div></fieldset>
+            ${opt("claim", "family", "Anyone with an account", claimHelp().family, "claim.family")}
+            ${opt("claim", "roster", "Only people assigned to the board", claimHelp().roster.replace("this board's list", "the list you make"), "claim.roster")}</div></fieldset>
           <fieldset class="q"><legend>Limit some things to certain people?</legend><div class="choice-row">
             ${opt("restrict", "no", "No", "Anyone who can claim can claim anything.")}
             ${opt("restrict", "yes", "Yes", "By team or tag.", "restrict")}</div></fieldset>
@@ -895,7 +895,7 @@ function newSchedulePage({ user, flash }) {
         examples();
         document.getElementById("wz-views").hidden = val("dated") !== "yes";
         var rq = document.querySelector('input[name="restrict"]').closest("fieldset"); rq.hidden = val("claim") === "public";
-        var who = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" }[val("claim")] || "";
+        var who = { public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" }[val("claim")] || "";
         var when = val("dated") === "yes" ? ({ both: "dates, list & calendar", list: "dates, list view" }[val("pick")] || "dates, calendar") : "no dates (a list)";
         document.getElementById("wz-sum").innerHTML = "<b>" + (form.name.value.trim() || "Untitled").replace(/[<>&]/g, "") + "</b> · " + (NAMES[val("preset")] || "") +
           " · " + who + (val("claim") === "public" ? "" : " · " + (val("restrict") === "yes" ? "limited by group or tag" : "anyone can claim anything")) + " · " + when;
@@ -958,7 +958,7 @@ function boardHeader(sc, L, depth, main, rounds, locked) {
 function sideCards(sc, L, depth, main, locked, acts, counts) {
   const I = require("./icons");
   const claim = SC.claimMode(sc), pick = SC.pickMode(sc);
-  const CLAIM = { public: "Anyone with the link", family: "Anyone signed in", roster: "Only people I add" };
+  const CLAIM = { public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" };
   const VIEWS = { list: "No dates (a list)", dlist: "Dates · list view", calendar: "Dates · calendar", both: "Dates · list & calendar" };
   const manage = (href, on = true) => locked ? "" : on ? `<a class="btn-ghost" href="${href}">${I.gear()} Manage</a>` : `<span class="btn-ghost is-off" aria-disabled="true">${I.gear()} Manage</span>`;
   const rows = (list) => `<dl class="rc-list">${list.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>`;
@@ -978,7 +978,7 @@ function sideCards(sc, L, depth, main, locked, acts, counts) {
   const groups = SC.groupsFor(sc), tags = sc.tags || [];
   const people = `<section class="panel side-card${used ? "" : " not-used"}"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span>
       <h2>${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</h2>${manage(`/admin/members?s=${sc.id}`, used)}</div>
-    ${used ? "" : `<p class="fine off-note"><span class="pill">Not in use</span> ${claim === "public" ? "This board is open to anyone with the link, so it doesn't use teams, tags, or a list of people." : "Anyone signed in can claim and nothing is limited."}
+    ${used ? "" : `<p class="fine off-note"><span class="pill">Not in use</span> ${claim === "public" ? "This board is open to anyone with the link, so it doesn't use teams, tags, or a list of people." : "Anyone with an account can claim and nothing is limited."}
       <a class="link-dark" href="/admin/setup/schedule?s=${sc.id}#ss-who">Turn on</a></p>`}
     ${rows([[esc(L.group.many), groups.length ? esc(groups.join(", ")) : "None"], ["Tags", tags.length ? esc(tags.join(", ")) : "None"], [esc(L.participant.many), String(sc.member_count || 0)]])}</section>`;
   return `<aside class="bc-side">${settings}${rules}${people}</aside>`;

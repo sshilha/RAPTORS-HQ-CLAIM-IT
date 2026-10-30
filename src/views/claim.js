@@ -41,7 +41,7 @@ const audience = (b) => {
   const mode = b.claim_mode || "family", g = b.groups || [];
   if (mode === "public") return "Open to everyone";
   if (mode === "roster") return g.length > 1 ? (g.length <= 3 ? g.join(", ") : "Multiple age groups") : g[0] || "Rostered members";
-  return "Anyone signed in";
+  return "Anyone with an account";
 };
 
 function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], who = 0, when = "upcoming", more = false, tab = "", allBoards = false }) {
@@ -189,8 +189,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   if (filters.show === "mine") shown = shown.filter((r) => r.mine);
   const q = board.question || {};
   const Name = person ? (person.self_user_id ? "You" : person.first_name) : "";
-  const whoLine = (r) => { const w = r.eff.who || []; if (!w.length) return board.claim_mode === "public" ? "Open to everyone" : board.claim_mode === "roster" ? "Everyone on the list" : "Anyone signed in";
-    const last = w[w.length - 1]; return last.mode === "signed_in" ? "Anyone signed in" : last.mode === "list" ? "Everyone on the list" : `Only ${[...(last.groups || []), ...(last.tags || [])].join(", ")}`; };
+  const whoLine = (r) => { const w = r.eff.who || []; if (!w.length) return board.claim_mode === "public" ? "Open to everyone" : board.claim_mode === "roster" ? "Everyone on the list" : "Anyone with an account";
+    const last = w[w.length - 1]; return last.mode === "signed_in" ? "Anyone with an account" : last.mode === "list" ? "Everyone on the list" : `Only ${[...(last.groups || []), ...(last.tags || [])].join(", ")}`; };
   const going = (r) => { const g = r.going || []; if (!g.length) return ""; const mode = board.family_names || "initial"; if (mode === "off") return `${g.length} going`;
     return `Going: ${g.map((x) => mode === "full" ? `${x.first_name} ${x.last_name}` : `${x.first_name} ${(x.last_name || "").slice(0, 1)}.`).join(", ")}`; };
   const claimForm = (r, big = false) => `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">

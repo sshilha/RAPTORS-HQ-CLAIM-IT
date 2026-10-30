@@ -28,6 +28,14 @@ function fields(p, kind) {
   return common + (kind === "adult" ? adult : athlete) + `<div class="full"><label><span>Notes <span class="opt">(admins only)</span></span><textarea name="notes" rows="2" maxlength="1000">${v("notes")}</textarea></label></div>`;
 }
 
+const { fmtDateTime } = require("../time");
+const shortDate = (t) => new Date(t).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric" });
+function acctStatus(p) {
+  if (p.kind !== "adult") return "";
+  if (p.last_login_at) return `Last in ${shortDate(p.last_login_at)}${p.setup_required ? " · setup needed" : ""}`;
+  if (p.invited_at) return `Invited ${shortDate(p.invited_at)}`;
+  return p.email ? "Not invited" : "No email";
+}
 function directoryPage({ user, flash, people, total, f, teams, groups, lists = [] }) {
   const cur = lists.find((l) => l.id === f.list);
   const qs = (extra) => `/admin/people?${new URLSearchParams(Object.fromEntries(Object.entries({ ...f, ...extra }).filter(([, x]) => x)))}`;
@@ -45,7 +53,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
   const listOpts = (sel) => lists.map((l) => `<option value="${l.id}"${sel === l.id ? " selected" : ""}>${esc(l.name)}</option>`).join("");
   const bulk = `<form method="post" action="/admin/people/bulk" class="bulk-bar" id="bulk"><input type="hidden" name="list" value="${f.list || ""}">
     <span class="bulk-count">0 checked</span>
-    <select name="action" aria-label="What to do"><option value="add">Add to list</option>${cur ? `<option value="move">Move from ${esc(cur.name)} to</option><option value="remove">Take off ${esc(cur.name)}</option>` : ""}</select>
+    <select name="action" aria-label="What to do"><option value="add">Add to list</option><option value="invite">Send invite (adults with an email)</option>${cur ? `<option value="move">Move from ${esc(cur.name)} to</option><option value="remove">Take off ${esc(cur.name)}</option>` : ""}</select>
     <select name="target" class="bulk-target" aria-label="List"><option value="">Pick a list…</option>${listOpts(0)}<option value="new">＋ New list…</option></select>
     <input name="new_name" class="bulk-new" maxlength="60" placeholder="New list name" hidden>
     <button class="btn-small" type="submit">Apply</button></form>`;
@@ -82,12 +90,13 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
       ${listBar}
       ${cur ? "" : `<h3 class="ilist-head">${people.length === total ? "Everyone" : "Matching"} <span class="fine-inline">(${people.length})</span></h3>`}
       ${people.length ? bulk : ""}
-      ${people.length ? `<div class="table-wrap"><table class="dir-table"><thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Name</th><th>Kind</th><th>Current team</th><th>SportsEngine group</th><th>Contact</th><th>Family</th><th>Boards</th></tr></thead><tbody>
+      ${people.length ? `<div class="table-wrap"><table class="dir-table"><thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Name</th><th>Kind</th><th>Current team</th><th>SportsEngine group</th><th>Contact</th><th>Family</th><th>Boards</th><th>Account</th></tr></thead><tbody>
         ${people.map((p) => `<tr><td><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td><td><a href="/admin/people/${p.id}"><b>${esc(PP.display(p))}</b></a>${(p.list_ids || []).length ? `<div class="mini-lists">${lists.filter((l) => p.list_ids.includes(l.id)).map((l) => `<span>${esc(l.name)}</span>`).join("")}</div>` : ""}${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}</td>
           <td>${kindTag(p)}</td><td>${esc(p.team || "")}</td><td>${esc(p.se_group || "")}</td>
           <td><span class="fine">${[p.email, p.phone].filter(Boolean).map(esc).join("<br>")}</span></td>
           <td><span class="fine">${p.kind === "athlete" ? (p.parents.length ? `Parents: ${esc(p.parents.join(", "))}` : "") : (p.kids.length ? `Kids: ${esc(p.kids.join(", "))}` : "")}</span></td>
-          <td>${chips(p.boards)}${p.coaching.length ? chips(p.coaching.map((c) => `Coach: ${c}`), "chip-s coach") : ""}</td></tr>`).join("")}
+          <td>${chips(p.boards)}${p.coaching.length ? chips(p.coaching.map((c) => `Coach: ${c}`), "chip-s coach") : ""}</td>
+          <td><span class="fine">${acctStatus(p)}</span></td></tr>`).join("")}
       </tbody></table></div>` : `<p class="muted">No one matches.</p>`}
     </section>
     <script>
@@ -99,7 +108,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
         var all = document.querySelector(".check-all");
         if (all) all.addEventListener("change", function () { boxes().forEach(function (b) { b.checked = all.checked; }); count(); });
         var act = bar.querySelector("select[name=action]"), tgt = bar.querySelector(".bulk-target"), nw = bar.querySelector(".bulk-new");
-        function sync() { tgt.hidden = act.value === "remove"; nw.hidden = tgt.hidden || tgt.value !== "new"; }
+        function sync() { tgt.hidden = act.value === "remove" || act.value === "invite"; nw.hidden = tgt.hidden || tgt.value !== "new"; }
         act.addEventListener("change", sync); tgt.addEventListener("change", sync); sync();
       })();
       document.querySelectorAll(".ap-tab").forEach(function (t) { t.addEventListener("click", function () {
@@ -108,7 +117,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
     </script>` });
 }
 
-function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [] }) {
+function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [], acct = null, history = [] }) {
   const ra = p.report_access || {}, mode = ra.mode || "none";
   const name = PP.display(p);
   return page({ title: name, tab: "people", user, flash, xwide: true,
@@ -150,6 +159,22 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
           ${allBoards.map((b) => `<label class="radio-row"><input type="checkbox" name="boards" value="${b.id}"${coaching.includes(b.id) ? " checked" : ""}${p.email ? "" : " disabled"}> ${esc(b.name)}</label>`).join("") || `<p class="muted small">No boards yet.</p>`}
           ${p.email && allBoards.length ? `<div class="q-actions"><button class="btn-small" type="submit">Save</button></div>` : ""}
         </form></section>` : ""}
+      ${p.kind === "adult" ? `<section class="panel side-card" id="signin"><h2>Sign-in &amp; setup</h2>
+        <dl class="rc-list">
+          <div><dt>Account</dt><dd>${!acct ? (p.email ? "Not set up yet" : "No email") : acct.joined_at ? `Joined ${esc(fmtDateTime(acct.joined_at))}` : acct.invited_at ? `Invited ${esc(fmtDateTime(acct.invited_at))}` : "Not invited"}</dd></div>
+          <div><dt>Last sign-in</dt><dd>${acct && acct.last_login_at ? esc(fmtDateTime(acct.last_login_at)) : "Never"}</dd></div>
+          <div><dt>Password</dt><dd>${acct && acct.password_hash ? "Set" : "None (uses email links)"}</dd></div>
+          <div><dt>Texted codes</dt><dd>${acct && acct.phone_verified_at ? esc(require("../accounts").prettyPhone(acct.phone)) : "Not set up"}</dd></div>
+        </dl>
+        <form method="post" action="/admin/people/${p.id}/invite" class="si-row"><button class="btn-small" type="submit"${p.email ? "" : " disabled"}>${acct && acct.invited_at ? "Resend invite" : "Send invite"}</button>
+          <span class="fine">Emails a 7-day link to set up their account.</span></form>
+        <form method="post" action="/admin/people/${p.id}/setup" class="si-row"><input type="hidden" name="on" value="${acct && acct.setup_required ? "0" : "1"}">
+          <button class="btn-ghost" type="submit"${p.email ? "" : " disabled"}>${acct && acct.setup_required ? "✓ Setup required at next sign-in · Turn off" : "Require setup at next sign-in"}</button></form>
+        <form method="post" action="/admin/people/${p.id}/signin-code" class="si-row"><button class="btn-ghost" type="submit"${p.email ? "" : " disabled"}>Make a one-time sign-in code</button>
+          <span class="fine">Backup: read it to them. Works once, 15 minutes.</span></form>
+        <details class="si-hist"${history.length ? "" : " hidden"}><summary>Sign-in history (${history.length})</summary>
+          <ul>${history.map((h) => `<li class="${h.ok ? "ok" : "no"}"><span><b>${h.ok ? "✓" : "✗"} ${esc(h.method)}</b>${h.reason ? ` · ${esc(h.reason)}` : ""}</span><span class="fine">${esc(fmtDateTime(h.at))} · ${esc(h.device || "")}</span></li>`).join("")}</ul></details>
+      </section>` : ""}
       ${p.kind === "adult" ? `<section class="panel side-card" id="reports"><h2>Reports access</h2>
         <p class="fine">Let this person see who claimed, attended, or volunteered. Admins always see every report.</p>
         <form method="post" action="/admin/people/${p.id}/reports" class="stack ra-form">

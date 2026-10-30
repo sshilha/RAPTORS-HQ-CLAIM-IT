@@ -199,6 +199,19 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
     </section>
 
 `],
+    accounts: ["Accounts & sign-in", `<section class="panel" id="accounts">
+      <form method="post" action="/admin/settings/app/accounts" class="stack acc-set">
+        <fieldset><legend>New accounts</legend>
+          <label class="radio-row"><input type="radio" name="new_accounts" value="approval"${c.new_accounts !== "open" ? " checked" : ""}> <span><b>Approval required</b> <span class="fine">Someone with a new email can request an account; an admin approves it in Requests. People you add in People can always sign in.</span></span></label>
+          <label class="radio-row"><input type="radio" name="new_accounts" value="open"${c.new_accounts === "open" ? " checked" : ""}> <span><b>Anyone can sign up</b> <span class="fine">Any email gets an account right away (the old way). "Anyone with an account" boards are then open to anyone.</span></span></label>
+        </fieldset>
+        <fieldset><legend>Passwords</legend>
+          <label class="radio-row"><input type="radio" name="password_policy" value="optional"${c.password_policy !== "required" ? " checked" : ""}> <span><b>Optional</b> <span class="fine">The Welcome step offers a password, with "Skip for now". People can always use emailed links.</span></span></label>
+          <label class="radio-row"><input type="radio" name="password_policy" value="required"${c.password_policy === "required" ? " checked" : ""}> <span><b>Required</b> <span class="fine">Everyone without a password is taken to the Welcome step until they set one.</span></span></label>
+        </fieldset>
+        <p class="fine">To require setup for just one person, open them in People → Sign-in &amp; setup.</p>
+        <div class="q-actions"><button class="btn-small" type="submit">Save</button></div>
+      </form></section>`],
     admins: ["Administrators", `    <section class="panel" id="admins">
       <h2 class="banner">Administrators</h2>
       <p class="fine">Administrators can open Settings and Reports and manage every ${esc((al.schedule || ["Claim Board"])[0])}. They sign in with their email like everyone else.</p>
@@ -228,6 +241,10 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
       ${card(I.users(), "People", `<b>${counts.people || 0}</b> people · ${counts.athletes || 0} athletes · ${counts.adults || 0} adults`,
         btn("/admin/people", "Manage", true) + btn("/admin/people/import", "⇪ Import"),
         "Everyone in the app. Add people once here, then add them to any board.")}
+      ${card(I.userCheck(), "Accounts &amp; sign-in", `New accounts: <b>${c.new_accounts === "open" ? "anyone can sign up" : "approval required"}</b> · Passwords: <b>${c.password_policy === "required" ? "required" : "optional"}</b>`,
+        btn("/admin/settings/app?part=accounts", "Edit", true) + btn("/admin/signins", "Sign-in activity"), "Who can get an account, and how people sign in.")}
+      ${card(I.check(), "Requests", `<b>${counts.requests || 0}</b> waiting`, btn("/admin/requests", "Review", true),
+        "Family members to add, and changes people asked for.")}
       ${card(I.pin(), "Locations", `<b>${places.length}</b> saved place${places.length === 1 ? "" : "s"}`, btn("/admin/settings/app?part=places", "Manage", true),
         "Places with addresses, so people get directions.")}
       ${card(I.userCheck(), "Administrators", `<b>${admins.length + envAdmins.filter((e) => !admins.some((a) => a.email === e)).length}</b> admin${admins.length + envAdmins.length === 1 ? "" : "s"}`,

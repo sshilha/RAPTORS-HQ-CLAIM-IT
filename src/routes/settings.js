@@ -105,6 +105,14 @@ router.post("/places/:id/remove", wrap(async (req, res) => {
   go(res, "/admin/settings/app?part=places", { ok: `Removed ${cur ? cur.name : "it"}. Anything that used it keeps the name, just without a map link.` });
 }));
 
+router.post("/app/accounts", wrap(async (req, res) => {
+  const c = catalog.current();
+  c.new_accounts = req.body.new_accounts === "open" ? "open" : "approval";
+  c.password_policy = req.body.password_policy === "required" ? "required" : "optional";
+  await catalog.save(c);
+  go(res, "/admin/settings/app?part=accounts", { ok: `Saved. New accounts: ${c.new_accounts === "open" ? "anyone can sign up" : "approval required"}. Passwords: ${c.password_policy}.` });
+}));
+
 router.post("/app/change-email", wrap(async (req, res) => {
   const e = require("../auth").normalizeEmail(req.body.email);
   if (!require("../auth").isValidEmail(e)) return go(res, "/admin/settings/app?part=change", { err: "Enter a valid email." });
@@ -119,6 +127,7 @@ router.get("/app", wrap(async (req, res) => {
      WHERE location IS NOT NULL GROUP BY location`)).rows.map((r) => [r.location.toLowerCase(), r.n]));
   const counts = (await require("../db").query(`SELECT count(*)::int AS people, count(*) FILTER (WHERE kind='athlete')::int AS athletes,
       count(*) FILTER (WHERE kind='adult')::int AS adults FROM athletes WHERE archived_at IS NULL`)).rows[0];
+  counts.requests = (await require("../db").query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
   res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins(),
     places: require("../locations").all(), used, mapsKey: process.env.GOOGLE_MAPS_API_KEY || "", part: String(req.query.part || ""), counts }));
 }));

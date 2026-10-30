@@ -403,3 +403,44 @@ specific boards, optionally only some teams. They then get Reports in their menu
 (claimed, waitlisted, attended, no-shows) and All claims (who, team, where, when, status, attended), plus
 CSV, limited to their boards and teams. Attendance fills in once Check-in runs on the engine.
 People without access see "My Claim History" (their family's past and upcoming claims) instead.
+
+
+## Sign-in and My Account
+Sign in with an **email link** (always), a **password** (optional, set in My Account; 5 wrong tries = 15-minute
+lock), or a **texted code** (once a mobile number is confirmed). **Forgot password?** resets by email link or
+texted code. Admins can make a one-time **sign-in code** for someone (People → person → Help them sign in);
+they enter it at /login/code. Passwords use Node's built-in scrypt (no new packages).
+
+**Texting (optional):** set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM` (your Twilio number,
+e.g. +17155550100) in Railway. Without them, all texting options are hidden. In testing (`DEV_SHOW_LINK=true`)
+codes are shown on screen instead of sent. US texting needs carrier (10DLC) registration through Twilio.
+
+**My Account** (/account): edit own name and organization; change sign-in email (confirmed from the new
+address); set/change/remove password; add/confirm a mobile number. Family and access are view-only.
+Adding a family member or changing one's details is a **request** (App settings → Requests), approved by
+an admin (approving can link an existing person instead of duplicating); people are emailed the result.
+
+
+## Accounts, invites, and the Welcome step
+**App settings → Accounts & sign-in:**
+- **New accounts:** *Approval required* (default) or *Anyone can sign up*. With approval, an unknown email gets
+  "We don't have an account" → **Request an account** (name, email, phone, organization, how they're connected),
+  which lands in Requests; approving creates the account and emails a 7-day invite. People the club already
+  knows always get in: admins, coaches on a board, anyone in People, and parents linked to athletes.
+- **Passwords:** *Optional* (Welcome step offers one, with Skip) or *Required* (everyone without one is taken to
+  the Welcome step until they set one).
+
+**Welcome step** (/welcome): name, password, mobile number. Shown at a person's first sign-in; required (no
+skip) when they were invited, an admin turned on **Require setup at next sign-in** for them, or passwords are
+Required. Until it's done, every page leads back to it.
+
+**Invites:** People → person → Sign-in & setup → Send invite / Resend (7-day link), or check several people
+on the People list → *Send invite*. The People list shows each adult's account status (Not invited, Invited,
+Last in).
+
+**Sign-in history:** every attempt (who, how, result and reason, device) is recorded. See it on a person's
+page, or App settings → Sign-in activity (filter by email/phone, "Only problems").
+
+**Who can claim (board setting):** *Anyone with the link* (no account needed; account holders also see it on
+My Claims), *Anyone with an account* (approved accounts only), *Only people assigned to the board* (the
+assigned people, or family linked to them, claiming for them).

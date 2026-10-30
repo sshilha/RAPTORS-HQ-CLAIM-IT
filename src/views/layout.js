@@ -127,7 +127,7 @@ function dashHeader(user, admin, coach, tab) {
     <div class="dh-right">
       <details class="dh-acct"><summary>${DI.user}<span class="dh-who"><b>${esc(user.email)}</b><small>${role}</small></span>${DI.down}</summary>
         <div class="dh-menu">
-          <a href="/request-change">${DI.report}Request a change to my info</a>
+          <a href="/account">${DI.user}My Account</a>
           ${admin ? `<a href="/admin/settings/app">${DI.gear}App Settings</a>` : ""}
           <form method="post" action="/logout"><button type="submit" class="dh-signout">${DI.out}Sign Out</button></form></div></details>
     </div>
@@ -136,7 +136,7 @@ function dashHeader(user, admin, coach, tab) {
         <div class="dh-sheet-who">${DI.user}<span><b>${esc(user.email)}</b><small>${role}</small></span></div>
         ${items.map(([href, label, icon, on]) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${icon}${esc(label)}</a>`).join("")}
         ${admin ? `<a href="/admin/settings/app">${DI.gear}App Settings</a>` : ""}
-        <a href="/request-change">${DI.report}Request a change to my info</a>
+        <a href="/account">${DI.user}My Account</a>
         <form method="post" action="/logout"><button type="submit">Sign Out</button></form>
       </div></details>
   </div>

@@ -19,8 +19,9 @@ async function directory() {
       ARRAY(SELECT coalesce(nullif(trim(p.first_name||' '||p.last_name),''), u.email) FROM parent_athletes pa JOIN users u ON u.id=pa.user_id
             LEFT JOIN athletes p ON p.self_user_id=u.id AND p.kind='adult' WHERE pa.athlete_id=a.id AND a.kind='athlete' ORDER BY 1) AS parents,
       ARRAY(SELECT sc.name FROM schedule_coaches c JOIN schedules sc ON sc.id=c.schedule_id WHERE a.email IS NOT NULL AND lower(c.email)=lower(a.email) ORDER BY sc.name) AS coaching,
-      ARRAY(SELECT m.list_id FROM people_list_members m WHERE m.athlete_id=a.id) AS list_ids
-    FROM athletes a WHERE a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name), a.id`)).rows;
+      ARRAY(SELECT m.list_id FROM people_list_members m WHERE m.athlete_id=a.id) AS list_ids,
+      u.invited_at, u.joined_at, u.last_login_at, u.setup_required
+    FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id WHERE a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name), a.id`)).rows;
 }
 
 router.get("/", wrap(async (req, res) => {
@@ -104,6 +105,11 @@ router.post("/bulk", wrap(async (req, res) => {
     if (target !== from) await query(`DELETE FROM people_list_members WHERE list_id=$1 AND athlete_id = ANY($2)`, [from, ids]);
     return go(res, `/admin/people?list=${target}`, { ok: `Moved ${n} to ${tname}.` });
   }
+  if (b.action === "invite") {
+    const A = require("../accounts"); let sent = 0, skipped = 0;
+    for (const id of ids) { const { u } = await accountFor(id); if (!u) { skipped++; continue; } await A.sendInvite(req, u.id); sent++; }
+    return go(res, back(b), { ok: `Sent ${sent} invite${sent === 1 ? "" : "s"}.${skipped ? ` Skipped ${skipped} (athletes, or no email).` : ""}` });
+  }
   if (b.action === "remove") {
     if (!from) return go(res, back(b), { err: "Open a list to take people off it." });
     await query(`DELETE FROM people_list_members WHERE list_id=$1 AND athlete_id = ANY($2)`, [from, ids]);
@@ -178,8 +184,10 @@ router.get("/:id", wrap(async (req, res) => {
   const allBoards = (await query(`SELECT id, name FROM schedules WHERE archived_at IS NULL ORDER BY name`)).rows;
   const coaching = p.email ? (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [p.email])).rows.map((r) => r.schedule_id) : [];
   const mine = (await query(`SELECT l.* FROM people_list_members m JOIN people_lists l ON l.id=m.list_id WHERE m.athlete_id=$1 ORDER BY lower(l.name)`, [id])).rows;
+  const acct = p.self_user_id ? (await query(`SELECT * FROM users WHERE id=$1`, [p.self_user_id])).rows[0] : null;
+  const history = acct || p.email ? (await query(`SELECT * FROM login_events WHERE user_id=$1 OR (user_id IS NULL AND lower(identity)=lower($2)) ORDER BY at DESC LIMIT 25`, [acct ? acct.id : 0, p.email || ""])).rows : [];
   const allTeams = [...new Set((await query(`SELECT unnest(groups) AS g FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.g))].sort();
-  res.send(v.personPage({ user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams }));
+  res.send(v.personPage({ user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
 }));
 
 router.post("/:id", wrap(async (req, res) => {
@@ -235,6 +243,40 @@ router.post("/:id/reports", wrap(async (req, res) => {
   if (mode === "boards" && !boards.length) return go(res, `/admin/people/${id}#reports`, { err: "Pick at least one board, or choose another option." });
   await query(`UPDATE athletes SET report_access=$2 WHERE id=$1`, [id, mode === "none" ? null : JSON.stringify({ mode, boards: mode === "boards" ? boards : [], teams })]);
   go(res, `/admin/people/${id}#reports`, { ok: mode === "none" ? "No report access." : `Report access saved${teams.length ? ` (only ${teams.join(", ")})` : ""}.` });
+}));
+
+// Invite someone (7-day link to set up their account), or require setup at their next sign-in
+async function accountFor(id) {
+  const p = (await query(`SELECT * FROM athletes WHERE id=$1`, [id])).rows[0];
+  if (!p || p.kind !== "adult" || !p.email) return { p, u: null };
+  let uid = p.self_user_id;
+  if (!uid) { uid = (await auth.findOrCreateUser(p.email)).id; await query(`UPDATE athletes SET self_user_id=$2 WHERE id=$1`, [id, uid]); }
+  return { p, u: (await query(`SELECT * FROM users WHERE id=$1`, [uid])).rows[0] };
+}
+router.post("/:id/invite", wrap(async (req, res) => {
+  const id = int(req.params.id); const { p, u } = await accountFor(id);
+  if (!u) return go(res, `/admin/people/${id}#signin`, { err: "Add an email for this person first." });
+  const link = await require("../accounts").sendInvite(req, u.id);
+  go(res, `/admin/people/${id}#signin`, { ok: `Invite sent to ${u.email}. The link works for 7 days.${process.env.DEV_SHOW_LINK === "true" ? ` (Testing: ${link})` : ""}` });
+}));
+router.post("/:id/setup", wrap(async (req, res) => {
+  const id = int(req.params.id); const { u } = await accountFor(id);
+  if (!u) return go(res, `/admin/people/${id}#signin`, { err: "Add an email for this person first." });
+  const on = req.body.on === "1";
+  await query(`UPDATE users SET setup_required=$2 WHERE id=$1`, [u.id, on]);
+  go(res, `/admin/people/${id}#signin`, { ok: on ? "They'll set up their account (password, etc.) the next time they sign in." : "No setup needed at next sign-in." });
+}));
+
+// Help someone sign in: a one-time code to read to them (15 minutes, works once)
+router.post("/:id/signin-code", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const p = (await query(`SELECT * FROM athletes WHERE id=$1`, [id])).rows[0];
+  let uid = p && p.self_user_id;
+  if (!uid && p && p.email) uid = (await auth.findOrCreateUser(p.email)).id;
+  if (!uid) return go(res, `/admin/people/${id}#signin`, { err: "Add an email for this person first." });
+  const code = await require("../accounts").issueCode(uid, "admin");
+  if (!code) return go(res, `/admin/people/${id}#signin`, { err: "Too many codes made recently. Wait 15 minutes." });
+  go(res, `/admin/people/${id}#signin`, { ok: `Sign-in code for ${p.email}: ${code.slice(0, 3)} ${code.slice(3)}. Have them go to the sign-in page → "Have a code from an admin?" It works once and expires in 15 minutes.` });
 }));
 
 // Coach: which boards they can take attendance on
