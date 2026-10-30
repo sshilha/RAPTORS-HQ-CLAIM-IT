@@ -121,6 +121,19 @@ const rejects = async (p, re) => { try { await p; } catch (e) { if (!(e instance
     const c = await E.claim({ itemId: D2.id, athleteId: kid.a, userId: kid.u }); assert.equal(c.counts, false);
   });
 
+  console.log("Limits shown per person");
+  await t("a person only sees limits for what they can claim (not another age group's)", async () => {
+    const lb = await E.createBoard({ name: "Two age groups", depth: 3, claimMode: "roster" }); await publish(lb.id);
+    const r = await E.addNode({ boardId: lb.id, name: "Round 1" });
+    const y = await E.addNode({ boardId: lb.id, parentId: r.id, name: "10U", settings: { who: { mode: "teams", groups: ["10U"] } } });
+    const o = await E.addNode({ boardId: lb.id, parentId: r.id, name: "12U", settings: { who: { mode: "teams", groups: ["12U"] } } });
+    await query(`UPDATE board_nodes SET settings = settings || '{"limit":2}' WHERE id IN ($1,$2)`, [y.id, o.id]);
+    await E.addItem({ boardId: lb.id, nodeId: y.id, title: "Y", capacity: 3, startsAt: inH(80), endsAt: inH(81) });
+    await E.addItem({ boardId: lb.id, nodeId: o.id, title: "O", capacity: 3, startsAt: inH(80), endsAt: inH(81) });
+    const v = await E.personView(lb.id, { athleteId: 999999, userId: null, member: { group_name: "12U", tags: [] } });
+    assert.deepEqual(v.limits.map((L) => L.name), ["12U"]);
+  });
+
   console.log("Timing and visibility");
   const r2 = await E.addNode({ boardId: tr.id, name: "Round 2", settings: { opens_at: inH(48).toISOString() } });
   const r2c = await E.addNode({ boardId: tr.id, parentId: r2.id, name: "Cage Time" });

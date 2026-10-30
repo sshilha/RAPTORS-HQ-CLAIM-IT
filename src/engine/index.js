@@ -291,8 +291,17 @@ async function personView(boardId, person, now = new Date()) {
   const limits = [];
   if (board.settings && board.settings.limit != null) limits.push({ kind: "board", id: board.id, name: board.name, limit: Number(board.settings.limit) });
   for (const n of nodes) if (n.settings && n.settings.limit != null) limits.push({ kind: "node", id: n.id, name: n.name, limit: Number(n.settings.limit) });
-  for (const L of limits) { L.used = counting(L); L.left = Math.max(0, L.limit - L.used); }
-  return { board, nodes, items: out, limits, mine };
+  // only limits that apply to this person: the board's, and containers holding something they can see
+  const seen = new Set(out.flatMap((r) => r.chain.map((n) => n.id)));
+  const mineLimits = limits.filter((L) => L.kind === "board" || seen.has(L.id));
+  for (const L of mineLimits) {
+    L.used = counting(L); L.left = Math.max(0, L.limit - L.used);
+    // same name twice (Hitting under 10U and under 12U–18U)? say which one
+    const twin = mineLimits.some((x) => x !== L && x.name === L.name);
+    const node = nodes.find((n) => n.id === L.id), parent = node && nodes.find((n) => n.id === node.parent_id);
+    L.label = twin && parent ? `${L.name} (${parent.name})` : L.name;
+  }
+  return { board, nodes, items: out, limits: mineLimits, mine };
 }
 
 // One-time fix: claims made before v0.4.4 inside a leftover window were saved as "doesn't count" even under

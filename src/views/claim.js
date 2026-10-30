@@ -290,7 +290,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const fmtD = (x) => new Date(x).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" });
   const range = board.event_date ? require("./setup").eventDates(board) : span && span.first ? (fmtD(span.first) === fmtD(span.last) ? fmtD(span.first) : `${fmtD(span.first).replace(/, \d{4}$/, "")} – ${fmtD(span.last)}`) : "";
   const leafIds = new Set(acts.map((a) => a.id));
-  const limitBits = person ? view.limits.map((L) => `<span><b>${L.left} of ${L.limit}</b> left ${L.kind === "board" ? "on this board" : `in ${esc(L.name)}`}</span>`) : [];
+  const limitBits = person ? view.limits.map((L) => `<span><b>${L.left} of ${L.limit}</b> left ${L.kind === "board" ? "on this board" : `in ${esc(L.label || L.name)}`}</span>`) : [];
   const extra = rows.filter((r) => r.leftover && r.canClaim && r.open > 0);
   const sel = (name, label, list, cur, all) => `<label class="b-f"><span>${label}</span><select name="${name}" onchange="this.form.submit()"><option value="">${all}</option>${list.map((x) => `<option${cur === x ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>`;
   const hidden = (o) => Object.entries(o).filter(([, x]) => x).map(([k, x]) => `<input type="hidden" name="${k}" value="${esc(x)}">`).join("");
@@ -316,7 +316,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
         <a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="true"' : ""}>${IC.cal}Calendar View</a></nav>` : ""}
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
-      ${mode !== "cal" && dated ? `<nav class="b-group" aria-label="Group by"><span>Group by</span><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>${esc(require("../schedules").labels(board).activity.one)}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>Day</a></nav>` : ""}
+      ${mode !== "cal" && dated ? `<div class="b-group-w"><span class="b-group-l" id="grp-l">Group by</span><nav class="b-group" aria-labelledby="grp-l"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>${esc(require("../schedules").labels(board).activity.one)}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>Day</a></nav></div>` : ""}
       <form method="get" action="/b/${board.id}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
         ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
         ${actNames.length > 1 ? sel("act", require("../schedules").labels(board).activity.one, actNames, filters.act, "All") : ""}

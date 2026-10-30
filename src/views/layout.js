@@ -37,6 +37,18 @@ function head(title) {
 }
 
 const VERSION = `v${require("../../package.json").version}`;
+// Success messages fade after a few seconds (errors stay until dismissed); either can be closed with ×.
+// The message is also taken out of the address, so a refresh doesn't show it again.
+const FLASH_JS = `<script>(function () {
+  var u = new URL(location.href); if (u.searchParams.has("ok") || u.searchParams.has("err")) { u.searchParams.delete("ok"); u.searchParams.delete("err"); history.replaceState(null, "", u.pathname + (u.search || "") + u.hash); }
+  document.querySelectorAll(".notice, .alert").forEach(function (n) {
+    if (n.closest("form") || n.closest("dialog") || !n.parentElement || !/^(MAIN)$/.test(n.parentElement.tagName)) return;
+    var x = document.createElement("button"); x.type = "button"; x.className = "flash-x"; x.setAttribute("aria-label", "Dismiss"); x.textContent = "×";
+    function bye() { n.classList.add("flash-out"); setTimeout(function () { n.remove(); }, 400); }
+    x.addEventListener("click", bye); n.appendChild(x);
+    if (n.classList.contains("notice")) setTimeout(bye, 6000);
+  });
+})();</script>`;
 const foot = (user, tab) => `<footer class="foot">${user && require("../auth").isAdmin(user) ? `<span class="ver" title="App version">${VERSION}</span>` : ""}${user && tab === "home" ? `<p class="foot-change">Is your info wrong (name, team, email, phone)? <a href="/request-change">Request a change</a></p>` : ""}${esc(LABELS.org_name || LABELS.app_name)}</footer>`;
 
 // Signed-out pages use the dark sign-in gate, like the tryout app's admin login
@@ -49,6 +61,7 @@ function gateLayout({ title, body, flash }) {
   ${flashHtml(flash)}${body}
   ${foot()}
 </main>
+${FLASH_JS}
 </body>
 </html>`;
 }
@@ -84,6 +97,7 @@ function publicLayout({ title, body, flash }) {
 </div></header>
 <main class="page">${flashHtml(flash)}${body}</main>
 ${foot()}
+${FLASH_JS}
 </body>
 </html>`;
 }
@@ -140,6 +154,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
 ${dashHeader(user, admin, coach, tab)}
 <main class="dash-page">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}
+${FLASH_JS}
 </body>
 </html>`;
   return `${head(title)}
@@ -160,6 +175,7 @@ ${foot(user, tab)}
 <main class="page${w}${ro}">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}
 ${admin || coach ? bottomNav(tab, admin, coach) : ""}
+${FLASH_JS}
 </body>
 </html>`;
 }

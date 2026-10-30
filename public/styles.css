@@ -2297,3 +2297,18 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
   .b-row.nod, .b-row.nod:has(.b-act) { grid-template-columns: 1fr; padding: 8px; } .b-row.nod .b-row-meta, .b-row.nod .b-row-act { grid-column: 1; }
   .b-group { width: 100%; justify-content: center; }
 }
+/* dismissible, fading messages */
+.notice, .alert { position: relative; transition: opacity .35s, transform .35s, max-height .35s, margin .35s, padding .35s; }
+.notice:has(.flash-x), .alert:has(.flash-x) { padding-right: 40px; }
+.flash-x { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: 0; font-size: 20px; line-height: 1; cursor: pointer; color: inherit; opacity: .6; padding: 4px; }
+.flash-x:hover { opacity: 1; }
+.flash-out { opacity: 0; transform: translateY(-6px); }
+.b-group-w { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; }
+.b-group-l { font: 700 14px Inter, sans-serif; color: var(--d-navy); }
+.b-group span { display: none; }
+@media (max-width: 760px) { .b-group-w { width: 100%; margin-left: 0; } .b-group-w .b-group { flex: 1; } .b-group-w .b-group a { flex: 1; text-align: center; } }
+/* "Group by" sits above its box, styled like the Show / Activity labels */
+.b-group-w { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-left: 6px; }
+.b-group-l { font: 600 12px Inter, sans-serif; color: var(--d-slate); }
+.b-group { padding: 2px; } .b-group a { padding: 5px 14px; }
+@media (max-width: 760px) { .b-group-w { width: 100%; margin-left: 0; } .b-group-w .b-group { width: 100%; } }
