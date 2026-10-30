@@ -2135,3 +2135,6 @@ body.dash .d-hero-t h1 { font-weight: 800; letter-spacing: -.025em; }
   .dash-page .d-wrap { padding-top: 30px; }
 }
 @media (max-width: 1180px) { .dh-sheet { padding-top: 34px; } }
+/* logo: no badge background; it floats over the bar's edge with a shadow (option A) */
+.dh-logo::before { display: none; }
+.dh-logo img { filter: drop-shadow(0 6px 10px rgba(11,25,48,.45)) drop-shadow(0 0 1px rgba(0,0,0,.4)); }
