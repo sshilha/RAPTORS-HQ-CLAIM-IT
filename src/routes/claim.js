@@ -93,7 +93,8 @@ router.get("/b/:sid", wrap(async (req, res) => {
   if (pid && pid !== "me" && !entry.who.some((p) => p.id === pid)) pid = null;
   if (pid === "me" && !entry.who.some((p) => p.self_user_id)) pid = null;
   const viewMode0 = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
-  if (!pid) return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0 }));
+  if (!pid) { req.user.can_reports = !!(await PP.reportScope(req.user));
+    return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0, filters: {}, admin: auth.isAdmin(req.user) })); }
   res.cookie(ck, String(pid), { maxAge: 180 * 864e5, sameSite: "lax" });
   if (pid === "me") {   // claiming for themselves: make sure they have a record
     if (!people.me) people.me = (await PP.ensureAdult(req.user.email)).person;
@@ -104,7 +105,10 @@ router.get("/b/:sid", wrap(async (req, res) => {
   const view = await E.personView(sid, await asPerson(req.user, sid, pid));
   const viewMode = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
   if (req.query.v) res.cookie("ci_view", viewMode, { maxAge: 365 * 864e5, sameSite: "lax" });
-  res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode,
+  req.user.can_reports = !!(await PP.reportScope(req.user));
+  const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [sid])).rows[0];
+  const filters = { act: str(req.query.act), grp: str(req.query.grp), show: ["open", "mine"].includes(req.query.show) ? req.query.show : "" };
+  res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, admin: auth.isAdmin(req.user),
     month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: /^\d{4}-\d{2}-\d{2}$/.test(str(req.query.d)) ? str(req.query.d) : null }));
 }));
 
