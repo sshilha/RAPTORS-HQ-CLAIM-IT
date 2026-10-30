@@ -178,7 +178,8 @@ router.get("/:id", wrap(async (req, res) => {
   const allBoards = (await query(`SELECT id, name FROM schedules WHERE archived_at IS NULL ORDER BY name`)).rows;
   const coaching = p.email ? (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [p.email])).rows.map((r) => r.schedule_id) : [];
   const mine = (await query(`SELECT l.* FROM people_list_members m JOIN people_lists l ON l.id=m.list_id WHERE m.athlete_id=$1 ORDER BY lower(l.name)`, [id])).rows;
-  res.send(v.personPage({ user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists() }));
+  const allTeams = [...new Set((await query(`SELECT unnest(groups) AS g FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.g))].sort();
+  res.send(v.personPage({ user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams }));
 }));
 
 router.post("/:id", wrap(async (req, res) => {
@@ -220,6 +221,20 @@ router.post("/:id/family/remove", wrap(async (req, res) => {
   const id = int(req.params.id);
   await query(`DELETE FROM parent_athletes WHERE user_id=$1 AND athlete_id=$2`, [int(req.body.user_id), int(req.body.athlete_id)]);
   go(res, `/admin/people/${id}#family`, { ok: "Unlinked." });
+}));
+
+// Reports access: none, the boards they coach, or specific boards; optionally only some teams
+router.post("/:id/reports", wrap(async (req, res) => {
+  const id = int(req.params.id);
+  const p = (await query(`SELECT * FROM athletes WHERE id=$1`, [id])).rows[0];
+  if (!p || p.kind !== "adult") return go(res, `/admin/people/${id}`, {});
+  if (!p.email) return go(res, `/admin/people/${id}#reports`, { err: "Add this person's email first, so they can sign in and see reports." });
+  const mode = ["none", "coached", "boards"].includes(req.body.mode) ? req.body.mode : "none";
+  const boards = [].concat(req.body.boards || []).map(int).filter(Boolean);
+  const teams = [].concat(req.body.teams || []).map(String).filter(Boolean).slice(0, 40);
+  if (mode === "boards" && !boards.length) return go(res, `/admin/people/${id}#reports`, { err: "Pick at least one board, or choose another option." });
+  await query(`UPDATE athletes SET report_access=$2 WHERE id=$1`, [id, mode === "none" ? null : JSON.stringify({ mode, boards: mode === "boards" ? boards : [], teams })]);
+  go(res, `/admin/people/${id}#reports`, { ok: mode === "none" ? "No report access." : `Report access saved${teams.length ? ` (only ${teams.join(", ")})` : ""}.` });
 }));
 
 // Coach: which boards they can take attendance on

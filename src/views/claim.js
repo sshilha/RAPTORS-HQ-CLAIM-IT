@@ -20,7 +20,9 @@ const IC = {
   mega: SVG('<path d="M3 10v4a1 1 0 0 0 1 1h2l5 4V5L6 9H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/>'),
   chart: SVG('<path d="M5 20V12M10 20V8M15 20v-6M20 20V4"/>', ' stroke-width="3"'),
 };
-const thumb = (cls = "") => `<span class="d-thumb ${cls}"><img src="/claim-it-logo-sm.png" alt="" width="320" height="160"></span>`;
+const thumb = (cls = "", b = null) => b && b.image
+  ? `<span class="d-thumb photo ${cls}"><img src="/img/board/${b.id}?v=${b.image_at ? new Date(b.image_at).getTime() : 0}" alt="" loading="lazy"></span>`
+  : `<span class="d-thumb code ${cls}"><b>${esc(require("./setup").codeOf(b || {}))}</b></span>`;
 const dayBlock = (t) => {
   if (!t) return `<span class="d-date any"><small>ANY</small><b>TIME</b></span>`;
   const d = new Date(t), o = { timeZone: "America/Chicago" };
@@ -34,7 +36,7 @@ const rangeOf = (b, span) => {
   if (span && span.first) { const a = fmt(span.first, 1), z = fmt(span.last, 1); return a === z ? a : `${a.replace(/, \d{4}$/, a.slice(-4) === z.slice(-4) ? "" : a.slice(-6))} – ${z}`; }
   return "";
 };
-const isVolunteer = (b) => { const L = require("../schedules").labels(b); return /volunteer|helper|worker/i.test(L.participant.one) || /shift/i.test(L.slot.one); };
+const isVolunteer = (b) => require("./setup").boardTypeOf(b) === "volunteer";
 const audience = (b) => {
   const mode = b.claim_mode || "family", g = b.groups || [];
   if (mode === "public") return "Open to everyone";
@@ -42,7 +44,7 @@ const audience = (b) => {
   return "Anyone signed in";
 };
 
-function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], who = 0, all = false, tab = "train", allBoards = false }) {
+function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], who = 0, all = false, tab = "", allBoards = false }) {
   const q = (o) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ who: who || "", all: all ? "1" : "", tab: tab === "vol" ? "vol" : "", boards: allBoards ? "all" : "", ...o }).filter(([, x]) => x))); const t = p.toString(); return `/dashboard${t ? `?${t}` : ""}`; };
   // alerts: one compact row per board + person
   const alerts = [...extra.reduce((m, x) => { const k = `${x.board.id}:${x.person.id}`; if (!m.has(k)) m.set(k, { ...x, n: 0 }); m.get(k).n++; return m; }, new Map()).values()];
@@ -58,7 +60,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
     const rows = cs.filter(() => all || shown++ < LIMIT);
     if (!rows.length) return "";
     return `<div class="d-group">
-      <div class="d-group-h">${thumb("sm")}<b>${esc(cs[0].board_name)}</b>
+      <div class="d-group-h">${thumb("sm", { id: cs[0].schedule_id, image: cs[0].board_image ? 1 : null, image_at: cs[0].board_image_at, short_code: cs[0].board_code, name: cs[0].board_name })}<b>${esc(cs[0].board_name)}</b>
         <span class="d-group-s"><b>${upcoming.length} claimed</b>${next ? ` · Next ${esc(shortDay(next.starts_at))}` : ""}</span></div>
       ${rows.map((c) => `<div class="d-claim${c.past ? " past" : ""}${c.status === "waitlisted" ? " wl" : ""}">${dayBlock(c.starts_at)}
         <div class="d-claim-b"><div class="d-claim-t"><b>${c.starts_at ? esc(timeRange(c.starts_at, c.ends_at)) : esc(c.title || "Anytime")}</b>${c.status === "waitlisted" ? `<span class="d-pill wl">Waitlist</span>` : ""}${c.past ? `<span class="d-pill">Done</span>` : ""}</div>
@@ -72,29 +74,24 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
   // family filter
   const famChips = family.length > 1 ? `<nav class="d-fam" aria-label="Show claims for">${[["", "All family members"], ...family.map((p) => [p.self_user_id ? "me" : String(p.id), p.self_user_id ? "Me (parent / volunteer)" : p.first_name])]
     .map(([k, l]) => `<a href="${q({ who: k })}#claims"${String(who || "") === k ? ' aria-current="true"' : ""}>${esc(l)}</a>`).join("")}</nav>` : "";
-  // sign up: tabs by board type
-  const train = boards.filter((b) => !isVolunteer(b.board)), vol = boards.filter((b) => isVolunteer(b.board));
-  const list = tab === "vol" ? vol : train;
-  const boardCards = list.length ? list.slice(0, allBoards ? 999 : 3).map(({ board: b, span, who: ws }) => {
-    const range = rangeOf(b, span);
-    return `<div class="d-board">${thumb()}
-      <div class="d-board-b"><b>${esc(b.name)}</b>
+  // sign up: one list of everything open; each card says what kind it is. ?tab=vol shows just volunteer boards.
+  const volOnly = tab === "vol";
+  const list = volOnly ? boards.filter((b) => isVolunteer(b.board)) : boards;
+  const SHOW = 6;
+  const boardCards = list.length ? list.slice(0, allBoards ? 999 : SHOW).map(({ board: b, span }) => {
+    const range = rangeOf(b, span), vol = isVolunteer(b);
+    return `<div class="d-board">${thumb("", b)}
+      <div class="d-board-b"><span class="d-type ${vol ? "vol" : "train"}">${vol ? `${IC.people}Volunteer opportunity` : `${IC.cal}Training sessions`}</span><b>${esc(b.name)}</b>
         ${range || b.event_location ? `<span class="d-board-l1">${esc([range, b.event_location].filter(Boolean).join("  ·  "))}</span>` : ""}
-        <span class="d-board-meta"><span>${IC.people}${esc(audience(b))}</span>${b.event_location ? `<span>${IC.pin}${esc(b.event_location)}</span>` : ""}
-          <span>${IC.cal}${isVolunteer(b) ? "Volunteer shifts" : "Training sessions"}</span></span>
+        <span class="d-board-meta"><span>${IC.people}${esc(audience(b))}</span>${b.event_location ? `<span>${IC.pin}${esc(b.event_location)}</span>` : ""}</span>
         ${b.description ? `<span class="d-board-desc">${esc(b.description.split(/\n/)[0].slice(0, 120))}</span>` : ""}
       </div>
       <a class="d-signup" href="/b/${b.id}">Sign Up ${IC.right}</a></div>`;
-  }).join("") + (!allBoards && list.length > 3 ? `<a class="d-more" href="${q({ boards: "all" })}#signup">Show all ${list.length}</a>` : "")
-    : `<div class="d-empty">${tab === "vol" ? IC.people : IC.clip}<b>${tab === "vol" ? "No volunteer opportunities open right now." : "No training sessions open right now."}</b><span>Check back soon${(tab === "vol" ? train : vol).length ? `, or look at <a href="${q({ tab: tab === "vol" ? "train" : "vol" })}#signup">${tab === "vol" ? "training sessions" : "volunteer opportunities"}</a>` : ""}.</span></div>`;
+  }).join("") + (!allBoards && list.length > SHOW ? `<a class="d-more" href="${q({ boards: "all" })}#signup">Show all ${list.length}</a>` : "")
+    : `<div class="d-empty">${volOnly ? IC.people : IC.clip}<b>${volOnly ? "No volunteer opportunities open right now." : "Nothing open to sign up for right now."}</b><span>${volOnly && boards.length ? `<a href="${q({ tab: "" })}#signup">See everything that's open</a>` : "Check back soon."}</span></div>`;
   return layout({ title: "My Claims", user, flash, admin, tab: "home", dash: true,
     body: `
-    <section class="d-hero">
-      <div class="d-hero-stripes" aria-hidden="true"></div>
-      <div class="d-hero-ball" aria-hidden="true"></div>
-      <div class="d-hero-t"><h1>Welcome Back!</h1><p>Manage your training sign-ups and volunteer shifts all in one place.</p></div>
-      <div class="d-hero-brand" aria-hidden="true"><span class="rap">RAPTORS</span><span class="tag">PLAY. GROW. BELONG.</span></div>
-    </section>
+    <div class="d-strip" aria-hidden="true"></div>
     <div class="d-wrap">
       ${alertRows ? `<div class="d-alerts">${alertRows}</div>` : ""}
       <div class="d-cols">
@@ -105,19 +102,11 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
           ${claimsHtml}
         </section>
         <section class="d-card" id="signup">
-          <div class="d-card-h"><span class="d-card-ic">${IC.clip}</span><h2>Sign Up for Something</h2>
-            <a class="d-btn" href="${q({ boards: allBoards ? "" : "all" })}#signup">${allBoards ? "Show Fewer" : "View All Boards"} ${IC.right}</a></div>
-          <nav class="d-tabs" aria-label="Board type">
-            <a href="${q({ tab: "" })}#signup"${tab !== "vol" ? ' aria-current="true"' : ""}>${IC.cal}Upcoming Sessions${train.length ? ` <i>${train.length}</i>` : ""}</a>
-            <a href="${q({ tab: "vol" })}#signup"${tab === "vol" ? ' aria-current="true"' : ""}>${IC.people}Volunteer Opportunities${vol.length ? ` <i>${vol.length}</i>` : ""}</a>
-          </nav>
+          <div class="d-card-h"><span class="d-card-ic">${IC.clip}</span><h2>Sign Up for Something</h2></div>
+          <div class="d-open-h"><b>${volOnly ? "Volunteer opportunities" : "Currently open opportunities"}</b><i>${list.length}</i>
+            ${volOnly ? `<a href="${q({ tab: "" })}#signup">Show all</a>` : ""}</div>
           ${boardCards}
         </section>
-      </div>
-      <div class="d-quick">
-        <a class="d-q blue" href="${q({ boards: "all", tab: "" })}#signup"><span class="d-q-ic">${IC.cal}</span><span class="d-q-t"><b>Browse All Claim Boards</b><span>View all training sessions and volunteer opportunities.</span></span><span class="d-chev">${IC.right}</span></a>
-        <a class="d-q green" href="${q({ boards: "all", tab: "vol" })}#signup"><span class="d-q-ic">${IC.people}</span><span class="d-q-t"><b>Volunteer Opportunities</b><span>Quickly find available volunteer shifts.</span></span><span class="d-chev">${IC.right}</span></a>
-        <a class="d-q purple" href="${admin ? "/admin/reports" : `${q({ all: "1" })}#claims`}"><span class="d-q-ic">${IC.chart}</span><span class="d-q-t"><b>Reports &amp; History</b><span>${admin ? "Claims and reports across all boards." : "View your past and upcoming claims."}</span></span><span class="d-chev">${IC.right}</span></a>
       </div>
     </div>
     <script>
@@ -219,7 +208,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const meta = [evDates(board), board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean);
   return page({ title: board.name, user, flash,
     body: `<div class="mc-top"><a class="back" href="/dashboard">My Claims</a>
-      <h1 class="mc-bname">${esc(board.name)}</h1>${meta.length ? `<span class="mc-meta">${meta.map((x) => x.startsWith("<") ? x : esc(x)).join(" · ")}</span>` : ""}</div>
+      ${board.image ? `<img class="mc-bimg" src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt="">` : ""}<h1 class="mc-bname">${esc(board.name)}</h1>${meta.length ? `<span class="mc-meta">${meta.map((x) => x.startsWith("<") ? x : esc(x)).join(" · ")}</span>` : ""}</div>
     ${board.description ? `<p class="mc-desc">${esc(board.description)}</p>` : ""}
     <nav class="mc-people" aria-label="Who's signing up"><span>Signing up:</span>
       ${people.map((p) => `<a class="pchip${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? " on" : ""}" href="${pick(p)}">${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>

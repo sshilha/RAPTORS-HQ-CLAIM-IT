@@ -256,6 +256,11 @@ async function migrate() {
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS description TEXT;
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS contact_name TEXT;
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS contact_info TEXT;
+    -- Board picture (small, resized in the browser) and type (training / volunteer)
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS image TEXT;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS image_at TIMESTAMPTZ;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS board_type TEXT;
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS short_code TEXT;   -- 2-3 letters shown when there's no picture
     CREATE TABLE IF NOT EXISTS app_admins (
       email      TEXT PRIMARY KEY,
       added_by   TEXT,

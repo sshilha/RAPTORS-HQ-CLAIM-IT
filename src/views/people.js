@@ -108,7 +108,8 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
     </script>` });
 }
 
-function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [] }) {
+function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [] }) {
+  const ra = p.report_access || {}, mode = ra.mode || "none";
   const name = PP.display(p);
   return page({ title: name, tab: "people", user, flash, xwide: true,
     body: `<div class="page-top"><h1 class="page-title">${esc(name)} <span class="h-sub">${p.kind === "adult" ? "Adult" : "Athlete"}</span></h1>
@@ -149,6 +150,19 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
           ${allBoards.map((b) => `<label class="radio-row"><input type="checkbox" name="boards" value="${b.id}"${coaching.includes(b.id) ? " checked" : ""}${p.email ? "" : " disabled"}> ${esc(b.name)}</label>`).join("") || `<p class="muted small">No boards yet.</p>`}
           ${p.email && allBoards.length ? `<div class="q-actions"><button class="btn-small" type="submit">Save</button></div>` : ""}
         </form></section>` : ""}
+      ${p.kind === "adult" ? `<section class="panel side-card" id="reports"><h2>Reports access</h2>
+        <p class="fine">Let this person see who claimed, attended, or volunteered. Admins always see every report.</p>
+        <form method="post" action="/admin/people/${p.id}/reports" class="stack ra-form">
+          <label class="radio-row"><input type="radio" name="mode" value="none"${mode === "none" ? " checked" : ""}> No reports</label>
+          <label class="radio-row"><input type="radio" name="mode" value="coached"${mode === "coached" ? " checked" : ""}> The boards they coach <span class="fine">(${coaching.length})</span></label>
+          <label class="radio-row"><input type="radio" name="mode" value="boards"${mode === "boards" ? " checked" : ""}> Specific boards</label>
+          <div class="ra-boards">${allBoards.map((b) => `<label class="radio-row"><input type="checkbox" name="boards" value="${b.id}"${(ra.boards || []).includes(b.id) ? " checked" : ""}> ${esc(b.name)}</label>`).join("")}</div>
+          ${allTeams.length ? `<p class="field-lbl">Only these teams <span class="opt">(leave empty for everyone)</span></p>
+            <div class="tag-checks">${allTeams.map((t) => `<label class="tag-box"><input type="checkbox" name="teams" value="${esc(t)}"${(ra.teams || []).includes(t) ? " checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}
+          ${p.email ? `<div class="q-actions"><button class="btn-small" type="submit">Save</button></div>` : `<p class="fine">Add an email first, so they can sign in.</p>`}
+        </form>
+        <script>(function () { var f = document.querySelector(".ra-form"); function s() { f.querySelector(".ra-boards").hidden = !f.querySelector("input[name=mode][value=boards]").checked; }
+          f.addEventListener("change", s); s(); })();</script></section>` : ""}
       <section class="panel side-card"><h2>Remove</h2><p class="fine">Takes them out of the directory and board lists' pickers. Past claims stay in reports.</p>
         <form method="post" action="/admin/people/${p.id}/archive" onsubmit="return confirm('Remove ${esc(name.replace(/'/g, ""))} from the directory?')"><button class="link-dark danger-link" type="submit">Remove from People</button></form></section>
     </aside></div>` });

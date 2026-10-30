@@ -36,7 +36,15 @@ app.use("/admin/settings", require("./routes/settings"));
 app.use("/admin/day", require("./routes/roster"));
 app.use("/admin/reports", require("./routes/reports"));
 app.use("/admin", require("./routes/admin"));
+// Board pictures
+app.get("/img/board/:id", require("./routes/util").wrap(async (req, res) => {
+  const r = (await require("./db").query(`SELECT image FROM schedules WHERE id=$1`, [parseInt(req.params.id, 10) || 0])).rows[0];
+  const m = r && /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(r.image || "");
+  if (!m) return res.redirect("/claim-it-logo-sm.png");
+  res.set("Content-Type", m[1]).set("Cache-Control", "public, max-age=604800").send(Buffer.from(m[2], "base64"));
+}));
 app.use(require("./routes/claim")); // My Claims on the container engine (before the old family pages)
+app.use("/reports", require("./routes/reports2")); // reports on the engine (admins + people given access)
 app.use("/s", require("./routes/public")); // public sign-up sheets (no account needed)
 app.use("/checkin", require("./routes/checkin")); // attendance (admins + coaches)
 app.use(require("./routes/parent"));

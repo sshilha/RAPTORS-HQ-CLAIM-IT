@@ -27,6 +27,10 @@ function editDialog(sc) {
           <span class="fine">Areas and items can have their own location too, like the concession stand. Set those on the board.</span></label>
         <label class="field-l"><span>Description <span class="opt">(optional, shown to people at the top of the board)</span></span>
           <textarea name="description" rows="3" maxlength="600" placeholder="e.g. Drop donations at the concession stand by 7:30 AM Saturday.">${esc(sc.description || "")}</textarea></label>
+        <h3>Board type</h3>
+        ${S.boardTypeField(sc)}
+        <h3>Picture</h3>
+        ${S.imagePicker(sc)}
         <h3>Organizer <span class="opt">(optional)</span></h3>
         <p class="fine">Shown to people with the board and in confirmation emails, so they know who to ask.</p>
         <div class="field-row">
@@ -92,7 +96,8 @@ function homePage({ user, flash, active, archivedCount }) {
       : `<section class="panel"><div class="empty"><p>No active ${esc(LABELS.schedules.toLowerCase())}.</p><p class="muted"><a href="/admin/setup/new">Create one</a> to get started.</p></div></section>`}
     <p class="archived-link"><a href="/admin/settings/archived">View archived ${esc(LABELS.schedules.toLowerCase())}${archivedCount ? ` (${archivedCount})` : ""}</a></p>
     ${require("../locations").datalist()}
-    ${require("../locations").placeDialog()}`,
+    ${require("../locations").placeDialog()}
+    ${require("./setup").IMAGE_JS}`,
   });
 }
 

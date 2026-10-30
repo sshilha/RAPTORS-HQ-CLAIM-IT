@@ -395,3 +395,11 @@ Me; skipped when there's one), then only what that person can claim, grouped by 
 limit notes, big Claim buttons, the board's question, cancel deadlines, and List | Calendar (remembered).
 Claim/cancel/waitlist emails: src/engine/notify.js. Not yet on the engine: the public link (/s/...),
 Check-in, Reports.
+
+
+## Reports access (People)
+Admins see every report. Any adult in People can be given **Reports access**: the boards they coach, or
+specific boards, optionally only some teams. They then get Reports in their menu (/reports): By person
+(claimed, waitlisted, attended, no-shows) and All claims (who, team, where, when, status, attended), plus
+CSV, limited to their boards and teams. Attendance fills in once Check-in runs on the engine.
+People without access see "My Claim History" (their family's past and upcoming claims) instead.

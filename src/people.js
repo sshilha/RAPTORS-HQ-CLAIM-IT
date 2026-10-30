@@ -26,6 +26,8 @@ async function migrate() {
       added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (list_id, athlete_id)
     );
+    -- Report access for non-admins: { mode: "none" | "coached" | "boards", boards: [ids], teams: [names] }
+    ALTER TABLE athletes ADD COLUMN IF NOT EXISTS report_access JSONB;
     -- adults who signed up for themselves are adults
     UPDATE athletes SET kind='adult' WHERE self_user_id IS NOT NULL AND kind <> 'adult';
   `);
@@ -69,6 +71,19 @@ async function addToList(listId, ids) {
   for (const id of ids) await query(`INSERT INTO people_list_members (list_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [listId, id]);
 }
 
+// Which boards (and teams) a user may see reports for. Admins: everything. Others: what they've been given.
+async function reportScope(user) {
+  if (!user) return null;
+  if (require("./auth").isAdmin(user)) return { all: true, boards: null, teams: [] };
+  const p = (await query(`SELECT * FROM athletes WHERE kind='adult' AND (self_user_id=$1 OR lower(email)=lower($2)) AND archived_at IS NULL ORDER BY id LIMIT 1`, [user.id, user.email])).rows[0];
+  const a = p && p.report_access;
+  if (!a || !a.mode || a.mode === "none") return null;
+  let boards = [];
+  if (a.mode === "coached") boards = (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [user.email])).rows.map((r) => r.schedule_id);
+  if (a.mode === "boards") boards = (a.boards || []).map(Number).filter(Boolean);
+  return boards.length ? { all: false, boards, teams: (a.teams || []).filter(Boolean) } : null;
+}
+
 const display = (p) => (`${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email || "(no name)");
 
-module.exports = { migrate, ensureAdult, linkParent, display, lists, listNamed, addToList };
+module.exports = { migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };

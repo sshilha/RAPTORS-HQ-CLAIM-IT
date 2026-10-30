@@ -99,11 +99,11 @@ const DI = {
   menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
 };
-function dashHeader(user, admin, coach) {
-  const items = [["/dashboard", "My Claims", DI.cal, true],
+function dashHeader(user, admin, coach, tab) {
+  const items = [["/dashboard", "My Claims", DI.cal, tab === "home"],
     ...(admin ? [["/admin/settings", LABELS.schedules, DI.board]] : []),
     ...(admin || coach ? [["/checkin", "Check-in", DI.check]] : []),
-    ...(admin ? [["/admin/reports", "Reports", DI.report]] : [])];
+    ...(admin || user.can_reports ? [["/reports", "Reports", DI.report, tab === "reports"]] : [])];
   const role = admin ? "Administrator" : coach ? "Coach" : "Parent Account";
   return `<header class="dh">
   <div class="dh-in">
@@ -137,7 +137,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
   if (dash) return `${head(title)}
 <body class="member-area dash">
-${dashHeader(user, admin, coach)}
+${dashHeader(user, admin, coach, tab)}
 <main class="dash-page">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}
 </body>

@@ -500,6 +500,74 @@ const LEVEL_INFO = {
   group: () => ["How people are sorted, so things can be limited to certain groups.", "12U, Team, Level"],
 };
 
+// Board type: training or volunteer (decides the My Claims tab). Guessed from the wording until set.
+function boardTypeOf(sc) {
+  if (sc && ["training", "volunteer"].includes(sc.board_type)) return sc.board_type;
+  const L = SC.labels(sc || {});
+  return /volunteer|helper|worker/i.test(L.participant.one) || /shift/i.test(L.slot.one) ? "volunteer" : "training";
+}
+function boardTypeField(sc) {
+  const cur = sc ? boardTypeOf(sc) : "training";
+  const r = (v, t, d) => `<label class="mode-opt"><input type="radio" name="board_type" value="${v}"${cur === v ? " checked" : ""}><span><b>${t}</b><span class="fine">${d}</span></span></label>`;
+  return `<div class="opt-row">${r("training", "Training", "Sessions athletes sign up for.")}${r("volunteer", "Volunteer", "Shifts and jobs people help with.")}</div>`;
+}
+// Board picture: shown on My Claims and the board's sign-up page instead of the logo.
+// The browser shrinks it (max 640px) before it's sent.
+// Initials from a board name: "Winter Training 2027" -> "WT", "Raptors Rumble Volunteers" -> "RRV"
+function initials(name) {
+  const w = String(name || "").split(/\s+/).filter((x) => /^[A-Za-z]/.test(x));
+  const code = (w.length >= 2 ? w.slice(0, 3).map((x) => x[0]).join("") : w.length === 1 ? w[0].slice(0, 2) : String(name || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 2)).toUpperCase();
+  return code.length >= 2 ? code.slice(0, 3) : (code + "B").slice(0, 2);
+}
+const codeOf = (sc) => (sc && sc.short_code) || initials(sc && sc.name);
+function imagePicker(sc) {
+  const has = !!(sc && sc.image);
+  const code = sc ? codeOf(sc) : "";
+  const src = has ? `/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}` : "/claim-it-logo-sm.png";
+  return `<div class="img-pick">
+    <span class="img-prev${has ? "" : " code"}"><img src="${src}" alt="Board picture"${has ? "" : " hidden"}><b class="img-code">${esc(code)}</b></span>
+    <div class="img-ctl">
+      <label class="btn-ghost img-btn">Choose picture<input type="file" accept="image/*" hidden></label>
+      <button type="button" class="link-dark img-rm"${has ? "" : " hidden"}>Remove picture</button>
+      <label class="code-l"><span>Short code <span class="opt">${has ? "(optional with a picture)" : "(2–3 letters, shown when there's no picture)"}</span></span>
+        <input name="short_code" class="code-in" maxlength="3" value="${esc(code)}" placeholder="e.g. WT" ${has ? "" : 'required pattern="[A-Za-z0-9]{2,3}"'} title="2–3 letters or numbers" autocomplete="off"></label>
+      <input type="hidden" name="image_data" value="">
+    </div>
+  </div>`;
+}
+const IMAGE_JS = `<script>
+(function () {
+  document.querySelectorAll(".img-pick").forEach(function (box) {
+    var file = box.querySelector("input[type=file]"), data = box.querySelector("input[name=image_data]"), img = box.querySelector(".img-prev img"), rm = box.querySelector(".img-rm");
+    file.addEventListener("change", function () {
+      var f = file.files && file.files[0]; if (!f) return;
+      var r = new FileReader();
+      r.onload = function () {
+        var im = new Image(); im.onload = function () {
+          var k = Math.min(1, 640 / Math.max(im.width, im.height)), c = document.createElement("canvas");
+          c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+          c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+          var url = c.toDataURL("image/jpeg", 0.82);
+          data.value = url; img.src = url; img.hidden = false; box.querySelector(".img-prev").classList.remove("code"); rm.hidden = false; setCode(false);
+        }; im.src = r.result;
+      };
+      r.readAsDataURL(f);
+    });
+    rm.addEventListener("click", function () { data.value = "remove"; img.hidden = true; box.querySelector(".img-prev").classList.add("code"); rm.hidden = true; file.value = ""; setCode(true); });
+    var code = box.querySelector(".code-in"), tile = box.querySelector(".img-code"), hint = box.querySelector(".code-l .opt");
+    function setCode(req) { code.required = req; if (req) code.setAttribute("pattern", "[A-Za-z0-9]{2,3}"); else code.removeAttribute("pattern");
+      hint.textContent = req ? "(2–3 letters, shown when there's no picture)" : "(optional with a picture)"; }
+    code.addEventListener("input", function () { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); tile.textContent = code.value || "?"; code.dataset.touched = "1"; });
+    // new board: suggest a code from its name as it's typed
+    var nm = document.getElementById("wz-name");
+    if (nm && !code.value) nm.addEventListener("input", function () { if (code.dataset.touched) return;
+      var w = nm.value.split(/\\s+/).filter(function (x) { return /^[A-Za-z]/.test(x); });
+      var c = (w.length >= 2 ? w.slice(0, 3).map(function (x) { return x[0]; }).join("") : w.length === 1 ? w[0].slice(0, 2) : nm.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 2)).toUpperCase();
+      code.value = c; tile.textContent = c || "?"; });
+  });
+})();
+</script>`;
+
 // Levels and what they're called (the board's structure), used by the board's Edit window
 function levelsTable(sc, hasItems, counts = []) {
   const L = SC.labels(sc), depth = SC.depthOf(sc), keys = SC.levelKeys(sc);
@@ -734,6 +802,8 @@ function newSchedulePage({ user, flash }) {
             <label class="field-l"><span>Organizer <span class="opt">(optional)</span></span><input name="contact_name" maxlength="60" placeholder="e.g. Jane Smith"></label>
             <label class="field-l"><span>Organizer email or phone</span><input name="contact_info" maxlength="80" placeholder="e.g. jane@example.com"></label>
           </div>
+          <p class="q-label">Board type</p>${boardTypeField(null)}
+          <p class="q-label">Picture <span class="fine-inline">(optional)</span></p>${imagePicker(null)}
         </div>
 
         <div class="wz-step" data-step="2" hidden>
@@ -784,6 +854,7 @@ function newSchedulePage({ user, flash }) {
       </form>
     </section>
     ${require("../locations").placeDialog()}
+    ${IMAGE_JS}
     <script>
     (function () {
       var D = ${JSON.stringify(Object.fromEntries(Object.entries(PRE).map(([k, v]) => [k, { claim: v.claim, restrict: v.restrict ? "yes" : "no", dated: v.calendar === false ? "no" : "yes", depth: v.depth,
@@ -841,6 +912,7 @@ function newSchedulePage({ user, flash }) {
       }
       document.getElementById("wz-next").addEventListener("click", function () {
         if (step === 1 && !form.name.value.trim()) { form.name.reportValidity(); return; }
+        if (step === 1 && form.short_code && !form.short_code.checkValidity()) { form.short_code.reportValidity(); return; }
         if (step === 2 && !val("preset")) { document.getElementById("wz-pick-err").hidden = false; return; }
         show(step + 1);
       });
@@ -998,4 +1070,4 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone, counts = {} 
   });
 }
 
-module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates, levelsTable };
+module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates, levelsTable, imagePicker, IMAGE_JS, boardTypeField, boardTypeOf, initials, codeOf };

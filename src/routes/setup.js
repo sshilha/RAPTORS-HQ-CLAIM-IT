@@ -87,6 +87,11 @@ router.post("/schedules", wrap(async (req, res) => {
     [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth, calendar, pickMode,
      claim, restrict, evStart, evEnd, clean(b0.event_location, 80) || null, String(b0.description || "").trim().slice(0, 600) || null,
      clean(b0.contact_name, 60) || null, clean(b0.contact_info, 80) || null]);
+  if (["training", "volunteer"].includes(b0.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [rows[0].id, b0.board_type]);
+  { const code = String(b0.short_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+    await query(`UPDATE schedules SET short_code=$2 WHERE id=$1`, [rows[0].id, code.length >= 2 ? code : require("../views/setup").initials(name)]); }
+  if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(b0.image_data || "")) && String(b0.image_data).length < 1500000)
+    await query(`UPDATE schedules SET image=$2, image_at=now() WHERE id=$1`, [rows[0].id, b0.image_data]);
   await SC.refreshGroups();
   await SC.ensureStructure(await SC.get(rows[0].id));
   const L = SC.labels({ labels });
@@ -135,6 +140,18 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     await query(`UPDATE schedules SET event_date=$2, event_end=$3 WHERE id=$1`, [id, d1, d2]);
   }
   if (b.event_location !== undefined) await query(`UPDATE schedules SET event_location=$2 WHERE id=$1`, [id, str(b.event_location).slice(0, 80) || null]);
+  if (b.image_data !== undefined) {
+    const img = String(b.image_data || "");
+    if (img === "remove") await query(`UPDATE schedules SET image=NULL, image_at=now() WHERE id=$1`, [id]);
+    else if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img) && img.length < 1500000) await query(`UPDATE schedules SET image=$2, image_at=now() WHERE id=$1`, [id, img]);
+  }
+  if (["training", "volunteer"].includes(b.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [id, b.board_type]);
+  if (b.short_code !== undefined) {
+    const code = String(b.short_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+    const pic = (await query(`SELECT image IS NOT NULL AS has FROM schedules WHERE id=$1`, [id])).rows[0];
+    if (code.length < 2 && !(pic && pic.has)) return go(res, back, { err: "Give the board a 2–3 letter short code (like WT), or add a picture." });
+    await query(`UPDATE schedules SET short_code=$2 WHERE id=$1`, [id, code.length >= 2 ? code : null]);
+  }
   if (b.description !== undefined) await query(`UPDATE schedules SET description=$2 WHERE id=$1`, [id, String(b.description || "").trim().slice(0, 600) || null]);
   if (b.contact_name !== undefined) await query(`UPDATE schedules SET contact_name=$2, contact_info=$3 WHERE id=$1`,
     [id, str(b.contact_name).slice(0, 60) || null, str(b.contact_info).slice(0, 80) || null]);
