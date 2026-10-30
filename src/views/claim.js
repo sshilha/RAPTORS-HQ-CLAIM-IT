@@ -301,7 +301,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   return layout({ title: board.name, user, flash, admin, tab: "home", dash: true,
     body: `<div class="d-wrap b-wrap">
     <section class="b-head">
-      <a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to My Claims</a>
+      <a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Dashboard</a>
       ${board.image ? `<span class="d-thumb photo b-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code b-tile"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
       <div class="b-head-t"><div class="b-head-line"><h1>${esc(board.name)}</h1>
           ${range || board.event_location ? `<span class="b-head-meta">${[range ? `${IC.cal}${esc(range)}` : "", board.event_location ? `${IC.pin}${P.link(board.event_location)}` : ""].filter(Boolean).map((x) => `<span>${x}</span>`).join("")}</span>` : ""}
@@ -311,7 +311,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     <section class="b-bar">
       <span class="b-bar-l">Signing up for:</span>
       <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
-      ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}
+      ${person ? `<span class="b-bar-lim">${IC.people}<span>${limitBits.length ? `<b>${esc(Name)}:</b> ${limitBits.join(" · ")}` : `No claim limits for ${esc(person.self_user_id ? "you" : person.first_name)} on this board`}</span></span>` : ""}
       ${extra.length ? `<span class="b-bar-extra">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}
     </section>
     ${!person ? `<p class="b-pick">👆 Tap who's signing up to see what's available.</p>` : `
