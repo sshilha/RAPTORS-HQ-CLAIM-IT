@@ -91,7 +91,6 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
     : `<div class="d-empty">${volOnly ? IC.people : IC.clip}<b>${volOnly ? "No volunteer opportunities open right now." : "Nothing open to sign up for right now."}</b><span>${volOnly && boards.length ? `<a href="${q({ tab: "" })}#signup">See everything that's open</a>` : "Check back soon."}</span></div>`;
   return layout({ title: "My Claims", user, flash, admin, tab: "home", dash: true,
     body: `
-    <div class="d-strip" aria-hidden="true"></div>
     <div class="d-wrap">
       ${alertRows ? `<div class="d-alerts">${alertRows}</div>` : ""}
       <div class="d-cols">

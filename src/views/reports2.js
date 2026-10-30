@@ -6,7 +6,7 @@ function reportsPage({ user, flash, admin, boards, board, rows, people, teams, t
   const att = (r) => r.attended == null ? `<span class="fine">—</span>` : r.attended ? `<span class="r-yes">✓ Here</span>` : `<span class="r-no">✗ No-show</span>`;
   const anyAttendance = rows.some((r) => r.attended != null);
   return layout({ title: `Reports · ${board.name}`, user, flash, admin, tab: "reports", dash: true,
-    body: `<div class="d-strip" aria-hidden="true"></div><div class="d-wrap r-wrap">
+    body: `<div class="d-wrap r-wrap">
     <div class="r-top"><h1>Reports</h1>
       <form method="get" action="/reports" class="r-pick"><select name="s" onchange="this.form.submit()" aria-label="Board">${boards.map((b) => `<option value="${b.id}"${b.id === board.id ? " selected" : ""}>${esc(b.name)}${b.archived_at ? " (archived)" : ""}</option>`).join("")}</select>
         ${teams.length > 1 || teamFilter ? `<select name="team" onchange="this.form.submit()" aria-label="Team"><option value="">All ${limitedTo.length ? "my " : ""}teams</option>${teams.map((t) => `<option${t === teamFilter ? " selected" : ""}>${esc(t)}</option>`).join("")}</select>` : ""}

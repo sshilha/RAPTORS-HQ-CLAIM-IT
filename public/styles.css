@@ -2110,3 +2110,11 @@ body.dash .d-hero-t h1 { font-weight: 800; letter-spacing: -.025em; }
 .r-table { width: 100%; border-collapse: collapse; font-size: 14px; } .r-table th { text-align: left; font-size: 12px; color: #5B6B82; text-transform: uppercase; letter-spacing: .04em; padding: 8px; border-bottom: 1px solid #E3E8F0; }
 .r-table td { padding: 8px; border-bottom: 1px solid #EEF1F5; vertical-align: top; }
 .r-yes { color: #2f6d0c; font-weight: 700; } .r-no { color: #b91c1c; font-weight: 700; }
+/* menu bar: a bit taller, bigger logo, no accent strip */
+.d-strip { display: none; }
+.dh { box-shadow: 0 2px 10px rgba(11,25,48,.18); }
+.dh-in { height: 84px; gap: 24px; }
+.dh-logo img { height: 74px; }
+.dh-nav a { height: 50px; padding: 0 16px; font-size: 15px; }
+.dash-page .d-wrap { padding-top: 18px; }
+@media (max-width: 1180px) { .dh-in { height: 70px; } .dh-logo img { height: 60px; } }
