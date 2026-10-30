@@ -167,7 +167,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const rows = view.items;
   const dated = rows.some((r) => r.item.starts_at);
   const pid = person ? (person.self_user_id ? "me" : person.id) : "";
-  const link = (o = {}) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ p: pid, v: mode === "cal" ? "cal" : "", m: month || "", act: filters.act || "", grp: filters.grp || "", show: filters.show || "", ...o }).filter(([, x]) => x)));
+  const link = (o = {}) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ p: pid, v: mode === "cal" ? "cal" : "list", m: month || "", act: filters.act || "", grp: filters.grp || "", show: filters.show || "", ...o }).filter(([, x]) => x)));
     const t = p.toString(); return `/b/${board.id}${t ? `?${t}` : ""}`; };
   const back = link();
   // activities (the container right above the sessions) and their age group / round
@@ -279,24 +279,24 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     <section class="b-head">
       <a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to My Claims</a>
       ${board.image ? `<span class="d-thumb photo b-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code b-tile"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
-      <div class="b-head-t"><h1>${esc(board.name)}</h1>
-        <span>${[range, board.event_location ? P.link(board.event_location) : ""].filter(Boolean).join("  ·  ")}${board.contact_name || board.contact_info ? `<span class="b-org">Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}</span>` : ""}</span>
+      <div class="b-head-t"><div class="b-head-line"><h1>${esc(board.name)}</h1>
+          ${range || board.event_location ? `<span class="b-head-meta">${[range ? `${IC.cal}${esc(range)}` : "", board.event_location ? `${IC.pin}${P.link(board.event_location)}` : ""].filter(Boolean).map((x) => `<span>${x}</span>`).join("")}</span>` : ""}
+          ${board.contact_name || board.contact_info ? `<span class="b-org">Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}</span>` : ""}</div>
         ${board.description ? `<p>${esc(board.description)}</p>` : ""}</div>
-      <div class="b-head-ball" aria-hidden="true"></div>
     </section>
     <section class="b-bar">
       <span class="b-bar-l">Signing up for:</span>
-      <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}${mode === "cal" ? "&v=cal" : ""}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
+      <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
       ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}
       ${extra.length ? `<span class="b-bar-extra">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}
     </section>
     ${!person ? `<p class="b-pick">👆 Tap who's signing up to see what's available.</p>` : `
     <div class="b-tools">
-      ${dated ? `<nav class="b-view"><a href="${link({ v: "", m: "" })}"${mode !== "cal" ? ' aria-current="true"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List View</a>
+      ${dated ? `<nav class="b-view"><a href="${link({ v: "list", m: "" })}"${mode !== "cal" ? ' aria-current="true"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List View</a>
         <a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="true"' : ""}>${IC.cal}Calendar View</a></nav>` : ""}
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
-      <form method="get" action="/b/${board.id}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "", m: month || "" })}
+      <form method="get" action="/b/${board.id}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", m: month || "" })}
         ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
         ${actNames.length > 1 ? sel("act", require("../schedules").labels(board).activity.one, actNames, filters.act, "All") : ""}
         ${groups.length > 1 ? sel("grp", "Group", groups, filters.grp, "All") : ""}
