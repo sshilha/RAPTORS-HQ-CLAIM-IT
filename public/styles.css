@@ -2118,3 +2118,20 @@ body.dash .d-hero-t h1 { font-weight: 800; letter-spacing: -.025em; }
 .dh-nav a { height: 50px; padding: 0 16px; font-size: 15px; }
 .dash-page .d-wrap { padding-top: 18px; }
 @media (max-width: 1180px) { .dh-in { height: 70px; } .dh-logo img { height: 60px; } }
+/* logo hangs below the bar like a badge */
+.dh { position: sticky; z-index: 60; }
+.dh-in { position: relative; }
+.dh-logo { position: relative; align-self: stretch; width: 214px; flex: none; z-index: 2; }
+.dh-logo::before { content: ""; position: absolute; left: -10px; right: -10px; top: 0; height: 118px; background: var(--d-navy);
+  border-radius: 0 0 20px 20px; box-shadow: 0 8px 18px rgba(11,25,48,.28); border-bottom: 3px solid var(--d-lime); }
+.dh-logo img { position: absolute; left: 0; top: 8px; height: 104px; width: auto; max-width: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); }
+.dash-page .d-wrap { padding-top: 22px; }
+.dash-page .d-wrap > :first-child { margin-left: 0; }
+@media (min-width: 1181px) { .dash-page .d-alerts, .dash-page .d-cols:first-child, .dash-page .r-top { padding-left: 0; } .dash-page .d-wrap { padding-top: 46px; } }
+@media (max-width: 1180px) {
+  .dh-logo { width: 150px; }
+  .dh-logo::before { height: 90px; left: -8px; right: -8px; border-radius: 0 0 16px 16px; }
+  .dh-logo img { height: 78px; top: 6px; }
+  .dash-page .d-wrap { padding-top: 30px; }
+}
+@media (max-width: 1180px) { .dh-sheet { padding-top: 34px; } }
