@@ -108,7 +108,10 @@ router.get("/b/:sid", wrap(async (req, res) => {
   req.user.can_reports = !!(await PP.reportScope(req.user));
   const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [sid])).rows[0];
   const filters = { act: str(req.query.act), grp: str(req.query.grp), show: ["open", "mine"].includes(req.query.show) ? req.query.show : "" };
-  res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, admin: auth.isAdmin(req.user),
+  // Group by activity (default) or day; remembered like List/Calendar
+  const group = ["activity", "day"].includes(req.query.g) ? req.query.g : req.cookies && req.cookies.ci_group === "day" ? "day" : "activity";
+  if (req.query.g) res.cookie("ci_group", group, { maxAge: 365 * 864e5, sameSite: "lax" });
+  res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, group, admin: auth.isAdmin(req.user),
     month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: /^\d{4}-\d{2}-\d{2}$/.test(str(req.query.d)) ? str(req.query.d) : null }));
 }));
 

@@ -2276,3 +2276,24 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .b-wrap { padding-top: 30px; }
 @media (max-width: 1180px) { .b-wrap { padding-top: 24px; } }
 @media (max-width: 760px) { .b-head-line { gap: 2px 12px; } .b-head-t h1 { font-size: 19px; width: 100%; } }
+/* same-day sessions: one date block beside all of them; alternating shade per day */
+.b-dayg { display: grid; grid-template-columns: 78px 1fr; gap: 8px; align-items: stretch; padding: 4px; border-radius: 10px; }
+.b-dayg.alt { background: #F5F7FB; }
+.b-dayg > .d-date { width: 78px; height: auto; align-self: stretch; padding: 8px 2px; border-color: #d8dfea; }
+.b-dayg > .d-date b { font-size: 14px; }
+.b-dayg-rows { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.b-row.nod { grid-template-columns: 190px 1fr auto; padding-left: 12px; }
+.b-act { display: inline-flex; align-items: center; gap: 6px; font: 700 12px Inter, sans-serif; color: var(--d-navy); }
+.b-act i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--c); } .b-act small { font-weight: 500; color: var(--d-slate); margin-left: 2px; }
+.b-row.nod:has(.b-act) { grid-template-columns: 230px 1fr auto; }
+.b-group { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid #c9d1de; border-radius: 8px; padding: 3px; font: 600 13px Inter, sans-serif; }
+.b-group span { color: var(--d-slate); padding: 0 6px; }
+.b-group a { padding: 4px 12px; border-radius: 6px; color: var(--d-navy); text-decoration: none; }
+.b-group a[aria-current] { background: #E4F5D2; color: #1f5c06; }
+.b-ic.wk { background: var(--d-navy); }
+@media (max-width: 1180px) { .b-row.nod { grid-template-columns: 150px 1fr auto; } }
+@media (max-width: 760px) {
+  .b-dayg { grid-template-columns: 58px 1fr; gap: 6px; padding: 3px; } .b-dayg > .d-date { width: 58px; }
+  .b-row.nod, .b-row.nod:has(.b-act) { grid-template-columns: 1fr; padding: 8px; } .b-row.nod .b-row-meta, .b-row.nod .b-row-act { grid-column: 1; }
+  .b-group { width: 100%; justify-content: center; }
+}

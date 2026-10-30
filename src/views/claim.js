@@ -162,12 +162,12 @@ const ACT_IC = [SVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path 
   SVG('<circle cx="12" cy="12" r="8.5"/><path d="M7 6.5c2.2 3.2 2.2 7.8 0 11M17 6.5c-2.2 3.2-2.2 7.8 0 11"/>'),
   SVG('<path d="M12 2.5 15 9l7 .6-5.3 4.6L18.4 21 12 17.3 5.6 21l1.7-6.8L2 9.6 9 9z"/>')];
 
-function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false }) {
+function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity" }) {
   view = view || { items: [], limits: [] };
   const rows = view.items;
   const dated = rows.some((r) => r.item.starts_at);
   const pid = person ? (person.self_user_id ? "me" : person.id) : "";
-  const link = (o = {}) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ p: pid, v: mode === "cal" ? "cal" : "list", m: month || "", act: filters.act || "", grp: filters.grp || "", show: filters.show || "", ...o }).filter(([, x]) => x)));
+  const link = (o = {}) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "", act: filters.act || "", grp: filters.grp || "", show: filters.show || "", ...o }).filter(([, x]) => x)));
     const t = p.toString(); return `/b/${board.id}${t ? `?${t}` : ""}`; };
   const back = link();
   // activities (the container right above the sessions) and their age group / round
@@ -202,14 +202,33 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     return `<span class="b-state">${esc(r.full ? "Full" : r.reason || "Not available")}</span>`;
   };
   const avail = (r) => r.full ? "Full" : `${r.open} of ${r.item.capacity} open`;
-  const rowHtml2 = (r) => `<div class="b-row${r.mine ? " mine" : ""}${r.leftover && !r.mine ? " lo" : ""}" id="i${r.item.id}">
-      ${dayBlock(r.item.starts_at)}
-      <div class="b-row-main"><b class="b-time">${r.item.starts_at ? esc(timeRange(r.item.starts_at, r.item.ends_at)) : esc(r.item.title || "Anytime")}</b>${r.item.starts_at && r.item.title ? `<span class="b-title">${esc(r.item.title)}</span>` : ""}</div>
+  const rowHtml2 = (r, o = {}) => `<div class="b-row${o.noDate ? " nod" : ""}${r.mine ? " mine" : ""}${r.leftover && !r.mine ? " lo" : ""}" id="i${r.item.id}">
+      ${o.noDate ? "" : dayBlock(r.item.starts_at)}
+      <div class="b-row-main">${o.act ? `<span class="b-act" style="--c:${color((leafOf(r) || {}).id)}"><i></i>${esc((leafOf(r) || {}).name || "")}${r.chain.length > 1 ? `<small>${esc(r.chain.slice(0, -1).map((n) => n.name).join(" • "))}</small>` : ""}</span>` : ""}<b class="b-time">${r.item.starts_at ? esc(timeRange(r.item.starts_at, r.item.ends_at)) : esc(r.item.title || "Anytime")}</b>${r.item.starts_at && r.item.title ? `<span class="b-title">${esc(r.item.title)}</span>` : ""}</div>
       <div class="b-row-meta"><span>${avail(r)}</span><span class="b-dot">•</span><span class="b-elig">${IC.people}${esc(whoLine(r))}</span>
         ${r.leftover && !r.mine ? `<span class="b-lo">🔓 Extra spot, doesn't count toward limits</span>` : ""}
         ${(r.item.location || r.eff.location) && (r.item.location || r.eff.location) !== board.event_location ? `<span class="b-loc">${IC.pin}${esc(r.item.location || r.eff.location)}</span>` : ""}
         ${going(r) ? `<span class="b-going">${esc(going(r))}</span>` : ""}</div>
       <div class="b-row-act">${action(r)}</div></div>`;
+  // sessions grouped by calendar day (in date order); undated ones stay as plain rows
+  const dayKey = (r) => (r.item.starts_at ? inputParts(r.item.starts_at).date : "any");
+  const dayGroups = (list) => [...list.reduce((m, r) => { const k = dayKey(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); return m; }, new Map())];
+  // ---- group by day: weeks (twisties) -> days -> sessions labeled with their activity ----
+  const weekOf = (k) => { const d = new Date(k + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - d.getUTCDay()); return d.toISOString().slice(0, 10); };
+  const today = new Date().toISOString().slice(0, 10), thisWeek = weekOf(today);
+  const byDayHtml = () => {
+    const dated = shown.filter((r) => r.item.starts_at), undated = shown.filter((r) => !r.item.starts_at);
+    const weeks = [...dated.reduce((m, r) => { const w = weekOf(dayKey(r)); if (!m.has(w)) m.set(w, []); m.get(w).push(r); return m; }, new Map())];
+    if (!weeks.length && !undated.length) return "";
+    const firstOpen = weeks.findIndex(([w]) => w >= thisWeek);
+    return weeks.map(([w, rs], n) => { const open = rs.filter((r) => r.canClaim).length, mine = rs.filter((r) => r.mine).length;
+      return `<details class="b-sec b-week" data-id="w${w}"${n === (firstOpen < 0 ? 0 : firstOpen) || w > thisWeek && n <= (firstOpen < 0 ? 0 : firstOpen) + 1 ? " open" : ""}><summary>
+          <span class="b-ic wk">${IC.cal}</span><b>Week of ${esc(new Date(w + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }))}</b>
+          <span class="b-count">${[open ? `${open} open` : "", mine ? `${mine} claimed` : ""].filter(Boolean).join(" · ") || "Nothing open"}</span><span class="b-chev" aria-hidden="true"></span></summary>
+        <div class="b-rows">${dayGroups(rs).map(([k, ds], i) => `<div class="b-dayg${i % 2 ? " alt" : ""}">${dayBlock(ds[0].item.starts_at)}<div class="b-dayg-rows">${ds.map((r) => rowHtml2(r, { noDate: true, act: true })).join("")}</div></div>`).join("")}</div></details>`; }).join("")
+      + (undated.length ? `<details class="b-sec" data-id="wany" open><summary><span class="b-ic wk">${IC.clip}</span><b>Any time</b><span class="b-count">${undated.length}</span><span class="b-chev" aria-hidden="true"></span></summary>
+          <div class="b-rows">${undated.map((r) => rowHtml2(r, { act: true })).join("")}</div></details>` : "");
+  };
   // ---- list: one accordion per activity ----
   const sections = [...shown.reduce((m, r) => { const l = leafOf(r); const k = l ? l.id : 0; if (!m.has(k)) m.set(k, { leaf: l, rows: [] }); m.get(k).rows.push(r); return m; }, new Map()).values()];
   const listHtml = sections.length ? sections.map(({ leaf, rows: rs }, idx) => {
@@ -222,7 +241,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
         <b>${esc(leaf ? leaf.name : board.name)}</b>${crumb.length ? `<span class="b-crumb">(${esc(crumb.join(" • "))})</span>` : ""}
         ${L ? `<span class="b-lim${L.left ? "" : " none"}">${L.left ? `${L.left} of ${L.limit} left` : `all ${L.limit} used`}</span>` : ""}
         <span class="b-count">${[open ? `${open} open` : "", mine ? `${mine} claimed` : ""].filter(Boolean).join(" · ") || "Nothing open"}</span><span class="b-chev" aria-hidden="true"></span></summary>
-      <div class="b-rows">${rs.map(rowHtml2).join("")}</div></details>`;
+      <div class="b-rows">${dayGroups(rs).map(([k, ds], n) => k === "any" ? ds.map((r) => rowHtml2(r)).join("")
+        : `<div class="b-dayg${n % 2 ? " alt" : ""}">${dayBlock(ds[0].item.starts_at)}<div class="b-dayg-rows">${ds.map((r) => rowHtml2(r, { noDate: true })).join("")}</div></div>`).join("")}</div></details>`;
   }).join("") : `<div class="d-empty"><b>Nothing matches.</b><span>${filters.act || filters.grp || filters.show ? `<a href="${link({ act: "", grp: "", show: "" })}">Clear the filters</a>` : "Nothing is open for this person right now."}</span></div>`;
   // ---- calendar: sessions inside each day; tap one for details + Claim ----
   let calHtml = "";
@@ -296,13 +316,14 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
         <a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="true"' : ""}>${IC.cal}Calendar View</a></nav>` : ""}
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
-      <form method="get" action="/b/${board.id}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", m: month || "" })}
+      ${mode !== "cal" && dated ? `<nav class="b-group" aria-label="Group by"><span>Group by</span><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>${esc(require("../schedules").labels(board).activity.one)}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>Day</a></nav>` : ""}
+      <form method="get" action="/b/${board.id}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
         ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
         ${actNames.length > 1 ? sel("act", require("../schedules").labels(board).activity.one, actNames, filters.act, "All") : ""}
         ${groups.length > 1 ? sel("grp", "Group", groups, filters.grp, "All") : ""}
       </form>
     </div>
-    ${mode === "cal" && dated ? calHtml.html : listHtml}
+    ${mode === "cal" && dated ? calHtml.html : group === "day" && dated ? (byDayHtml() || listHtml) : listHtml}
     ${dialogs}`}
     </div>
     <script>
