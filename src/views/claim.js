@@ -166,13 +166,16 @@ const ACT_IC = [SVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path 
   SVG('<circle cx="12" cy="12" r="8.5"/><path d="M7 6.5c2.2 3.2 2.2 7.8 0 11M17 6.5c-2.2 3.2-2.2 7.8 0 11"/>'),
   SVG('<path d="M12 2.5 15 9l7 .6-5.3 4.6L18.4 21 12 17.3 5.6 21l1.7-6.8L2 9.6 9 9z"/>')];
 
-function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity" }) {
+function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null }) {
+  // guest = { code }: the public link ("Anyone with the link"), no account; claims ask for name + email
+  const basePath = guest ? `/s/${guest.code}` : `/b/${board.id}`;
+  if (guest) { person = { id: 0, first_name: "you", guest: true }; people = []; }
   view = view || { items: [], limits: [] };
   const rows = view.items;
   const dated = rows.some((r) => r.item.starts_at);
-  const pid = person ? (person.self_user_id ? "me" : person.id) : "";
+  const pid = guest ? "" : person ? (person.self_user_id ? "me" : person.id) : "";
   const link = (o = {}) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "", act: filters.act || "", grp: filters.grp || "", show: filters.show || "", ...o }).filter(([, x]) => x)));
-    const t = p.toString(); return `/b/${board.id}${t ? `?${t}` : ""}`; };
+    const t = p.toString(); return `${basePath}${t ? `?${t}` : ""}`; };
   const back = link();
   // activities (the container right above the sessions) and their age group / round
   const leafOf = (r) => r.chain[r.chain.length - 1] || null;
@@ -188,12 +191,12 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   if (filters.show === "open") shown = shown.filter((r) => r.canClaim);
   if (filters.show === "mine") shown = shown.filter((r) => r.mine);
   const q = board.question || {};
-  const Name = person ? (person.self_user_id ? "You" : person.first_name) : "";
+  const Name = guest ? "You" : person ? (person.self_user_id ? "You" : person.first_name) : "";
   const whoLine = (r) => { const w = r.eff.who || []; if (!w.length) return board.claim_mode === "public" ? "Open to everyone" : board.claim_mode === "roster" ? "Everyone on the list" : "Anyone with an account";
     const last = w[w.length - 1]; return last.mode === "signed_in" ? "Anyone with an account" : last.mode === "list" ? "Everyone on the list" : `Only ${[...(last.groups || []), ...(last.tags || [])].join(", ")}`; };
   const going = (r) => { const g = r.going || []; if (!g.length) return ""; const mode = board.family_names || "initial"; if (mode === "off") return `${g.length} going`;
     return `Going: ${g.map((x) => mode === "full" ? `${x.first_name} ${x.last_name}` : `${x.first_name} ${(x.last_name || "").slice(0, 1)}.`).join(", ")}`; };
-  const claimForm = (r, big = false) => `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
+  const claimForm = (r, big = false) => guest ? `<button type="button" class="b-claim${big ? " big" : ""}" data-guest="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>` : `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
       ${q.label ? `<input name="note" maxlength="120"${q.required ? " required" : ""} placeholder="${esc(q.label)}${q.required ? "" : " (optional)"}" aria-label="${esc(q.label)}">` : ""}
       <button class="b-claim${big ? " big" : ""}" type="submit">${r.full ? "Join waitlist" : "Claim"}</button></form>`;
   const cancelForm = (r) => `<form method="post" action="/claims/${r.mine.id}/cancel" class="b-cancelf" onsubmit="return confirm('Cancel this spot for ${esc((person.self_user_id ? "yourself" : person.first_name).replace(/'/g, ""))}? It will open for someone else.')">
@@ -305,19 +308,19 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   return layout({ title: board.name, user, flash, admin, tab: "home", dash: true,
     body: `<div class="d-wrap b-wrap">
     <section class="b-head">
-      <a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Dashboard</a>
+      ${guest ? "" : `<a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Dashboard</a>`}
       ${board.image ? `<span class="d-thumb photo b-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code b-tile"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
       <div class="b-head-t"><div class="b-head-line"><h1>${esc(board.name)}</h1>
           ${range || board.event_location ? `<span class="b-head-meta">${[range ? `${IC.cal}${esc(range)}` : "", board.event_location ? `${IC.pin}${P.link(board.event_location)}` : ""].filter(Boolean).map((x) => `<span>${x}</span>`).join("")}</span>` : ""}
           ${board.contact_name || board.contact_info ? `<span class="b-org">Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}</span>` : ""}</div>
         ${board.description ? `<p>${esc(board.description)}</p>` : ""}</div>
     </section>
-    <section class="b-bar">
+    ${guest ? `<section class="b-bar b-bar-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar">
       <span class="b-bar-l">Signing up for:</span>
       <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
       ${person ? `<span class="b-bar-lim">${IC.people}<span>${limitBits.length ? `<b>${esc(Name)}:</b> ${limitBits.join(" · ")}` : `No claim limits for ${esc(person.self_user_id ? "you" : person.first_name)} on this board`}</span></span>` : ""}
       ${extra.length ? `<span class="b-bar-extra">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}
-    </section>
+    </section>`}
     ${!person ? `<p class="b-pick">👆 Tap who's signing up to see what's available.</p>` : `
     <div class="b-tools">
       ${dated ? `<nav class="b-view"><a href="${link({ v: "list", m: "" })}"${mode !== "cal" ? ' aria-current="true"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List View</a>
@@ -325,17 +328,36 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}${limFor(a.id)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
       ${mode !== "cal" && dated ? `<div class="b-group-w"><span class="b-group-l" id="grp-l">Group by</span><nav class="b-group" aria-labelledby="grp-l"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>${esc(require("../schedules").labels(board).activity.one)}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>Day</a></nav></div>` : ""}
-      <form method="get" action="/b/${board.id}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
-        ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
+      <form method="get" action="${basePath}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
+        ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', guest ? "" : `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
         ${actNames.length > 1 ? sel("act", require("../schedules").labels(board).activity.one, actNames, filters.act, "All") : ""}
         ${groups.length > 1 ? sel("grp", "Group", groups, filters.grp, "All") : ""}
       </form>
     </div>
     ${mode === "cal" && dated ? calHtml.html : group === "day" && dated ? (byDayHtml() || listHtml) : listHtml}
-    ${dialogs}`}
+    ${dialogs}
+    ${guest ? `<dialog class="b-dlg" id="guest-claim"><div class="b-dlg-h"><span class="b-dlg-t"><b>Claim this spot</b><small class="gc-what"></small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
+      <form method="post" action="${basePath}/claim" class="b-dlg-b a-form gc-form"><input type="hidden" name="item"><input type="hidden" name="back" value="${esc(back)}">
+        <div class="a-row"><label>First name<input name="first_name" required maxlength="40" autocomplete="given-name"></label><label>Last name<input name="last_name" required maxlength="40" autocomplete="family-name"></label></div>
+        <label>Email<input name="email" type="email" required maxlength="120" autocomplete="email"></label>
+        ${q.label ? `<label><span>${esc(q.label)}${q.required ? "" : ` <span class="opt">(optional)</span>`}</span><input name="note" maxlength="120"${q.required ? " required" : ""}></label>` : ""}
+        <p class="fine">We'll email a confirmation with a link to cancel. ${board.family_names === "off" ? "" : "Your first name and last initial show as going."}</p>
+        <div class="b-dlg-act"><button type="button" class="b-cancelf-btn gc-x">Cancel</button><button class="b-claim big" type="submit">Claim</button></div>
+      </form></dialog>
+      <p class="fine b-acct">Have a Claim It account? <a href="/">Sign in</a> to see this on My Claims.</p>` : ""}`}
     </div>
     <script>
     (function () {
+      var gd = document.getElementById("guest-claim");
+      if (gd) {
+        var gf = gd.querySelector("form"), saved = {}; try { saved = JSON.parse(localStorage.getItem("ci-guest") || "{}"); } catch (e) {}
+        ["first_name", "last_name", "email"].forEach(function (k) { if (saved[k]) gf[k].value = saved[k]; });
+        document.addEventListener("click", function (e) { var b = e.target.closest("[data-guest]"); if (!b) return;
+          document.querySelectorAll("dialog[open]").forEach(function (d) { if (d !== gd) d.close(); });
+          gf.item.value = b.dataset.guest; gd.querySelector(".gc-what").textContent = b.dataset.what; gd.showModal(); (gf.first_name.value ? gf.querySelector("[name=note]") || gf.email : gf.first_name).focus(); });
+        gd.querySelector(".gc-x").addEventListener("click", function () { gd.close(); });
+        gf.addEventListener("submit", function () { try { localStorage.setItem("ci-guest", JSON.stringify({ first_name: gf.first_name.value, last_name: gf.last_name.value, email: gf.email.value })); } catch (e) {} });
+      }
       document.querySelectorAll("[data-dlg]").forEach(function (b) { b.addEventListener("click", function () { var d = document.getElementById(b.dataset.dlg); if (d) d.showModal(); }); });
       document.querySelectorAll(".b-dlg").forEach(function (d) { d.querySelector(".dlg-x").addEventListener("click", function () { d.close(); });
         d.addEventListener("click", function (e) { if (e.target === d) d.close(); }); });
@@ -349,4 +371,17 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
 }
 const IC_CHECK = SVG('<path d="m5 12.5 4.5 4.5L19 7"/>', ' stroke-width="2.6"');
 
-module.exports = { homePage, whoPage, boardPage };
+function guestCancelPage({ c, code, token, tooLate, board }) {
+  return layout({ title: "Cancel your spot", user: null, tab: "home", dash: true,
+    body: `<div class="d-wrap b-wrap"><section class="d-card gc-cancel">
+      <h1>${c.status === "canceled" ? "This spot is already canceled" : "Cancel your spot?"}</h1>
+      <p><b>${esc(c.first_name)} ${esc(c.last_name)}</b> · ${esc(c.board_name)}</p>
+      <p class="gc-when">${esc(slotName(c))}${c.status === "waitlisted" ? " · on the waitlist" : ""}</p>
+      ${c.status === "canceled" ? "" : tooLate ? `<p class="b-pick">It's too late to cancel online.${board.contact_name || board.contact_info ? ` Please contact ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}.` : ""}</p>`
+        : `<form method="post" action="/s/${esc(code)}/cancel/${esc(token)}"><button class="b-claim big gc-go" type="submit">Yes, cancel my spot</button></form>`}
+      <p class="fine"><a href="/s/${esc(code)}">Back to the sign-up page</a></p>
+    </section></div>` });
+}
+
+module.exports = {
+  guestCancelPage, homePage, whoPage, boardPage };

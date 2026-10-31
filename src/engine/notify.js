@@ -6,22 +6,24 @@ const { esc } = require("../views/layout");
 
 async function details(claimId) {
   return (await query(`SELECT c.*, i.title, i.starts_at, i.ends_at, i.location, sc.name AS board_name, sc.contact_name, sc.contact_info, sc.event_location,
-      a.first_name, a.last_name, a.self_user_id,
+      a.first_name, a.last_name, a.self_user_id, a.email AS athlete_email, sc.share_code,
       ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS parent_emails,
       (SELECT email FROM users WHERE id=a.self_user_id) AS self_email
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id WHERE c.id=$1`, [claimId])).rows[0];
 }
-const to = (d, user) => [...new Set([user && user.email, d.self_email, ...(d.parent_emails || [])].filter(Boolean))];
+const to = (d, user) => { const list = [...new Set([user && user.email, d.self_email, ...(d.parent_emails || [])].filter(Boolean))];
+  return list.length ? list : d.athlete_email ? [d.athlete_email] : []; };   // claimed through the public link: their own email
 const lines = (d) => [slotName(d), d.board_name, d.location || d.event_location ? `Location: ${d.location || d.event_location}` : "",
   d.contact_name || d.contact_info ? `Questions? ${[d.contact_name, d.contact_info].filter(Boolean).join(", ")}` : ""].filter(Boolean);
 
-async function claimed(c, user) {
+async function claimed(c, user, cancelUrl = null) {
   const d = await details(c.id); if (!d) return;
   const waiting = c.status === "waitlisted";
   const subject = `${waiting ? "Waitlisted" : "Claimed"}: ${d.first_name}, ${d.board_name}: ${slotName(d)}`;
   const L = lines(d);
-  await sendEmail({ to: to(d, user), subject, text: `${waiting ? `${d.first_name} is on the waitlist.` : `Spot claimed for ${d.first_name}.`}\n\n${L.join("\n")}\n\nSee or cancel it in Claim It under My Claims.`,
-    html: shell(waiting ? `${esc(d.first_name)} is on the waitlist` : `Spot claimed for ${esc(d.first_name)}!`, `<p>${L.map(esc).join("<br>")}</p>`, { href: `${process.env.APP_URL || ""}/dashboard`, label: "My Claims" }) });
+  const btn = cancelUrl ? { href: cancelUrl, label: waiting ? "Leave the waitlist" : "Cancel my spot" } : { href: `${process.env.APP_URL || ""}/dashboard`, label: "My Claims" };
+  await sendEmail({ to: to(d, user), subject, text: `${waiting ? `${d.first_name} is on the waitlist.` : `Spot claimed for ${d.first_name}.`}\n\n${L.join("\n")}\n\n${cancelUrl ? `Can't make it? Cancel here: ${cancelUrl}` : "See or cancel it in Claim It under My Claims."}`,
+    html: shell(waiting ? `${esc(d.first_name)} is on the waitlist` : `Spot claimed for ${esc(d.first_name)}!`, `<p>${L.map(esc).join("<br>")}</p>${cancelUrl ? `<p style="color:#5b6b7a">Can't make it? Use the button below to cancel, so someone else can claim it.</p>` : ""}`, btn) });
 }
 async function canceled(r, user) {
   const d = await details(r.canceled.id); if (!d) return;

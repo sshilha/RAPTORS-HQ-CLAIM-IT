@@ -147,12 +147,13 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   const coach = !!(user && user.is_coach);
   if (user && require("../auth").isAdmin(user)) admin = admin || true; // admins always get their links
   if (pub && !user) return publicLayout({ title, body, flash });
-  if (gate || !user) return gateLayout({ title, body, flash });
+  if (gate || (!user && !dash)) return gateLayout({ title, body, flash });   // the new-style pages also work signed out (public link)
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
   if (dash) return `${head(title)}
 <body class="member-area dash">
-${dashHeader(user, admin, coach, tab)}
+${user ? dashHeader(user, admin, coach, tab) : `<header class="dh"><div class="dh-in"><a class="dh-logo" href="/"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
+  <div class="dh-right dh-guest"><a class="dh-signin" href="/">Sign in</a></div></div></header>`}
 <main class="dash-page">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}
 ${FLASH_JS}

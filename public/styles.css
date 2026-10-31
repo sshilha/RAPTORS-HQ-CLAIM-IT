@@ -2404,3 +2404,15 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .addr-sug button:hover, .addr-sug button.on { background: var(--accent-tint); }
 .addr-sug b { font-size: 14px; color: var(--navy); font-weight: 600; } .addr-sug span { font-size: 12px; color: var(--muted); }
 .addr-err { padding: 8px 10px; font-size: 13px; color: #9a3412; }
+/* public link (no account) */
+.b-bar-guest { gap: 12px; font-size: 14px; } .b-bar-guest svg { width: 22px !important; height: 22px !important; flex: none; }
+.dh-guest { display: flex !important; } .dh-signin { color: #fff; border: 1.5px solid var(--d-lime); border-radius: 8px; padding: 7px 16px; font: 600 14px Inter, sans-serif; text-decoration: none; }
+.dh-signin:hover { background: var(--d-lime); color: var(--d-navy); }
+.gc-form { gap: 10px; } .gc-what { font-size: 13px; }
+.b-acct { text-align: center; margin-top: 14px; }
+@media (max-width: 1180px) { .dh-guest { display: flex !important; margin-left: auto; } }
+.gc-cancel { max-width: 560px; margin: 0 auto; padding: 24px; text-align: center; } .gc-cancel h1 { margin: 0 0 10px; font: 800 22px Inter, sans-serif; }
+.gc-when { font: 700 17px Inter, sans-serif; color: #0B1930; } .gc-go { background: #d64545 !important; color: #fff !important; margin: 8px 0 4px; }
+.share-row { display: flex; gap: 6px; margin: 8px 0; } .share-url { flex: 1; font: 13px ui-monospace, monospace; padding: 7px 9px; }
+.share-qr { display: flex; gap: 12px; align-items: center; } .share-qr img { border: 1px solid var(--line); border-radius: 8px; }
+.share-qr span { display: flex; flex-direction: column; gap: 6px; }

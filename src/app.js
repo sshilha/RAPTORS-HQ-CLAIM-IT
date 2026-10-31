@@ -54,6 +54,7 @@ app.get("/img/board/:id", require("./routes/util").wrap(async (req, res) => {
 }));
 app.use(require("./routes/claim")); // My Claims on the container engine (before the old family pages)
 app.use("/reports", require("./routes/reports2")); // reports on the engine (admins + people given access)
+app.use("/s", require("./routes/publicBoard")); // public links for new boards (falls through to the old ones)
 app.use("/s", require("./routes/public")); // public sign-up sheets (no account needed)
 app.use("/checkin", require("./routes/checkin")); // attendance (admins + coaches)
 app.use(require("./routes/parent"));

@@ -60,6 +60,11 @@ async function migrate() {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uq_board_claim_active ON board_claims(item_id, athlete_id) WHERE status <> 'canceled';
     CREATE INDEX IF NOT EXISTS idx_claims_athlete ON board_claims(athlete_id, status);
+    -- the public link for "Anyone with the link" boards, and a private cancel link per public claim
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS share_code TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_schedules_share ON schedules (share_code) WHERE share_code IS NOT NULL;
+    ALTER TABLE board_claims ADD COLUMN IF NOT EXISTS cancel_token TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_claims_cancel ON board_claims (cancel_token) WHERE cancel_token IS NOT NULL;
   `);
 }
 

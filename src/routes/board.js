@@ -20,6 +20,23 @@ async function board(req) { return (await query(`SELECT * FROM schedules WHERE i
 async function node(req, sc) { return (await query(`SELECT * FROM board_nodes WHERE id=$1 AND schedule_id=$2`, [int(req.params.nid), sc.id])).rows[0]; }
 const fail = (res, path, e) => { if (e instanceof E.ClaimError) return go(res, path, { err: e.message }); throw e; };
 
+// ---------- the public link (Anyone with the link) ----------
+async function shareCode(sc) {
+  if (sc.share_code) return sc.share_code;
+  const code = require("crypto").randomBytes(6).toString("base64url").replace(/[-_]/g, "x");
+  await query(`UPDATE schedules SET share_code=$2 WHERE id=$1 AND share_code IS NULL`, [sc.id, code]);
+  return (await query(`SELECT share_code FROM schedules WHERE id=$1`, [sc.id])).rows[0].share_code;
+}
+router.get("/:sid/qr.svg", wrap(async (req, res) => {
+  const sc = await board(req); if (!sc) return res.status(404).end();
+  const url = `${process.env.APP_URL || `${req.protocol}://${req.get("host")}`}/s/${await shareCode(sc)}`;
+  const svg = await require("qrcode").toString(url, { type: "svg", margin: 1, color: { dark: "#0B1930", light: "#ffffff" } });
+  res.set("Content-Type", "image/svg+xml");
+  if (req.query.download) res.set("Content-Disposition", `attachment; filename="${sc.name.replace(/[^A-Za-z0-9 -]/g, "")} QR.svg"`);
+  res.send(svg);
+}));
+router.shareCode = shareCode;
+
 // ---------- publish (the whole board) ----------
 router.post("/:sid/publish", wrap(async (req, res) => {
   const sc = await board(req); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
@@ -29,6 +46,7 @@ router.post("/:sid/publish", wrap(async (req, res) => {
     if (!n) return go(res, back, { err: `Add at least one ${SC.labels(sc).slot.one.toLowerCase()} first, then publish.` });
   }
   const r = (await query(`UPDATE schedules SET published_at = CASE WHEN published_at IS NULL THEN now() ELSE NULL END WHERE id=$1 RETURNING published_at`, [sc.id])).rows[0];
+  if (r.published_at && sc.claim_mode === "public") await shareCode(sc);
   go(res, back, { ok: r.published_at ? "Published. People can now see it and claim." : "Unpublished. People won't see it until you publish again. Claims are kept." });
 }));
 

@@ -214,7 +214,14 @@ function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, tot
         <div class="meta-line"><span class="meta">${totals.items} ${esc(L.slot.many.toLowerCase())} · ${totals.spots} spots${totals.claimed ? ` · ${totals.claimed} claimed` : ""}</span>
           ${sc.event_location ? `<span class="meta">${I.pin()} <b>${P.link(sc.event_location)}</b></span>` : ""}</div>
         ${sc.description ? `<p class="board-desc">${esc(sc.description)}</p>` : ""}</div>
-      <div class="bh-actions">${pubForm}</div>
+      <div class="bh-actions">${published && SC.claimMode(sc) === "public" && sc.share_code ? (() => {
+        const url = `${process.env.APP_URL || ""}/s/${sc.share_code}`;
+        return `<details class="share-pop"><summary class="btn-ghost btn-lg">Share</summary><div class="share-panel">
+          <p class="fine">Anyone with this link can sign up, no account needed. People with an account also see it on My Claims.</p>
+          <div class="share-row"><input readonly value="${esc(url)}" class="share-url" onclick="this.select()"><button type="button" class="btn-small" onclick="var i=this.previousElementSibling; i.select(); navigator.clipboard && navigator.clipboard.writeText(i.value); this.textContent='Copied'">Copy</button></div>
+          <div class="share-qr"><img src="/admin/b/${sc.id}/qr.svg" alt="QR code for the sign-up link" width="160" height="160">
+            <span><a class="btn-ghost" href="/admin/b/${sc.id}/qr.svg?download=1">Download QR code</a><a class="btn-ghost" href="${esc(url)}" target="_blank" rel="noopener">Open the page</a></span></div>
+        </div></details>`; })() : ""}${pubForm}</div>
     </section>
     ${P.datalist()}
     <div class="board-cols"><div class="bc-left">

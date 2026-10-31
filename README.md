@@ -455,3 +455,12 @@ Locations' address box can suggest addresses as you type. It uses **Places API (
 3. APIs & Services → Credentials → Create credentials → **API key** → Edit → API restrictions →
    *Restrict key* → **Places API (New)** only. (Application restriction: None; only the server uses it.)
 4. Railway → your service → Variables → add `GOOGLE_MAPS_API_KEY` = the key. Redeploy.
+
+
+## Public link ("Anyone with the link" boards)
+Publishing a board set to *Anyone with the link* gives it a link (/s/<code>); the board's Setup screen has
+**Share** with the link, Copy, the QR code (downloadable) and Open. Visitors see the same List / Calendar
+sign-up page with "No account needed"; **Claim** asks for first/last name, email and the board's question
+(remembered on that device). The person is matched by email in People (or added as an adult volunteer), so
+per-person limits apply by email. The confirmation email has a private **Cancel my spot** link (cancel
+deadline applies). Signed-in people who open the link go to the regular sign-up page.

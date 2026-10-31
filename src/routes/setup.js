@@ -36,6 +36,7 @@ router.get("/", wrap(async (req, res) => {
   const open = new Set();
   if (focus) { let x = nodes.find((n) => n.id === focus); while (x) { open.add(x.id); x = nodes.find((n) => n.id === x.parent_id); } }
   const totals = await E.boardTotals(sc.id);
+  if (sc.published_at && sc.claim_mode === "public" && !sc.share_code) sc.share_code = await require("./board").shareCode(sc);
   res.send(require("../views/board").boardSetupPage({ user: req.user, flash: flashFrom(req), sc, tree, topItems, open, focus, eff: E.effectiveAt(sc, []), totals }));
 }));
 
