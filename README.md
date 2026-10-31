@@ -444,3 +444,14 @@ page, or App settings → Sign-in activity (filter by email/phone, "Only problem
 **Who can claim (board setting):** *Anyone with the link* (no account needed; account holders also see it on
 My Claims), *Anyone with an account* (approved accounts only), *Only people assigned to the board* (the
 assigned people, or family linked to them, claiming for them).
+
+
+## Address search (optional): Google Places API (New)
+Locations' address box can suggest addresses as you type. It uses **Places API (New)** from the server
+(the key never appears in the web page). Google no longer lets new projects use the older Places API.
+1. console.cloud.google.com → create a project (e.g. "Raptors Claim It") → set up **Billing** (required;
+   small club use should stay within Google's free monthly allowance; add a budget alert to be safe).
+2. APIs & Services → Library → enable **Places API (New)**.
+3. APIs & Services → Credentials → Create credentials → **API key** → Edit → API restrictions →
+   *Restrict key* → **Places API (New)** only. (Application restriction: None; only the server uses it.)
+4. Railway → your service → Variables → add `GOOGLE_MAPS_API_KEY` = the key. Redeploy.

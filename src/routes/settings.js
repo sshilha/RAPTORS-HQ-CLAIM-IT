@@ -70,6 +70,19 @@ router.get("/archived", wrap(async (req, res) => {
 // ---------- saved places (app-wide) ----------
 const { query: q } = require("../db");
 const P = require("../locations");
+router.get("/places/suggest", wrap(async (req, res) => {
+  const G = require("../places-search");
+  if (!G.enabled() || String(req.query.q || "").trim().length < 3) return res.json({ items: [] });
+  try { res.json({ items: await G.suggest(req.query.q, String(req.query.s || "")) }); }
+  catch (e) { console.error(e.message); res.json({ items: [], error: "Address search isn't working right now. Type the address instead." }); }
+}));
+router.get("/places/details", wrap(async (req, res) => {
+  const G = require("../places-search");
+  if (!G.enabled()) return res.json({});
+  try { res.json(await G.details(String(req.query.id || ""), String(req.query.s || ""))); }
+  catch (e) { console.error(e.message); res.json({}); }
+}));
+
 router.post("/places", wrap(async (req, res) => {
   const name = clean(req.body.name, 80), address = clean(req.body.address, 200) || null;
   const quick = req.get("X-Requested-With") === "fetch"; // the "Add new location" pop-up
@@ -115,11 +128,12 @@ router.post("/app/accounts", wrap(async (req, res) => {
 
 router.post("/app/change-email", wrap(async (req, res) => {
   const e = require("../auth").normalizeEmail(req.body.email);
-  if (!require("../auth").isValidEmail(e)) return go(res, "/admin/settings/app?part=change", { err: "Enter a valid email." });
+  if (!require("../auth").isValidEmail(e)) return go(res, "/admin/requests#notify", { err: "Enter a valid email." });
   const c = catalog.current(); c.change_email = e; await catalog.save(c);
-  go(res, "/admin/settings/app?part=change", { ok: `Change requests now go to ${e}.` });
+  go(res, "/admin/requests#notify", { ok: `New requests will be emailed to ${e}.` });
 }));
 
+router.get("/app", (req, res, next) => (req.query.part === "change" ? res.redirect("/admin/requests#notify") : next()));
 router.get("/app", wrap(async (req, res) => {
   const admins = (await require("../db").query(`SELECT a.*, u.last_login_at FROM app_admins a LEFT JOIN users u ON u.email=a.email ORDER BY a.email`)).rows;
   const used = Object.fromEntries((await require("../db").query(

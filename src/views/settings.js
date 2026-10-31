@@ -156,6 +156,15 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
     places: ["Locations", `    <section class="panel" id="places">
       <h2 class="banner">Locations</h2>
       <p class="fine">Places you use often. Location boxes everywhere suggest these, and people see them as a 📍 link to directions. You can still type any location (like "Pavilion behind Field 2"); it just shows as plain text.</p>
+      <div class="place-addbox"><span class="ia-title">Add a place</span>
+      <form method="post" action="/admin/settings/places" class="inline-add place-add">
+        <label>Name<input name="name" id="place-name" required maxlength="80" placeholder="e.g. Turn Two Athletics"></label>
+        <label class="grow">Address<input name="address" id="place-address" class="addr" maxlength="200" placeholder="${mapsKey ? "Start typing to search…" : "Street, city, state"}"></label>
+        <button class="btn-small" type="submit">Add place</button>
+      </form>
+      ${mapsKey ? `<p class="fine">Address search is on: start typing an address or place name and pick from the list.</p>` : `<p class="fine">Want address search as you type? Add a Google Maps API key in Railway as <code>GOOGLE_MAPS_API_KEY</code> (with <b>Places API (New)</b> turned on). Map links work without it.</p>`}
+      </div>
+      <h3 class="ilist-head">Your places <span class="fine-inline">(${places.length})</span></h3>
       ${places.length ? `<div class="table-wrap"><table class="places">
         <thead><tr><th>Name</th><th>Address</th><th>Map</th><th>Used</th><th></th></tr></thead>
         <tbody>${places.map((l) => `<tr>
@@ -166,29 +175,42 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
           <td><div class="row-actions"><form id="pl-${l.id}" method="post" action="/admin/settings/places/${l.id}"><button class="btn-ghost" type="submit">Save</button></form>
             <form method="post" action="/admin/settings/places/${l.id}/remove" onsubmit="return confirm('Remove ${esc(l.name)} from saved places?')"><button class="x" type="submit" aria-label="Remove">×</button></form></div></td>
         </tr>`).join("")}</tbody></table></div>` : `<p class="muted">No saved places yet.</p>`}
-      <form method="post" action="/admin/settings/places" class="inline-add place-add">
-        <label>Name<input name="name" id="place-name" required maxlength="80" placeholder="e.g. Turn Two Athletics"></label>
-        <label class="grow">Address<input name="address" id="place-address" class="addr" maxlength="200" placeholder="${mapsKey ? "Start typing to search…" : "Street, city, state"}"></label>
-        <button class="btn-small" type="submit">Add place</button>
-      </form>
-      ${mapsKey ? "" : `<p class="fine">Want address search as you type? Add a Google Maps API key in Railway as <code>GOOGLE_MAPS_API_KEY</code>. Map links work without it.</p>`}
     </section>
     ${mapsKey ? `<script>
-      function initPlaces() {
-        document.querySelectorAll("input.addr").forEach(function (el) {
-          var ac = new google.maps.places.Autocomplete(el, { fields: ["formatted_address", "name"], componentRestrictions: { country: "us" } });
-          ac.addListener("place_changed", function () {
-            var p = ac.getPlace(); if (!p) return;
-            if (p.formatted_address) el.value = p.formatted_address;
-            var nameBox = el.form ? el.form.querySelector('[name="name"]') : document.querySelector('[form="' + el.getAttribute("form") + '"][name="name"]');
-            if (el.id === "place-address") nameBox = document.getElementById("place-name");
-            if (nameBox && !nameBox.value && p.name) nameBox.value = p.name;
+    (function () {
+      var token = (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+      document.querySelectorAll("input.addr").forEach(function (el) {
+        el.setAttribute("autocomplete", "off");
+        var box = document.createElement("div"); box.className = "addr-sug"; box.hidden = true; el.parentNode.style.position = "relative"; el.parentNode.appendChild(box);
+        var t = null, items = [], at = -1;
+        function close() { box.hidden = true; at = -1; }
+        function show(list, err) {
+          items = list; at = -1;
+          box.innerHTML = err ? '<div class="addr-err">' + err + '</div>' : list.map(function (x, i) { return '<button type="button" data-i="' + i + '"><b></b><span></span></button>'; }).join("");
+          if (!err) [].forEach.call(box.querySelectorAll("button"), function (b, i) { b.querySelector("b").textContent = list[i].main; b.querySelector("span").textContent = list[i].sub; });
+          box.hidden = !list.length && !err;
+        }
+        function pick(i) {
+          var x = items[i]; if (!x) return; close(); el.value = x.main + (x.sub ? ", " + x.sub : "");
+          fetch("/admin/settings/places/details?id=" + encodeURIComponent(x.id) + "&s=" + token).then(function (r) { return r.json(); }).then(function (d) {
+            if (d.address) el.value = d.address;
+            var nameBox = el.id === "place-address" ? document.getElementById("place-name") : (el.form ? el.form.querySelector('[name="name"]') : document.querySelector('[form="' + el.getAttribute("form") + '"][name="name"]'));
+            if (nameBox && !nameBox.value && d.name) nameBox.value = d.name;
+            token = (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());   // next search, new session
           });
-          el.addEventListener("keydown", function (e) { if (e.key === "Enter" && document.querySelector(".pac-container:not([style*='display: none'])")) e.preventDefault(); });
+        }
+        el.addEventListener("input", function () { clearTimeout(t); var q = el.value.trim(); if (q.length < 3) return close();
+          t = setTimeout(function () { fetch("/admin/settings/places/suggest?q=" + encodeURIComponent(q) + "&s=" + token).then(function (r) { return r.json(); }).then(function (j) { show(j.items || [], j.error); }); }, 250); });
+        box.addEventListener("mousedown", function (e) { var b = e.target.closest("button"); if (b) { e.preventDefault(); pick(+b.dataset.i); } });
+        el.addEventListener("keydown", function (e) {
+          if (box.hidden) return; var bs = box.querySelectorAll("button");
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); at = (at + (e.key === "ArrowDown" ? 1 : -1) + bs.length) % bs.length; bs.forEach(function (b, i) { b.classList.toggle("on", i === at); }); }
+          else if (e.key === "Enter" && at >= 0) { e.preventDefault(); pick(at); } else if (e.key === "Escape") close();
         });
-      }
-    </script>
-    <script async src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(mapsKey)}&libraries=places&callback=initPlaces"></script>` : ""}
+        el.addEventListener("blur", function () { setTimeout(close, 150); });
+      });
+    })();
+    </script>` : ""}
 
 `],
     change: ["Change requests", `    <section class="panel" id="change">
@@ -251,8 +273,6 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
         btn("/admin/settings/app?part=admins", "Manage", true), "People who can set up boards and see everything.")}
       ${card(I.gear(), "App name &amp; wording", `<b>${esc(require("../config").LABELS.app_name)}</b> · boards are called “${esc(require("../config").LABELS.schedule)}”`,
         btn("/admin/settings/app?part=labels", "Edit", true))}
-      ${card(I.check(), "Change requests", `Sent to <b>${esc(c.change_email || "info@chippewavalleyraptors.com")}</b>`, btn("/admin/settings/app?part=change", "Edit", true),
-        "People ask here to fix their info; admins update People.")}
     </div>` });
 }
 

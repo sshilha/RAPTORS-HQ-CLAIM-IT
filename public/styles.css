@@ -2390,3 +2390,17 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .si-hist ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; }
 .si-hist li { display: flex; flex-direction: column; font-size: 13px; border-bottom: 1px solid #eef1f5; padding: 3px 0; }
 .si-hist li.ok b { color: #2f6d0c; } .si-hist li.no b { color: #b91c1c; }
+.rq-notify { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 12px; font-size: 14px; color: var(--text-2); }
+.rq-notify details { display: inline-flex; align-items: center; } .rq-notify summary { list-style: none; cursor: pointer; font-size: 13px; }
+.rq-notify summary::-webkit-details-marker { display: none; } .rq-notify details[open] summary { display: none; }
+.rq-edit { display: inline-flex; gap: 6px; } .rq-edit input { width: 280px; padding: 6px 8px; }
+/* Locations: Add a place on top (green panel), list below */
+.place-addbox { background: var(--accent-tint); border: 1px solid #d9efb0; border-radius: 12px; padding: 10px 14px; margin: 8px 0 12px; }
+.place-addbox .ia-title { display: block; font: 700 14px var(--body); color: #2f6d0c; margin-bottom: 6px; }
+.place-addbox .inline-add { margin: 0; } .place-addbox input { background: #fff; }
+.place-addbox .fine { margin: 6px 0 0; }
+.addr-sug { position: absolute; left: 0; right: 0; top: 100%; z-index: 40; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 24px rgba(11,25,48,.15); padding: 4px; margin-top: 2px; }
+.addr-sug button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 7px 10px; cursor: pointer; font: inherit; }
+.addr-sug button:hover, .addr-sug button.on { background: var(--accent-tint); }
+.addr-sug b { font-size: 14px; color: var(--navy); font-weight: 600; } .addr-sug span { font-size: 12px; color: var(--muted); }
+.addr-err { padding: 8px 10px; font-size: 13px; color: #9a3412; }

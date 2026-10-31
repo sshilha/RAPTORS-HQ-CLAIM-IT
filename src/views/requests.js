@@ -20,6 +20,10 @@ function requestsPage({ user, flash, rows }) {
     </div>` : ""}</li>`;
   return page({ title: "Requests", tab: "people", user, flash, xwide: true,
     body: `<div class="page-top"><h1 class="page-title">Requests <span class="h-sub">${waiting.length} waiting</span></h1><a class="btn-ghost" href="/admin/settings/app">← App settings</a></div>
+    <form method="post" action="/admin/settings/app/change-email" class="rq-notify" id="notify">
+      <span>Email new requests to:</span><b class="rq-addr">${esc(require("../catalog").current().change_email || "info@chippewavalleyraptors.com")}</b>
+      <details><summary class="link-dark">Change</summary><span class="rq-edit"><input type="email" name="email" required value="${esc(require("../catalog").current().change_email || "info@chippewavalleyraptors.com")}" aria-label="Email address"><button class="btn-small" type="submit">Save</button></span></details>
+    </form>
     <section class="panel"><p class="fine">New account requests, family members to add, and changes people asked for. People can edit their own profile; these need an admin. They're emailed when you approve, finish, or decline.</p>
       ${waiting.length ? `<ul class="rq-list">${waiting.map(row).join("")}</ul>` : `<p class="muted">Nothing waiting.</p>`}
       ${done.length ? `<details class="rq-past"><summary>Handled (${done.length})</summary><ul class="rq-list">${done.map(row).join("")}</ul></details>` : ""}
