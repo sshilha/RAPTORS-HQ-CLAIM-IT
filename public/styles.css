@@ -2416,3 +2416,14 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .share-row { display: flex; gap: 6px; margin: 8px 0; } .share-url { flex: 1; font: 13px ui-monospace, monospace; padding: 7px 9px; }
 .share-qr { display: flex; gap: 12px; align-items: center; } .share-qr img { border: 1px solid var(--line); border-radius: 8px; }
 .share-qr span { display: flex; flex-direction: column; gap: 6px; }
+/* Upcoming Claims: Details + Cancel side by side */
+.d-acts { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; }
+.d-acts .d-cancel, .d-acts .d-late { position: static; transform: none; }
+.d-claim-b { padding-right: 200px; }
+.d-det { background: #fff; border: 1.5px solid #c9d1de; border-radius: 8px; padding: 6px 12px; font: 600 13px Inter, sans-serif; color: var(--d-navy); cursor: pointer; }
+.d-det:hover { border-color: var(--d-navy); }
+.dt-h { margin: 12px 0 4px; font: 700 14px Inter, sans-serif; color: var(--d-navy); }
+.dt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.dt-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px; border-bottom: 1px solid #EEF1F5; font-size: 14px; }
+.dt-list li span { color: var(--d-slate); } .dt-list li.me b::after { content: " · your family"; font-weight: 500; color: var(--d-slate); font-size: 12px; }
+@media (max-width: 700px) { .d-acts { top: auto; bottom: 8px; transform: none; right: 10px; } .d-claim-b { padding-right: 12px; } }

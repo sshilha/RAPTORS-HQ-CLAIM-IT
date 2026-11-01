@@ -69,6 +69,18 @@ router.get("/dashboard", wrap(async (req, res) => {
     c.past = c.starts_at && new Date(c.starts_at) <= new Date();
     c.cancelable = !c.past && (!dl || new Date() < dl);
   }
+  // for Details: everyone on each claimed spot (names + answers), and each board's sharing settings
+  const itemIds = [...new Set(claims.map((c) => c.item_id))];
+  const goingAll = itemIds.length ? (await query(`SELECT c.item_id, c.status, c.note, c.athlete_id, a.first_name, a.last_name FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
+    WHERE c.item_id = ANY($1) AND c.status<>'canceled' ORDER BY c.status, c.created_at, c.id`, [itemIds])).rows : [];
+  const boardInfo = itemIds.length ? (await query(`SELECT DISTINCT sc.id, sc.family_names, sc.question, sc.event_location FROM schedules sc JOIN board_items i ON i.schedule_id=sc.id WHERE i.id = ANY($1)`, [itemIds])).rows : [];
+  const caps = itemIds.length ? (await query(`SELECT id, capacity FROM board_items WHERE id = ANY($1)`, [itemIds])).rows : [];
+  for (const c of claims) {
+    c.going = goingAll.filter((g) => g.item_id === c.item_id);
+    c.board = boardInfo.find((b) => b.id === c.schedule_id) || {};
+    c.capacity = (caps.find((x) => x.id === c.item_id) || {}).capacity;
+  }
+  const familyIds = new Set(ids);
   const boards = await boardsFor(req.user, people);
   // each board's date range: its event dates, or the span of its sessions
   const spans = boards.length ? (await query(`SELECT schedule_id, min(starts_at) AS first, max(starts_at) AS last FROM board_items
@@ -82,7 +94,7 @@ router.get("/dashboard", wrap(async (req, res) => {
     for (const r of view.items) if (r.leftover && r.canClaim && r.open > 0) extra.push({ board, person: p, row: r });
   }
   res.send(v.homePage({ user: req.user, flash: flashFrom(req), claims, boards, extra, admin: auth.isAdmin(req.user),
-    coach: !!req.user.is_coach, family, who: req.query.who === "me" ? "me" : who, when, more,
+    coach: !!req.user.is_coach, family, familyIds, who: req.query.who === "me" ? "me" : who, when, more,
     tab: req.query.tab === "vol" ? "vol" : "", allBoards: req.query.boards === "all" }));
 }));
 

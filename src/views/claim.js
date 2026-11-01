@@ -44,7 +44,27 @@ const audience = (b) => {
   return "Anyone with an account";
 };
 
-function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], who = 0, when = "upcoming", more = false, tab = "", allBoards = false }) {
+function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], familyIds = new Set(), who = 0, when = "upcoming", more = false, tab = "", allBoards = false }) {
+  // Details pop-up: the session, and everyone signed up (names + answers, per the board's sharing settings)
+  const detailDialogs = [];
+  const details = (c) => {
+    const q = (c.board && c.board.question) || {}, names = (c.board && c.board.family_names) || "initial";
+    const showAnswer = (g) => q.label && g.note && (admin || q.public !== false || familyIds.has(g.athlete_id));
+    const nm = (g) => (admin || names === "full" || familyIds.has(g.athlete_id)) ? `${g.first_name} ${g.last_name}` : `${g.first_name} ${(g.last_name || "").slice(0, 1)}.`;
+    const conf = c.going.filter((g) => g.status === "confirmed"), wl = c.going.filter((g) => g.status === "waitlisted");
+    const hidden = names === "off" && !admin;
+    const list = (arr) => `<ul class="dt-list">${arr.map((g) => `<li${familyIds.has(g.athlete_id) ? ' class="me"' : ""}><b>${esc(hidden && !familyIds.has(g.athlete_id) ? "Someone" : nm(g))}</b>${showAnswer(g) ? `<span>${esc(g.note)}</span>` : ""}</li>`).join("")}</ul>`;
+    detailDialogs.push(`<dialog class="b-dlg" id="dt${c.id}"><div class="b-dlg-h"><span class="b-dlg-t"><b>${esc(c.path ? c.path.split(" › ").slice(-1)[0] : c.board_name)}</b><small>${esc([c.board_name, ...(c.path ? c.path.split(" › ").slice(0, -1) : [])].join(" • "))}</small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
+      <div class="b-dlg-b"><dl class="b-facts"><div><dt>When</dt><dd>${esc(slotName(c))}</dd></div>
+        ${c.location || (c.board && c.board.event_location) ? `<div><dt>Where</dt><dd>${P.link(c.location || c.board.event_location)}</dd></div>` : ""}
+        <div><dt>Spots</dt><dd>${conf.length} of ${c.capacity || "?"} taken${wl.length ? ` · ${wl.length} waiting` : ""}</dd></div></dl>
+        <h4 class="dt-h">${hidden ? `${conf.length} going` : "Going"}${q.label && (admin || q.public !== false) ? ` <span class="fine">· ${esc(q.label)}</span>` : ""}</h4>
+        ${hidden && !conf.some((g) => familyIds.has(g.athlete_id)) ? `<p class="fine">This board doesn't show names.</p>` : conf.length ? list(hidden ? conf.filter((g) => familyIds.has(g.athlete_id)) : conf) : `<p class="b-none">No one yet</p>`}
+        ${wl.length && !hidden ? `<h4 class="dt-h">Waitlist</h4>${list(wl)}` : ""}
+        ${q.label && q.public === false && !admin ? `<p class="fine">Answers to “${esc(q.label)}” are private; you see your own.</p>` : ""}
+      </div></dialog>`);
+    return `<button type="button" class="d-det" data-dlg="dt${c.id}">Details</button>`;
+  };
   const all = more;
   const q = (o) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ who: who || "", when, more: more ? "1" : "", tab: tab === "vol" ? "vol" : "", boards: allBoards ? "all" : "", ...o }).filter(([, x]) => x))); const t = p.toString(); return `/dashboard${t ? `?${t}` : ""}`; };
   // alerts: one compact row per board + person
@@ -66,9 +86,10 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
       ${rows.map((c) => `<div class="d-claim${c.past ? " past" : ""}${c.status === "waitlisted" ? " wl" : ""}">${dayBlock(c.starts_at)}
         <div class="d-claim-b"><div class="d-claim-t"><b>${c.starts_at ? esc(timeRange(c.starts_at, c.ends_at)) : esc(c.title || "Anytime")}</b>${c.status === "waitlisted" ? `<span class="d-pill wl">Waitlist</span>` : ""}${c.past ? `<span class="d-pill">Done</span>` : ""}</div>
           <span>${esc([c.self_user_id ? "You" : c.first_name, ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}</span></div>
+        <div class="d-acts">${details(c)}
         ${c.past ? "" : c.cancelable ? `<form method="post" action="/claims/${c.id}/cancel" class="d-cancel" onsubmit="return confirm('Cancel this spot for ${esc((c.self_user_id ? "yourself" : c.first_name).replace(/'/g, ""))}? It will open for someone else.')">
             <input type="hidden" name="back" value="/dashboard"><button type="submit">${IC.trash}<span>Cancel</span></button></form>`
-          : `<span class="d-late">Too late to cancel</span>`}
+          : `<span class="d-late">Too late to cancel</span>`}</div>
       </div>`).join("")}</div>`;
   }).join("") + (!all && claims.length > LIMIT ? `<a class="d-more" href="${q({ more: "1" })}#claims">Show all ${claims.length}</a>` : "")
     : `<div class="d-empty">${IC.cal}<b>${{ week: "Nothing claimed for the rest of this week.", "30": "Nothing claimed in the next 30 days.", upcoming: "No upcoming claims yet.", past: "No past claims yet." }[when]}</b>
@@ -112,7 +133,10 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
         </section>
       </div>
     </div>
+    ${detailDialogs.join("")}
     <script>
+      document.querySelectorAll("[data-dlg]").forEach(function (b) { b.addEventListener("click", function () { var d = document.getElementById(b.dataset.dlg); if (d) d.showModal(); }); });
+      document.querySelectorAll(".b-dlg").forEach(function (d) { d.querySelector(".dlg-x").addEventListener("click", function () { d.close(); }); d.addEventListener("click", function (e) { if (e.target === d) d.close(); }); });
       // a little "working…" state on buttons that submit
       document.querySelectorAll(".d-cancel").forEach(function (f) { f.addEventListener("submit", function () { setTimeout(function () { var b = f.querySelector("button"); b.disabled = true; b.classList.add("busy"); }, 0); }); });
       document.querySelectorAll(".d-signup, .d-alert, .d-q").forEach(function (a) { a.addEventListener("click", function () { a.classList.add("busy"); }); });
