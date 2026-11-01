@@ -2427,3 +2427,11 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 .dt-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 2px; border-bottom: 1px solid #EEF1F5; font-size: 14px; }
 .dt-list li span { color: var(--d-slate); } .dt-list li.me b::after { content: " · your family"; font-weight: 500; color: var(--d-slate); font-size: 12px; }
 @media (max-width: 700px) { .d-acts { top: auto; bottom: 8px; transform: none; right: 10px; } .d-claim-b { padding-right: 12px; } }
+
+/* the new menu bar on every page (variables available outside My Claims too) */
+:root { --d-navy: #0B1930; --d-lime: #8DDC32; --d-lime-d: #6fbf1c; --d-bg: #F4F6FA; --d-line: #E3E8F0; --d-slate: #5B6B82; --d-r: 12px; }
+.dh { font-family: Inter, system-ui, "Segoe UI", Arial, sans-serif; }
+.dh svg { flex: none; }
+body:not(.dash) .page { padding-top: 34px; }
+@media (max-width: 1180px) { body:not(.dash) .page { padding-top: 26px; } }
+.dh :where(svg) { width: 20px; height: 20px; }

@@ -266,7 +266,7 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
       ${card(I.userCheck(), "Accounts &amp; sign-in", `New accounts: <b>${c.new_accounts === "open" ? "anyone can sign up" : "approval required"}</b> · Passwords: <b>${c.password_policy === "required" ? "required" : "optional"}</b>`,
         btn("/admin/settings/app?part=accounts", "Edit", true) + btn("/admin/signins", "Sign-in activity"), "Who can get an account, and how people sign in.")}
       ${card(I.check(), "Requests", `<b>${counts.requests || 0}</b> waiting`, btn("/admin/requests", "Review", true),
-        "Family members to add, and changes people asked for.")}
+        "New account requests, family members to add, and changes people asked for.")}
       ${card(I.pin(), "Locations", `<b>${places.length}</b> saved place${places.length === 1 ? "" : "s"}`, btn("/admin/settings/app?part=places", "Manage", true),
         "Places with addresses, so people get directions.")}
       ${card(I.userCheck(), "Administrators", `<b>${admins.length + envAdmins.filter((e) => !admins.some((a) => a.email === e)).length}</b> admin${admins.length + envAdmins.length === 1 ? "" : "s"}`,

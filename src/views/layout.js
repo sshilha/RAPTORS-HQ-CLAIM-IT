@@ -114,11 +114,13 @@ const DI = {
   menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
 };
-function dashHeader(user, admin, coach, tab) {
-  const items = [["/dashboard", "My Claims", DI.cal, tab === "home"],
-    ...(admin ? [["/admin/settings", LABELS.schedules, DI.board]] : []),
-    ...(admin || coach ? [["/checkin", "Check-in", DI.check]] : []),
-    ...(admin || user.can_reports ? [["/reports", "Reports", DI.report, tab === "reports"]] : [])];
+function dashHeader(user, admin, coach, tab, isDash = true) {
+  const on = isDash ? (tab === "home" ? "mine" : tab === "reports" ? "reports" : "")
+    : tab === "reports" ? "reports" : tab === "checkin" ? "checkin" : SETTINGS_AREA.includes(tab) && !["settings", "people"].includes(tab) ? "boards" : "";
+  const items = [["/dashboard", "My Claims", DI.cal, on === "mine"],
+    ...(admin ? [["/admin/settings", LABELS.schedules, DI.board, on === "boards"]] : []),
+    ...(admin || coach ? [["/checkin", "Check-in", DI.check, on === "checkin"]] : []),
+    ...(admin || user.can_reports ? [["/reports", "Reports", DI.report, on === "reports"]] : [])];
   const role = admin ? "Administrator" : coach ? "Coach" : "Parent Account";
   return `<header class="dh">
   <div class="dh-in">
@@ -161,22 +163,9 @@ ${FLASH_JS}
 </html>`;
   return `${head(title)}
 <body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">
-<header class="appbar">
-  <div class="appbar-inner${w}">
-    <a class="brand" href="/dashboard">
-      <img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}">
-      <span class="brand-text sr-only"><span class="brand-mark"><span class="bm-long">${esc(LABELS.app_name)}</span><span class="bm-short">${esc(LABELS.app_short)}</span></span><span class="brand-org">${esc(LABELS.org_name)}</span></span>
-    </a>
-    ${admin || coach ? topNav(tab, admin, coach) : ""}
-    <span class="spacer"></span>
-    <div class="who"><b>${esc(user.email)}</b>
-      ${admin ? `<a class="app-link" href="/admin/settings/app"${tab === "settings" ? ' aria-current="page"' : ""}>⚙ App settings</a>` : ""}
-      <form method="post" action="/logout"><button class="link-btn" type="submit">Sign out</button></form></div>
-  </div>
-</header>
+${dashHeader(user, admin, coach, tab, false)}
 <main class="page${w}${ro}">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}
-${admin || coach ? bottomNav(tab, admin, coach) : ""}
 ${FLASH_JS}
 </body>
 </html>`;
