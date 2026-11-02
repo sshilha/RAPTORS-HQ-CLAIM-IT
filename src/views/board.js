@@ -373,4 +373,4 @@ function spotPeoplePage({ user, flash, sc, it, path, people, onBoard, everyone }
       </form></section>` });
 }
 
-module.exports = { levelOverrides, spotPeoplePage, copyPage, boardSetupPage, boardDefaultsSections };
+module.exports = { levelOverrides, spotPeoplePage, copyPage, boardSetupPage, boardDefaultsSections, settingsForm, settingRows, levelChanges };

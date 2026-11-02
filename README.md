@@ -483,3 +483,20 @@ board's people or anyone in People). Adding follows the board's rules (eligibili
 unless **Override the rules** is checked, which puts them in the spot anyway. **Email them** (on by default)
 sends the usual claimed / canceled email; people moved up off the waitlist are always told. Admin adds show
 as "Added by admin" (and "Override") on the page and in Reports.
+
+
+## Board Setup (three panels)
+/admin/setup?s=<board>[&n=<level>]: header (status, real counts, Preview, Share for public boards, Duplicate,
+Publish/Unpublish) and tabs (Board setup · Board details → the board's Edit window · Access & people ·
+Board defaults). Left: the structure tree (search, + Add, ⋯ Add/Rename/Settings/Delete, claimed/spots per
+level, remembers open branches). Center: the selected level — its child levels as cards, or its sessions
+(date, time, location, claimed bar, People / Edit / Delete). Right: that level's settings with where each
+comes from (Set here / From board / From <level>) and "Override inherited settings" (the same settings form
+as before; "same as above" restores the inherited value). Clicking in the tree swaps the center and right
+panels without reloading; every save returns with the level selected. Level names come from each board.
+
+**Duplicate and repeat (Board Setup):** a session's Duplicate button opens the Add form filled in with its
+values (change what's different and save). A level's Duplicate (⋯ menu or beside Rename) copies it with its
+sub-levels, settings, and sessions, never claims, right after the original as "Name (copy)". When adding a
+session (or duplicating one), **Repeat weekly** creates one per chosen weekday from the date through
+"Until" (up to 200 at once), same times in Central time, with a live count before saving.

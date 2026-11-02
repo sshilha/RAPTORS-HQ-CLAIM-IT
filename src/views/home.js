@@ -97,7 +97,8 @@ function homePage({ user, flash, active, archivedCount }) {
     <p class="archived-link"><a href="/admin/settings/archived">View archived ${esc(LABELS.schedules.toLowerCase())}${archivedCount ? ` (${archivedCount})` : ""}</a></p>
     ${require("../locations").datalist()}
     ${require("../locations").placeDialog()}
-    ${require("./setup").IMAGE_JS}`,
+    ${require("./setup").IMAGE_JS}
+    <script>(function () { var m = /^#edit-(\\d+)$/.exec(location.hash); var d = m && document.getElementById("edit-" + m[1]); if (d && d.showModal) d.showModal(); })();</script>`,
   });
 }
 

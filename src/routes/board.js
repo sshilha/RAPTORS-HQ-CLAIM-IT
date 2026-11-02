@@ -70,6 +70,29 @@ router.post("/:sid/nodes/:nid", wrap(async (req, res) => {
   go(res, at(sc.id, n.id), { ok: `Saved ${name || n.name}.` });
 }));
 
+// Duplicate a level: its sub-levels, settings, and sessions (never claims), placed right after it as "Name (copy)"
+router.post("/:sid/nodes/:nid/duplicate", wrap(async (req, res) => {
+  const sc = await board(req); const n = await node(req, sc);
+  if (!n) return go(res, at(sc.id), { err: "Not found." });
+  const all = (await query(`SELECT * FROM board_nodes WHERE schedule_id=$1`, [sc.id])).rows;
+  // number the siblings in their current order, leaving a gap right after this one for the copy
+  await query(`WITH o AS (SELECT id, row_number() OVER (ORDER BY sort, id) * 2 AS rn FROM board_nodes WHERE schedule_id=$1 AND parent_id IS NOT DISTINCT FROM $2)
+    UPDATE board_nodes b SET sort = o.rn FROM o WHERE b.id = o.id`, [sc.id, n.parent_id]);
+  n.sort = (await query(`SELECT sort FROM board_nodes WHERE id=$1`, [n.id])).rows[0].sort;
+  const copyOne = async (src, parentId, name, sort) => {
+    const r = (await query(`INSERT INTO board_nodes (schedule_id, parent_id, name, sort, color, settings, visible_from) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [sc.id, parentId, name, sort, src.color, JSON.stringify(src.settings || {}), src.visible_from])).rows[0];
+    await query(`INSERT INTO board_items (schedule_id, node_id, title, starts_at, ends_at, capacity, location, settings, sort)
+      SELECT schedule_id, $2, title, starts_at, ends_at, capacity, location, settings, sort FROM board_items WHERE node_id=$1 AND canceled_at IS NULL`, [src.id, r.id]);
+    for (const k of all.filter((x) => x.parent_id === src.id).sort((a, b) => a.sort - b.sort || a.id - b.id)) await copyOne(k, r.id, k.name, k.sort);
+    return r.id;
+  };
+  const newId = await copyOne(n, n.parent_id, `${n.name} (copy)`.slice(0, 60), n.sort + 1);
+  const c = (await query(`WITH RECURSIVE d AS (SELECT id FROM board_nodes WHERE id=$1 UNION ALL SELECT x.id FROM board_nodes x JOIN d ON x.parent_id=d.id)
+    SELECT (SELECT count(*)::int FROM d) - 1 AS levels, (SELECT count(*)::int FROM board_items WHERE node_id IN (SELECT id FROM d)) AS items`, [newId])).rows[0];
+  go(res, at(sc.id, newId), { ok: `Made “${n.name} (copy)”${c.levels ? ` with ${c.levels} level${c.levels === 1 ? "" : "s"} inside` : ""}${c.items ? `${c.levels ? " and" : " with"} ${c.items} session${c.items === 1 ? "" : "s"}` : ""} (no claims). Rename it and adjust what's different.` });
+}));
+
 router.post("/:sid/nodes/:nid/delete", wrap(async (req, res) => {
   const sc = await board(req); const n = await node(req, sc);
   if (!n) return go(res, at(sc.id), {});
@@ -143,9 +166,29 @@ async function readItem(b) {
   if (!int(b.capacity)) return { err: "Enter how many spots." };
   return out;
 }
+// the dates a weekly repeat makes: from the first date through "until", on the chosen weekdays (0 = Sunday)
+function repeatDates(first, until, days) {
+  const out = [], start = Date.parse(first + "T12:00:00Z"), end = Date.parse(until + "T12:00:00Z");
+  if (!(end >= start)) return out;
+  for (let t = start; t <= end && out.length < 200; t += 864e5) { const d = new Date(t); if (days.includes(d.getUTCDay())) out.push(d.toISOString().slice(0, 10)); }
+  return out;
+}
 router.post("/:sid/items", wrap(async (req, res) => {
   const sc = await board(req); const nodeId = int(req.body.node_id) || null;
   const v = await readItem(req.body); if (v.err) return go(res, at(sc.id, nodeId), { err: v.err });
+  // Repeat weekly: one session per chosen weekday, from the date through "until", same times and spots
+  if (req.body.repeat === "1" && v.startsAt) {
+    const days = [].concat(req.body.days || []).map((x) => int(x)).filter((x) => x >= 0 && x <= 6);
+    const until = str(req.body.until);
+    if (!days.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)) return go(res, at(sc.id, nodeId), { err: "For a repeat, pick the days and an end date." });
+    const dates = repeatDates(str(req.body.date), until, days);
+    if (!dates.length) return go(res, at(sc.id, nodeId), { err: "No dates match those days between the start and end dates." });
+    try {
+      for (const d of dates) await E.addItem({ boardId: sc.id, nodeId, title: v.title, capacity: v.capacity, location: v.location,
+        startsAt: await ts(d, str(req.body.start_time)), endsAt: await ts(d, str(req.body.end_time)) });
+    } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+    return go(res, at(sc.id, nodeId), { ok: `Added ${dates.length} session${dates.length === 1 ? "" : "s"}, ${dates[0]} through ${dates[dates.length - 1]}${dates.length === 200 ? " (200 is the most at once)" : ""}.` });
+  }
   try { await E.addItem({ boardId: sc.id, nodeId, ...v }); } catch (e) { return fail(res, at(sc.id, nodeId), e); }
   go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}" with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}.` });
 }));
@@ -221,7 +264,7 @@ router.post("/:sid/items/:iid/delete", wrap(async (req, res) => {
   const n = (await query(`SELECT count(*)::int AS n FROM board_claims WHERE item_id=$1 AND status<>'canceled'`, [it.id])).rows[0].n;
   if (n) return go(res, at(sc.id, it.node_id), { err: `"${it.title}" has ${n} claim${n === 1 ? "" : "s"}, so it can't be removed. Cancel them first.` });
   await query(`DELETE FROM board_items WHERE id=$1`, [it.id]);
-  go(res, at(sc.id, it.node_id), { ok: `Removed "${it.title}".` });
+  go(res, at(sc.id, it.node_id), { ok: `Removed "${require("../time").slotName(it)}".` });
 }));
 
 module.exports = router;
