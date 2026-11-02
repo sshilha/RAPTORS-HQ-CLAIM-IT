@@ -305,18 +305,21 @@ router.post("/schedules/:id/archive", wrap(async (req, res) => {
 }));
 
 router.post("/schedules/:id/delete", wrap(async (req, res) => {
-  const id = int(req.params.id);
-  const used = (await query(`SELECT (SELECT count(*) FROM rounds WHERE schedule_id=$1 AND NOT is_main)
-    + (SELECT count(*) FROM training_sessions s JOIN programs p ON p.id=s.program_id JOIN rounds r ON r.id=p.round_id WHERE r.schedule_id=$1) AS n`, [id])).rows[0].n;
-  if (Number(used)) return go(res, `/admin/setup/schedule/archive?s=${id}`, { err: "Delete its items first. A board can only be deleted when it's empty." });
-  if ((await SC.all()).length <= 1) return go(res, `/admin/setup/schedule/archive?s=${id}`, { err: "Keep at least one board." });
-  // its activities go with it (they can't be on anything, since the schedule is empty)
+  const id = int(req.params.id), back = "/admin/settings/archived";
+  const sc = (await query(`SELECT * FROM schedules WHERE id=$1`, [id])).rows[0];
+  if (!sc) return go(res, back, { err: "Not found." });
+  if (!sc.archived_at) return go(res, "/admin/settings", { err: `Archive ${sc.name} first. Only archived boards can be deleted.` });
+  const norm = (x) => String(x || "").trim().replace(/\s+/g, " ").toLowerCase();
+  if (norm(req.body.confirm) !== norm(sc.name)) return go(res, back, { err: `To delete it, type the board's name exactly: ${sc.name}` });
+  if ((await query(`SELECT count(*)::int AS n FROM schedules WHERE id<>$1`, [id])).rows[0].n === 0) return go(res, back, { err: "Keep at least one board." });
+  const c = (await query(`SELECT (SELECT count(*)::int FROM board_items WHERE schedule_id=$1) AS items,
+      (SELECT count(*)::int FROM board_claims x JOIN board_items i ON i.id=x.item_id WHERE i.schedule_id=$1) AS claims`, [id])).rows[0];
   const catalog = require("../catalog");
-  const c = catalog.current(); c.activities = c.activities.filter((a) => a.schedule_id !== id); await catalog.save(c);
-  await query(`DELETE FROM schedules WHERE id=$1`, [id]);
+  const cat = catalog.current(); cat.activities = (cat.activities || []).filter((a) => a.schedule_id !== id); await catalog.save(cat);
+  await query(`DELETE FROM schedules WHERE id=$1`, [id]);   // levels, sessions, claims, its people list, coaches, and links go with it
   res.clearCookie("rt_sched");
   await SC.refreshGroups();
-  go(res, require("./util").dest(req, "/admin/settings"), { ok: "Deleted." });
+  go(res, back, { ok: `Deleted ${sc.name} for good (${c.items} session${c.items === 1 ? "" : "s"}, ${c.claims} claim${c.claims === 1 ? "" : "s"}). People are still in People.` });
 }));
 
 module.exports = router;

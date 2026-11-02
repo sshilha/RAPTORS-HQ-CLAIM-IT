@@ -500,3 +500,8 @@ values (change what's different and save). A level's Duplicate (⋯ menu or besi
 sub-levels, settings, and sessions, never claims, right after the original as "Name (copy)". When adding a
 session (or duplicating one), **Repeat weekly** creates one per chosen weekday from the date through
 "Until" (up to 200 at once), same times in Central time, with a live count before saving.
+
+**Deleting a board:** archive it first (Claim Boards → Archive), then View archived → **Delete permanently**.
+The confirmation lists what goes (levels, sessions, all claims including past ones and attendance, the board's
+people list, coaches, public link) and requires typing the board's name. People, accounts, and other boards
+stay. Live boards can't be deleted.

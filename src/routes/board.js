@@ -107,27 +107,32 @@ router.post("/:sid/nodes/:nid/delete", wrap(async (req, res) => {
 router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
   const sc = await board(req); const n = await node(req, sc);
   if (!n) return go(res, at(sc.id), { err: "Not found." });
-  const b = req.body, s = {};
+  const b = req.body;
+  const ONLY = { who: "who", limit: "limit", opens: "opens_at", cancel: "cancel_hours", leftover: "leftover_hours", waitlist: "waitlist", attendance: "attendance", location: "location", visible: null };
+  const only = Object.prototype.hasOwnProperty.call(ONLY, b.only) ? b.only : null;
+  const s = only ? { ...(n.settings || {}) } : {};
+  if (only && ONLY[only]) delete s[ONLY[only]];
+  const want = (k) => !only || only === k;
   const list = (v) => [].concat(v || []).map(String);
-  if (["signed_in", "list"].includes(b.who_mode)) s.who = { mode: b.who_mode };
-  if (b.who_mode === "teams") {
+  if (want("who") && ["signed_in", "list"].includes(b.who_mode)) s.who = { mode: b.who_mode };
+  if (want("who") && b.who_mode === "teams") {
     const groups = list(b.who_groups).filter((g) => SC.groupsFor(sc).includes(g)), tags = list(b.who_tags).filter((t) => (sc.tags || []).includes(t));
     if (!groups.length && !tags.length) return go(res, at(sc.id, n.id), { err: `Pick at least one ${SC.labels(sc).group.one.toLowerCase()} or tag, or choose Same as above.` });
     s.who = { mode: "teams", groups, tags };
   }
-  if (b.limit_mode === "n") s.limit = Math.max(1, Math.min(int(b.limit_n) || 1, 99));
-  if (b.opens === "now") s.opens_at = null;
-  if (b.opens === "at") { const t = await ts(b.opens_at); if (!t) return go(res, at(sc.id, n.id), { err: "Pick when claiming opens." }); s.opens_at = new Date(t).toISOString(); }
-  if (b.cancel === "n") s.cancel_hours = Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
-  if (b.leftover === "never") s.leftover_hours = null;
-  if (b.leftover === "n") { const k = Math.max(1, Math.min(int(b.leftover_n) || 1, 1440)); s.leftover_hours = b.leftover_unit === "hours" ? k : k * 24; }
-  if (b.waitlist === "on" || b.waitlist === "off") s.waitlist = b.waitlist === "on";
-  if (b.attendance === "on" || b.attendance === "off") s.attendance = b.attendance === "on";
-  if (str(b.location)) s.location = str(b.location).slice(0, 80);
-  const vf = b.visible === "at" ? await ts(b.visible_from) : null;
-  if (b.visible === "at" && !vf) return go(res, at(sc.id, n.id), { err: "Pick the date and time it becomes visible." });
+  if (want("limit") && b.limit_mode === "n") s.limit = Math.max(1, Math.min(int(b.limit_n) || 1, 99));
+  if (want("opens") && b.opens === "now") s.opens_at = null;
+  if (want("opens") && b.opens === "at") { const t = await ts(b.opens_at); if (!t) return go(res, at(sc.id, n.id), { err: "Pick when claiming opens." }); s.opens_at = new Date(t).toISOString(); }
+  if (want("cancel") && b.cancel === "n") s.cancel_hours = Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
+  if (want("leftover") && b.leftover === "never") s.leftover_hours = null;
+  if (want("leftover") && b.leftover === "n") { const k = Math.max(1, Math.min(int(b.leftover_n) || 1, 1440)); s.leftover_hours = b.leftover_unit === "hours" ? k : k * 24; }
+  if (want("waitlist") && (b.waitlist === "on" || b.waitlist === "off")) s.waitlist = b.waitlist === "on";
+  if (want("attendance") && (b.attendance === "on" || b.attendance === "off")) s.attendance = b.attendance === "on";
+  if (want("location") && str(b.location)) s.location = str(b.location).slice(0, 80);
+  const vf = only && only !== "visible" ? n.visible_from : b.visible === "at" ? await ts(b.visible_from) : null;
+  if (want("visible") && b.visible === "at" && !vf) return go(res, at(sc.id, n.id), { err: "Pick the date and time it becomes visible." });
   await query(`UPDATE board_nodes SET settings=$2, visible_from=$3 WHERE id=$1`, [n.id, JSON.stringify(s), vf]);
-  go(res, at(sc.id, n.id), { ok: `Saved settings for ${n.name}.` });
+  go(res, at(sc.id, n.id), { ok: only ? `Saved ${{ who: "who can claim", limit: "the limit", opens: "when claiming opens", cancel: "the cancel deadline", leftover: "open leftover spots", waitlist: "the waitlist", attendance: "attendance", location: "the location", visible: "when it's visible" }[only]} for ${n.name}.` : `Saved settings for ${n.name}.` });
 }));
 
 // ---------- board-wide defaults (Settings page) ----------

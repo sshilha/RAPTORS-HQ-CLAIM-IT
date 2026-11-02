@@ -39,6 +39,7 @@ async function boardRows() {
       (SELECT count(*)::int FROM board_nodes n WHERE n.schedule_id=sc.id AND n.parent_id IS NULL) AS sheets,
       (SELECT count(*)::int FROM board_items i WHERE i.schedule_id=sc.id AND i.canceled_at IS NULL) AS items,
       (SELECT count(*)::int FROM schedule_members m WHERE m.schedule_id=sc.id) AS members,
+      (SELECT count(*)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE i.schedule_id=sc.id AND c.status<>'canceled') AS all_claims,
       (SELECT count(*)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id
          WHERE i.schedule_id=sc.id AND c.status='confirmed' AND (i.starts_at IS NULL OR i.starts_at > now())) AS claimed,
       (SELECT to_char(min(i.starts_at) AT TIME ZONE 'America/Chicago', 'Dy, Mon FMDD at FMHH12:MI AM') FROM board_items i

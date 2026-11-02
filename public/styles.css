@@ -2589,3 +2589,20 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .sd-count { margin: 0; font-weight: 600; color: #2f6d0c; }
 .sd > form { padding: 0 18px 16px; } .sd .dlg-head { margin: 0 -18px 6px; padding-left: 18px; padding-right: 18px; }
 .sd .q-actions { margin-top: 6px; }
+.del-dlg { width: min(520px, 94vw); } .del-dlg > form { padding: 0 18px 16px; } .del-dlg .dlg-head { margin: 0 -18px 6px; padding: 0 18px; }
+.del-list { margin: 0 0 4px; padding-left: 20px; font-size: 14px; } .del-list li { margin: 3px 0; }
+.del-go { background: #d64545 !important; border-color: #d64545 !important; color: #fff !important; } .del-go:disabled { opacity: .45; cursor: not-allowed; }
+/* right panel: each setting editable in place */
+.st-item { border-bottom: 1px solid #EEF1F5; } .st-item.editing { background: #F7FBF1; margin: 0 -14px; padding: 0 14px; }
+.st-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; } .st-row dt { flex: 1; font: 600 13px Inter, sans-serif; color: #334155; }
+.st-row dd { margin: 0; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; font-size: 13px; color: #0B1930; }
+.st-list > .st-item > .st-row { border: 0; }
+.st-editl { background: none; border: 0; color: #1a6fe0; font: 600 12px Inter, sans-serif; cursor: pointer; padding: 2px 0 0 4px; white-space: nowrap; } .st-editl:hover { text-decoration: underline; }
+.st-item.editing .st-editl { color: #5B6B82; }
+.st-inline { padding: 4px 0 10px; display: flex; flex-direction: column; gap: 6px; } .st-inline[hidden] { display: none; }
+.st-inline fieldset { border: 0; padding: 0; margin: 0; } .st-inline .radio-row { font-size: 13px; }
+.st-inline-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.st-list > .st-item { display: block; padding: 0; justify-content: initial; }
+.st-row dd { flex: none; max-width: 60%; }
+.st-inline { padding-left: 2px; }
+.st-list > .st-item.editing { padding: 0 14px; margin: 0 -14px; }

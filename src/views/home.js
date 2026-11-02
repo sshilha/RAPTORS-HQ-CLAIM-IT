@@ -74,8 +74,18 @@ function card(sc, archived) {
         ${archived ? "" : `onsubmit="return confirm('Archive ${esc(sc.name)}? People won\'t see anything in it. Nothing is deleted, and you can reopen it any time.')"`}>
         <input type="hidden" name="return_to" value="${archived ? "/admin/settings/archived" : "/admin/settings"}">
         <button class="btn-ghost" type="submit">${archived ? "Reopen" : "Archive"}</button></form>
-      ${archived && sc.empty ? `<form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" onsubmit="return confirm('Delete ${esc(sc.name)} for good?')">
-        <button class="btn-ghost danger" type="submit">Delete</button></form>` : ""}
+      ${archived ? `<button type="button" class="btn-ghost danger" onclick="document.getElementById('del-${sc.id}').showModal()">Delete permanently</button>
+        <dialog class="edit-dlg del-dlg" id="del-${sc.id}"><form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" class="stack">
+          <div class="dlg-head"><h2>Delete ${esc(sc.name)} for good?</h2><button type="button" class="dlg-x" onclick="this.closest('dialog').close()">×</button></div>
+          <p><b>This can't be undone.</b> Deleting removes:</p>
+          <ul class="del-list"><li>${sc.containers} level${sc.containers === 1 ? "" : "s"} and ${sc.items} session${sc.items === 1 ? "" : "s"}</li>
+            <li><b>${sc.all_claims}</b> claim${sc.all_claims === 1 ? "" : "s"}, including past ones and attendance (they'll be gone from Reports)</li>
+            <li>The board's list of ${sc.members} ${sc.members === 1 ? "person" : "people"}, its coaches, and its public link</li></ul>
+          <p class="fine">What stays: everyone in <b>People</b>, their accounts, and your other boards. If you might want this board's history later, keep it archived instead.</p>
+          <label>Type <b>${esc(sc.name)}</b> to confirm<input name="confirm" autocomplete="off" required data-match="${esc(sc.name)}"></label>
+          <div class="q-actions"><button type="button" class="btn-ghost" onclick="this.closest('dialog').close()">Keep it</button>
+            <button class="btn-small del-go" type="submit" disabled>Delete permanently</button></div>
+        </form></dialog>` : ""}
     </div>
     ${archived ? "" : editDialog(sc)}
   </div>`;
@@ -98,7 +108,16 @@ function homePage({ user, flash, active, archivedCount }) {
     ${require("../locations").datalist()}
     ${require("../locations").placeDialog()}
     ${require("./setup").IMAGE_JS}
-    <script>(function () { var m = /^#edit-(\\d+)$/.exec(location.hash); var d = m && document.getElementById("edit-" + m[1]); if (d && d.showModal) d.showModal(); })();</script>`,
+    <script>(function () {
+      var m = /^#edit-(\\d+)$/.exec(location.hash); var d = m && document.getElementById("edit-" + m[1]); if (!d || !d.showModal) return;
+      // opened from a board's Setup (Board details tab): saving, Cancel, and × all go back to that Setup screen
+      if (/[?&]from=setup/.test(location.search)) {
+        var back = "/admin/setup?s=" + m[1], f = d.querySelector("form"), r = f && f.querySelector("[name=return_to]"), saving = false;
+        if (r) r.value = back; if (f) f.addEventListener("submit", function () { saving = true; });
+        d.addEventListener("close", function () { if (!saving) location.href = back; });
+      }
+      d.showModal();
+    })();</script>`,
   });
 }
 
@@ -107,9 +126,11 @@ function archivedPage({ user, flash, archived }) {
     title: `Archived ${LABELS.schedules}`, tab: "home", user, flash,
     body: `<a class="back" href="/admin/settings">Settings</a>
     <section class="panel"><h1>Archived ${esc(LABELS.schedules.toLowerCase())}</h1>
-      <p class="muted tight">People can't see these. Nothing in them was deleted. Reopen one to make it active again, or copy it to start a new one.</p></section>
+      <p class="muted tight">People can't see these. Nothing in them was deleted. Reopen one to make it active again, copy it to start a new one, or delete it permanently.</p></section>
     ${archived.length ? `<div class="sched-grid">${archived.map((x) => card(x, true)).join("")}</div>`
-      : `<section class="panel"><p class="muted">Nothing archived.</p></section>`}`,
+      : `<section class="panel"><p class="muted">Nothing archived.</p></section>`}
+    <script>document.querySelectorAll("[data-match]").forEach(function (i) { var b = i.form.querySelector(".del-go");
+      i.addEventListener("input", function () { b.disabled = i.value.trim().replace(/\\s+/g, " ").toLowerCase() !== i.dataset.match.trim().toLowerCase(); }); });</script>`,
   });
 }
 

@@ -88,22 +88,39 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
   const rowsHtml = (rows) => `<dl class="st-list">${rows.map(([k, v, src]) => `<div><dt>${k}</dt><dd><span>${v}</span>${srcTag(src)}</dd></div>`).join("")}</dl>`;
   let right;
   if (!t) {
-    right = `<div class="st-h">${IC.gear}<h3>Board defaults</h3></div>
-      <p class="st-note">These apply to everything on <b>this board</b>, not to other boards. Any level can change them with its own settings.</p>
-      ${rowsHtml(B.settingRows(sc, eff, sc.settings || {}, "board"))}
-      <a class="sb-btn wide" href="/admin/setup/schedule?s=${sc.id}">${IC.edit}Edit board defaults</a>`;
+    right = `<div class="st-h">${IC.gear}<h3>Settings</h3></div>
+      <p class="st-note">Pick a ${esc((depth > 1 ? word(0) : L.slot).one.toLowerCase())} or any level on the left to see and change its settings.</p>
+      <p class="st-note">Settings for the whole board are under <a href="/admin/setup/schedule?s=${sc.id}"><b>Board defaults</b></a> at the top. Every level starts with those, and can change any of them.</p>`;
   } else {
     const own = B.levelChanges(t.node);
     right = `<div class="st-h">${IC.gear}<h3>${esc(word(lvl).one)} settings</h3></div>
       <form method="post" action="/admin/b/${sc.id}/nodes/${t.node.id}" class="st-name"><label>${esc(word(lvl).one)} name<span class="st-name-row"><input name="name" value="${esc(t.node.name)}" maxlength="60" required${locked ? " disabled" : ""}>${locked ? "" : `<button class="sb-btn" type="submit">Save</button>`}</span></label></form>
       <p class="st-sub">What applies to <b>${esc(t.node.name)}</b></p>
-      ${rowsHtml(B.settingRows(sc, t.eff, t.node.settings || {}, "node"))}
-      <p class="st-legend"><span class="src-tag here">Set here</span> changed on this ${esc(word(lvl).one.toLowerCase())} · <span class="src-tag board">From board</span> board default · <span class="src-tag from">From …</span> a level above</p>
-      ${locked ? "" : `<details class="st-edit"${own.length ? "" : ""}><summary class="sb-btn wide">${IC.edit}${own.length ? "Change settings" : "Override inherited settings"}</summary>
-        <p class="st-note">Changes apply to everything inside <b>${esc(t.node.name)}</b>. Choose “same as above” to go back to the inherited value.</p>
-        ${B.settingsForm(sc, t.node, t.inherited)}</details>`}`;
+      ${inlineSettings(sc, t, locked)}
+      <p class="st-legend"><span class="src-tag here">Set here</span> changed on this ${esc(word(lvl).one.toLowerCase())} · <span class="src-tag board">From board</span> board default · <span class="src-tag from">From …</span> a level above</p>`;
   }
   return { center, right, title: `${t ? t.node.name : "Setup"} · ${sc.name}` };
+}
+
+// each setting as a row with Edit; Edit shows that setting's own part of the settings form, saved alone (?only=)
+const KEY_OF = { "Who can claim here": "who", "Per-person limit here": "limit", "Claiming opens": "opens", "Cancel deadline": "cancel", "Open leftover spots": "leftover",
+  "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
+const ROW_KEY = { "Who can claim here": "who", "Per-person limit": "limit", "Claiming opens": "opens", "Cancel deadline": "cancel", "Open leftover spots": "leftover", "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
+function inlineSettings(sc, t, locked) {
+  const n = t.node;
+  const form = B.settingsForm(sc, n, t.inherited);
+  const parts = {}; form.replace(/<fieldset><legend>([^<]+)<\/legend>([\s\S]*?)<\/fieldset>/g, (m, legend, inner) => { const k = KEY_OF[legend.trim()]; if (k) parts[k] = m; return m; });
+  const rows = B.settingRows(sc, t.eff, n.settings || {}, "node");
+  rows.push(["Visible from", n.visible_from ? `Hidden until ${require("../time").fmtDateTime(n.visible_from)}` : "Always", n.visible_from ? "Set here" : "Board default"]);
+  const tag = (src) => { const m = /^Narrowed above \((.*)\)$/.exec(src || "");
+    return src === "Set here" ? `<span class="src-tag here">Set here</span>` : m ? `<span class="src-tag from">From ${esc(m[1])}</span>` : /^From /.test(src) ? `<span class="src-tag from">${esc(src)}</span>`
+      : /Board|board/.test(src) || src === "Same as the board" ? `<span class="src-tag board">From board</span>` : `<span class="st-why">${esc(src)}</span>`; };
+  return `<dl class="st-list">${rows.map(([k, v, src]) => { const key = ROW_KEY[k], part = key && parts[key];
+    return `<div class="st-item" data-key="${key || ""}"><div class="st-row"><dt>${k}</dt><dd><span>${v}</span>${tag(src)}</dd>
+        ${part && !locked ? `<button type="button" class="st-editl" aria-expanded="false">Edit</button>` : ""}</div>
+      ${part && !locked ? `<form method="post" action="/admin/b/${sc.id}/nodes/${n.id}/settings" class="node-settings st-inline" hidden>
+        <input type="hidden" name="only" value="${key}">${part.replace(/<legend>[^<]*<\/legend>/, "")}
+        <div class="st-inline-acts"><button type="button" class="btn-ghost st-cancel">Cancel</button><button class="btn-small" type="submit">Save</button></div></form>` : ""}</div>`; }).join("")}</dl>`;
 }
 
 // ---------- the whole page ----------
@@ -145,7 +162,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
       ${locked ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
         <button class="sb-btn ${published ? "" : "primary"}" type="submit">${published ? "Unpublish" : "Publish"}</button></form>`}</div>
   </section>
-  <nav class="bh2-tabs"><a aria-current="page" href="/admin/setup?s=${sc.id}">${IC.gear}Board setup</a><a href="/admin/settings#edit-${sc.id}">${IC.board}Board details</a>
+  <nav class="bh2-tabs"><a aria-current="page" href="/admin/setup?s=${sc.id}">${IC.gear}Board setup</a><a href="/admin/settings?from=setup#edit-${sc.id}">${IC.board}Board details</a>
     <a href="/admin/members?s=${sc.id}">${IC.people}Access &amp; people</a><a href="/admin/setup/schedule?s=${sc.id}">${IC.edit}Board defaults</a></nav>`;
   const L0 = depth > 1 ? word(0) : L.slot;
   return page({ title: pane.title, tab: "setup", user, flash, xwide: true,
@@ -155,7 +172,6 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
           ${locked ? "" : depth > 1 ? `<button type="button" class="sb-btn primary sm" data-add-node="" data-word="${esc(L0.one)}">${IC.plus}Add ${esc(L0.one.toLowerCase())}</button>` : ""}</div>
         <label class="spt-search">${IC.search}<input type="search" placeholder="Search levels…" aria-label="Search levels"></label>
         <ul class="spt">
-          <li class="tn root"><div class="tn-row${sel ? "" : " on"}"><span class="tn-tog none"></span><a class="tn-link" href="/admin/setup?s=${sc.id}" data-nav="">${IC.board}<span class="tn-name">Whole board</span><span class="tn-c">${totals.claimed}/${totals.spots}</span></a></div></li>
           ${tree.map((t) => node(t, 0)).join("")}
         </ul>
         ${depth > 1 && !tree.length ? `<p class="fine spt-empty">No ${esc(L0.many.toLowerCase())} yet.</p>` : ""}</aside>
@@ -222,7 +238,7 @@ const CLIENT_JS = `
     if (t.matches(".tn-dots")) { var m = t.nextElementSibling, was = m.hidden; document.querySelectorAll(".tn-menu").forEach(function (x) { x.hidden = true; }); m.hidden = !was; return; }
     document.querySelectorAll(".tn-menu").forEach(function (x) { x.hidden = true; });
     if (t.matches("[data-nav]") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); go(t.dataset.nav, true); return; }
-    if (t.matches("[data-settings]")) { go(t.dataset.settings, true); setTimeout(function () { var d = document.querySelector(".st-edit"); if (d) { d.open = true; d.scrollIntoView({ block: "start" }); } }, 400); return; }
+    if (t.matches("[data-settings]")) { go(t.dataset.settings, true); return; }
     if (t.matches("[data-add-node]")) { var f = dn.querySelector("form"); f.action = "/admin/b/" + sid + "/nodes"; f.parent_id.value = t.dataset.addNode; f.name.value = "";
       dn.querySelector("h2").textContent = "Add " + t.dataset.word.toLowerCase() + (t.dataset.addNode ? " to " + nameOf(t.dataset.addNode) : ""); dn.showModal(); f.name.focus(); return; }
     if (t.matches("[data-rename]")) { var f2 = dn.querySelector("form"); f2.action = "/admin/b/" + sid + "/nodes/" + t.dataset.rename; f2.parent_id.value = ""; f2.name.value = t.dataset.name;
@@ -239,6 +255,14 @@ const CLIENT_JS = `
       var rep = di.querySelector(".sd-rep"); if (rep) { rep.hidden = !!it; rep.querySelector(".sd-rep-b").hidden = true; }
       di.querySelector("h2").textContent = it ? "Edit" : dup ? "Duplicate: change what's different" : "Add" + (t.dataset.addItem ? " to " + nameOf(t.dataset.addItem) : "");
       di.querySelector(".sd-err").hidden = true; di.showModal(); (f3.date || f3.title).focus(); repCount(); return; }
+  });
+  // a setting's inline edit: one open at a time; Cancel resets it
+  document.addEventListener("click", function (e) {
+    var ed = e.target.closest(".st-editl"), cx = e.target.closest(".st-cancel");
+    if (ed) { var item = ed.closest(".st-item"), f = item.querySelector(".st-inline"), opening = f.hidden;
+      document.querySelectorAll(".st-inline").forEach(function (x) { if (x !== f && !x.hidden) { x.reset(); x.hidden = true; x.closest(".st-item").classList.remove("editing"); x.closest(".st-item").querySelector(".st-editl").setAttribute("aria-expanded", "false"); } });
+      f.hidden = !opening; item.classList.toggle("editing", opening); ed.setAttribute("aria-expanded", String(opening)); if (opening) { var first = f.querySelector("input:not([type=hidden]), select"); if (first) first.focus(); } }
+    if (cx) { var f2 = cx.closest(".st-inline"); f2.reset(); f2.hidden = true; f2.closest(".st-item").classList.remove("editing"); f2.closest(".st-item").querySelector(".st-editl").setAttribute("aria-expanded", "false"); dirty = false; }
   });
   // keyboard: Enter/Space on a tree name works like a click (links already do); Escape closes menus
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".tn-menu").forEach(function (m) { m.hidden = true; }); });
