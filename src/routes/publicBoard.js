@@ -48,7 +48,8 @@ router.post("/:code/claim", wrap(async (req, res, next) => {
     const cancelUrl = `${base(req)}/s/${req.params.code}/cancel/${t}`;
     await require("../engine/notify").claimed(c, null, cancelUrl);
     if (!process.env.RESEND_API_KEY) console.log(`[cancel link] ${email}: ${cancelUrl}`);
-    go(res, back, { ok: `${c.status === "waitlisted" ? "You're on the waitlist for" : "You're signed up for"} ${slotName(item)}. We emailed ${email} a confirmation with a link to cancel.` });
+    const who = String(p.first_name || "").trim() || email;
+    go(res, back, { ok: `${who} ${c.status === "waitlisted" ? "is on the waitlist for" : "is signed up for"} ${slotName(item)}. We emailed ${email} a confirmation with a link to cancel.` });
   } catch (e) { if (e instanceof E.ClaimError) return go(res, back, { err: e.message.replace(/^Already claimed\.$/, "That email already has this spot.") }); throw e; }
 }));
 

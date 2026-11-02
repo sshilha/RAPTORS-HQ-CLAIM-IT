@@ -568,9 +568,13 @@ Not invited → Check all shown → Send invite.
 ## Athletes who sign in themselves
 An athlete's People page has **Own sign-in & family sharing**: their own email (they sign in like any adult:
 link, password, Welcome step, invites), plus **Family can see and manage their claims** and **Family gets the
-emails** (both on by default). Signed in, the athlete is "Me" on My Claims and sign-up pages. Sharing off hides
+emails** (both on by default). Signed in, the athlete sees themselves by name on My Claims and sign-up pages. Sharing off hides
 them from parents' My Claims / removes parents from their claim emails. Admins can always change it; the athlete
 can change it in My Account → My family & sharing only when 18+ (by birth year). One person, one record: an
 athlete can also hold adult roles (volunteer, coach); giving an athlete the email of an unused adult record folds
 that record in (archived), and an adult record with family, boards, or claims is refused with a message.
 Status in People: an athlete with their own sign-in shows the sign-in statuses (Active, Invited, …).
+
+**Names, never "Me" / "You":** everywhere people are shown (My Claims family filter, claim lines, the sign-up page's
+person pills and limits, confirmation messages, My Account), the person's first name is used, or their email when no
+name is on file. The public link's confirmation uses the name the visitor typed.

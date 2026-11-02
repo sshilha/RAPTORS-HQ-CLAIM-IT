@@ -21,7 +21,7 @@ async function myPeople(user) {
 }
 const memberOf = async (boardId, athleteId) => (await query(`SELECT group_name, tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [boardId, athleteId])).rows[0] || null;
 const asPerson = async (user, boardId, athleteId) => ({ athleteId, userId: user.id, member: await memberOf(boardId, athleteId) });
-const nameOf = (p) => p ? (p.self_user_id ? "you" : `${p.first_name}`) : "";
+const nameOf = (p) => (p ? String(p.first_name || "").trim() || p.email || "" : "");   // never "you"
 
 // Boards this person could use, and who on their side can claim there
 async function boardsFor(user, people) {
@@ -29,9 +29,9 @@ async function boardsFor(user, people) {
   const out = [];
   for (const b of boards) {
     const who = [];
-    const cands = [...people.kids, ...(people.me ? [people.me] : [{ id: 0, self_user_id: user.id, first_name: "Me" }])];
+    const cands = [...people.kids, ...(people.me ? [people.me] : [{ id: 0, self_user_id: user.id, first_name: "", email: user.email }])];
     for (const p of cands) {
-      if (!p.id) { if (b.claim_mode !== "roster") who.push(p); continue; }    // "Me" before a record exists
+      if (!p.id) { if (b.claim_mode !== "roster") who.push(p); continue; }    // the signed-in person before a record exists
       const view = await E.personView(b.id, await asPerson(user, b.id, p.id));
       if (view && view.items.length) who.push(p);
     }
@@ -58,7 +58,7 @@ router.get("/dashboard", wrap(async (req, res) => {
   const shownIds = who ? ids.filter((x) => x === who) : ids;
   const claims = shownIds.length ? (await query(`SELECT c.*, i.title, i.starts_at, i.ends_at, i.location, i.node_id, i.schedule_id, sc.name AS board_name, sc.labels AS board_labels,
       sc.image IS NOT NULL AS board_image, sc.image_at AS board_image_at, sc.short_code AS board_code, sc.event_location AS board_location,
-      a.first_name, a.last_name, CASE WHEN a.self_user_id = $2 THEN a.self_user_id END AS self_user_id,
+      a.first_name, a.last_name, a.email, CASE WHEN a.self_user_id = $2 THEN a.self_user_id END AS self_user_id,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id

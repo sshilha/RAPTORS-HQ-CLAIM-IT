@@ -60,9 +60,9 @@ function cancelControl(r, back) {
 
 function athleteTabs(athletes, current, hrefFor) {
   if (athletes.length < 2) return "";
-  // (adults signing up themselves show as "Me")
+  // (adults signing up themselves show by name)
   return `<nav class="ath-tabs" aria-label="${esc(LABELS.participants)}">${athletes.map((a) =>
-    `<a href="${hrefFor(a)}"${a.id === current.id ? ' aria-current="page"' : ""}>${a.self_user_id ? "Me" : esc(a.first_name)}${(a.groups || []).length ? ` <span>${esc(a.groups.join(", "))}</span>` : ""}</a>`).join("")}</nav>`;
+    `<a href="${hrefFor(a)}"${a.id === current.id ? ' aria-current="page"' : ""}>${esc(a.first_name || a.email || "")}${(a.groups || []).length ? ` <span>${esc(a.groups.join(", "))}</span>` : ""}</a>`).join("")}</nav>`;
 }
 
 // ---------- calendar (My Training) ----------
@@ -101,7 +101,7 @@ function shiftMonth(month, n) {
 
 const selfCard = () => `<section class="panel self-card">
   <h2 class="banner">Sign up yourself</h2>
-  <p class="muted">Some spots (like volunteer shifts) are for adults. Add yourself once, then you'll find a "Me" tab here.</p>
+  <p class="muted">Some spots (like volunteer shifts) are for adults. Add yourself once, then you'll find a tab with your name here.</p>
   <form method="post" action="/me" class="inline-add">
     <label>First name<input name="first_name" required maxlength="40" autocomplete="given-name"></label>
     <label>Last name<input name="last_name" required maxlength="40" autocomplete="family-name"></label>
@@ -211,7 +211,7 @@ function dashboardPage({ user, athletes, athlete, programs, reservations, month,
     </section>
 
     <section class="panel">
-      <h2 class="banner">Upcoming for ${athlete.self_user_id ? "you" : esc(athlete.first_name)}</h2>
+      <h2 class="banner">Upcoming for ${esc(athlete.first_name || athlete.email || "")}</h2>
       ${mine.length ? `<ul class="res-list">${mine.map((r) => `<li class="res">
         <a class="res-main res-link" href="${r.starts_at ? `/athletes/${athlete.id}/day/${localDate(r.starts_at)}` : `/dashboard?a=${athlete.id}#items`}">
           <div class="res-when">${esc(itemLabel(r))}</div>

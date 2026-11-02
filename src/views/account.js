@@ -73,7 +73,7 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
           <label><span>Anything else? <span class="opt">(optional)</span></span><textarea name="note" rows="2" maxlength="600"></textarea></label>
           <div class="a-act"><button class="b-claim" type="submit">Send request</button></div></form>
         <form method="post" action="/account/request" class="a-form" data-p="chg" hidden><input type="hidden" name="kind" value="change">
-          <label>Who is it about?<select name="about"><option value="">Me</option>${kids.map((k) => `<option>${esc(k.first_name)} ${esc(k.last_name)}</option>`).join("")}</select></label>
+          <label>Who is it about?<select name="about"><option value="">${esc([p.first_name, p.last_name].filter(Boolean).join(" ") || u.email)}</option>${kids.map((k) => `<option>${esc(k.first_name)} ${esc(k.last_name)}</option>`).join("")}</select></label>
           <label>What should change?<textarea name="message" rows="3" required maxlength="1000" placeholder="e.g. Ava moved to the 14U team."></textarea></label>
           <div class="a-act"><button class="b-claim" type="submit">Send request</button></div></form>
         ${requests.length ? `<h3 class="a-h3">My requests</h3><ul class="a-reqs">${requests.map((r) => `<li><span class="d-pill ${status[r.status][1]}">${status[r.status][0]}</span>

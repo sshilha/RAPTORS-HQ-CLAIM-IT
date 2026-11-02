@@ -4,8 +4,9 @@ const { slotName, fmtDateTime, inputParts } = require("../time");
 const P = require("../locations");
 
 const page = (o) => layout({ ...o, tab: "home", xwide: true });
-const who = (p) => (p && p.self_user_id ? "you" : p ? p.first_name : "");
-const Who = (p) => (p && p.self_user_id ? "You" : p ? p.first_name : "");
+// Never "me" / "you": always the person's first name, or their email when no name is on file
+const nm = (p) => (p ? String(p.first_name || "").trim() || p.email || p.self_email || "" : "");
+const who = nm, Who = nm;
 const evDates = (b) => (b.event_date ? require("./setup").eventDates(b) : "");
 
 // ---------- My Claims dashboard ----------
@@ -71,7 +72,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
   const alerts = [...extra.reduce((m, x) => { const k = `${x.board.id}:${x.person.id}`; if (!m.has(k)) m.set(k, { ...x, n: 0 }); m.get(k).n++; return m; }, new Map()).values()];
   const alertRows = alerts.map((x, i) => `<a class="d-alert ${i % 2 ? "green" : "blue"}" href="/b/${x.board.id}?p=${x.person.self_user_id ? "me" : x.person.id}">
       <span class="d-alert-ic">${i % 2 ? IC.people : IC.mega}</span>
-      <span class="d-alert-t"><b>${x.n} extra spot${x.n === 1 ? " is" : "s are"} open</b> on ${esc(x.board.name)} for ${esc(x.person.self_user_id ? "you" : x.person.first_name)}. <span class="see">See openings ›</span></span>
+      <span class="d-alert-t"><b>${x.n} extra spot${x.n === 1 ? " is" : "s are"} open</b> on ${esc(x.board.name)} for ${esc(nm(x.person))}. <span class="see">See openings ›</span></span>
       <span class="d-chev">${IC.right}</span></a>`).join("");
   // upcoming claims grouped by board
   const groups = [...claims.reduce((m, c) => m.set(c.schedule_id, [...(m.get(c.schedule_id) || []), c]), new Map()).values()];
@@ -85,7 +86,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
         <span class="d-group-s">${when === "past" ? `<b>${cs.length} done</b>${cs[0] && cs[0].starts_at ? ` · Latest ${esc(shortDay(cs[0].starts_at))}` : ""}` : `<b>${upcoming.length} claimed</b>${next ? ` · Next ${esc(shortDay(next.starts_at))}` : ""}`}</span></div>
       ${rows.map((c) => `<div class="d-claim${c.past ? " past" : ""}${c.status === "waitlisted" ? " wl" : ""}">${dayBlock(c.starts_at)}
         <div class="d-claim-b"><div class="d-claim-t"><b>${c.starts_at ? esc(timeRange(c.starts_at, c.ends_at)) : esc(c.title || "Anytime")}</b>${c.status === "waitlisted" ? `<span class="d-pill wl">Waitlist</span>` : ""}${c.past ? `<span class="d-pill">Done</span>` : ""}</div>
-          <span>${esc([c.self_user_id ? "You" : c.first_name, ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}${c.location && c.location !== c.board_location ? ` · ${P.link(c.location)}` : ""}</span></div>
+          <span>${esc([nm(c), ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}${c.location && c.location !== c.board_location ? ` · ${P.link(c.location)}` : ""}</span></div>
         <div class="d-acts">${details(c)}
         ${c.past ? "" : c.cancelable ? `<form method="post" action="/claims/${c.id}/cancel" class="d-cancel" onsubmit="return confirm('Cancel this spot for ${esc((c.self_user_id ? "yourself" : c.first_name).replace(/'/g, ""))}? It will open for someone else.')">
             <input type="hidden" name="back" value="/dashboard"><button type="submit">${IC.trash}<span>Cancel</span></button></form>`
@@ -96,7 +97,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
         <span>${when === "past" ? "Claims show here once they've happened." : when === "upcoming" ? "Pick something under <i>Sign Up for Something</i> to get started." : `<a href="${q({ when: "upcoming", more: "" })}#claims">See all upcoming</a>`}</span></div>`;
   // family filter
   const famChips = `<div class="d-filt">
-      ${family.length > 1 ? `<div class="d-filt-row"><span class="d-filt-l">Who</span><nav class="d-fam" aria-label="Show claims for">${[["", "All family"], ...family.map((p) => [p.self_user_id ? "me" : String(p.id), p.self_user_id ? "Me" : p.first_name])]
+      ${family.length > 1 ? `<div class="d-filt-row"><span class="d-filt-l">Who</span><nav class="d-fam" aria-label="Show claims for">${[["", "All family"], ...family.map((p) => [p.self_user_id ? "me" : String(p.id), nm(p)])]
         .map(([k, l]) => `<a href="${q({ who: k, more: "" })}#claims"${String(who || "") === k ? ' aria-current="true"' : ""}>${esc(l)}</a>`).join("")}</nav></div>` : ""}
       <div class="d-filt-row"><span class="d-filt-l">When</span><nav class="d-fam" aria-label="Which claims">${[["week", "This week"], ["30", "Next 30 days"], ["upcoming", "All upcoming"], ["past", "Past"]]
         .map(([k, l]) => `<a href="${q({ when: k, more: "" })}#claims"${when === k ? ' aria-current="true"' : ""}>${l}</a>`).join("")}</nav></div></div>`;
@@ -147,8 +148,8 @@ function whoPage({ user, flash, board, who: people }) {
   return page({ title: board.name, user, flash,
     body: `<a class="back" href="/dashboard">My Claims</a>
     <section class="panel mc-who"><p class="mc-board-name">${esc(board.name)}</p><h1>Who's signing up?</h1>
-      <div class="who-grid">${people.map((p) => `<a class="who-btn" href="/b/${board.id}?p=${p.id || "me"}">${p.self_user_id ? "Me" : esc(p.first_name)}
-        ${p.self_user_id ? `<span>Signing up myself</span>` : p.last_name ? `<span>${esc(p.first_name)} ${esc(p.last_name)}</span>` : ""}</a>`).join("")}</div>
+      <div class="who-grid">${people.map((p) => `<a class="who-btn" href="/b/${board.id}?p=${p.id || "me"}">${esc(nm(p))}
+        ${p.last_name ? `<span>${esc(p.first_name)} ${esc(p.last_name)}</span>` : p.email ? `<span>${esc(p.email)}</span>` : ""}</a>`).join("")}</div>
       <p class="fine">You'll sign up one person at a time. You can switch to someone else afterward.</p></section>` });
 }
 
@@ -194,7 +195,7 @@ const SC_LABELS = (b) => require("../schedules").labels(b).participant.many.toLo
 function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null, preview = null }) {
   // guest = { code }: the public link ("Anyone with the link"), no account; claims ask for name + email
   const basePath = guest ? `/s/${guest.code}` : `/b/${board.id}`;
-  if (guest) { person = { id: 0, first_name: "you", guest: true }; people = []; }
+  if (guest) { person = { id: 0, first_name: "", guest: true }; people = []; }
   view = view || { items: [], limits: [] };
   const rows = view.items;
   const dated = rows.some((r) => r.item.starts_at);
@@ -216,7 +217,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   if (filters.show === "open") shown = shown.filter((r) => r.canClaim);
   if (filters.show === "mine") shown = shown.filter((r) => r.mine);
   const q = board.question || {};
-  const Name = guest ? "You" : preview && !preview.as ? "Someone" : person ? (person.self_user_id ? "You" : person.first_name) : "";
+  const Name = guest ? "Per person" : preview && !preview.as ? "Someone" : nm(person);
   const whoLine = (r) => { const w = r.eff.who || []; if (!w.length) return board.claim_mode === "public" ? "Open to everyone" : board.claim_mode === "roster" ? "Everyone on the list" : "Anyone with an account";
     const last = w[w.length - 1]; return last.mode === "signed_in" ? "Anyone with an account" : last.mode === "list" ? "Everyone on the list" : `Only ${[...(last.groups || []), ...(last.tags || [])].join(", ")}`; };
   const going = (r) => { const g = r.going || []; if (!g.length) return ""; const mode = board.family_names || "initial"; if (mode === "off") return `${g.length} going`;
@@ -346,8 +347,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
           <option value="0"${!preview.as ? " selected" : ""}>Someone not on the board's list</option></select></form>
       ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}</section>` : guest ? `<section class="b-bar b-bar-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar">
       <span class="b-bar-l">Signing up for:</span>
-      <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
-      ${person ? `<span class="b-bar-lim">${IC.people}<span>${limitBits.length ? `<b>${esc(Name)}:</b> ${limitBits.join(" · ")}` : `No claim limits for ${esc(person.self_user_id ? "you" : person.first_name)} on this board`}</span></span>` : ""}
+      <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${esc(nm(p))}</a>`).join("")}</nav>
+      ${person ? `<span class="b-bar-lim">${IC.people}<span>${limitBits.length ? `<b>${esc(Name)}:</b> ${limitBits.join(" · ")}` : `No claim limits for ${esc(nm(person))} on this board`}</span></span>` : ""}
       ${extra.length ? `<span class="b-bar-extra">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}
     </section>`}
     ${preview && !rows.length ? `<p class="b-pick">${preview.as ? `${esc(person.first_name)} wouldn't see anything to claim on this board.` : board.claim_mode === "roster" ? "Someone not on the board's list wouldn't see anything: this board is only for people assigned to it." : "Nothing to claim here yet."} Check the levels' <b>Who can claim</b> settings, or add ${esc(SC_LABELS(board))} to the board.</p>` : ""}
