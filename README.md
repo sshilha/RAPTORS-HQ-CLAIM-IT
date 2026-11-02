@@ -509,3 +509,15 @@ stay. Live boards can't be deleted.
 **Preview (admins):** Board Setup → Preview opens /b/<id>?preview=1 for any board (draft, live, or archived),
 as it will look to families once published. "Previewing as" picks anyone on the board's list (or someone not
 on it) to see exactly their sessions, eligibility, and limits. Claim/Cancel are shown but turned off.
+
+
+## Claim Board Dashboard (/admin/settings)
+Header with Create Board; counts (Active boards = not archived; Upcoming claims = confirmed claims on future
+sessions; Volunteers = different people signed up for upcoming shifts on volunteer boards). Tabs All /
+Published / Draft / Archived (existing published/archived state), search, and sort (name, next date, status,
+newest) all on the page (sort is remembered). Cards: navy header with the board's type, status, name, and
+level names; the board's own picture (the same /img/board/<id> My Claims uses) on the right fading into
+navy, or its short code with lime stripes. The name sits in the same place on every card. Stats: the board's
+top level, its people (the assigned list, or who has signed up on open boards), and its sessions; next
+session and upcoming claims. Buttons: Open · Duplicate · Archive (archived: View · Duplicate · Reopen ·
+Delete permanently). 3 / 2 / 1 cards per row on desktop / tablet / phone.

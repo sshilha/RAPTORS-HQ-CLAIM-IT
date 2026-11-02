@@ -68,8 +68,8 @@ function card(sc, archived) {
     </a>
     <div class="sc-actions">
       <a class="btn-small" href="/admin/setup?s=${sc.id}">${archived ? "View" : "Open"}</a>
-      ${archived ? "" : `<button type="button" class="btn-ghost" onclick="document.getElementById('edit-${sc.id}').showModal()">Edit</button>`}
-      <a class="btn-ghost" href="/admin/setup/schedules/${sc.id}/copy">Copy</a>
+
+      <a class="btn-ghost" href="/admin/setup/schedules/${sc.id}/copy">Duplicate</a>
       <form method="post" action="/admin/setup/schedules/${sc.id}/archive?s=${sc.id}"
         ${archived ? "" : `onsubmit="return confirm('Archive ${esc(sc.name)}? People won\'t see anything in it. Nothing is deleted, and you can reopen it any time.')"`}>
         <input type="hidden" name="return_to" value="${archived ? "/admin/settings/archived" : "/admin/settings"}">
@@ -91,11 +91,117 @@ function card(sc, archived) {
   </div>`;
 }
 
+// ---------- Claim Board Dashboard ----------
+const DSVG = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const DI = {
+  board: DSVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18M8.5 15l2.5 2.5 4.5-5"/>'),
+  layers: DSVG('<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>'), cal: DSVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/>'),
+  calok: DSVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18M8.5 15.5l2.3 2.3 4.7-4.6"/>'),
+  people: DSVG('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c.6-3.6 3-5.5 5.5-5.5s4.9 1.9 5.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.6c2.4.2 4 1.9 4.5 5"/>'),
+  ok: DSVG('<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/>'), pen: DSVG('<path d="M4 20h4L19 9l-4-4L4 16z"/>'),
+  arch: DSVG('<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/>'), search: DSVG('<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>'),
+  open: DSVG('<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'), copy: DSVG('<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M5 16H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v1"/>'),
+  plus: DSVG('<path d="M12 5v14M5 12h14"/>'), train: DSVG('<path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/>'),
+};
+function dashCard(sc) {
+  const L = SC.labels(sc), depth = SC.depthOf(sc), archived = !!sc.archived_at, status = archived ? "arch" : sc.published_at ? "pub" : "draft";
+  const type = require("./setup").boardTypeOf(sc);
+  const word = (n, w) => esc((n === 1 ? w.one : w.many));
+  // the board's own top level, its people (the assigned list, or who has signed up on open boards), and its sessions
+  const top = L[SC.levelKeys(sc)[0]], ppl = SC.claimMode(sc) === "roster" ? sc.members : sc.signups;
+  const stats = [depth > 1 ? [sc.sheets, word(sc.sheets, top)] : [sc.items, word(sc.items, L.slot)], [ppl, word(ppl, L.participant)],
+    depth > 1 ? [sc.items, word(sc.items, L.slot)] : [sc.claimed, "Upcoming claims"]];
+  const img = sc.image ? `/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}` : "";
+  return `<article class="bc" data-status="${status}" data-name="${esc(sc.name.toLowerCase())}" data-next="${sc.next_at ? new Date(sc.next_at).getTime() : ""}" data-id="${sc.id}">
+    <a class="bc-head${img ? " has-img" : ""}" href="/admin/setup?s=${sc.id}" aria-label="Open ${esc(sc.name)}">
+      ${img ? `<span class="bc-img" style="background-image:url('${img}')"></span>` : `<span class="bc-code">${esc(require("./setup").codeOf(sc))}</span>`}
+      <span class="bc-shade"></span>
+      <span class="bc-top"><span class="bc-type">${type === "volunteer" ? DI.people : DI.train}${type === "volunteer" ? "Volunteer" : "Training"}</span>
+        <span class="bc-st ${status}">${status === "pub" ? `${DI.ok}Published` : status === "draft" ? `${DI.pen}Draft` : `${DI.arch}Archived`}</span></span>
+      <span class="bc-title">${esc(sc.name)}</span>
+      <span class="bc-levels">${SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ")}</span>
+    </a>
+    <div class="bc-body">
+      <div class="bc-stats">${stats.map(([n, l]) => `<span><b>${n}</b><small>${l}</small></span>`).join("")}</div>
+      <div class="bc-next">${DI.cal}${archived ? `<span>Archived ${esc(new Date(sc.archived_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}</span>`
+        : sc.next ? `<span>Next: <b>${esc(sc.next)}</b></span>${sc.claimed ? `<span class="bc-pill">${sc.claimed} upcoming claim${sc.claimed === 1 ? "" : "s"}</span>` : ""}` : `<span class="muted">No upcoming ${esc(L.slot.many.toLowerCase())}</span>`}</div>
+      <div class="bc-acts">
+        <a class="bc-btn primary" href="/admin/setup?s=${sc.id}">${DI.open}${archived ? "View" : "Open"}</a>
+        <a class="bc-btn" href="/admin/setup/schedules/${sc.id}/copy">${DI.copy}Duplicate</a>
+        <form method="post" action="/admin/setup/schedules/${sc.id}/archive?s=${sc.id}"${archived ? "" : ` onsubmit="return confirm('Archive ${esc(sc.name).replace(/'/g, "")}? People won\'t see anything in it. Nothing is deleted, and you can reopen it any time.')"`}>
+          <input type="hidden" name="return_to" value="${archived ? "/admin/settings?tab=arch" : "/admin/settings"}"><button class="bc-btn" type="submit">${DI.arch}${archived ? "Reopen" : "Archive"}</button></form>
+        ${archived ? `<button type="button" class="bc-btn danger" onclick="document.getElementById('del-${sc.id}').showModal()">Delete permanently</button>
+          <dialog class="edit-dlg del-dlg" id="del-${sc.id}"><form method="post" action="/admin/setup/schedules/${sc.id}/delete?s=${sc.id}" class="stack">
+            <div class="dlg-head"><h2>Delete ${esc(sc.name)} for good?</h2><button type="button" class="dlg-x" onclick="this.closest('dialog').close()">×</button></div>
+            <p><b>This can't be undone.</b> Deleting removes:</p>
+            <ul class="del-list"><li>${sc.containers} level${sc.containers === 1 ? "" : "s"} and ${sc.items} session${sc.items === 1 ? "" : "s"}</li>
+              <li><b>${sc.all_claims}</b> claim${sc.all_claims === 1 ? "" : "s"}, including past ones and attendance (they'll be gone from Reports)</li>
+              <li>The board's list of ${sc.members} ${sc.members === 1 ? "person" : "people"}, its coaches, and its public link</li></ul>
+            <p class="fine">What stays: everyone in <b>People</b>, their accounts, and your other boards. If you might want this board's history later, keep it archived instead.</p>
+            <label>Type <b>${esc(sc.name)}</b> to confirm<input name="confirm" autocomplete="off" required data-match="${esc(sc.name)}"></label>
+            <div class="q-actions"><button type="button" class="btn-ghost" onclick="this.closest('dialog').close()">Keep it</button>
+              <button class="btn-small del-go" type="submit" disabled>Delete permanently</button></div></form></dialog>` : ""}
+      </div>
+    </div>
+    ${archived ? "" : editDialog(sc)}
+  </article>`;
+}
+function dashboardPage({ user, flash, rows, metrics, tab = "" }) {
+  const n = { all: rows.filter((r) => !r.archived_at).length, pub: rows.filter((r) => !r.archived_at && r.published_at).length,
+    draft: rows.filter((r) => !r.archived_at && !r.published_at).length, arch: rows.filter((r) => r.archived_at).length };
+  const start = ["pub", "draft", "arch"].includes(tab) ? tab : "all";
+  const tabBtn = (k, label, ic) => `<button type="button" class="dt-tab${start === k ? " on" : ""}" data-tab="${k}">${ic}${label} <i>(${n[k]})</i></button>`;
+  const metric = (ic, v, label) => `<div class="dm"><span class="dm-ic">${ic}</span><span><b>${v}</b><small>${label}</small></span></div>`;
+  return page({ title: "Claim Board Dashboard", tab: "home", user, flash, xwide: true,
+    body: `<section class="dh2"><span class="dh2-ic">${DI.board}</span>
+      <div class="dh2-t"><h1>Claim Board Dashboard</h1><p>Create, manage, and monitor your signup boards.</p></div>
+      <a class="bc-btn primary big" href="/admin/setup/new">${DI.plus}Create Board</a></section>
+    <section class="dpanel">
+      <div class="dms">${metric(DI.layers, metrics.active, `Active board${metrics.active === 1 ? "" : "s"}`)}${metric(DI.calok, metrics.upcoming, `Upcoming claim${metrics.upcoming === 1 ? "" : "s"}`)}${metric(DI.people, metrics.volunteers, `Volunteer${metrics.volunteers === 1 ? "" : "s"}`)}</div>
+      <div class="dtools">
+        <div class="dt-tabs" role="tablist">${tabBtn("all", "All Boards", DI.layers)}${tabBtn("pub", "Published", DI.ok)}${tabBtn("draft", "Draft", DI.pen)}${tabBtn("arch", "Archived", DI.arch)}</div>
+        <label class="dt-search">${DI.search}<input type="search" placeholder="Search boards…" aria-label="Search boards"></label>
+        <label class="dt-sort"><span>Sort by</span><select aria-label="Sort boards"><option value="name">Name (A–Z)</option><option value="name-d">Name (Z–A)</option>
+          <option value="next">Next date (soonest)</option><option value="status">Status</option><option value="new">Newest first</option></select></label>
+      </div></section>
+    <h2 class="dlist-h">Active Claim Boards</h2>
+    <div class="bc-grid">${rows.map(dashCard).join("")}</div>
+    <p class="d-none" hidden></p>
+    ${require("./setup").IMAGE_JS}
+    <script>(function () {
+      var m = /^#edit-(\\d+)$/.exec(location.hash); var d = m && document.getElementById("edit-" + m[1]);
+      if (d && d.showModal) { if (/[?&]from=setup/.test(location.search)) { var back = "/admin/setup?s=" + m[1], f = d.querySelector("form"), r = f && f.querySelector("[name=return_to]"), saving = false;
+          if (r) r.value = back; if (f) f.addEventListener("submit", function () { saving = true; }); d.addEventListener("close", function () { if (!saving) location.href = back; }); } d.showModal(); }
+      document.querySelectorAll("[data-match]").forEach(function (i) { var b = i.form.querySelector(".del-go");
+        i.addEventListener("input", function () { b.disabled = i.value.trim().replace(/\\s+/g, " ").toLowerCase() !== i.dataset.match.trim().toLowerCase(); }); });
+      // tabs, search, sort: all on this page, no reloading
+      var tab = ${JSON.stringify(start)}, grid = document.querySelector(".bc-grid"), cards = [].slice.call(grid.children), q = document.querySelector(".dt-search input"), sort = document.querySelector(".dt-sort select");
+      var TITLES = { all: "Active Claim Boards", pub: "Published Claim Boards", draft: "Draft Claim Boards", arch: "Archived Claim Boards" }, ORDER = { pub: 0, draft: 1, arch: 2 };
+      try { sort.value = localStorage.getItem("dash-sort") || "name"; } catch (e) {}
+      function apply() {
+        var v = q.value.trim().toLowerCase(), shown = 0;
+        cards.forEach(function (c) { var st = c.dataset.status, ok = (tab === "all" ? st !== "arch" : st === tab) && (!v || c.dataset.name.indexOf(v) >= 0); c.hidden = !ok; if (ok) shown++; });
+        var s = sort.value; cards.slice().sort(function (a, b) {
+          if (s === "name-d") return b.dataset.name.localeCompare(a.dataset.name);
+          if (s === "next") return (+a.dataset.next || 9e15) - (+b.dataset.next || 9e15) || a.dataset.name.localeCompare(b.dataset.name);
+          if (s === "status") return ORDER[a.dataset.status] - ORDER[b.dataset.status] || a.dataset.name.localeCompare(b.dataset.name);
+          if (s === "new") return +b.dataset.id - +a.dataset.id;
+          return a.dataset.name.localeCompare(b.dataset.name); }).forEach(function (c) { grid.appendChild(c); });
+        document.querySelector(".dlist-h").textContent = TITLES[tab];
+        var none = document.querySelector(".d-none"); none.hidden = shown > 0; none.textContent = v ? "No boards match \u201c" + q.value.trim() + "\u201d." : { all: "No active boards yet. Create one to get started.", pub: "Nothing published yet.", draft: "No drafts.", arch: "Nothing archived." }[tab];
+      }
+      document.querySelectorAll(".dt-tab").forEach(function (b) { b.addEventListener("click", function () { tab = b.dataset.tab;
+        document.querySelectorAll(".dt-tab").forEach(function (x) { x.classList.toggle("on", x === b); }); history.replaceState(null, "", tab === "all" ? "/admin/settings" : "/admin/settings?tab=" + tab); apply(); }); });
+      q.addEventListener("input", apply); sort.addEventListener("change", function () { try { localStorage.setItem("dash-sort", sort.value); } catch (e) {} apply(); });
+      apply();
+    })();</script>` });
+}
+
 function homePage({ user, flash, active, archivedCount }) {
   return page({
     title: "All Boards", tab: "home", user, flash,
     body: `<section class="panel home-head">
-      <div><h1>All Boards</h1>
+      <div class="hh-line"><h1>All Boards</h1>
         <p class="muted tight">Pick a ${esc(LABELS.schedule.toLowerCase())} to set up its calendar, groups, activities, and people, or start a new one.</p></div>
       <div class="head-actions">
         <a class="btn-small" href="/admin/setup/new">+ New ${esc(LABELS.schedule.toLowerCase())}</a>
@@ -126,7 +232,7 @@ function archivedPage({ user, flash, archived }) {
     title: `Archived ${LABELS.schedules}`, tab: "home", user, flash,
     body: `<a class="back" href="/admin/settings">Settings</a>
     <section class="panel"><h1>Archived ${esc(LABELS.schedules.toLowerCase())}</h1>
-      <p class="muted tight">People can't see these. Nothing in them was deleted. Reopen one to make it active again, copy it to start a new one, or delete it permanently.</p></section>
+      <p class="muted tight">People can't see these. Nothing in them was deleted. Reopen one to make it active again, duplicate it to start a new one, or delete it permanently.</p></section>
     ${archived.length ? `<div class="sched-grid">${archived.map((x) => card(x, true)).join("")}</div>`
       : `<section class="panel"><p class="muted">Nothing archived.</p></section>`}
     <script>document.querySelectorAll("[data-match]").forEach(function (i) { var b = i.form.querySelector(".del-go");
@@ -149,7 +255,7 @@ function copyPage({ user, flash, sc, counts }) {
     title: `Copy ${sc.name}`, tab: "home", user, flash,
     body: `<a class="back" href="/admin/settings">Settings</a>
     <section class="panel">
-      <h1>Copy ${esc(sc.name)}</h1>
+      <h1>Duplicate ${esc(sc.name)}</h1>
       <p class="lede">Make a new ${esc(n)} from this one. Its setup (name, levels, who can claim, views, and locations) always comes along. Pick what else to bring.</p>
       <form method="post" action="/admin/setup/schedules/${sc.id}/copy" class="stack copy-form">
         <label>Name of the new ${esc(n)}<input name="name" required maxlength="40" value="${esc(nextName(sc.name))}"></label>
@@ -171,4 +277,4 @@ function copyPage({ user, flash, sc, counts }) {
   });
 }
 
-module.exports = { homePage, archivedPage, copyPage };
+module.exports = { dashboardPage, homePage, archivedPage, copyPage };

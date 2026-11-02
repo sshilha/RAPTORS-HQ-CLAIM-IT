@@ -40,8 +40,10 @@ async function boardRows() {
       (SELECT count(*)::int FROM board_items i WHERE i.schedule_id=sc.id AND i.canceled_at IS NULL) AS items,
       (SELECT count(*)::int FROM schedule_members m WHERE m.schedule_id=sc.id) AS members,
       (SELECT count(*)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE i.schedule_id=sc.id AND c.status<>'canceled') AS all_claims,
+      (SELECT count(DISTINCT c.athlete_id)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE i.schedule_id=sc.id AND c.status<>'canceled') AS signups,
       (SELECT count(*)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id
          WHERE i.schedule_id=sc.id AND c.status='confirmed' AND (i.starts_at IS NULL OR i.starts_at > now())) AS claimed,
+      (SELECT min(i.starts_at) FROM board_items i WHERE i.schedule_id=sc.id AND i.canceled_at IS NULL AND i.starts_at > now()) AS next_at,
       (SELECT to_char(min(i.starts_at) AT TIME ZONE 'America/Chicago', 'Dy, Mon FMDD at FMHH12:MI AM') FROM board_items i
          WHERE i.schedule_id=sc.id AND i.canceled_at IS NULL AND i.starts_at > now()) AS next
     FROM schedules sc ORDER BY sc.sort, sc.id`)).rows;
@@ -58,8 +60,13 @@ async function boardRows() {
 
 router.get("/", wrap(async (req, res) => {
   const rows = await boardRows();
-  res.send(require("../views/home").homePage({ user: req.user, flash: flashFrom(req),
-    active: rows.filter((r) => !r.archived_at), archivedCount: rows.filter((r) => r.archived_at).length }));
+  const active = rows.filter((r) => !r.archived_at);
+  // Volunteers: different people signed up for upcoming shifts on volunteer boards
+  const volIds = active.filter((r) => require("../views/setup").boardTypeOf(r) === "volunteer").map((r) => r.id);
+  const volunteers = volIds.length ? (await query(`SELECT count(DISTINCT c.athlete_id)::int AS n FROM board_claims c JOIN board_items i ON i.id=c.item_id
+    WHERE i.schedule_id = ANY($1) AND c.status='confirmed' AND i.canceled_at IS NULL AND i.starts_at > now()`, [volIds])).rows[0].n : 0;
+  const metrics = { active: active.length, upcoming: active.reduce((t, r) => t + (r.claimed || 0), 0), volunteers };
+  res.send(require("../views/home").dashboardPage({ user: req.user, flash: flashFrom(req), rows, metrics, tab: String(req.query.tab || "") }));
 }));
 
 router.get("/archived", wrap(async (req, res) => {
