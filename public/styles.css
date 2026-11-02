@@ -2807,3 +2807,26 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .st-date { display: block; margin-top: 2px; } .st-cell { white-space: nowrap; }
 .chip-s.list { background: #F1F9E8; border-color: #d9efb0; color: #2f6d0c; }
 .self-form .radio-row { display: flex; gap: 10px; align-items: flex-start; text-transform: none; font: 400 14px var(--body); } .self-form .radio-row .fine { display: block; }
+/* Board details: folder sub-tabs (same look as App Settings) */
+.bd-panel .sub-body { max-width: none; }
+.bd-panel .bd-pre:empty { display: none; } .bd-panel .bd-sec[hidden] { display: none; }
+.bd-panel .dlg-body { padding: 0; } .bd-panel .dlg-form { background: none; border: 0; box-shadow: none; }
+.bd-panel .dlg-actions { padding: 14px 0 0; border-top: 1px solid #EEF1F5; margin-top: 12px; }
+.bd-panel .bd-sec > h3:first-child { margin-top: 0; }
+/* Access & people sub-tabs */
+.am-body > section.panel[hidden] { display: none; }
+.sub-n { font-style: normal; background: #EEF1F5; color: #475569; border-radius: 999px; padding: 0 7px; font: 700 11px/18px Inter, sans-serif; }
+.sub-tabs a[aria-current] .sub-n { background: #E4F5D2; color: #2f6d0c; }
+.am-toolbar { flex-direction: row-reverse; justify-content: space-between; } .am-toolbar .ilist-head { margin: 0; }
+.sub-body .am-body > section.panel { background: transparent; border: 0; box-shadow: none; padding: 0; margin-bottom: 14px; }
+.sub-body .am-body > section#people:not([hidden]) { background: #f6f8fb; border: 1px solid #E3E8F0; border-radius: 12px; padding: 14px 16px; }
+/* Board defaults sub-tabs: show only that group's sections */
+.settings-one[data-sub] { max-width: none; }
+.settings-one[data-sub="who"] .ss:not([data-card="who"]):not([data-card="see"]),
+.settings-one[data-sub="limits"] .ss:not([data-card="limits"]):not([data-card="timing"]),
+.settings-one[data-sub="qa"] .ss:not([data-card="question"]):not([data-card="attendance"]),
+.settings-one[data-sub="levels"] .ss:not([data-card="levels"]) { display: none; }
+.sub-body .settings-one .ss { box-shadow: none; }
+.sub-body .scope-note { margin: 0 0 12px; }
+.sub-body .settings-one > section.setup-panel { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.sub-body .settings-one > section.setup-panel > .ss:first-child { border-top: 0; padding-top: 0; }

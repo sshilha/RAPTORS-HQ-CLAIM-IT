@@ -129,26 +129,27 @@ function detailsCards(sc) {
   const L = SC.labels(sc), keys = SC.levelKeys(sc);
   const fmt = (d) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   let f = require("./home").editDialog(sc)
-    .replace(/<dialog class="edit-dlg" id="edit-(\d+)"[^>]*>/, '<section class="bd-panel" id="bd-panel" hidden><div data-hub="Board details">')
+    .replace(/<dialog class="edit-dlg" id="edit-(\d+)"[^>]*>/, `<section class="bd-panel" id="bd-panel" hidden><nav class="sub-tabs bd-subs" aria-label="Board details">${[["general", "General"], ["look", "Type &amp; look"], ["organizer", "Organizer"], ["structure", "Structure &amp; names"]].map(([k, l]) => `<a href="/admin/setup?s=${sc.id}&tab=details&sub=${k}" data-sub="${k}">${l}</a>`).join("")}</nav><div class="sub-body">`)
     .replace(/<\/dialog>\s*$/, "</div></section>")
     .replace(/<div class="dlg-head">[\s\S]*?<\/div>/, "")
     .replace('name="return_to" value="/admin/settings"', `name="return_to" value="/admin/setup?s=${sc.id}&tab=details"`)
-    .replace(`onclick="this.closest('form').reset(); this.closest('dialog').close()"`, `onclick="this.closest('form').reset(); location.href='/admin/setup?s=${sc.id}&tab=details'"`);
+    .replace(`onclick="this.closest('form').reset(); this.closest('dialog').close()"`, `onclick="this.closest('form').reset()"`);
   const ico = (d) => `<span class="card-ico" hidden>${d}</span>`;
-  const sec = (id, title, sum, icon) => `</div><div class="bd-sec" data-card="${id}" data-title="${esc(title)}" data-sum="${esc(sum)}">${ico(icon)}`;
+  const SUB = { basics: "general", location: "general", description: "general", type: "look", picture: "look", organizer: "organizer", structure: "structure" };
+  const sec = (id, title, sum, icon) => `</div><div class="bd-sec" data-sub="${SUB[id]}">`;
   const dates = sc.event_date ? (sc.event_end && String(sc.event_end).slice(0, 10) !== String(sc.event_date).slice(0, 10) ? `${fmt(sc.event_date)} – ${fmt(sc.event_end)}` : fmt(sc.event_date)) : "No dates";
   const cuts = [
     [/<h3>The basics<\/h3>/, sec("basics", "Name & dates", `<b>${esc(sc.name)}</b><br>${esc(dates)}`, IC.board)],
     [/<label class="field-l"><span>Main location/, sec("location", "Location", esc(sc.event_location || "None"), IC.pin) + '<label class="field-l"><span>Main location'],
     [/<label class="field-l"><span>Description/, sec("description", "Description", sc.description ? esc(sc.description.slice(0, 90)) + (sc.description.length > 90 ? "…" : "") : "None", IC.edit) + '<label class="field-l"><span>Description'],
-    [/<h3>Board type<\/h3>/, sec("type", "Board type", require("./setup").boardTypeOf(sc) === "volunteer" ? "Volunteer" : "Training", IC.people)],
+    [/<h3>Board type<\/h3>/, sec("type", "Board type", require("./setup").boardTypeOf(sc) === "volunteer" ? "Volunteer" : "Program", IC.people)],
     [/<h3>Picture<\/h3>/, sec("picture", "Picture & short code", sc.image ? `<img class="ch-img" src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt="">` : `<span class="ch-code">${esc(require("./setup").codeOf(sc))}</span>`, IC.eye)],
     [/<h3>Organizer( <span class="opt">\(optional\)<\/span>)?<\/h3>/, sec("organizer", "Organizer", esc([sc.contact_name, sc.contact_info].filter(Boolean).join(" · ") || "None"), IC.people)],
     [/<h3>Structure<\/h3>/, sec("structure", "Structure & names", esc(keys.map((k) => L[k].many).join(" › ")), IC.tree)],
   ];
   for (const [re, html] of cuts) f = f.replace(re, html);
   // the first cut closed a <div> that wasn't open yet: open a wrapper at the start of the form body
-  f = f.replace('<div class="dlg-body">', '<div class="dlg-body"><div class="bd-pre">');
+  f = f.replace('<div class="dlg-body">', '<div class="dlg-body"><div class="bd-pre">').replace("<h3>Board type</h3>", "").replace("<h3>Picture</h3>", "<h3>Picture &amp; short code</h3>");
   return f;
 }
 
@@ -266,7 +267,14 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
     ${P.datalist()}
     ${locked ? "" : detailsCards(sc)}
     ${locked ? "" : `${P.placeDialog()}${require("./setup").IMAGE_JS}`}
-    ${CARD_HUB_JS.replace("<script>(function () {", '<script>(function () { if (!/[?&]tab=details/.test(location.search)) return;')}
+    <script>(function () {   // Board details sub-tabs: show one group of the form; Save comes back to it
+      var panel = document.getElementById("bd-panel"); if (!panel) return;
+      var sub = (new URLSearchParams(location.search).get("sub") || "general"), ok = ["general", "look", "organizer", "structure"];
+      if (ok.indexOf(sub) < 0) sub = "general";
+      panel.querySelectorAll(".bd-sec").forEach(function (x) { x.hidden = x.dataset.sub !== sub; });
+      panel.querySelectorAll(".bd-subs a").forEach(function (a) { if (a.dataset.sub === sub) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+      var r = panel.querySelector("[name=return_to]"); if (r) r.value = "/admin/setup?s=${sc.id}&tab=details&sub=" + sub;
+    })();</script>
     <script>(function () {
       var panel = document.getElementById("bd-panel"), grid = document.querySelector(".sp3"), dirty = false, sid = ${sc.id};
       if (!panel) return;
@@ -277,7 +285,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
         if (t === "setup") { dirty = false; form.reset(); }
         panel.hidden = t !== "details"; grid.hidden = t === "details";
         document.querySelectorAll("[data-btab]").forEach(function (a) { if (a.dataset.btab === t) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
-        history.replaceState(null, "", "/admin/setup?s=" + sid + (t === "details" ? "&tab=details" : (location.search.match(/[?&]n=\\d+/) || [""])[0].replace("?", "&")));
+        history.replaceState(null, "", "/admin/setup?s=" + sid + (t === "details" ? "&tab=details" + ((location.search.match(/[?&]sub=[a-z]+/) || [""])[0].replace("?", "&")) : (location.search.match(/[?&]n=\\d+/) || [""])[0].replace("?", "&")));
         if (t === "details") { var f = form.querySelector("input:not([type=hidden])"); if (f) f.focus({ preventScroll: true }); }
       };
       document.querySelectorAll("[data-btab]").forEach(function (a) { a.addEventListener("click", function (e) { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); window.boardTab(a.dataset.btab); }); });

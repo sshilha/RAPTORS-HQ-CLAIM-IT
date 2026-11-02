@@ -61,7 +61,9 @@ router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req
   const main = SC.depthOf(sc) <= 2 ? await SC.ensureStructure(sc) : null;
   const nodes = (await query(`SELECT id, parent_id, name, settings, visible_from FROM board_nodes WHERE schedule_id=$1`, [sc.id])).rows;
   const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "defaults" });
-  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, main, head, overrides: require("../views/board").levelOverrides(nodes),
+  const SUBOF = { who: "who", see: "who", limits: "limits", timing: "limits", question: "qa", attendance: "qa", levels: "levels" };
+  const sub = ["who", "limits", "qa", "levels"].includes(req.query.sub) ? req.query.sub : SUBOF[String(req.query.card || "")] || "who";
+  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, main, head, sub, overrides: require("../views/board").levelOverrides(nodes),
     counts: { items: Number(counts.items), members: Number(counts.members), coaches, published } }));
 }));
 

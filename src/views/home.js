@@ -116,7 +116,7 @@ function dashCard(sc) {
     <a class="bc-head${img ? " has-img" : ""}" href="/admin/setup?s=${sc.id}" aria-label="Open ${esc(sc.name)}">
       ${img ? `<span class="bc-img" style="background-image:url('${img}')"></span>` : `<span class="bc-code">${esc(require("./setup").codeOf(sc))}</span>`}
       <span class="bc-shade"></span>
-      <span class="bc-top"><span class="bc-type">${type === "volunteer" ? DI.people : DI.train}${type === "volunteer" ? "Volunteer" : "Training"}</span>
+      <span class="bc-top"><span class="bc-type">${type === "volunteer" ? DI.people : DI.train}${type === "volunteer" ? "Volunteer" : "Program"}</span>
         <span class="bc-st ${status}">${status === "pub" ? `${DI.ok}Published` : status === "draft" ? `${DI.pen}Draft` : `${DI.arch}Archived`}</span></span>
       <span class="bc-title" title="${esc(sc.name)}">${esc(sc.name)}</span>
       <span class="bc-levels">${SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ")}</span>

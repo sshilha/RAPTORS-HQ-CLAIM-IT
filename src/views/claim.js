@@ -108,7 +108,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
   const boardCards = list.length ? list.slice(0, allBoards ? 999 : SHOW).map(({ board: b, span }) => {
     const range = rangeOf(b, span), vol = isVolunteer(b);
     return `<div class="d-board">${thumb("", b)}
-      <div class="d-board-b"><span class="d-type ${vol ? "vol" : "train"}">${vol ? `${IC.people}Volunteer opportunity` : `${IC.cal}Training sessions`}</span><b>${esc(b.name)}</b>
+      <div class="d-board-b"><span class="d-type ${vol ? "vol" : "train"}">${vol ? `${IC.people}Volunteer opportunity` : `${IC.cal}Program`}</span><b>${esc(b.name)}</b>
         ${range || b.event_location ? `<span class="d-board-l1">${esc([range, b.event_location].filter(Boolean).join("  ·  "))}</span>` : ""}
         <span class="d-board-meta"><span>${IC.people}${esc(audience(b))}</span>${b.event_location ? `<span>${IC.pin}${esc(b.event_location)}</span>` : ""}</span>
         ${b.description ? `<span class="d-board-desc">${esc(b.description.split(/\n/)[0].slice(0, 120))}</span>` : ""}

@@ -42,7 +42,9 @@ router.get("/", wrap(async (req, res) => {
   const boards = req.sched.list.filter((x) => x.id !== sc.id && ((x.groups || []).length || (x.tags || []).length));
   const teams = require("../views/settings").groupsPage({ user: req.user, sc, usage, others: boards, embed: true });
   const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "access" });
-  res.send(v.membersPage({ head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams }));
+  const card = String(req.query.card || "");
+  const sub = ["people", "groups", "shortcuts"].includes(req.query.sub) ? req.query.sub : ({ groups: "groups", tags: "groups", copy: "groups", presets: "shortcuts" }[card] || "people");
+  res.send(v.membersPage({ head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams, sub, addOpen: card === "add" || req.query.add === "1" || (!total && sub === "people") }));
 }));
 
 // A brand-new person, added to this schedule

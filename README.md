@@ -536,11 +536,13 @@ link to People for editing. Checked people: Set group, Add/Remove tag, Remove fr
 ## Board tabs as cards
 Board details, Access & people, and Board defaults each show a grid of cards (like App settings), each with
 its current value; **Open** shows just that section under the board header with "← Back to …"
-(?card=<id> in the address). Saves return to the same card. Board details cards (Name & dates, Location,
-Description, Board type, Picture & short code, Organizer, Structure & names) share one form, so saving a card
-keeps everything else. Access & people: Athletes on this board, Add people, Groups, Tags, Group shortcuts,
-Copy groups & tags, Who can claim (opens it in Board defaults). Board defaults: Who can claim, Who's going,
-Limits, Timing, Question, Attendance, Levels with their own settings.
+(?card=<id> in the address). Saves return to the same card. Board details now uses folder sub-tabs instead:
+General (name, dates, location, description) · Type & look (Program / Volunteer, picture, short code) · Organizer ·
+Structure & names (&sub= in the address). They share one form, so saving a sub-tab keeps everything else. Access & people now uses folder sub-tabs: <People word>
+(the list, count, + Add people opens Add from People / Quick add above it) · Groups & tags (intro, copy from another
+board, Groups, Tags) · Group shortcuts (boards with 3+ levels). &sub= in the address; old ?card= links map on. Board defaults now uses folder sub-tabs: Who (who can
+claim, who's going) · Limits & timing · Question & attendance · Level changes (with a count). &sub= in the address;
+saves return to their sub-tab.
 
 
 ## App Settings header
@@ -578,3 +580,6 @@ Status in People: an athlete with their own sign-in shows the sign-in statuses (
 **Names, never "Me" / "You":** everywhere people are shown (My Claims family filter, claim lines, the sign-up page's
 person pills and limits, confirmation messages, My Account), the person's first name is used, or their email when no
 name is on file. The public link's confirmation uses the name the visitor typed.
+
+**Board type:** Program (sessions or events people take part in: training, clinics, camps) or Volunteer. Program is
+shown everywhere Training used to be (Board details, dashboard cards, My Claims badges); stored value unchanged.

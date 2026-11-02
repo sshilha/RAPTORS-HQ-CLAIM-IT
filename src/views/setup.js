@@ -509,7 +509,7 @@ function boardTypeOf(sc) {
 function boardTypeField(sc) {
   const cur = sc ? boardTypeOf(sc) : "training";
   const r = (v, t, d) => `<label class="mode-opt"><input type="radio" name="board_type" value="${v}"${cur === v ? " checked" : ""}><span><b>${t}</b><span class="fine">${d}</span></span></label>`;
-  return `<div class="opt-row">${r("training", "Training", "Sessions athletes sign up for.")}${r("volunteer", "Volunteer", "Shifts and jobs people help with.")}</div>`;
+  return `<div class="opt-row">${r("training", "Program", "Sessions or events people sign up to take part in, like training, clinics, or camps.")}${r("volunteer", "Volunteer", "Shifts and jobs people help with.")}</div>`;
 }
 // Board picture: shown on My Claims and the board's sign-up page instead of the logo.
 // The browser shrinks it (max 640px) before it's sent.
@@ -629,7 +629,7 @@ function eventDates(sc) {
   return `${f(sc.event_date, { month: "short", day: "numeric" })} – ${f(sc.event_end, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
-function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null, overrides = [], head = "" }) {
+function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null, overrides = [], head = "", sub = "who" }) {
   const L = SC.labels(sc);
   const I = require("./icons");
   const P = require("../locations");
@@ -678,8 +678,10 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
   return page({
     title: `${sc.name} Settings`, tab, user, flash, xwide: true,
     body: `${head}
-    <div class="settings-one" data-hub="Board defaults">
-    <p class="scope-note ch-hub-only"><b>Board defaults for ${esc(sc.name)} only.</b> They apply to everything on this board, not other boards. ${depth > 1 ? `Any level can change them in its own ⚙ Settings on the <a href="/admin/setup?s=${sc.id}">Setup</a> tab.` : ""}</p>
+    <nav class="sub-tabs" aria-label="Board defaults">${[["who", "Who"], ["limits", "Limits &amp; timing"], ["qa", "Question &amp; attendance"], ...(depth > 1 ? [["levels", "Level changes"]] : [])]
+      .map(([k, l]) => `<a href="/admin/setup/schedule?s=${sc.id}&sub=${k}"${k === sub ? ' aria-current="page"' : ""}>${l}${k === "levels" && overrides.length ? ` <i class="sub-n">${overrides.length}</i>` : ""}</a>`).join("")}</nav>
+    <div class="settings-one" data-sub="${esc(sub)}">
+    <p class="scope-note"><b>Board defaults for ${esc(sc.name)} only.</b> They apply to everything on this board, not other boards. ${depth > 1 ? `Any level can change them in its own ⚙ Settings on the <a href="/admin/setup?s=${sc.id}">Setup</a> tab.` : ""}</p>
     ${depth > 1 ? `<section class="ss" id="ss-levels" data-card="levels" data-order="90" data-title="Levels with their own settings" data-sum="${overrides && overrides.length ? `<b>${overrides.length}</b> level${overrides.length === 1 ? "" : "s"} change these defaults` : "None: every level uses the defaults"}" data-sub="Where a level changed a default">
       <span class="card-ico" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1"/><rect x="2.5" y="16.5" width="6" height="5" rx="1"/><rect x="15.5" y="16.5" width="6" height="5" rx="1"/><path d="M12 7.5V12M5.5 16.5V12h13v4.5"/></svg></span>
       <div class="ss-head"><div class="ss-titles"><h3>Levels with their own settings</h3><p class="fine">Each one changes a board default for everything inside it. Click a level to open it on the Setup tab.</p></div></div>
@@ -762,7 +764,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
       var h = location.hash && document.querySelector(location.hash.replace("#q-", "#ss-"));
       if (h) { h.classList.add("just-saved"); setTimeout(function () { h.classList.remove("just-saved"); }, 1800); }
     })();
-    </script>${require("./setup2").CARD_HUB_JS}`,
+    </script>`,
   });
 }
 
