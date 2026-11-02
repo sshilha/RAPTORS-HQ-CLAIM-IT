@@ -346,20 +346,22 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       <div class="bh2-l">${board.image ? `<span class="bh2-tile b-hd-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="bh2-tile b-hd-tile code"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
         <div><div class="bh2-t"><h1>${esc(board.name)}</h1><span class="b-hd-type">${require("./setup").boardTypeOf(board) === "volunteer" ? "Volunteer" : "Program"}</span></div>
           <span class="bh2-meta">${[range ? esc(range) : "", board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean).join(" · ")}</span></div></div>
-      ${preview ? `<div class="bh2-acts b-hd-who"><span class="b-hd-who-l">Previewing as</span>
+    </section>
+    <nav class="bh2-tabs dash-tabs b-whobar">
+      ${preview ? `<span class="b-who"><span class="b-who-l">Previewing as</span>
         <form method="get" action="/b/${board.id}" class="prev-as"><input type="hidden" name="preview" value="1">${mode === "cal" ? `<input type="hidden" name="v" value="cal">` : ""}
           <select name="as" onchange="this.form.submit()" aria-label="Preview as">${preview.members.map((m) => `<option value="${m.id}"${m.id === preview.as ? " selected" : ""}>${esc([m.first_name, m.last_name].filter(Boolean).join(" ") || m.email || "(no name)")}${m.group_name ? ` (${esc(m.group_name)})` : ""}</option>`).join("")}
-            <option value="0"${!preview.as ? " selected" : ""}>Someone not on the board's list</option></select></form></div>`
-      : !guest && people.length ? `<div class="bh2-acts b-hd-who"><span class="b-hd-who-l">Signing up for</span>${people.map((p) => `<a class="sb-btn${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? " primary" : ""}" href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${esc(nm(p))}</a>`).join("")}</div>` : ""}
-    </section>
-    <nav class="bh2-tabs dash-tabs b-vtabs">
-      <a href="${link({ v: "list", m: "" })}"${mode !== "cal" || !dated ? ' aria-current="page"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List</a>
-      ${dated ? `<a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="page"' : ""}>${IC.cal}Calendar</a>` : ""}
+            <option value="0"${!preview.as ? " selected" : ""}>Someone not on the board's list</option></select></form></span>`
+      : guest ? `<span class="b-who b-who-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email.</span></span>`
+      : `<span class="b-who"><span class="b-who-l">Signing up for</span>${people.map((p) => { const on = person && ((p.self_user_id && person.self_user_id) || p.id === person.id);
+          return `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${on ? ' aria-current="page"' : ""}>${esc(nm(p))}</a>`; }).join("")}</span>`}
+      ${person && !guest ? `<span class="b-left">${limitBits.length ? `${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span>` : `<span class="fine-w">No claim limits for ${esc(nm(person))}</span>`}${extra.length ? `<span class="b-left-x">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open</span>` : ""}</span>` : ""}
     </nav>
-    <div class="sub-body b-sheet no-subs">
+    ${dated ? `<nav class="sub-tabs b-vsubs" aria-label="View"><a href="${link({ v: "list", m: "" })}"${mode !== "cal" ? ' aria-current="page"' : ""}>List</a><a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="page"' : ""}>Calendar</a></nav>` : ""}
+    <div class="sub-body b-sheet${dated ? "" : " no-subs"}">
     ${board.description ? `<p class="b-desc">${esc(board.description)}</p>` : ""}
-    ${preview ? `<section class="b-bar b-bar-prev">
-      ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}</section>` : guest ? `<section class="b-bar b-bar-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar">
+    ${preview ? `<section class="b-bar b-bar-prev" hidden>
+      ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}</section>` : guest ? `<section class="b-bar b-bar-guest" hidden>${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar b-bar-fam" hidden>
       <nav class="b-people" hidden>${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${esc(nm(p))}</a>`).join("")}</nav>
       ${person ? `<span class="b-bar-lim">${IC.people}<span>${limitBits.length ? `<b>${esc(Name)}:</b> ${limitBits.join(" · ")}` : `No claim limits for ${esc(nm(person))} on this board`}</span></span>` : ""}
       ${extra.length ? `<span class="b-bar-extra">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}

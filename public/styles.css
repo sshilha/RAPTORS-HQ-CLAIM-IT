@@ -2887,3 +2887,14 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .b-group a[aria-current] { background: #fff; color: #0B1930; box-shadow: 0 1px 2px rgba(11,25,48,.12); }
 @media (max-width: 760px) { .b-hd { flex-wrap: wrap; } .b-hd-who { width: 100%; } }
 .b-sheet .b-bar { justify-content: flex-start; padding: 8px 12px; } .b-sheet .b-bar .b-bar-lim { margin-left: 0; } .b-sheet .b-bar .b-bar-extra { margin-left: auto; }
+/* sign-up page: gray bar = who's signing up (left) + remaining spots (right); List / Calendar as folder sub-tabs */
+.b-whobar { align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 14px; }
+.b-who { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; } .b-who-l { font: 600 13px Inter, sans-serif; color: #475569; margin: 0 6px 0 4px; }
+.b-who > a { display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 8px; color: #0B1930; font: 600 14px Inter, sans-serif; text-decoration: none; }
+.b-who > a[aria-current] { background: #8DDC32; } .b-who > a:not([aria-current]):hover { background: #fff; }
+.b-who .prev-as select { padding: 6px 10px; border-radius: 8px; font: 600 13px Inter, sans-serif; min-width: 240px; }
+.b-who-guest { gap: 8px; padding: 6px 8px; font-size: 14px; color: #0B1930; } .b-who-guest svg { width: 18px; height: 18px; color: #2f6d0c; }
+.b-left { display: inline-flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 13px; color: #0B1930; padding-right: 6px; } .b-left svg { width: 16px; height: 16px; color: #2f6d0c; }
+.b-left-x { display: inline-flex; align-items: center; gap: 4px; color: #1d4ed8; font-weight: 600; } .fine-w { color: #5B6B82; }
+.b-sheet .b-bar-fam, .b-sheet .b-bar-prev, .b-sheet .b-bar-guest { display: none !important; }
+.b-vsubs { margin-top: 0; }
