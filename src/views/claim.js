@@ -346,27 +346,28 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       <div class="bh2-l">${board.image ? `<span class="bh2-tile b-hd-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="bh2-tile b-hd-tile code"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
         <div><div class="bh2-t"><h1>${esc(board.name)}</h1><span class="b-hd-type">${require("./setup").boardTypeOf(board) === "volunteer" ? "Volunteer" : "Program"}</span></div>
           <span class="bh2-meta">${[range ? esc(range) : "", board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean).join(" · ")}</span></div></div>
+      ${preview ? `<div class="bh2-acts b-hd-who"><span class="b-hd-who-l">Previewing as</span>
+        <form method="get" action="/b/${board.id}" class="prev-as"><input type="hidden" name="preview" value="1">${mode === "cal" ? `<input type="hidden" name="v" value="cal">` : ""}
+          <select name="as" onchange="this.form.submit()" aria-label="Preview as">${preview.members.map((m) => `<option value="${m.id}"${m.id === preview.as ? " selected" : ""}>${esc([m.first_name, m.last_name].filter(Boolean).join(" ") || m.email || "(no name)")}${m.group_name ? ` (${esc(m.group_name)})` : ""}</option>`).join("")}
+            <option value="0"${!preview.as ? " selected" : ""}>Someone not on the board's list</option></select></form></div>`
+      : !guest && people.length ? `<div class="bh2-acts b-hd-who"><span class="b-hd-who-l">Signing up for</span>${people.map((p) => `<a class="sb-btn${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? " primary" : ""}" href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${esc(nm(p))}</a>`).join("")}</div>` : ""}
     </section>
     <nav class="bh2-tabs dash-tabs b-vtabs">
       <a href="${link({ v: "list", m: "" })}"${mode !== "cal" || !dated ? ' aria-current="page"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List</a>
       ${dated ? `<a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="page"' : ""}>${IC.cal}Calendar</a>` : ""}
     </nav>
-    ${mode !== "cal" && dated ? `<nav class="sub-tabs b-subtabs" aria-label="Group sessions"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="page"' : ""}>By ${esc(require("../schedules").labels(board).activity.one.toLowerCase())}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="page"' : ""}>By day</a></nav>` : ""}
-    <div class="sub-body b-sheet${mode !== "cal" && dated ? "" : " no-subs"}">
+    <div class="sub-body b-sheet no-subs">
     ${board.description ? `<p class="b-desc">${esc(board.description)}</p>` : ""}
-    ${preview ? `<section class="b-bar b-bar-prev"><span class="b-bar-l">Previewing as:</span>
-      <form method="get" action="/b/${board.id}" class="prev-as"><input type="hidden" name="preview" value="1">${mode === "cal" ? `<input type="hidden" name="v" value="cal">` : ""}
-        <select name="as" onchange="this.form.submit()" aria-label="Preview as">${preview.members.map((m) => `<option value="${m.id}"${m.id === preview.as ? " selected" : ""}>${esc(m.first_name)} ${esc(m.last_name)}${m.group_name ? ` (${esc(m.group_name)})` : ""}</option>`).join("")}
-          <option value="0"${!preview.as ? " selected" : ""}>Someone not on the board's list</option></select></form>
+    ${preview ? `<section class="b-bar b-bar-prev">
       ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}</section>` : guest ? `<section class="b-bar b-bar-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar">
-      <span class="b-bar-l">Signing up for:</span>
-      <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${esc(nm(p))}</a>`).join("")}</nav>
+      <nav class="b-people" hidden>${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${esc(nm(p))}</a>`).join("")}</nav>
       ${person ? `<span class="b-bar-lim">${IC.people}<span>${limitBits.length ? `<b>${esc(Name)}:</b> ${limitBits.join(" · ")}` : `No claim limits for ${esc(nm(person))} on this board`}</span></span>` : ""}
       ${extra.length ? `<span class="b-bar-extra">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}
     </section>`}
     ${preview && !rows.length ? `<p class="b-pick">${preview.as ? `${esc(person.first_name)} wouldn't see anything to claim on this board.` : board.claim_mode === "roster" ? "Someone not on the board's list wouldn't see anything: this board is only for people assigned to it." : "Nothing to claim here yet."} Check the levels' <b>Who can claim</b> settings, or add ${esc(SC_LABELS(board))} to the board.</p>` : ""}
     ${!person ? `<p class="b-pick">👆 Tap who's signing up to see what's available.</p>` : `
     <div class="b-tools">
+      ${mode !== "cal" && dated ? `<nav class="b-group" aria-label="Group sessions"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>By ${esc(require("../schedules").labels(board).activity.one.toLowerCase())}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>By day</a></nav>` : ""}
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}${limFor(a.id)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
       <form method="get" action="${basePath}" class="b-filters">${hidden({ preview: preview ? "1" : "", as: preview ? String(preview.as) : "", p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}

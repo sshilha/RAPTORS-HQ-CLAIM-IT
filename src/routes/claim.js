@@ -110,7 +110,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   if (req.query.preview === "1" && auth.isAdmin(req.user)) {
     const board = (await query(`SELECT * FROM schedules WHERE id=$1`, [sid])).rows[0];
     if (!board) return go(res, "/admin/settings", { err: "Not found." });
-    const members = (await query(`SELECT a.id, a.first_name, a.last_name, m.group_name, m.tags FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
+    const members = (await query(`SELECT a.id, a.first_name, a.last_name, a.email, m.group_name, m.tags FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
       WHERE m.schedule_id=$1 AND a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name)`, [sid])).rows;
     const asId = req.query.as === "0" ? 0 : int(req.query.as) || (members[0] ? members[0].id : 0);
     const m = members.find((x) => x.id === asId) || null;

@@ -600,7 +600,7 @@ or name and contact as before when there's just one. Existing organizers carried
 ## Sign-up page layout
 The family sign-up page (/b/<id>), the public link (/s/<code>), and admin Preview share the app's layout:
 ← My Claims (or ← Back to Setup in Preview; none on the public link) · navy header (board picture or short-code tile,
-name, Program/Volunteer badge, dates · location · organizers) · gray tab bar with the views (List · Calendar, only those
-the board allows) · folder sub-tabs under List (By <activity level> · By day) · white sheet with the description, the
-"Signing up for" toolbar (person pills and limits; "No account needed" on the public link; "Previewing as" in
-Preview), the filters, and the sessions or calendar.
+name, Program/Volunteer badge, dates · location · organizers; on the right, "Signing up for" with a button per
+person, or "Previewing as" in Preview) · gray tab bar with the views (List · Calendar, only those the board allows) ·
+white sheet: description, limits line ("No account needed" on the public link), then one row with By <activity level> ·
+By day on the left (month arrows in Calendar) and the filters on the right, then the sessions or calendar.
