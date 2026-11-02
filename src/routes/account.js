@@ -15,7 +15,7 @@ const router = express.Router();
 router.use(auth.requireUser);
 const clean = (x, n) => str(x).replace(/\s+/g, " ").slice(0, n);
 const back = (anchor) => `/account${anchor ? `#${anchor}` : ""}`;
-const me = async (user) => (await query(`SELECT * FROM athletes WHERE kind='adult' AND self_user_id=$1 ORDER BY id LIMIT 1`, [user.id])).rows[0] || null;
+const me = async (user) => (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND archived_at IS NULL ORDER BY (kind='athlete') DESC, id LIMIT 1`, [user.id])).rows[0] || null;
 
 router.get("/", wrap(async (req, res) => {
   const u = (await query(`SELECT * FROM users WHERE id=$1`, [req.user.id])).rows[0];
@@ -28,9 +28,12 @@ router.get("/", wrap(async (req, res) => {
   const scope = await PP.reportScope(req.user);
   const reportBoards = scope && !scope.all ? (await query(`SELECT name FROM schedules WHERE id = ANY($1) ORDER BY name`, [scope.boards])).rows.map((r) => r.name) : [];
   const requests = (await query(`SELECT * FROM account_requests WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20`, [req.user.id])).rows;
+  // an athlete who signs in themselves: their family, and (18+) what that family can see
+  const myFamily = person && person.kind === "athlete" ? (await query(`SELECT coalesce(nullif(trim(p.first_name||' '||p.last_name),''), u.email) AS name FROM parent_athletes pa JOIN users u ON u.id=pa.user_id
+      LEFT JOIN athletes p ON p.self_user_id=u.id WHERE pa.athlete_id=$1 ORDER BY 1`, [person.id])).rows.map((r) => r.name) : [];
   req.user.can_reports = !!scope;
   res.send(v.accountPage({ user: req.user, flash: flashFrom(req), u, person, kids, coaching, scope, reportBoards, requests, admin: auth.isAdmin(req.user),
-    sms: SMS.enabled(), pendingPhone: req.query.phone || null, devCode: req.query.dc || null }));
+    myFamily, canShare: PP.isAdultAge(person), sms: SMS.enabled(), pendingPhone: req.query.phone || null, devCode: req.query.dc || null }));
 }));
 
 // profile: their own name, organization (saved right away)
@@ -107,6 +110,14 @@ router.post("/phone/verify", wrap(async (req, res) => {
 router.post("/phone/remove", wrap(async (req, res) => {
   await query(`UPDATE users SET phone=NULL, phone_verified_at=NULL WHERE id=$1`, [req.user.id]);
   go(res, back("phone"), { ok: "Mobile number removed from sign-in." });
+}));
+
+// family sharing, for athletes 18+ who sign in themselves
+router.post("/sharing", wrap(async (req, res) => {
+  const p = await me(req.user);
+  if (!p || p.kind !== "athlete" || !PP.isAdultAge(p)) return go(res, back("sharing"), { err: "Only athletes 18 or older can change this. Ask an admin." });
+  await query(`UPDATE athletes SET family_access=$2, family_emails=$3 WHERE id=$1`, [p.id, req.body.family_access === "1", req.body.family_emails === "1"]);
+  go(res, back("sharing"), { ok: "Saved who in your family can see your claims." });
 }));
 
 // requests an admin approves: add a family member, or change one's details

@@ -13,8 +13,10 @@ router.use(["/dashboard", "/b", "/claims"], auth.requireUser);
 // The people this signed-in person can claim for: their linked kids, and themselves
 async function myPeople(user) {
   const kids = (await query(`SELECT a.* FROM parent_athletes pa JOIN athletes a ON a.id=pa.athlete_id
-    WHERE pa.user_id=$1 AND a.archived_at IS NULL ORDER BY a.first_name`, [user.id])).rows;
-  let me = (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND kind='adult' ORDER BY id LIMIT 1`, [user.id])).rows[0];
+    WHERE pa.user_id=$1 AND a.archived_at IS NULL AND a.family_access AND a.self_user_id IS DISTINCT FROM $1 ORDER BY a.first_name`, [user.id])).rows;
+  // screens treat self_user_id as "this is you": a family member who signs in themselves is not you
+  kids.forEach((k) => { k.own_user_id = k.self_user_id; k.self_user_id = null; });
+  let me = (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND archived_at IS NULL ORDER BY (kind='athlete') DESC, id LIMIT 1`, [user.id])).rows[0];
   return { kids, me };
 }
 const memberOf = async (boardId, athleteId) => (await query(`SELECT group_name, tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [boardId, athleteId])).rows[0] || null;
@@ -56,12 +58,12 @@ router.get("/dashboard", wrap(async (req, res) => {
   const shownIds = who ? ids.filter((x) => x === who) : ids;
   const claims = shownIds.length ? (await query(`SELECT c.*, i.title, i.starts_at, i.ends_at, i.location, i.node_id, i.schedule_id, sc.name AS board_name, sc.labels AS board_labels,
       sc.image IS NOT NULL AS board_image, sc.image_at AS board_image_at, sc.short_code AS board_code, sc.event_location AS board_location,
-      a.first_name, a.last_name, a.self_user_id,
+      a.first_name, a.last_name, CASE WHEN a.self_user_id = $2 THEN a.self_user_id END AS self_user_id,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id
     WHERE c.athlete_id = ANY($1) AND c.status<>'canceled' AND sc.archived_at IS NULL ${range}
-    ORDER BY ${when === "past" ? "i.starts_at DESC" : "i.starts_at NULLS LAST"}, c.id`, [shownIds])).rows : [];
+    ORDER BY ${when === "past" ? "i.starts_at DESC" : "i.starts_at NULLS LAST"}, c.id`, [shownIds, req.user.id])).rows : [];
   // can each still be canceled in the app? (same rule as the board page: the cancel deadline in force)
   for (const c of claims) {
     const chain = await E.chainFor(c.item_id);

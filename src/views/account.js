@@ -6,7 +6,7 @@ const ROLE = { parent: "Parent", coach: "Coach", volunteer: "Volunteer / outside
 const card = (id, title, sub, body, lock = false) => `<section class="d-card a-card" id="${id}"><div class="a-h"><h2>${title}</h2>${lock ? `<span class="a-lock" title="Only admins can change this">🔒 View only</span>` : ""}</div>${sub ? `<p class="a-sub">${sub}</p>` : ""}${body}</section>`;
 const status = { waiting: ["Waiting", "wl"], approved: ["Approved", "ok"], declined: ["Declined", "no"], done: ["Done", "ok"] };
 
-function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoards, requests, admin, sms, pendingPhone, devCode }) {
+function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoards, requests, admin, sms, pendingPhone, devCode, myFamily = [], canShare = false }) {
   const p = person || {};
   const roles = (p.roles || []).map((r) => ROLE[r] || r);
   return layout({ title: "My Account", user, flash, admin, tab: "account", dash: true,
@@ -49,6 +49,13 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
             ${k.boards.length ? `<span class="fine">On: ${esc(k.boards.join(", "))}</span>` : ""}
             ${k.other_parents.length ? `<span class="fine">Also linked: ${esc(k.other_parents.join(", "))}</span>` : ""}</li>`).join("")}</ul>`
           : `<p class="muted">No one is linked to your account yet.</p>`}`, true)}
+      ${p.kind === "athlete" ? card("sharing", "My family &amp; sharing", canShare ? "You're 18 or older, so you decide what your family sees." : "Only an admin can change these until you're 18.", `
+        ${myFamily.length ? `<p class="a-cur">Linked family: ${esc(myFamily.join(", "))}</p>` : `<p class="muted">No family is linked to you.</p>`}
+        <form method="post" action="/account/sharing" class="a-form">
+          <label class="radio-row"><input type="checkbox" name="family_access" value="1"${p.family_access !== false ? " checked" : ""}${canShare ? "" : " disabled"}> <span><b>Family can see and manage my claims</b></span></label>
+          <label class="radio-row"><input type="checkbox" name="family_emails" value="1"${p.family_emails !== false ? " checked" : ""}${canShare ? "" : " disabled"}> <span><b>Family gets the emails about my claims</b></span></label>
+          ${canShare ? `<div class="a-act"><button class="b-claim" type="submit">Save</button></div>` : ""}
+        </form>`, !canShare) : ""}
       ${card("access", "My access", "What you can do in the app. Only admins can change this.", `
         <dl class="b-facts a-facts">
           <div><dt>Account</dt><dd>${admin ? "Administrator" : "Member"}</dd></div>

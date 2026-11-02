@@ -6,12 +6,13 @@ const { esc } = require("../views/layout");
 
 async function details(claimId) {
   return (await query(`SELECT c.*, i.title, i.starts_at, i.ends_at, i.location, sc.name AS board_name, sc.contact_name, sc.contact_info, sc.event_location,
-      a.first_name, a.last_name, a.self_user_id, a.email AS athlete_email, sc.share_code,
+      a.first_name, a.last_name, a.self_user_id, a.email AS athlete_email, a.family_emails, sc.share_code,
       ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS parent_emails,
       (SELECT email FROM users WHERE id=a.self_user_id) AS self_email
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id WHERE c.id=$1`, [claimId])).rows[0];
 }
-const to = (d, user) => { const list = [...new Set([user && user.email, d.self_email, ...(d.parent_emails || [])].filter(Boolean))];
+const to = (d, user) => { const fam = d.family_emails === false ? [] : d.parent_emails || [];   // family_emails off: only the athlete (and whoever acted)
+  const list = [...new Set([user && user.email, d.self_email, ...fam].filter(Boolean))];
   return list.length ? list : d.athlete_email ? [d.athlete_email] : []; };   // claimed through the public link: their own email
 const lines = (d) => [slotName(d), d.board_name, d.location || d.event_location ? `Location: ${d.location || d.event_location}` : "",
   d.contact_name || d.contact_info ? `Questions? ${[d.contact_name, d.contact_info].filter(Boolean).join(", ")}` : ""].filter(Boolean);

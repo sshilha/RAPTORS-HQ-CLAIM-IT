@@ -29,6 +29,13 @@ function fields(p, kind) {
 
 const { fmtDateTime } = require("../time");
 const shortDate = (t) => new Date(t).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric" });
+const TONE = { active: "ok", ready: "ok", invited: "info", notinvited: "plain", setup: "warn", noemail: "bad", noparent: "bad" };
+const TIP = { active: "Has signed in", invited: "Invite sent, not used yet", notinvited: "Has an email but hasn't been invited", setup: "Will see the Welcome step at next sign-in",
+  noemail: "No email, so they can't sign in", ready: "Has a parent who can claim for them", noparent: "No parent linked, so nobody can claim for them yet" };
+function statusPill(p) {
+  const k = PP.statusOf(p), d = k === "active" ? p.last_login_at : k === "invited" ? p.invited_at : null;
+  return `<span class="st-pill ${TONE[k]}" title="${TIP[k]}">${PP.STATUS[k]}</span>${d ? `<span class="fine st-date">${shortDate(d)}</span>` : ""}`;
+}
 function acctStatus(p) {
   if (p.kind !== "adult") return "";
   if (p.last_login_at) return `Last in ${shortDate(p.last_login_at)}${p.setup_required ? " · setup needed" : ""}`;
@@ -57,9 +64,10 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
         <select name="list" aria-label="List" onchange="this.form.submit()"><option value="">All people (${total})</option>${lists.map((l) => `<option value="${l.id}"${f.list === l.id ? " selected" : ""}>${esc(l.name)} (${l.n})</option>`).join("")}</select>
         <input type="search" name="q" value="${esc(f.q)}" placeholder="Search name, email, phone…" aria-label="Search">
         <select name="kind" aria-label="Kind" onchange="this.form.submit()"><option value="">Everyone</option><option value="athlete"${f.kind === "athlete" ? " selected" : ""}>Athletes</option><option value="adult"${f.kind === "adult" ? " selected" : ""}>Adults</option></select>
+        <select name="status" aria-label="Status" onchange="this.form.submit()"><option value="">Any status</option>${Object.entries(PP.STATUS).map(([k, l]) => `<option value="${k}"${f.status === k ? " selected" : ""}>${l}</option>`).join("")}</select>
         <select name="role" aria-label="Role" onchange="this.form.submit()"><option value="">Any role</option>${Object.entries(ROLE).map(([k, l]) => `<option value="${k}"${f.role === k ? " selected" : ""}>${l}</option>`).join("")}</select>
         ${teams.length ? `<select name="team" aria-label="Current team" onchange="this.form.submit()"><option value="">Any team</option>${opt(teams, f.team)}</select>` : ""}
-        ${f.q || f.kind || f.role || f.team || f.list ? `<a class="link-dark" href="/admin/people">Clear</a>` : ""}</form>`;
+        ${f.q || f.kind || f.role || f.team || f.status || f.list ? `<a class="link-dark" href="/admin/people">Clear</a>` : ""}</form>`;
   return page({ title: "People", tab: "people", user, flash, xwide: true,
     body: `${head ? head({ active: "people" }) : ""}
     ${dl}
@@ -88,13 +96,14 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
       ${listBar}
       ${cur ? "" : `<h3 class="ilist-head">${people.length === total ? "Everyone" : "Matching"} <span class="fine-inline">(${people.length})</span></h3>`}
       ${people.length ? bulk : ""}
-      ${people.length ? `<div class="table-wrap"><table class="dir-table"><thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Name</th><th>Kind</th><th>Current team</th><th>Contact</th><th>Family</th><th>Boards</th><th>Account</th></tr></thead><tbody>
-        ${people.map((p) => `<tr><td><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td><td><a href="/admin/people/${p.id}"><b>${esc(PP.display(p))}</b></a>${(p.list_ids || []).length ? `<div class="mini-lists">${lists.filter((l) => p.list_ids.includes(l.id)).map((l) => `<span>${esc(l.name)}</span>`).join("")}</div>` : ""}${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}</td>
+      ${people.length ? `<div class="table-wrap"><table class="dir-table"><thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Name</th><th>Kind</th><th>Current team</th><th>Lists</th><th>Contact</th><th>Family</th><th>Boards</th><th>Status</th></tr></thead><tbody>
+        ${people.map((p) => `<tr><td><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td><td><a href="/admin/people/${p.id}"><b>${esc(PP.display(p))}</b></a>${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}</td>
           <td>${kindTag(p)}</td><td>${esc(p.team || "")}</td>
+          <td>${(() => { const ns = (p.list_ids || []).map((id) => (lists.find((l) => l.id === id) || {}).name).filter(Boolean); return ns.length ? chips(ns.slice(0, 3), "chip-s list") + (ns.length > 3 ? `<span class="fine"> +${ns.length - 3} more</span>` : "") : ""; })()}</td>
           <td><span class="fine">${[p.email, p.phone].filter(Boolean).map(esc).join("<br>")}</span></td>
           <td><span class="fine">${p.kind === "athlete" ? (p.parents.length ? `Parents: ${esc(p.parents.join(", "))}` : "") : (p.kids.length ? `Kids: ${esc(p.kids.join(", "))}` : "")}</span></td>
           <td>${chips(p.boards)}${p.coaching.length ? chips(p.coaching.map((c) => `Coach: ${c}`), "chip-s coach") : ""}</td>
-          <td><span class="fine">${acctStatus(p)}</span></td></tr>`).join("")}
+          <td class="st-cell">${statusPill(p)}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="muted">No one matches.</p>`}
     </section>
     <script>
@@ -156,7 +165,15 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
           ${allBoards.map((b) => `<label class="radio-row"><input type="checkbox" name="boards" value="${b.id}"${coaching.includes(b.id) ? " checked" : ""}${p.email ? "" : " disabled"}> ${esc(b.name)}</label>`).join("") || `<p class="muted small">No boards yet.</p>`}
           ${p.email && allBoards.length ? `<div class="q-actions"><button class="btn-small" type="submit">Save</button></div>` : ""}
         </form></section>` : ""}
-      ${p.kind === "adult" ? `<section class="panel side-card" id="signin"><h2>Sign-in &amp; setup</h2>
+      ${p.kind === "athlete" ? `<section class="panel side-card" id="self"><h2>Own sign-in &amp; family sharing</h2>
+        <p class="fine">Older athletes can sign in and claim for themselves. Their family can still see and manage it, unless you turn that off.</p>
+        <form method="post" action="/admin/people/${p.id}/self" class="stack self-form">
+          <label class="field-l"><span>Athlete's own email <span class="opt">(leave empty if only family signs in)</span></span><input type="email" name="email" value="${esc(p.email || "")}" placeholder="athlete@example.com"></label>
+          <label class="radio-row"><input type="checkbox" name="family_access" value="1"${p.family_access !== false ? " checked" : ""}> <span><b>Family can see and manage their claims</b> <span class="fine">Parents see ${esc(p.first_name)} on My Claims and can claim or cancel for them.</span></span></label>
+          <label class="radio-row"><input type="checkbox" name="family_emails" value="1"${p.family_emails !== false ? " checked" : ""}> <span><b>Family gets the emails</b> <span class="fine">Confirmations, cancellations, and waitlist news. Off: only ${esc(p.first_name)} gets them.</span></span></label>
+          <p class="fine">${PP.isAdultAge(p) ? `${esc(p.first_name)} is 18 or older, so they can change these themselves in My Account.` : `Only admins can change these${p.birth_year ? "" : " (add a birth year so athletes 18+ can manage it themselves)"}.`}</p>
+          <div class="q-actions"><button class="btn-small" type="submit">Save</button></div></form></section>` : ""}
+      ${p.kind === "adult" || p.email ? `<section class="panel side-card" id="signin"><h2>Sign-in &amp; setup</h2>
         <dl class="rc-list">
           <div><dt>Account</dt><dd>${!acct ? (p.email ? "Not set up yet" : "No email") : acct.joined_at ? `Joined ${esc(fmtDateTime(acct.joined_at))}` : acct.invited_at ? `Invited ${esc(fmtDateTime(acct.invited_at))}` : "Not invited"}</dd></div>
           <div><dt>Last sign-in</dt><dd>${acct && acct.last_login_at ? esc(fmtDateTime(acct.last_login_at)) : "Never"}</dd></div>

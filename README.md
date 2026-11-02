@@ -558,3 +558,19 @@ The SportsEngine group field is gone. On first start of this version, any existi
 same name (with those people on them), then the old column is dropped. The People import has **Make lists
 from this column** (guessed from columns like Program or SportsEngine Group): each person goes on the list
 named in that column, creating lists as needed, in addition to the optional "put everyone on a list".
+
+**People table:** a **Lists** column (each person's lists as chips) and a **Status** column: adults are Active
+(last sign-in date) / Invited / Not invited / Needs setup / No email; athletes are Ready (a parent is linked) /
+No parent (nobody can claim for them yet). The **Status** filter in the People toolbar uses the same rule, e.g.
+Not invited → Check all shown → Send invite.
+
+
+## Athletes who sign in themselves
+An athlete's People page has **Own sign-in & family sharing**: their own email (they sign in like any adult:
+link, password, Welcome step, invites), plus **Family can see and manage their claims** and **Family gets the
+emails** (both on by default). Signed in, the athlete is "Me" on My Claims and sign-up pages. Sharing off hides
+them from parents' My Claims / removes parents from their claim emails. Admins can always change it; the athlete
+can change it in My Account → My family & sharing only when 18+ (by birth year). One person, one record: an
+athlete can also hold adult roles (volunteer, coach); giving an athlete the email of an unused adult record folds
+that record in (archived), and an adult record with family, boards, or claims is refused with a message.
+Status in People: an athlete with their own sign-in shows the sign-in statuses (Active, Invited, …).

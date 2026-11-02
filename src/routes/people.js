@@ -28,10 +28,10 @@ async function directory() {
 
 router.get("/", wrap(async (req, res) => {
   const all = await directory();
-  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), list: int(req.query.list) || 0 };
+  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), status: str(req.query.status), list: int(req.query.list) || 0 };
   const shown = all.filter((p) => (!f.q || `${p.first_name} ${p.last_name} ${p.email || ""} ${p.phone || ""}`.toLowerCase().includes(f.q))
     && (!f.list || (p.list_ids || []).includes(f.list))
-    && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team));
+    && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.status || PP.statusOf(p) === f.status));
   const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [];
   const waiting = (await query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
   res.send(v.directoryPage({ waiting, head: await AHead(), user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
@@ -249,10 +249,35 @@ router.post("/:id/reports", wrap(async (req, res) => {
   go(res, `/admin/people/${id}#reports`, { ok: mode === "none" ? "No report access." : `Report access saved${teams.length ? ` (only ${teams.join(", ")})` : ""}.` });
 }));
 
+// An athlete's own sign-in (their email) and what their family can see / receive
+router.post("/:id/self", wrap(async (req, res) => {
+  const id = int(req.params.id), back = `/admin/people/${id}#self`;
+  const p = (await query(`SELECT * FROM athletes WHERE id=$1`, [id])).rows[0];
+  if (!p || p.kind !== "athlete") return go(res, `/admin/people/${id}`, {});
+  const fa = req.body.family_access === "1", fe = req.body.family_emails === "1";
+  const e = auth.normalizeEmail(req.body.email || "");
+  if (!e) {   // no own email: family-managed only (sharing stays on, since they can't sign in)
+    await query(`UPDATE athletes SET email=NULL, self_user_id=NULL, family_access=true, family_emails=true WHERE id=$1`, [id]);
+    return go(res, back, { ok: `${p.first_name} won't sign in themselves. Their family manages their claims.` });
+  }
+  if (!auth.isValidEmail(e)) return go(res, back, { err: "Enter a valid email." });
+  const u = await auth.findOrCreateUser(e);
+  const other = (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND id<>$2 AND archived_at IS NULL`, [u.id, id])).rows[0];
+  if (other) {
+    // the same person was added as an adult (e.g. a volunteer): fold that record into the athlete, if nothing hangs off it
+    const busy = (await query(`SELECT (SELECT count(*) FROM board_claims WHERE athlete_id=$1) + (SELECT count(*) FROM parent_athletes WHERE user_id=$2) + (SELECT count(*) FROM schedule_members WHERE athlete_id=$1) AS n`, [other.id, u.id])).rows[0].n;
+    if (other.kind !== "adult" || Number(busy) > 0) return go(res, back, { err: `${e} already belongs to ${[other.first_name, other.last_name].filter(Boolean).join(" ") || "someone else"} in People${other.kind === "adult" ? ", who has family, boards, or claims" : ""}. Use a different email, or ask for help combining them.` });
+    await query(`UPDATE athletes SET roles = (SELECT ARRAY(SELECT DISTINCT unnest(roles || $2::text[]))), phone=COALESCE(phone,$3) WHERE id=$1`, [id, other.roles || [], other.phone]);
+    await query(`UPDATE athletes SET self_user_id=NULL, archived_at=now() WHERE id=$1`, [other.id]);
+  }
+  await query(`UPDATE athletes SET email=$2, self_user_id=$3, family_access=$4, family_emails=$5 WHERE id=$1`, [id, e, u.id, fa, fe]);
+  go(res, back, { ok: `${p.first_name} can sign in with ${e}.${!fa ? " Their family no longer sees their claims." : ""}${!fe ? " Emails about their claims go only to them." : ""}${other ? " (Their separate adult record was combined into this one.)" : ""}` });
+}));
+
 // Invite someone (7-day link to set up their account), or require setup at their next sign-in
 async function accountFor(id) {
   const p = (await query(`SELECT * FROM athletes WHERE id=$1`, [id])).rows[0];
-  if (!p || p.kind !== "adult" || !p.email) return { p, u: null };
+  if (!p || !p.email) return { p, u: null };
   let uid = p.self_user_id;
   if (!uid) { uid = (await auth.findOrCreateUser(p.email)).id; await query(`UPDATE athletes SET self_user_id=$2 WHERE id=$1`, [id, uid]); }
   return { p, u: (await query(`SELECT * FROM users WHERE id=$1`, [uid])).rows[0] };

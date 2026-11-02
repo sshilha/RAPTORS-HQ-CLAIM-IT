@@ -25,6 +25,9 @@ async function migrate() {
       added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (list_id, athlete_id)
     );
+    -- an athlete who signs in themselves: does their family see/manage their claims, and get the emails?
+    ALTER TABLE athletes ADD COLUMN IF NOT EXISTS family_access BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE athletes ADD COLUMN IF NOT EXISTS family_emails BOOLEAN NOT NULL DEFAULT true;
     -- Report access for non-admins: { mode: "none" | "coached" | "boards", boards: [ids], teams: [names] }
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS report_access JSONB;
     -- adults who signed up for themselves are adults
@@ -47,7 +50,8 @@ async function ensureAdult(email, { first = "", last = "", role = null } = {}) {
   const auth = require("./auth");
   const e = auth.normalizeEmail(email);
   const u = await auth.findOrCreateUser(e);
-  let p = (await query(`SELECT * FROM athletes WHERE kind='adult' AND (self_user_id=$1 OR lower(email)=$2) ORDER BY id LIMIT 1`, [u.id, e])).rows[0];
+  let p = (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND archived_at IS NULL ORDER BY id LIMIT 1`, [u.id])).rows[0]
+    || (await query(`SELECT * FROM athletes WHERE kind='adult' AND lower(email)=$1 ORDER BY id LIMIT 1`, [e])).rows[0];
   if (!p) p = (await query(`INSERT INTO athletes (first_name, last_name, kind, email, self_user_id, roles) VALUES ($1,$2,'adult',$3,$4,$5) RETURNING *`,
     [first, last, e, u.id, role ? [role] : []])).rows[0];
   else {
@@ -93,6 +97,19 @@ async function reportScope(user) {
   return boards.length ? { all: false, boards, teams: (a.teams || []).filter(Boolean) } : null;
 }
 
+// A person's status in People: what (if anything) needs attention
+const STATUS = { active: "Active", invited: "Invited", notinvited: "Not invited", setup: "Needs setup", noemail: "No email", ready: "Ready", noparent: "No parent" };
+// 18 or older (by birth year): an athlete who can change their own family sharing
+const isAdultAge = (p) => !!(p && p.birth_year && new Date().getFullYear() - p.birth_year >= 18);
+function statusOf(p) {
+  if (p.kind === "athlete" && !p.email && !p.self_user_id) return (p.parents || []).length ? "ready" : "noparent";
+  if (!p.email) return "noemail";
+  if (p.setup_required && p.last_login_at) return "setup";
+  if (p.last_login_at) return "active";
+  if (p.invited_at) return "invited";
+  return "notinvited";
+}
+
 const display = (p) => (`${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email || "(no name)");
 
-module.exports = { migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };
+module.exports = { STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };

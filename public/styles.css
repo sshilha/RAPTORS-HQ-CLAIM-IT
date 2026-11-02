@@ -2800,3 +2800,10 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .sub-body > :last-child { margin-bottom: 0; }
 .sub-body > .req-note { margin-top: 0; }
 .page-toolbar .dt-search { flex: none; width: 300px; min-width: 0; }
+/* People: Status pills and list chips */
+.st-pill { display: inline-block; border-radius: 999px; padding: 2px 9px; font: 700 11px Inter, sans-serif; white-space: nowrap; }
+.st-pill.ok { background: #E4F5D2; color: #2f6d0c; } .st-pill.info { background: #E0EAFF; color: #1d4ed8; } .st-pill.plain { background: #EEF1F5; color: #475569; }
+.st-pill.warn { background: #FEF3C7; color: #92400e; } .st-pill.bad { background: #FDE8E8; color: #b91c1c; }
+.st-date { display: block; margin-top: 2px; } .st-cell { white-space: nowrap; }
+.chip-s.list { background: #F1F9E8; border-color: #d9efb0; color: #2f6d0c; }
+.self-form .radio-row { display: flex; gap: 10px; align-items: flex-start; text-transform: none; font: 400 14px var(--body); } .self-form .radio-row .fine { display: block; }
