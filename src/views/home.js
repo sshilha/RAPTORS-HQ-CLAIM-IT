@@ -31,12 +31,14 @@ function editDialog(sc) {
         ${S.boardTypeField(sc)}
         <h3>Picture</h3>
         ${S.imagePicker(sc)}
-        <h3>Organizer <span class="opt">(optional)</span></h3>
+        <h3>Organizers <span class="opt">(optional)</span></h3>
         <p class="fine">Shown to people with the board and in confirmation emails, so they know who to ask.</p>
-        <div class="field-row">
-          <label class="field-l">Name<input name="contact_name" maxlength="60" value="${esc(sc.contact_name || "")}" placeholder="e.g. Jane Smith"></label>
-          <label class="field-l">Email or phone<input name="contact_info" maxlength="80" value="${esc(sc.contact_info || "")}" placeholder="e.g. jane@example.com"></label>
-        </div>
+        <div class="org-rows">${(() => { const list = Array.isArray(sc.organizers) && sc.organizers.length ? sc.organizers : [{ name: sc.contact_name || "", info: sc.contact_info || "" }];
+            const row = (o) => `<div class="field-row org-row"><label class="field-l">Name<input name="org_name" maxlength="60" value="${esc(o.name || "")}" placeholder="e.g. Jane Smith"></label>
+              <label class="field-l">Email or phone<input name="org_info" maxlength="80" value="${esc(o.info || "")}" placeholder="e.g. jane@example.com"></label>
+              <button type="button" class="x org-x" aria-label="Remove this organizer" onclick="var r=this.closest('.org-row'); if (r.parentNode.querySelectorAll('.org-row').length > 1) r.remove(); else r.querySelectorAll('input').forEach(function(i){i.value='';})">×</button></div>`;
+            return list.map(row).join(""); })()}</div>
+          <button type="button" class="btn-ghost org-add" onclick="var w=this.previousElementSibling, r=w.querySelector('.org-row').cloneNode(true); r.querySelectorAll('input').forEach(function(i){i.value='';}); w.appendChild(r); r.querySelector('input').focus()">+ Add organizer</button>
         <h3>Structure</h3>
         <p class="fine">How the board is organized, and what things are called. Rename anything here (e.g. Items → Donations).</p>
         ${S.levelsTable(sc, !sc.empty, sc.level_counts || [])}

@@ -97,6 +97,8 @@ router.post("/schedules", wrap(async (req, res) => {
     [name, JSON.stringify(labels), sort, src ? src.groups : [], JSON.stringify(src ? src.presets : []), depth, calendar, pickMode,
      claim, restrict, evStart, evEnd, clean(b0.event_location, 80) || null, String(b0.description || "").trim().slice(0, 600) || null,
      clean(b0.contact_name, 60) || null, clean(b0.contact_info, 80) || null]);
+  if (clean(b0.contact_name, 60) || clean(b0.contact_info, 80)) await query(`UPDATE schedules SET organizers=$2 WHERE id=$1`,
+    [rows[0].id, JSON.stringify([{ name: clean(b0.contact_name, 60) || "", info: clean(b0.contact_info, 80) || "" }])]);
   if (["training", "volunteer"].includes(b0.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [rows[0].id, b0.board_type]);
   { const code = String(b0.short_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
     await query(`UPDATE schedules SET short_code=$2 WHERE id=$1`, [rows[0].id, code.length >= 2 ? code : require("../views/setup").initials(name)]); }
@@ -163,8 +165,15 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     await query(`UPDATE schedules SET short_code=$2 WHERE id=$1`, [id, code.length >= 2 ? code : null]);
   }
   if (b.description !== undefined) await query(`UPDATE schedules SET description=$2 WHERE id=$1`, [id, String(b.description || "").trim().slice(0, 600) || null]);
-  if (b.contact_name !== undefined) await query(`UPDATE schedules SET contact_name=$2, contact_info=$3 WHERE id=$1`,
-    [id, str(b.contact_name).slice(0, 60) || null, str(b.contact_info).slice(0, 80) || null]);
+  if (b.org_name !== undefined) {
+    const names = [].concat(b.org_name || []), infos = [].concat(b.org_info || []);
+    const orgs = names.map((n, i) => ({ name: str(n).slice(0, 60), info: str(infos[i]).slice(0, 80) })).filter((o) => o.name || o.info).slice(0, 12);
+    // one organizer: name + info, as before; several: one line everywhere ("Jane Smith (jane@…) · Bob Lee (715…)")
+    const line = orgs.length > 1 ? orgs.map((o) => (o.name && o.info ? `${o.name} (${o.info})` : o.name || o.info)).join(" · ") : null;
+    await query(`UPDATE schedules SET organizers=$2, contact_name=$3, contact_info=$4 WHERE id=$1`,
+      [id, JSON.stringify(orgs), orgs.length > 1 ? line : orgs[0] ? orgs[0].name || null : null, orgs.length > 1 ? null : orgs[0] ? orgs[0].info || null : null]);
+  } else if (b.contact_name !== undefined) await query(`UPDATE schedules SET contact_name=$2, contact_info=$3, organizers=$4 WHERE id=$1`,
+    [id, str(b.contact_name).slice(0, 60) || null, str(b.contact_info).slice(0, 80) || null, JSON.stringify(str(b.contact_name) || str(b.contact_info) ? [{ name: str(b.contact_name).slice(0, 60), info: str(b.contact_info).slice(0, 80) }] : [])]);
   // Who's going, attendance default, coaches (one email per line)
   if (["full", "initial", "off"].includes(b.family_names)) await query(`UPDATE schedules SET family_names=$2 WHERE id=$1`, [id, b.family_names]);
   if (b.track) await query(`UPDATE schedules SET track_attendance=$2 WHERE id=$1`, [id, b.track === "on"]);

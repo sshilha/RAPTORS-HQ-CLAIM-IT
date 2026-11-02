@@ -55,6 +55,13 @@ app.get("/img/board/:id", require("./routes/util").wrap(async (req, res) => {
   if (!m) return res.redirect("/claim-it-logo-sm.png");
   res.set("Content-Type", m[1]).set("Cache-Control", "public, max-age=604800").send(Buffer.from(m[2], "base64"));
 }));
+// App pictures (My Claims header bars)
+app.get("/img/app/:key", require("./routes/util").wrap(async (req, res) => {
+  const r = await require("./appimages").get(String(req.params.key));
+  const m = r && /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(r.data || "");
+  if (!m) return res.status(404).end();
+  res.set("Content-Type", m[1]).set("Cache-Control", "public, max-age=604800").send(Buffer.from(m[2], "base64"));
+}));
 app.use(require("./routes/claim")); // My Claims on the container engine (before the old family pages)
 app.use("/reports", require("./routes/reports2")); // reports on the engine (admins + people given access)
 app.use("/s", require("./routes/publicBoard")); // public links for new boards (falls through to the old ones)

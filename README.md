@@ -537,8 +537,8 @@ link to People for editing. Checked people: Set group, Add/Remove tag, Remove fr
 Board details, Access & people, and Board defaults each show a grid of cards (like App settings), each with
 its current value; **Open** shows just that section under the board header with "← Back to …"
 (?card=<id> in the address). Saves return to the same card. Board details now uses folder sub-tabs instead:
-General (name, dates, location, description) · Type & look (Program / Volunteer, picture, short code) · Organizer ·
-Structure & names (&sub= in the address). They share one form, so saving a sub-tab keeps everything else. Access & people now uses folder sub-tabs: <People word>
+General (name, dates, location, description, whether sessions have dates and times) · Type & look (Program /
+Volunteer, available views, picture, short code) · Organizers · Structure & names (level names only) (&sub= in the address). They share one form, so saving a sub-tab keeps everything else. Access & people now uses folder sub-tabs: <People word>
 (the list, count, + Add people opens Add from People / Quick add above it) · Groups & tags (intro, copy from another
 board, Groups, Tags) · Group shortcuts (boards with 3+ levels). &sub= in the address; old ?card= links map on. Board defaults now uses folder sub-tabs: Who (who can
 claim, who's going) · Limits & timing · Question & attendance · Level changes (with a count). &sub= in the address;
@@ -583,3 +583,15 @@ name is on file. The public link's confirmation uses the name the visitor typed.
 
 **Board type:** Program (sessions or events people take part in: training, clinics, camps) or Volunteer. Program is
 shown everywhere Training used to be (Board details, dashboard cards, My Claims badges); stored value unchanged.
+
+
+## My Claims header and card pictures
+My Claims has the same navy header as other pages (My Claims, the signed-in person's name or email, upcoming claims
+and the next one). Its two cards, Your Upcoming Claims and Sign Up for Something, have navy header bars; each can
+show a picture set in App Settings → Organization → Pictures (stored in the app_images table, served at
+/img/app/<key>, resized to 1600px wide in the browser). The picture sits on the right fading into navy; without one
+the bar is navy with lime stripes. Board pictures (Board details → Type & look) are unchanged.
+
+**Organizers:** a board can have several (Board details → Organizers: one row each, + Add organizer, ×). Stored in
+schedules.organizers; every page and email shows them on one line ("Questions? Jane Smith (jane@…) · Bob Lee (715…)"),
+or name and contact as before when there's just one. Existing organizers carried over.

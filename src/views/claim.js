@@ -45,7 +45,12 @@ const audience = (b) => {
   return "Anyone with an account";
 };
 
-function homePage({ user, flash, claims, boards, extra, admin, coach, family = [], familyIds = new Set(), who = 0, when = "upcoming", more = false, tab = "", allBoards = false }) {
+function homePage({ top = null, user, flash, claims, boards, extra, admin, coach, family = [], familyIds = new Set(), who = 0, when = "upcoming", more = false, tab = "", allBoards = false }) {
+  const pics = (top && top.pics) || {};
+  const nextTxt = top && top.next ? new Date(top.next).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).replace(/, (\d+:\d+)/, " at $1") : "";
+  // a card's navy header bar, with its picture (App Settings → Organization → Pictures) fading into navy
+  const bar = (key, icon, title) => `<div class="d-card-h mc-bar${pics[key] ? " has-img" : ""}">${pics[key] ? `<span class="mc-img" style="background-image:url('${pics[key]}')"></span>` : ""}<span class="mc-shade"></span>
+      <span class="d-card-ic">${icon}</span><h2>${title}</h2></div>`;
   // Details pop-up: the session, and everyone signed up (names + answers, per the board's sharing settings)
   const detailDialogs = [];
   const details = (c) => {
@@ -119,15 +124,18 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
   return layout({ title: "My Claims", user, flash, admin, tab: "home", dash: true,
     body: `
     <div class="d-wrap">
+      ${top ? `<section class="bh2 mc-head"><div class="bh2-l"><span class="bh2-tile dash-tile">${IC.cal}</span>
+        <div><div class="bh2-t"><h1>My Claims</h1></div><span class="bh2-meta">${esc(top.name)} · ${top.upcoming ? `${top.upcoming} upcoming claim${top.upcoming === 1 ? "" : "s"}${nextTxt ? ` · next: ${esc(nextTxt)}` : ""}` : "nothing claimed yet"}</span></div></div></section>
+      <div class="mc-underline"></div>` : ""}
       ${alertRows ? `<div class="d-alerts">${alertRows}</div>` : ""}
       <div class="d-cols">
         <section class="d-card" id="claims">
-          <div class="d-card-h"><span class="d-card-ic">${IC.cal}</span><h2>${when === "past" ? "Your Past Claims" : "Your Upcoming Claims"}</h2></div>
+          ${bar("upcoming", IC.cal, when === "past" ? "Your Past Claims" : "Your Upcoming Claims")}
           ${famChips}
           ${claimsHtml}
         </section>
         <section class="d-card" id="signup">
-          <div class="d-card-h"><span class="d-card-ic">${IC.clip}</span><h2>Sign Up for Something</h2></div>
+          ${bar("signup", IC.clip, "Sign Up for Something")}
           <div class="d-open-h"><b>${volOnly ? "Volunteer opportunities" : "Currently open opportunities"}</b><i>${list.length}</i>
             ${volOnly ? `<a href="${q({ tab: "" })}#signup">Show all</a>` : ""}</div>
           ${boardCards}

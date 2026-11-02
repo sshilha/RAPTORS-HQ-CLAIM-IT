@@ -256,6 +256,10 @@ async function migrate() {
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS description TEXT;
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS contact_name TEXT;
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS contact_info TEXT;
+    -- several organizers per board: [{ name, info }]; contact_name/contact_info hold the text every page shows
+    ALTER TABLE schedules ADD COLUMN IF NOT EXISTS organizers JSONB;
+    UPDATE schedules SET organizers = jsonb_build_array(jsonb_build_object('name', coalesce(contact_name, ''), 'info', coalesce(contact_info, '')))
+      WHERE organizers IS NULL AND (contact_name IS NOT NULL OR contact_info IS NOT NULL);
     -- Board picture (small, resized in the browser) and type (training / volunteer)
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS image TEXT;
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS image_at TIMESTAMPTZ;

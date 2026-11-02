@@ -95,7 +95,12 @@ router.get("/dashboard", wrap(async (req, res) => {
     const view = await E.personView(board.id, await asPerson(req.user, board.id, p.id));
     for (const r of view.items) if (r.leftover && r.canClaim && r.open > 0) extra.push({ board, person: p, row: r });
   }
-  res.send(v.homePage({ user: req.user, flash: flashFrom(req), claims, boards, extra, admin: auth.isAdmin(req.user),
+  // the header line: who's signed in, and their family's upcoming claims
+  const up = ids.length ? (await query(`SELECT count(*)::int AS n, min(i.starts_at) AS next FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id
+    WHERE c.athlete_id = ANY($1) AND c.status IN ('confirmed','waitlisted') AND sc.archived_at IS NULL AND i.canceled_at IS NULL AND (i.starts_at IS NULL OR i.starts_at > now())`, [ids])).rows[0] : { n: 0, next: null };
+  const me = people.me, myName = me ? [me.first_name, me.last_name].filter(Boolean).join(" ").trim() : "";
+  const top = { name: myName || req.user.email, upcoming: up.n, next: up.next, pics: await require("../appimages").urls() };
+  res.send(v.homePage({ top, user: req.user, flash: flashFrom(req), claims, boards, extra, admin: auth.isAdmin(req.user),
     coach: !!req.user.is_coach, family, familyIds, who: req.query.who === "me" ? "me" : who, when, more,
     tab: req.query.tab === "vol" ? "vol" : "", allBoards: req.query.boards === "all" }));
 }));

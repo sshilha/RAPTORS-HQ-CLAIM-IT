@@ -146,6 +146,46 @@ router.get("/app", (req, res, next) => {
   if (!req.query.part) return res.redirect("/admin/people" + (req.query.ok || req.query.err ? `?${new URLSearchParams({ ...(req.query.ok ? { ok: req.query.ok } : {}), ...(req.query.err ? { err: req.query.err } : {}) })}` : ""));
   next();
 });
+// Organization → Pictures: header pictures for the My Claims cards
+router.get("/app", wrap(async (req, res, next) => {
+  if (req.query.part !== "pictures") return next();
+  const AI = require("../appimages"), u = await AI.urls();
+  const head = await require("../views/apphead").head({ active: "pictures" });
+  const slot = (k) => `<div class="ap-pic">
+      <div class="ap-pic-h"><b>${AI.KEYS[k]}</b><span class="fine">Shown on the right of this card's navy header bar on My Claims, fading into navy so the title stays readable.</span></div>
+      <div class="ap-pic-prev${u[k] ? " has" : ""}"><span class="mc-img" style="${u[k] ? `background-image:url('${u[k]}')` : ""}"></span><span class="ap-pic-shade"></span><span class="ap-pic-t">${AI.KEYS[k]}</span></div>
+      <div class="ap-pic-ctl"><label class="btn-ghost">Choose picture<input type="file" accept="image/*" hidden data-key="${k}"></label>
+        <label class="radio-row ap-pic-rm"${u[k] ? "" : " hidden"}><input type="checkbox" name="remove_${k}" value="1"> Remove this picture</label>
+        <input type="hidden" name="img_${k}" value=""><span class="fine ap-pic-note">${u[k] ? "" : "No picture yet: the bar is navy with lime stripes."}</span></div></div>`;
+  res.send(require("../views/admin").page({ title: "Pictures · App settings", tab: "settings", user: req.user, flash: flashFrom(req),
+    body: `${head}<form method="post" action="/admin/settings/app/pictures" class="panel ap-pics">
+      <p class="fine">Wide pictures work best (about 4 to 1, like 1600 × 400). They're resized before upload.</p>
+      ${slot("upcoming")}${slot("signup")}
+      <div class="q-actions"><button class="btn-small" type="submit">Save pictures</button></div></form>
+    <script>(function () {
+      document.querySelectorAll(".ap-pic input[type=file]").forEach(function (inp) { inp.addEventListener("change", function () {
+        var f = inp.files[0], box = inp.closest(".ap-pic"); if (!f) return;
+        var img = new Image(), rd = new FileReader();
+        rd.onload = function () { img.onload = function () {
+          var w = Math.min(1600, img.width), h = Math.round(img.height * w / img.width), c = document.createElement("canvas"); c.width = w; c.height = h;
+          c.getContext("2d").drawImage(img, 0, 0, w, h); var d = c.toDataURL("image/jpeg", 0.82);
+          box.querySelector("input[name=img_" + inp.dataset.key + "]").value = d;
+          var pv = box.querySelector(".ap-pic-prev"); pv.querySelector(".mc-img").style.backgroundImage = "url('" + d + "')"; pv.classList.add("has");
+          box.querySelector(".ap-pic-note").textContent = "New picture ready. Save to use it.";
+        }; img.src = rd.result; }; rd.readAsDataURL(f);
+      }); });
+    })();</script>` }));
+}));
+router.post("/app/pictures", wrap(async (req, res) => {
+  const AI = require("../appimages"); let n = 0;
+  try {
+    for (const k of Object.keys(AI.KEYS)) {
+      if (req.body["remove_" + k] === "1") { await AI.set(k, null); n++; }
+      else if (req.body["img_" + k]) { await AI.set(k, req.body["img_" + k]); n++; }
+    }
+  } catch (e) { return go(res, "/admin/settings/app?part=pictures", { err: e.message }); }
+  go(res, "/admin/settings/app?part=pictures", { ok: n ? "Saved. My Claims shows the new pictures." : "Nothing changed." });
+}));
 router.get("/app", wrap(async (req, res) => {
   const admins = (await require("../db").query(`SELECT a.*, u.last_login_at FROM app_admins a LEFT JOIN users u ON u.email=a.email ORDER BY a.email`)).rows;
   const used = Object.fromEntries((await require("../db").query(

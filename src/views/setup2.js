@@ -129,7 +129,7 @@ function detailsCards(sc) {
   const L = SC.labels(sc), keys = SC.levelKeys(sc);
   const fmt = (d) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   let f = require("./home").editDialog(sc)
-    .replace(/<dialog class="edit-dlg" id="edit-(\d+)"[^>]*>/, `<section class="bd-panel" id="bd-panel" hidden><nav class="sub-tabs bd-subs" aria-label="Board details">${[["general", "General"], ["look", "Type &amp; look"], ["organizer", "Organizer"], ["structure", "Structure &amp; names"]].map(([k, l]) => `<a href="/admin/setup?s=${sc.id}&tab=details&sub=${k}" data-sub="${k}">${l}</a>`).join("")}</nav><div class="sub-body">`)
+    .replace(/<dialog class="edit-dlg" id="edit-(\d+)"[^>]*>/, `<section class="bd-panel" id="bd-panel" hidden><nav class="sub-tabs bd-subs" aria-label="Board details">${[["general", "General"], ["look", "Type &amp; look"], ["organizer", "Organizers"], ["structure", "Structure &amp; names"]].map(([k, l]) => `<a href="/admin/setup?s=${sc.id}&tab=details&sub=${k}" data-sub="${k}">${l}</a>`).join("")}</nav><div class="sub-body">`)
     .replace(/<\/dialog>\s*$/, "</div></section>")
     .replace(/<div class="dlg-head">[\s\S]*?<\/div>/, "")
     .replace('name="return_to" value="/admin/settings"', `name="return_to" value="/admin/setup?s=${sc.id}&tab=details"`)
@@ -144,10 +144,18 @@ function detailsCards(sc) {
     [/<label class="field-l"><span>Description/, sec("description", "Description", sc.description ? esc(sc.description.slice(0, 90)) + (sc.description.length > 90 ? "…" : "") : "None", IC.edit) + '<label class="field-l"><span>Description'],
     [/<h3>Board type<\/h3>/, sec("type", "Board type", require("./setup").boardTypeOf(sc) === "volunteer" ? "Volunteer" : "Program", IC.people)],
     [/<h3>Picture<\/h3>/, sec("picture", "Picture & short code", sc.image ? `<img class="ch-img" src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt="">` : `<span class="ch-code">${esc(require("./setup").codeOf(sc))}</span>`, IC.eye)],
-    [/<h3>Organizer( <span class="opt">\(optional\)<\/span>)?<\/h3>/, sec("organizer", "Organizer", esc([sc.contact_name, sc.contact_info].filter(Boolean).join(" · ") || "None"), IC.people)],
+    [/<h3>Organizers?( <span class="opt">\(optional\)<\/span>)?<\/h3>/, sec("organizer", "Organizer", esc([sc.contact_name, sc.contact_info].filter(Boolean).join(" · ") || "None"), IC.people)],
     [/<h3>Structure<\/h3>/, sec("structure", "Structure & names", esc(keys.map((k) => L[k].many).join(" › ")), IC.tree)],
   ];
   for (const [re, html] of cuts) f = f.replace(re, html);
+  // "Do sessions have dates and times?" belongs with General; "Available views" with Type & look
+  const views = (f.match(/<div class="sub-q dlg-views"[^>]*>[\s\S]*?<\/div>\s*<\/div>/) || [""])[0];
+  if (views) f = f.replace(views, "");
+  const dated = (f.match(/<p class="q-label">Do [^<]* have dates and times\?<\/p>\s*<div class="opt-row">[\s\S]*?<\/div>/) || [""])[0];
+  if (dated) f = f.replace(dated, "");
+  const at = (sub) => f.indexOf(`</div><div class="bd-sec" data-sub="${sub}">`);
+  if (dated && at("look") >= 0) { const i = at("look"); f = f.slice(0, i) + `</div><div class="bd-sec bd-when" data-sub="general"><h3>Dates and times</h3>${dated}` + f.slice(i); }
+  if (views && at("organizer") >= 0) { const i = at("organizer"); f = f.slice(0, i) + `</div><div class="bd-sec bd-views" data-sub="look"><h3>How families see it</h3>${views.replace('class="sub-q dlg-views"', 'class="dlg-views"')}<p class="fine bd-noviews">${esc(L.slot.many)} don't have dates, so families see a simple list. To offer a calendar, set dates and times under <b>General</b>.</p>` + f.slice(i); }
   // the first cut closed a <div> that wasn't open yet: open a wrapper at the start of the form body
   f = f.replace('<div class="dlg-body">', '<div class="dlg-body"><div class="bd-pre">').replace("<h3>Board type</h3>", "").replace("<h3>Picture</h3>", "<h3>Picture &amp; short code</h3>");
   return f;

@@ -2830,3 +2830,34 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .sub-body .scope-note { margin: 0 0 12px; }
 .sub-body .settings-one > section.setup-panel { background: transparent; border: 0; box-shadow: none; padding: 0; }
 .sub-body .settings-one > section.setup-panel > .ss:first-child { border-top: 0; padding-top: 0; }
+/* My Claims: the same header as other pages, and navy card bars with optional pictures */
+.mc-head { border-radius: 14px 14px 0 0; } .mc-underline { height: 6px; background: #EEF1F5; border-bottom: 3px solid #8DDC32; border-radius: 0 0 14px 14px; margin-bottom: 16px; }
+.d-card-h.mc-bar { position: relative; overflow: hidden; background: #0B1930; color: #fff; margin: -1px -1px 12px; padding: 14px 18px; border-radius: 14px 14px 0 0; min-height: 56px; border-top: 4px solid #8DDC32; }
+.d-card-h.mc-bar h2 { color: #fff; position: relative; z-index: 1; margin: 0; } .d-card-h.mc-bar .d-card-ic { position: relative; z-index: 1; background: rgba(141,220,50,.15); }
+.d-card-h.mc-bar .d-card-ic svg { color: #8DDC32; }
+.mc-img { position: absolute; top: 0; right: 0; bottom: 0; width: 60%; background-size: cover; background-position: center; }
+.mc-shade { position: absolute; inset: 0; background: repeating-linear-gradient(115deg, transparent 0 34px, rgba(141,220,50,.16) 34px 44px) right / 180px 100% no-repeat; }
+.mc-bar.has-img .mc-shade { background: linear-gradient(90deg, #0B1930 0%, #0B1930 40%, rgba(11,25,48,.82) 58%, rgba(11,25,48,.25) 100%); }
+/* Organization → Pictures */
+.ap-pics { display: flex; flex-direction: column; gap: 18px; } .ap-pic { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 8px 16px; }
+.ap-pic-h { grid-column: 1 / -1; display: flex; flex-direction: column; } .ap-pic-h b { font: 700 15px Inter, sans-serif; }
+.ap-pic-prev { position: relative; height: 72px; border-radius: 12px; overflow: hidden; background: #0B1930; background-size: 60% 100%; background-position: right center; background-repeat: no-repeat; border-top: 4px solid #8DDC32; }
+.ap-pic-prev .ap-pic-shade { position: absolute; inset: 0; background: repeating-linear-gradient(115deg, transparent 0 34px, rgba(141,220,50,.16) 34px 44px) right / 180px 100% no-repeat; }
+.ap-pic-prev.has .ap-pic-shade { background: linear-gradient(90deg, #0B1930 0%, #0B1930 40%, rgba(11,25,48,.82) 58%, rgba(11,25,48,.25) 100%); }
+.ap-pic-prev.has { background-size: cover; } .ap-pic-prev.has::before { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 60%; background: inherit; }
+.ap-pic-t { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #fff; font: 800 18px Inter, sans-serif; z-index: 1; }
+.ap-pic-ctl { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+@media (max-width: 760px) { .ap-pic { grid-template-columns: 1fr; } }
+.ap-pic-prev { background-image: none !important; } .ap-pic-prev.has::before { content: none; }
+.ap-pic-prev:not(.has) .mc-img { display: none; }
+/* the card bars run edge to edge across the top of their cards */
+.d-card { overflow: hidden; } .d-card > .d-card-h.mc-bar { margin: -16px -16px 12px; border-radius: 0; }
+@media (max-width: 1000px) { .d-card > .d-card-h.mc-bar { margin: -12px -12px 10px; } }
+.bd-panel .bd-when, .bd-panel .bd-views { margin-top: 6px; } .bd-panel .bd-sec .dlg-views[hidden] { display: none; }
+.bd-views .bd-noviews { display: none; } .bd-views .dlg-views[hidden] + .bd-noviews { display: block; }
+/* Organizers: one row each */
+.org-rows { display: flex; flex-direction: column; gap: 8px; } .org-row { align-items: flex-end; } .org-row .org-x { margin-bottom: 10px; font-size: 18px; }
+.org-add { margin-top: 8px; align-self: flex-start; }
+.field-row.org-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px; gap: 10px; align-items: end; }
+.field-row.org-row .org-x { margin: 0 0 12px; justify-self: center; }
+@media (max-width: 640px) { .field-row.org-row { grid-template-columns: 1fr 32px; } .field-row.org-row label:nth-child(2) { grid-column: 1; } .field-row.org-row .org-x { grid-row: 1 / span 2; grid-column: 2; align-self: center; } }
