@@ -2439,3 +2439,39 @@ body:not(.dash) .page { padding-top: 34px; }
 /* every page uses the same width as My Claims */
 body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.page.xwide { max-width: 1440px; padding-left: 24px; padding-right: 24px; padding-bottom: 28px; }
 @media (max-width: 700px) { body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.page.xwide { padding-left: 10px; padding-right: 10px; } }
+
+/* ---------- Check-in (new boards) ---------- */
+.ck-wrap { padding-top: 30px; max-width: 980px; }
+.ck-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.ck-top h1, .ck-head h1 { margin: 0; font: 800 24px Inter, sans-serif; color: #0B1930; }
+.ck-days { display: flex; align-items: center; gap: 10px; } .ck-days b { font: 700 16px Inter, sans-serif; color: #0B1930; }
+.ck-days a, .ck-days .off { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid #c9d1de; background: #fff; color: #0B1930; }
+.ck-days .off { opacity: .35; } .ck-days svg { width: 18px; height: 18px; } .ck-days a.ck-today { width: auto; height: auto; border-radius: 999px; padding: 6px 14px; font: 600 13px Inter, sans-serif; text-decoration: none; }
+.ck-list { display: flex; flex-direction: column; gap: 10px; }
+.ck-card { display: grid; grid-template-columns: 150px 1fr 220px 24px; align-items: center; gap: 14px; background: #fff; border: 1px solid #E3E8F0; border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(11,25,48,.06); text-decoration: none; color: inherit; }
+.ck-card:hover { border-color: #8DDC32; }
+.ck-time { font: 800 15px Inter, sans-serif; color: #0B1930; } .ck-what { display: flex; flex-direction: column; } .ck-what b { font: 700 16px Inter, sans-serif; color: #0B1930; } .ck-what small { color: #5B6B82; font-size: 13px; }
+.ck-nums { font-size: 13px; color: #5B6B82; } .ck-nums b { color: #0B1930; }
+.ck-bar { display: block; height: 6px; background: #EEF1F5; border-radius: 99px; margin-top: 6px; overflow: hidden; } .ck-bar i { display: block; height: 100%; background: #4FB028; }
+.ck-go svg { width: 20px; height: 20px; color: #5B6B82; }
+.ck-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 10px 0 10px; }
+.ck-head > div:first-child { display: flex; flex-direction: column; gap: 2px; } .ck-head span { color: #5B6B82; font-size: 14px; }
+.ck-sum { font-size: 15px; color: #5B6B82; } .ck-sum b { color: #0B1930; font-size: 20px; }
+.ck-allf { margin: 0 0 10px; display: flex; justify-content: flex-end; }
+.ck-card-list { padding: 4px 12px; }
+.ck-roster { list-style: none; margin: 0; padding: 0; }
+.ck-p { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid #EEF1F5; }
+.ck-p:last-child { border-bottom: 0; }
+.ck-name { display: flex; flex-direction: column; } .ck-name b { font: 700 16px Inter, sans-serif; color: #0B1930; } .ck-name small { font-size: 12px; color: #5B6B82; } .ck-ans { color: #2f6d0c !important; }
+.ck-btns { display: flex; gap: 8px; margin: 0; }
+.ck-btns button { min-width: 108px; min-height: 44px; border-radius: 10px; border: 2px solid #c9d1de; background: #fff; font: 700 15px Inter, sans-serif; color: #5B6B82; cursor: pointer; }
+.ck-p[data-state="here"] .ck-here { background: #4FB028; border-color: #4FB028; color: #fff; }
+.ck-p[data-state="noshow"] .ck-no { background: #d64545; border-color: #d64545; color: #fff; }
+.ck-p[data-state="here"] { background: #F3FAEB; } .ck-p[data-state="noshow"] { background: #fdf2f2; }
+.ck-h3 { margin: 16px 0 6px; font: 700 15px Inter, sans-serif; color: #0B1930; }
+.ck-walk { margin-top: 14px; padding: 14px 16px; } .ck-walk h3 { margin: 0; font: 700 16px Inter, sans-serif; }
+@media (max-width: 700px) {
+  .ck-card { grid-template-columns: 1fr 20px; gap: 4px 10px; } .ck-time { grid-column: 1; } .ck-what { grid-column: 1; } .ck-nums { grid-column: 1; } .ck-go { grid-column: 2; grid-row: 1 / 4; }
+  .ck-p { flex-direction: column; align-items: stretch; gap: 8px; } .ck-btns button { flex: 1; min-height: 50px; }
+  .ck-days b { font-size: 14px; }
+}

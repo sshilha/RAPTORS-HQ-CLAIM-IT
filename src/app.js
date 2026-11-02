@@ -38,6 +38,7 @@ app.use("/admin/b", require("./routes/board")); // container engine actions
 app.use("/admin/people", require("./routes/people")); // ⚙ App settings → People
 app.use("/admin/requests", require("./routes/requests")); // family / change requests to approve
 app.use("/admin/signins", require("./routes/signins")); // sign-in history for troubleshooting
+app.use("/checkin", require("./routes/checkin2")); // check-in on the new boards
 app.use("/account", require("./routes/account")); // My Account
 app.use("/admin/setup", require("./routes/setup"));
 app.use("/admin/members", require("./routes/members"));

@@ -299,4 +299,26 @@ function boardDefaultsSectionsRaw(sc) {
         <label class="radio-row"><input type="checkbox" name="public" value="1"${q.public !== false ? " checked" : ""}> Show answers to others, next to their name</label></fieldset>`);
 }
 
-module.exports = { boardSetupPage, boardDefaultsSections };
+// Copy a board (new engine): setup + levels always; sessions (dates moved), people, coaches optional; never claims
+function copyPage({ user, flash, sc, counts: c }) {
+  const L = SC.labels(sc);
+  const next = (() => { const m = /(\d{4})(?!.*\d{4})/.exec(sc.name); return m ? sc.name.replace(m[1], String(+m[1] + 1)) : `${sc.name} (copy)`; })();
+  const suggest = c.first ? new Date(Date.parse(c.first + "T12:00:00Z") + 364 * 864e5).toISOString().slice(0, 10) : "";   // same weekday, a year later
+  const firstLbl = c.first ? new Date(c.first + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" }) : "";
+  return page({ title: `Copy ${sc.name}`, tab: "home", user, flash, wide: true,
+    body: `<div class="page-top"><h1 class="page-title">Copy ${esc(sc.name)}</h1><a class="btn-ghost" href="/admin/settings">← ${esc(require("../config").LABELS.schedules)}</a></div>
+    <section class="panel"><form method="post" action="/admin/setup/schedules/${sc.id}/copy" class="stack copy-form">
+      <label>Name of the new board<input name="name" required maxlength="60" value="${esc(next)}"></label>
+      <p class="q-label">What comes along</p>
+      <label class="mode-opt on"><input type="checkbox" checked disabled><span><b>Setup and levels</b><span class="fine">${c.nodes} level${c.nodes === 1 ? "" : "s"} (like ${esc(L.middle.many)} › ${esc(L.activity.many)}) with all their settings: limits, who can claim, timing, attendance. Plus the question, wording, ${esc(L.group.many.toLowerCase())}, picture, type, location and organizer.</span></span></label>
+      <label class="mode-opt"><input type="checkbox" name="items" value="1" id="cp-items"${c.items ? "" : " disabled"}><span><b>${esc(L.slot.many)}</b><span class="fine">${c.items} ${esc((c.items === 1 ? L.slot.one : L.slot.many).toLowerCase())} with their times and spots${c.dated ? ", moved to the new first day below" : ""}.</span></span></label>
+      ${c.dated ? `<label id="cp-start" hidden>New first day<input type="date" name="start_on" value="${esc(suggest)}"><span class="fine">The first ${esc(L.slot.one.toLowerCase())} was ${esc(firstLbl)}. Every date moves by the same number of days and keeps its time. The suggested day is the same weekday, one year later.</span></label>` : ""}
+      <label class="mode-opt"><input type="checkbox" name="members" value="1"${c.members ? "" : " disabled"}><span><b>People on the board</b><span class="fine">${c.members} ${esc((c.members === 1 ? L.participant.one : L.participant.many).toLowerCase())}, with their ${esc(L.group.many.toLowerCase())} and tags.</span></span></label>
+      <label class="mode-opt"><input type="checkbox" name="coaches" value="1"${c.coaches ? "" : " disabled"}><span><b>Coaches</b><span class="fine">${c.coaches} coach${c.coaches === 1 ? " who takes" : "es who take"} attendance.</span></span></label>
+      <p class="fine">Claims never come along. The new board starts unpublished, so you can check it before families see it.</p>
+      <div class="q-actions"><a class="btn-ghost" href="/admin/settings">Cancel</a><button class="btn-small" type="submit">Create the copy</button></div>
+    </form></section>
+    <script>(function () { var b = document.getElementById("cp-items"), s = document.getElementById("cp-start"); if (b && s) { b.addEventListener("change", function () { s.hidden = !b.checked; }); } })();</script>` });
+}
+
+module.exports = { copyPage, boardSetupPage, boardDefaultsSections };

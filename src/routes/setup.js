@@ -218,9 +218,20 @@ router.post("/schedules/:id/family", wrap(async (req, res) => {
 }));
 
 // ---------- copy a whole board ----------
+// boards built on the new engine (levels + sessions) copy with engine/copy.js
+const isEngineBoard = async (id) => (await query(`SELECT (SELECT count(*) FROM rounds WHERE schedule_id=$1) = 0 AS e`, [id])).rows[0].e;
 router.get("/schedules/:id/copy", wrap(async (req, res) => {
   const sc = await SC.get(int(req.params.id));
   if (!sc) return go(res, "/admin/settings", { err: "Not found." });
+  if (await isEngineBoard(sc.id)) {
+    const c = (await query(`SELECT (SELECT count(*)::int FROM board_nodes WHERE schedule_id=$1) AS nodes,
+        (SELECT count(*)::int FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL) AS items,
+        (SELECT count(*)::int FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL) AS dated,
+        (SELECT count(*)::int FROM schedule_members WHERE schedule_id=$1) AS members,
+        (SELECT count(*)::int FROM schedule_coaches WHERE schedule_id=$1) AS coaches`, [sc.id])).rows[0];
+    c.first = await require("../engine/copy").firstDay(sc.id);
+    return res.send(require("../views/board").copyPage({ user: req.user, flash: flashFrom(req), sc, counts: c }));
+  }
   const c = (await query(`SELECT
       (SELECT count(*)::int FROM schedule_members WHERE schedule_id=$1) AS members,
       (SELECT count(*)::int FROM rounds WHERE schedule_id=$1) AS rounds,
@@ -234,6 +245,17 @@ router.post("/schedules/:id/copy", wrap(async (req, res) => {
   const sc = await SC.get(int(req.params.id));
   if (!sc) return go(res, "/admin/settings", { err: "Not found." });
   const b = req.body;
+  if (await isEngineBoard(sc.id)) {
+    const name = str(b.name).replace(/\s+/g, " ").slice(0, 60) || `${sc.name} (copy)`;
+    const startOn = /^\d{4}-\d{2}-\d{2}$/.test(str(b.start_on)) ? str(b.start_on) : null;
+    const out = await require("../engine/copy").copyEngineBoard(sc, { name, items: !!b.items, members: !!b.members, coaches: !!b.coaches, startOn });
+    const L = SC.labels(sc), n = (c, l) => `${c} ${(c === 1 ? l.one : l.many).toLowerCase()}`;
+    const bits = [`its setup and ${out.nodes} level${out.nodes === 1 ? "" : "s"}`];
+    if (b.items) bits.push(`${n(out.items, L.slot)}${out.days ? ` (moved ${out.days > 0 ? "ahead" : "back"} ${Math.abs(out.days)} days)` : ""}`);
+    if (b.members) bits.push(n(out.members, L.participant));
+    if (b.coaches) bits.push(`${out.coaches} coach${out.coaches === 1 ? "" : "es"}`);
+    return go(res, `/admin/setup?s=${out.board.id}`, { ok: `Created ${name} from ${sc.name} with ${bits.join(", ")}. It isn't published yet.` });
+  }
   const name = str(b.name).replace(/\s+/g, " ").slice(0, 40) || `${sc.name} (copy)`;
   const calendar = !!b.calendar;
   const startOn = /^\d{4}-\d{2}-\d{2}$/.test(str(b.start_on)) ? str(b.start_on) : null;

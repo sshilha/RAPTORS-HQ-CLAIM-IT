@@ -115,7 +115,7 @@ const DI = {
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
 };
 function dashHeader(user, admin, coach, tab, isDash = true) {
-  const on = isDash ? (tab === "home" ? "mine" : tab === "reports" ? "reports" : "")
+  const on = isDash ? (tab === "home" ? "mine" : tab === "reports" ? "reports" : tab === "checkin" ? "checkin" : "")
     : tab === "reports" ? "reports" : tab === "checkin" ? "checkin" : SETTINGS_AREA.includes(tab) && !["settings", "people"].includes(tab) ? "boards" : "";
   const items = [["/dashboard", "My Claims", DI.cal, on === "mine"],
     ...(admin ? [["/admin/settings", LABELS.schedules, DI.board, on === "boards"]] : []),

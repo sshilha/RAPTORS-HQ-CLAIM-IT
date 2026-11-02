@@ -460,3 +460,17 @@ sign-up page with "No account needed"; **Claim** asks for first/last name, email
 (remembered on that device). The person is matched by email in People (or added as an adult volunteer), so
 per-person limits apply by email. The confirmation email has a private **Cancel my spot** link (cancel
 deadline applies). Signed-in people who open the link go to the regular sign-up page.
+
+
+## Check-in (new boards)
+/checkin: admins see every board; coaches see the boards they coach. The day view lists sessions that take
+attendance (board default, overridable per level), with ‹ › for the previous/next day that has sessions.
+A session's roster has big ✓ Here / ✗ No-show buttons (saved instantly; tap again to clear), each person's
+team and answer, "Mark everyone else here", and + Walk-in (pick from the board or People, or type a name).
+Walk-ins don't use a spot or count toward limits. Attendance shows in Reports (Attended, No-shows).
+
+## Copy a board (new boards)
+Claim Boards → Copy: always copies the setup and levels (with every level's settings, question, wording,
+groups, picture, type, location, organizer). Optional: sessions (every date moved to a new first day, same
+local times; suggested: same weekday a year later), people on the board, coaches. Never claims; the copy
+starts unpublished.
