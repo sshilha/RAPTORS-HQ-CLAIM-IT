@@ -164,7 +164,6 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
           <div><dt>Account</dt><dd>${!acct ? (p.email ? "Not set up yet" : "No email") : acct.joined_at ? `Joined ${esc(fmtDateTime(acct.joined_at))}` : acct.invited_at ? `Invited ${esc(fmtDateTime(acct.invited_at))}` : "Not invited"}</dd></div>
           <div><dt>Last sign-in</dt><dd>${acct && acct.last_login_at ? esc(fmtDateTime(acct.last_login_at)) : "Never"}</dd></div>
           <div><dt>Password</dt><dd>${acct && acct.password_hash ? "Set" : "None (uses email links)"}</dd></div>
-          <div><dt>Texted codes</dt><dd>${acct && acct.phone_verified_at ? esc(require("../accounts").prettyPhone(acct.phone)) : "Not set up"}</dd></div>
         </dl>
         <form method="post" action="/admin/people/${p.id}/invite" class="si-row"><button class="btn-small" type="submit"${p.email ? "" : " disabled"}>${acct && acct.invited_at ? "Resend invite" : "Send invite"}</button>
           <span class="fine">Emails a 7-day link to set up their account.</span></form>

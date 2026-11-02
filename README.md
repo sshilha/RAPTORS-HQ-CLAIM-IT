@@ -406,17 +406,13 @@ People without access see "My Claim History" (their family's past and upcoming c
 
 
 ## Sign-in and My Account
-Sign in with an **email link** (always), a **password** (optional, set in My Account; 5 wrong tries = 15-minute
-lock), or a **texted code** (once a mobile number is confirmed). **Forgot password?** resets by email link or
-texted code. Admins can make a one-time **sign-in code** for someone (People → person → Help them sign in);
+Sign in with an **email link** (always) or a **password** (optional, set in My Account; 5 wrong tries =
+15-minute lock). **Forgot password?** emails a reset link. Texting is turned off (no text-message provider). Admins can make a one-time **sign-in code** for someone (People → person → Help them sign in);
 they enter it at /login/code. Passwords use Node's built-in scrypt (no new packages).
 
-**Texting (optional):** set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM` (your Twilio number,
-e.g. +17155550100) in Railway. Without them, all texting options are hidden. In testing (`DEV_SHOW_LINK=true`)
-codes are shown on screen instead of sent. US texting needs carrier (10DLC) registration through Twilio.
 
 **My Account** (/account): edit own name and organization; change sign-in email (confirmed from the new
-address); set/change/remove password; add/confirm a mobile number. Family and access are view-only.
+address); set/change/remove password; contact phone. Family and access are view-only.
 Adding a family member or changing one's details is a **request** (App settings → Requests), approved by
 an admin (approving can link an existing person instead of duplicating); people are emailed the result.
 

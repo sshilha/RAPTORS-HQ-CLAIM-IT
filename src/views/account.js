@@ -34,7 +34,7 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
           <div class="a-act"><button class="b-claim" type="submit">${u.password_hash ? "Change password" : "Set password"}</button></div>
         </form>
         ${u.password_hash ? `<form method="post" action="/account/password/remove" onsubmit="return confirm('Remove your password? You will sign in with an emailed link instead.')"><button class="link-dark danger-link" type="submit">Remove my password</button></form>` : ""}`)}
-      ${card("phone", sms ? "Mobile number for sign-in codes" : "Phone", sms ? "Get a 6-digit code by text to sign in or reset your password. Standard text rates may apply." : "A number the club can reach you at.", `
+      ${card("phone", "Phone", "A number the club can reach you at.", `
         ${u.phone && u.phone_verified_at ? `<p class="a-cur">${esc(A.prettyPhone(u.phone))} <span class="d-pill ok">Confirmed</span></p>
           <form method="post" action="/account/phone/remove"><button class="link-dark danger-link" type="submit">Stop using this number for sign-in</button></form>`
           : p.phone ? `<p class="a-cur">${esc(p.phone)}</p>` : ""}

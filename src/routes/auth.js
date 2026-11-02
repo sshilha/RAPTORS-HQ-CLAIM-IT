@@ -34,7 +34,7 @@ router.post("/login", wrap(async (req, res) => {
   const who = String(req.body.email || "").trim();
   const method = ["password", "link", "text"].includes(req.body.method) ? req.body.method : "link";
   const found = await A.findUser(who);
-  if (!found.email && !found.phone) return res.status(400).send(v.loginPage({ error: "Enter a valid email address or mobile number.", email: who }));
+  if (!found.email && !found.phone) return res.status(400).send(v.loginPage({ error: "Enter a valid email address.", email: who }));
   if (method === "password") {
     const r = await A.passwordLogin(found.user, req.body.password);
     if (r.ok) return A.signedIn(req, res, found.user.id, "password");
@@ -42,7 +42,7 @@ router.post("/login", wrap(async (req, res) => {
       reason: !found.user ? "no account" : r.why === "locked" ? "locked (too many tries)" : r.why === "nopass" ? "no password set" : "wrong password" });
     const msg = r.why === "locked" ? "Too many wrong tries. Wait 15 minutes, or use a sign-in link below."
       : r.why === "nopass" && found.user ? "That account doesn't have a password yet. Use a sign-in link below, then set one under My Account."
-      : "That email (or phone) and password don't match.";
+      : "That email and password don't match.";
     return res.status(401).send(v.loginPage({ error: msg, email: who }));
   }
   if (method === "text") {
@@ -84,7 +84,7 @@ router.get("/forgot", (req, res) => res.send(v.forgotPage()));
 router.post("/forgot", wrap(async (req, res) => {
   const who = String(req.body.email || "").trim();
   const found = await A.findUser(who);
-  if (!found.email && !found.phone) return res.status(400).send(v.forgotPage({ error: "Enter a valid email address or mobile number.", email: who }));
+  if (!found.email && !found.phone) return res.status(400).send(v.forgotPage({ error: "Enter a valid email address.", email: who }));
   if (req.body.method === "text" && SMS.enabled()) {
     const u = found.user && found.user.phone_verified_at ? found.user : null;
     let code = null;

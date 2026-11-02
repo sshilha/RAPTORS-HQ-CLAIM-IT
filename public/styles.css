@@ -2435,3 +2435,7 @@ details.b-sec[open] .b-chev { transform: rotate(-135deg); margin-top: 4px; }
 body:not(.dash) .page { padding-top: 34px; }
 @media (max-width: 1180px) { body:not(.dash) .page { padding-top: 26px; } }
 .dh :where(svg) { width: 20px; height: 20px; }
+
+/* every page uses the same width as My Claims */
+body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.page.xwide { max-width: 1440px; padding-left: 24px; padding-right: 24px; padding-bottom: 28px; }
+@media (max-width: 700px) { body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.page.xwide { padding-left: 10px; padding-right: 10px; } }

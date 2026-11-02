@@ -6,14 +6,13 @@ const devCode = (code) => (code ? `<div class="devbox"><p>Testing mode: the text
 
 const loginPage = ({ error = "", email = "", notice = "" } = {}) => gate("Sign in", `
   <form method="post" action="/login" class="stack signin">
-    <label for="who">Email or mobile number</label>
-    <input id="who" name="email" autocomplete="username" required value="${esc(email)}" placeholder="you@example.com or 715-555-0123">
+    <label for="who">Email</label>
+    <input id="who" name="email" type="email" autocomplete="username" required value="${esc(email)}" placeholder="you@example.com">
     <div class="pw-row"><label for="pw">Password</label><a class="forgot" href="/forgot">Forgot password?</a></div>
     <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="If you've set one">
     <button class="btn" type="submit" name="method" value="password">Sign in</button>
     <div class="or"><span>or</span></div>
     <button class="btn btn-alt" type="submit" name="method" value="link">Email me a sign-in link</button>
-    ${smsOn() ? `<button class="btn btn-alt" type="submit" name="method" value="text">Text me a code</button>` : ""}
   </form>
   <p class="muted gate-help">No password yet? Use a sign-in link. You can set a password later under <b>My Account</b>.<br>
     Have a code from an admin? <a href="/login/code">Enter it here</a>.</p>
@@ -29,14 +28,14 @@ const checkEmailPage = ({ email, devLink }) => gate("Check your email", `
     ${devLink ? `<div class="devbox"><p>Testing mode: the link is shown here instead of being emailed.</p><a href="${esc(devLink)}">Open sign-in link</a></div>` : ""}
   </div>`);
 
-// Enter a 6-digit code (texted, or from an admin)
+// Enter a one-time code from an admin
 const codePage = ({ email = "", sentTo = "", error = "", devCodeShown = "", admin = false } = {}) => gate("Enter your code", `
   <div class="gate-card">
-    <h1>${admin ? "Sign in with a code" : "Enter the code we texted you"}</h1>
-    ${sentTo ? `<p>We texted a 6-digit code to <strong>${esc(sentTo)}</strong>. It expires in 10 minutes.</p>` : admin ? `<p>Enter your email (or mobile number) and the code an admin gave you.</p>` : ""}
+    <h1>Sign in with a code</h1>
+    <p>Enter your email and the code an admin gave you.</p>
     ${devCode(devCodeShown)}
     <form method="post" action="/login/code" class="stack">
-      ${admin || !email ? `<label for="who">Email or mobile number</label><input id="who" name="email" required value="${esc(email)}" autocomplete="username">` : `<input type="hidden" name="email" value="${esc(email)}">`}
+      <label for="who">Email</label><input id="who" name="email" type="email" required value="${esc(email)}" autocomplete="username">
       <label for="code">Code</label>
       <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123456" class="code-box">
       <button class="btn" type="submit">Sign in</button>
@@ -47,12 +46,11 @@ const codePage = ({ email = "", sentTo = "", error = "", devCodeShown = "", admi
 const forgotPage = ({ error = "", email = "" } = {}) => gate("Forgot password", `
   <div class="gate-card">
     <h1>Forgot your password?</h1>
-    <p>Enter your email or mobile number and choose how to reset it.</p>
+    <p>Enter your email and we'll send you a link to set a new password.</p>
     <form method="post" action="/forgot" class="stack">
-      <label for="who">Email or mobile number</label>
-      <input id="who" name="email" required value="${esc(email)}" autocomplete="username">
+      <label for="who">Email</label>
+      <input id="who" name="email" type="email" required value="${esc(email)}" autocomplete="username">
       <button class="btn" type="submit" name="method" value="link">Email me a reset link</button>
-      ${smsOn() ? `<button class="btn btn-alt" type="submit" name="method" value="text">Text me a reset code</button>` : ""}
     </form>
     <p class="muted"><a href="/">Back to sign in</a></p>
   </div>`, { err: error });
@@ -64,7 +62,6 @@ const pwFields = () => `<label for="pw1">New password</label><input id="pw1" nam
 const resetPage = ({ token = "", email = "", byCode = false, sentTo = "", error = "", devCodeShown = "" } = {}) => gate("Set a new password", `
   <div class="gate-card">
     <h1>Set a new password</h1>
-    ${byCode && sentTo ? `<p>We texted a 6-digit code to <strong>${esc(sentTo)}</strong>.</p>` : ""}
     ${devCode(devCodeShown)}
     <form method="post" action="${byCode ? "/reset/code" : "/reset"}" class="stack">
       ${byCode ? `<input type="hidden" name="email" value="${esc(email)}"><label for="code">Code</label><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="code-box">` : `<input type="hidden" name="token" value="${esc(token)}">`}
