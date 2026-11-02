@@ -153,12 +153,11 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
       <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
         <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)${sc.event_location ? ` · ${IC.pin}${P.link(sc.event_location)}` : ""}</span></div></div>
     <div class="bh2-acts">
-      <a class="sb-btn" href="${published ? (SC.claimMode(sc) === "public" && shareUrl ? shareUrl : `/b/${sc.id}`) : `/b/${sc.id}`}" target="_blank" rel="noopener">${IC.eye}Preview</a>
+      <a class="sb-btn" href="/b/${sc.id}?preview=1" target="_blank" rel="noopener" title="See the board as a family would, even before it's published">${IC.eye}Preview</a>
       ${published && SC.claimMode(sc) === "public" && shareUrl ? `<details class="share-pop"><summary class="sb-btn">Share</summary><div class="share-panel">
           <p class="fine">Anyone with this link can sign up, no account needed.</p>
           <div class="share-row"><input readonly value="${esc(shareUrl)}" class="share-url" onclick="this.select()"><button type="button" class="btn-small" onclick="var i=this.previousElementSibling; i.select(); navigator.clipboard && navigator.clipboard.writeText(i.value); this.textContent='Copied'">Copy</button></div>
           <div class="share-qr"><img src="/admin/b/${sc.id}/qr.svg" alt="QR code" width="140" height="140"><span><a class="btn-ghost" href="/admin/b/${sc.id}/qr.svg?download=1">Download QR code</a></span></div></div></details>` : ""}
-      <a class="sb-btn" href="/admin/setup/schedules/${sc.id}/copy">${IC.copy}Duplicate</a>
       ${locked ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
         <button class="sb-btn ${published ? "" : "primary"}" type="submit">${published ? "Unpublish" : "Publish"}</button></form>`}</div>
   </section>

@@ -26,10 +26,9 @@ function settingsNav(tab, user) {
     members: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, athletes: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`,
     groups: `${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, activities: L.activity.many, import: "Import schedule",
     rounds: L.middle.one, programs: L.middle.one, seasons: L.middle.one }[tab];
-  const trail = [`<a href="/admin/settings">${esc(LABELS.schedules)}</a>`,
-    tab === "setup" ? `<span aria-current="page">${esc(sc.name)}</span>` : `<a href="/admin/setup?s=${sc.id}">${esc(sc.name)}</a>`];
-  if (here && tab !== "setup") trail.push(`<span aria-current="page">${esc(here)}</span>`);
-  return `<nav class="trail no-print" aria-label="You are here">${trail.join(`<span class="sep">›</span>`)}${sc.archived_at ? ` <span class="pill">Archived</span>` : ""}</nav>`;
+  // buttons back, instead of a breadcrumb: All Boards, and (off the Setup screen) the board's Setup
+  const back = (href, label) => `<a class="back-btn" href="${href}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>${esc(label)}</a>`;
+  return `<nav class="back-row no-print" aria-label="Go back">${back("/admin/settings", "All Boards")}${tab === "setup" ? "" : back(`/admin/setup?s=${sc.id}`, `${sc.name}`)}${sc.archived_at ? ` <span class="pill">Archived</span>` : ""}</nav>`;
 }
 const SAME_WIDTH = ["members", "athletes", "groups", "activities", "schedule", "setup", "rules"];
 const page = (opts) => layout({ ...opts, admin: true, wide: true, xwide: opts.xwide || SAME_WIDTH.includes(opts.tab), body: settingsNav(opts.tab, opts.user) + opts.body });

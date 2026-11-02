@@ -190,15 +190,16 @@ const ACT_IC = [SVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path 
   SVG('<circle cx="12" cy="12" r="8.5"/><path d="M7 6.5c2.2 3.2 2.2 7.8 0 11M17 6.5c-2.2 3.2-2.2 7.8 0 11"/>'),
   SVG('<path d="M12 2.5 15 9l7 .6-5.3 4.6L18.4 21 12 17.3 5.6 21l1.7-6.8L2 9.6 9 9z"/>')];
 
-function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null }) {
+const SC_LABELS = (b) => require("../schedules").labels(b).participant.many.toLowerCase();
+function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null, preview = null }) {
   // guest = { code }: the public link ("Anyone with the link"), no account; claims ask for name + email
   const basePath = guest ? `/s/${guest.code}` : `/b/${board.id}`;
   if (guest) { person = { id: 0, first_name: "you", guest: true }; people = []; }
   view = view || { items: [], limits: [] };
   const rows = view.items;
   const dated = rows.some((r) => r.item.starts_at);
-  const pid = guest ? "" : person ? (person.self_user_id ? "me" : person.id) : "";
-  const link = (o = {}) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "", act: filters.act || "", grp: filters.grp || "", show: filters.show || "", ...o }).filter(([, x]) => x)));
+  const pid = guest || preview ? "" : person ? (person.self_user_id ? "me" : person.id) : "";
+  const link = (o = {}) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ preview: preview ? "1" : "", as: preview ? String(preview.as) : "", p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "", act: filters.act || "", grp: filters.grp || "", show: filters.show || "", ...o }).filter(([, x]) => x)));
     const t = p.toString(); return `${basePath}${t ? `?${t}` : ""}`; };
   const back = link();
   // activities (the container right above the sessions) and their age group / round
@@ -215,19 +216,19 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   if (filters.show === "open") shown = shown.filter((r) => r.canClaim);
   if (filters.show === "mine") shown = shown.filter((r) => r.mine);
   const q = board.question || {};
-  const Name = guest ? "You" : person ? (person.self_user_id ? "You" : person.first_name) : "";
+  const Name = guest ? "You" : preview && !preview.as ? "Someone" : person ? (person.self_user_id ? "You" : person.first_name) : "";
   const whoLine = (r) => { const w = r.eff.who || []; if (!w.length) return board.claim_mode === "public" ? "Open to everyone" : board.claim_mode === "roster" ? "Everyone on the list" : "Anyone with an account";
     const last = w[w.length - 1]; return last.mode === "signed_in" ? "Anyone with an account" : last.mode === "list" ? "Everyone on the list" : `Only ${[...(last.groups || []), ...(last.tags || [])].join(", ")}`; };
   const going = (r) => { const g = r.going || []; if (!g.length) return ""; const mode = board.family_names || "initial"; if (mode === "off") return `${g.length} going`;
     return `Going: ${g.map((x) => mode === "full" ? `${x.first_name} ${x.last_name}` : `${x.first_name} ${(x.last_name || "").slice(0, 1)}.`).join(", ")}`; };
-  const claimForm = (r, big = false) => guest ? `<button type="button" class="b-claim${big ? " big" : ""}" data-guest="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>` : `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
+  const claimForm = (r, big = false) => preview ? `<button type="button" class="b-claim${big ? " big" : ""}" disabled title="Preview only: claiming is off here">${r.full ? "Join waitlist" : "Claim"}</button>` : guest ? `<button type="button" class="b-claim${big ? " big" : ""}" data-guest="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>` : `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
       ${q.label ? `<input name="note" maxlength="120"${q.required ? " required" : ""} placeholder="${esc(q.label)}${q.required ? "" : " (optional)"}" aria-label="${esc(q.label)}">` : ""}
       <button class="b-claim${big ? " big" : ""}" type="submit">${r.full ? "Join waitlist" : "Claim"}</button></form>`;
   const cancelForm = (r) => `<form method="post" action="/claims/${r.mine.id}/cancel" class="b-cancelf" onsubmit="return confirm('Cancel this spot for ${esc((person.self_user_id ? "yourself" : person.first_name).replace(/'/g, ""))}? It will open for someone else.')">
       <input type="hidden" name="back" value="${esc(back)}"><button type="submit">Cancel</button></form>`;
   const canCancel = (r) => !r.cancelBy || new Date() < new Date(r.cancelBy);
   const action = (r, big = false) => {
-    if (r.mine) return `<span class="b-claimed">${IC_CHECK}${r.mine.status === "waitlisted" ? "Waitlisted" : "Claimed"}</span>${canCancel(r) ? cancelForm(r) : `<span class="b-late">Too late to cancel</span>`}`;
+    if (r.mine) return `<span class="b-claimed">${IC_CHECK}${r.mine.status === "waitlisted" ? "Waitlisted" : "Claimed"}</span>${preview ? "" : canCancel(r) ? cancelForm(r) : `<span class="b-late">Too late to cancel</span>`}`;
     if (r.canClaim) return claimForm(r, big);
     if (r.blockedBy) return `<span class="b-state">Limit reached${r.blockedBy.kind === "board" ? "" : ` in ${esc(r.blockedBy.name)}`}</span>`;
     return `<span class="b-state">${esc(r.full ? "Full" : r.reason || "Not available")}</span>`;
@@ -329,22 +330,27 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const extra = rows.filter((r) => r.leftover && r.canClaim && r.open > 0);
   const sel = (name, label, list, cur, all) => `<label class="b-f"><span>${label}</span><select name="${name}" onchange="this.form.submit()"><option value="">${all}</option>${list.map((x) => `<option${cur === x ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>`;
   const hidden = (o) => Object.entries(o).filter(([, x]) => x).map(([k, x]) => `<input type="hidden" name="${k}" value="${esc(x)}">`).join("");
-  return layout({ title: board.name, user, flash, admin, tab: "home", dash: true,
-    body: `<div class="d-wrap b-wrap">
+  return layout({ title: `${preview ? "Preview · " : ""}${board.name}`, user, flash, admin, tab: preview ? "" : "home", dash: true,
+    body: `${preview ? `<div class="prev-banner"><b>Preview</b> ${preview.archived ? "This board is archived, so families can't see it." : preview.published ? "This board is live. This is what the person below sees." : "Families can't see this board yet. This is what it will look like once it's published."} Claiming is turned off here.</div>` : ""}<div class="d-wrap b-wrap">
     <section class="b-head">
-      ${guest ? "" : `<a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Dashboard</a>`}
+      ${preview ? `<a class="b-back" href="/admin/setup?s=${board.id}">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Setup</a>` : guest ? "" : `<a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Dashboard</a>`}
       ${board.image ? `<span class="d-thumb photo b-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code b-tile"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
       <div class="b-head-t"><div class="b-head-line"><h1>${esc(board.name)}</h1>
           ${range || board.event_location ? `<span class="b-head-meta">${[range ? `${IC.cal}${esc(range)}` : "", board.event_location ? `${IC.pin}${P.link(board.event_location)}` : ""].filter(Boolean).map((x) => `<span>${x}</span>`).join("")}</span>` : ""}
           ${board.contact_name || board.contact_info ? `<span class="b-org">Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}</span>` : ""}</div>
         ${board.description ? `<p>${esc(board.description)}</p>` : ""}</div>
     </section>
-    ${guest ? `<section class="b-bar b-bar-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar">
+    ${preview ? `<section class="b-bar b-bar-prev"><span class="b-bar-l">Previewing as:</span>
+      <form method="get" action="/b/${board.id}" class="prev-as"><input type="hidden" name="preview" value="1">${mode === "cal" ? `<input type="hidden" name="v" value="cal">` : ""}
+        <select name="as" onchange="this.form.submit()" aria-label="Preview as">${preview.members.map((m) => `<option value="${m.id}"${m.id === preview.as ? " selected" : ""}>${esc(m.first_name)} ${esc(m.last_name)}${m.group_name ? ` (${esc(m.group_name)})` : ""}</option>`).join("")}
+          <option value="0"${!preview.as ? " selected" : ""}>Someone not on the board's list</option></select></form>
+      ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}</section>` : guest ? `<section class="b-bar b-bar-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar">
       <span class="b-bar-l">Signing up for:</span>
       <nav class="b-people">${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${p.self_user_id ? "Me" : esc(p.first_name)}</a>`).join("")}</nav>
       ${person ? `<span class="b-bar-lim">${IC.people}<span>${limitBits.length ? `<b>${esc(Name)}:</b> ${limitBits.join(" · ")}` : `No claim limits for ${esc(person.self_user_id ? "you" : person.first_name)} on this board`}</span></span>` : ""}
       ${extra.length ? `<span class="b-bar-extra">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open to everyone</span>` : ""}
     </section>`}
+    ${preview && !rows.length ? `<p class="b-pick">${preview.as ? `${esc(person.first_name)} wouldn't see anything to claim on this board.` : board.claim_mode === "roster" ? "Someone not on the board's list wouldn't see anything: this board is only for people assigned to it." : "Nothing to claim here yet."} Check the levels' <b>Who can claim</b> settings, or add ${esc(SC_LABELS(board))} to the board.</p>` : ""}
     ${!person ? `<p class="b-pick">👆 Tap who's signing up to see what's available.</p>` : `
     <div class="b-tools">
       ${dated ? `<nav class="b-view"><a href="${link({ v: "list", m: "" })}"${mode !== "cal" ? ' aria-current="true"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List View</a>
@@ -352,7 +358,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}${limFor(a.id)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
       ${mode !== "cal" && dated ? `<div class="b-group-w"><span class="b-group-l" id="grp-l">Group by</span><nav class="b-group" aria-labelledby="grp-l"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>${esc(require("../schedules").labels(board).activity.one)}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>Day</a></nav></div>` : ""}
-      <form method="get" action="${basePath}" class="b-filters">${hidden({ p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
+      <form method="get" action="${basePath}" class="b-filters">${hidden({ preview: preview ? "1" : "", as: preview ? String(preview.as) : "", p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
         ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', guest ? "" : `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
         ${actNames.length > 1 ? sel("act", require("../schedules").labels(board).activity.one, actNames, filters.act, "All") : ""}
         ${groups.length > 1 ? sel("grp", "Group", groups, filters.grp, "All") : ""}

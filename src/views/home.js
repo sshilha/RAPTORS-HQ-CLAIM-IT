@@ -93,9 +93,9 @@ function card(sc, archived) {
 
 function homePage({ user, flash, active, archivedCount }) {
   return page({
-    title: "Claim boards", tab: "home", user, flash,
+    title: "All Boards", tab: "home", user, flash,
     body: `<section class="panel home-head">
-      <div><h1>Claim boards</h1>
+      <div><h1>All Boards</h1>
         <p class="muted tight">Pick a ${esc(LABELS.schedule.toLowerCase())} to set up its calendar, groups, activities, and people, or start a new one.</p></div>
       <div class="head-actions">
         <a class="btn-small" href="/admin/setup/new">+ New ${esc(LABELS.schedule.toLowerCase())}</a>

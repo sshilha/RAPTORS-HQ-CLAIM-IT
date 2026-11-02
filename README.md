@@ -505,3 +505,7 @@ session (or duplicating one), **Repeat weekly** creates one per chosen weekday f
 The confirmation lists what goes (levels, sessions, all claims including past ones and attendance, the board's
 people list, coaches, public link) and requires typing the board's name. People, accounts, and other boards
 stay. Live boards can't be deleted.
+
+**Preview (admins):** Board Setup → Preview opens /b/<id>?preview=1 for any board (draft, live, or archived),
+as it will look to families once published. "Previewing as" picks anyone on the board's list (or someone not
+on it) to see exactly their sessions, eligibility, and limits. Claim/Cancel are shown but turned off.

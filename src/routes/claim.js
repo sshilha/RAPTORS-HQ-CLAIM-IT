@@ -98,8 +98,25 @@ router.get("/dashboard", wrap(async (req, res) => {
     tab: req.query.tab === "vol" ? "vol" : "", allBoards: req.query.boards === "all" }));
 }));
 
-router.get("/b/:sid", wrap(async (req, res) => {
+router.get("/b/:sid", wrap(async (req, res, next) => {
   const sid = int(req.params.sid);
+  if (req.query.preview === "1" && auth.isAdmin(req.user)) {
+    const board = (await query(`SELECT * FROM schedules WHERE id=$1`, [sid])).rows[0];
+    if (!board) return go(res, "/admin/settings", { err: "Not found." });
+    const members = (await query(`SELECT a.id, a.first_name, a.last_name, m.group_name, m.tags FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
+      WHERE m.schedule_id=$1 AND a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name)`, [sid])).rows;
+    const asId = req.query.as === "0" ? 0 : int(req.query.as) || (members[0] ? members[0].id : 0);
+    const m = members.find((x) => x.id === asId) || null;
+    const person = m ? { id: m.id, first_name: m.first_name, last_name: m.last_name, group_name: m.group_name } : { id: 0, first_name: "Someone", last_name: "not on the list" };
+    const view = await E.personView(sid, { athleteId: m ? m.id : 0, userId: null, member: m ? { group_name: m.group_name, tags: m.tags } : null }, new Date(), { preview: true });
+    const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [sid])).rows[0];
+    req.user.can_reports = true;
+    return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board, person, who: [], view, span, admin: true,
+      mode: ["list", "cal"].includes(req.query.v) ? req.query.v : "list", group: req.query.g === "day" ? "day" : "activity",
+      filters: { act: str(req.query.act), grp: str(req.query.grp), show: req.query.show === "open" ? "open" : "" },
+      month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: null,
+      preview: { members, as: m ? m.id : 0, published: !!board.published_at, archived: !!board.archived_at } }));
+  }
   const people = await myPeople(req.user);
   const all = await boardsFor(req.user, people);
   const entry = all.find((x) => x.board.id === sid);

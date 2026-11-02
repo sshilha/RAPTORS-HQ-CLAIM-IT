@@ -2606,3 +2606,12 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .st-row dd { flex: none; max-width: 60%; }
 .st-inline { padding-left: 2px; }
 .st-list > .st-item.editing { padding: 0 14px; margin: 0 -14px; }
+/* admin preview of a sign-up page */
+.prev-banner { background: #FDE68A; color: #713f12; text-align: center; font: 500 14px Inter, sans-serif; padding: 8px 12px; border-bottom: 1px solid #f5c84c; }
+.prev-banner b { text-transform: uppercase; letter-spacing: .05em; margin-right: 6px; }
+.b-bar-prev { gap: 10px 14px; } .prev-as { margin: 0; } .prev-as select { padding: 6px 10px; border-radius: 8px; font: 600 14px Inter, sans-serif; min-width: 240px; }
+.b-claim:disabled { opacity: .5; cursor: not-allowed; filter: grayscale(.3); }
+/* back buttons (instead of the breadcrumb) on board pages */
+.back-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #c9d1de; border-radius: 8px; background: #fff; color: #0B1930;
+  font: 600 13px Inter, sans-serif; text-decoration: none; } .back-btn:hover { border-color: #0B1930; } .back-btn svg { width: 15px; height: 15px; }

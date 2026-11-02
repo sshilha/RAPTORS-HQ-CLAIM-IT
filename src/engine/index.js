@@ -254,9 +254,10 @@ async function boardTotals(boardId, db = { query }) {
 // ---------- what one person sees on a board ----------
 // Everything on the board this person may see, with whether they can claim each one and why not.
 // person = { athleteId, userId, member }   (member: their row on the board's list, or null)
-async function personView(boardId, person, now = new Date()) {
+async function personView(boardId, person, now = new Date(), { preview = false } = {}) {
   const board = (await query(`SELECT * FROM schedules WHERE id=$1`, [boardId])).rows[0];
   if (!board) return null;
+  if (preview && !board.published_at) board.published_at = now;   // admin preview: show it as families will once it's published
   const nodes = (await query(`SELECT * FROM board_nodes WHERE schedule_id=$1 ORDER BY sort, id`, [boardId])).rows;
   const items = (await query(`SELECT i.*,
       (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') AS taken,
