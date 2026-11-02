@@ -546,9 +546,9 @@ Limits, Timing, Question, Attendance, Levels with their own settings.
 ## App Settings header
 Every App settings page uses the same header: navy band (App Settings, live counts of people / requests
 waiting / admins, no page buttons; the gray bar holds only the tabs): People (red badge
-when requests are waiting) · Accounts & sign-in · Locations · Wording. App Settings opens on People. Areas with more
+when requests are waiting) · Accounts & sign-in · Organization. App Settings opens on People. Areas with more
 than one page have a second row of sub-tabs: People → People · Requests; Accounts & sign-in → Account settings ·
-Administrators · Sign-in activity. A person's page and Import light People. Each page's own buttons and filters sit below
+Administrators · Sign-in activity; Organization → Locations · Wording. Sub-tabs are folder tabs on a white sheet. A person's page and Import light People. Each page's own buttons and filters sit below
 the header: People's toolbar (+ Add person, Import, + New list; filters: List, search, kind, role, team), Requests (Show: Waiting / Handled / All), Sign-in activity (search, Only problems),
 Locations (search).
 

@@ -2789,3 +2789,14 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .sub-tabs { display: flex; gap: 6px; margin: -6px 0 14px; padding: 0 4px; }
 .sub-tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; border: 1px solid #c9d1de; background: #fff; color: #0B1930; font: 600 13px Inter, sans-serif; text-decoration: none; }
 .sub-tabs a:hover { border-color: #0B1930; } .sub-tabs a[aria-current] { background: #0B1930; border-color: #0B1930; color: #fff; }
+/* sub-tabs as folder tabs on a white sheet */
+.sub-tabs { display: flex; gap: 4px; margin: 0; padding: 0 14px; position: relative; z-index: 1; }
+.sub-tabs a { padding: 9px 20px 8px; border: 1px solid #DDE3EC; border-bottom: 0; border-radius: 10px 10px 0 0; background: #E9EDF3; color: #5B6B82;
+  font: 600 13px Inter, sans-serif; margin-bottom: -1px; box-shadow: none; }
+.sub-tabs a:hover { background: #F6F8FB; color: #0B1930; border-color: #DDE3EC; }
+.sub-tabs a[aria-current] { background: #fff; color: #0B1930; font-weight: 700; border-color: #DDE3EC; box-shadow: inset 0 3px 0 #8DDC32; padding-bottom: 9px; }
+.sub-body { background: #fff; border: 1px solid #DDE3EC; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(11,25,48,.06); margin-bottom: 16px; }
+.sub-body > .panel, .sub-body > section.panel { background: transparent; border: 0; box-shadow: none; padding: 0; margin-bottom: 14px; }
+.sub-body > :last-child { margin-bottom: 0; }
+.sub-body > .req-note { margin-top: 0; }
+.page-toolbar .dt-search { flex: none; width: 300px; min-width: 0; }

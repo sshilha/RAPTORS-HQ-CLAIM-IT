@@ -31,7 +31,10 @@ function settingsNav(tab, user) {
   return `<nav class="back-row no-print" aria-label="Go back">${back("/admin/settings", "All Boards")}${["setup", "members", "schedule", "schedule-more", "schedule-archive"].includes(tab) ? "" : back(`/admin/setup?s=${sc.id}`, `${sc.name}`)}${sc.archived_at ? ` <span class="pill">Archived</span>` : ""}</nav>`;
 }
 const SAME_WIDTH = ["members", "athletes", "groups", "activities", "schedule", "setup", "rules"];
-const page = (opts) => layout({ ...opts, admin: true, wide: true, xwide: opts.xwide || SAME_WIDTH.includes(opts.tab), body: settingsNav(opts.tab, opts.user) + opts.body });
+// pages with folder-style sub-tabs: everything after the tabs sits on the white sheet the tabs open onto
+const sheet = (body) => { const i = body.indexOf('<nav class="sub-tabs"'); if (i < 0) return body; const j = body.indexOf("</nav>", i) + 6;
+  return `${body.slice(0, j)}<div class="sub-body">${body.slice(j)}</div>`; };
+const page = (opts) => layout({ ...opts, admin: true, wide: true, xwide: opts.xwide || SAME_WIDTH.includes(opts.tab), body: settingsNav(opts.tab, opts.user) + sheet(opts.body) });
 
 const ageChecks = (selected = []) => `<fieldset class="checks"><legend>Groups</legend>
   ${AGE_GROUPS.map((g) => `<label class="check"><input type="checkbox" name="age_groups" value="${g}"${selected.includes(g) ? " checked" : ""}> ${g}</label>`).join("")}

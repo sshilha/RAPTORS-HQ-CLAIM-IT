@@ -9,14 +9,16 @@ const IC = {
   key: SVG('<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>'), inbox: SVG('<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>'),
   pin: SVG('<path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>'), shield: SVG('<path d="M12 3 4 7v5c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V7z"/>'),
   type: SVG('<path d="M4 7V4h16v3M9 20h6M12 4v16"/>'),
+  org: SVG('<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>'),
 };
 const TABS = [["people", "/admin/people", IC.people, "People"], ["accounts", "/admin/settings/app?part=accounts", IC.key, "Accounts &amp; sign-in"],
-  ["locations", "/admin/settings/app?part=places", IC.pin, "Locations"], ["wording", "/admin/settings/app?part=labels", IC.type, "Wording"]];
-const ALIAS = { requests: "people", admins: "accounts", signins: "accounts", overview: "people" };   // sub-pages light their area
+  ["org", "/admin/settings/app?part=places", IC.org, "Organization"]];
+const ALIAS = { requests: "people", admins: "accounts", signins: "accounts", overview: "people", locations: "org", wording: "org" };   // sub-pages light their area
 // areas with more than one page get a second row of tabs
 const SUBS = {
   people: [["people", "/admin/people", "People"], ["requests", "/admin/requests", "Requests"]],
   accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["signins", "/admin/signins", "Sign-in activity"]],
+  org: [["locations", "/admin/settings/app?part=places", "Locations"], ["wording", "/admin/settings/app?part=labels", "Wording"]],
 };
 
 // live counts for the gray line (people, requests waiting, admins)
