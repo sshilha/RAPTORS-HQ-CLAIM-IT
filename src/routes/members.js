@@ -9,7 +9,7 @@ const { wrap, flashFrom, go, int, str, dest } = require("./util");
 const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
 
-const home = (sc, anchor = "") => `/admin/members?s=${sc.id}${anchor}`;
+const home = (sc, anchor = "") => `/admin/members?s=${sc.id}&card=${anchor === "#add" ? "add" : "people"}`;
 
 async function linkParents(athleteId, raw) {
   const emails = String(raw || "").split(/[,;\s]+/).map(auth.normalizeEmail).filter(Boolean);

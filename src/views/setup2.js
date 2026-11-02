@@ -123,6 +123,35 @@ function inlineSettings(sc, t, locked) {
         <div class="st-inline-acts"><button type="button" class="btn-ghost st-cancel">Cancel</button><button class="btn-small" type="submit">Save</button></div></form>` : ""}</div>`; }).join("")}</dl>`;
 }
 
+// Board details as cards: the same edit form, split into sections; a card's view shows only its section
+// (the others stay in the form, so Save keeps everything as it was)
+function detailsCards(sc) {
+  const L = SC.labels(sc), keys = SC.levelKeys(sc);
+  const fmt = (d) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  let f = require("./home").editDialog(sc)
+    .replace(/<dialog class="edit-dlg" id="edit-(\d+)"[^>]*>/, '<section class="bd-panel" id="bd-panel" hidden><div data-hub="Board details">')
+    .replace(/<\/dialog>\s*$/, "</div></section>")
+    .replace(/<div class="dlg-head">[\s\S]*?<\/div>/, "")
+    .replace('name="return_to" value="/admin/settings"', `name="return_to" value="/admin/setup?s=${sc.id}&tab=details"`)
+    .replace(`onclick="this.closest('form').reset(); this.closest('dialog').close()"`, `onclick="this.closest('form').reset(); location.href='/admin/setup?s=${sc.id}&tab=details'"`);
+  const ico = (d) => `<span class="card-ico" hidden>${d}</span>`;
+  const sec = (id, title, sum, icon) => `</div><div class="bd-sec" data-card="${id}" data-title="${esc(title)}" data-sum="${esc(sum)}">${ico(icon)}`;
+  const dates = sc.event_date ? (sc.event_end && String(sc.event_end).slice(0, 10) !== String(sc.event_date).slice(0, 10) ? `${fmt(sc.event_date)} – ${fmt(sc.event_end)}` : fmt(sc.event_date)) : "No dates";
+  const cuts = [
+    [/<h3>The basics<\/h3>/, sec("basics", "Name & dates", `<b>${esc(sc.name)}</b><br>${esc(dates)}`, IC.board)],
+    [/<label class="field-l"><span>Main location/, sec("location", "Location", esc(sc.event_location || "None"), IC.pin) + '<label class="field-l"><span>Main location'],
+    [/<label class="field-l"><span>Description/, sec("description", "Description", sc.description ? esc(sc.description.slice(0, 90)) + (sc.description.length > 90 ? "…" : "") : "None", IC.edit) + '<label class="field-l"><span>Description'],
+    [/<h3>Board type<\/h3>/, sec("type", "Board type", require("./setup").boardTypeOf(sc) === "volunteer" ? "Volunteer" : "Training", IC.people)],
+    [/<h3>Picture<\/h3>/, sec("picture", "Picture & short code", sc.image ? `<img class="ch-img" src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt="">` : `<span class="ch-code">${esc(require("./setup").codeOf(sc))}</span>`, IC.eye)],
+    [/<h3>Organizer( <span class="opt">\(optional\)<\/span>)?<\/h3>/, sec("organizer", "Organizer", esc([sc.contact_name, sc.contact_info].filter(Boolean).join(" · ") || "None"), IC.people)],
+    [/<h3>Structure<\/h3>/, sec("structure", "Structure & names", esc(keys.map((k) => L[k].many).join(" › ")), IC.tree)],
+  ];
+  for (const [re, html] of cuts) f = f.replace(re, html);
+  // the first cut closed a <div> that wasn't open yet: open a wrapper at the start of the form body
+  f = f.replace('<div class="dlg-body">', '<div class="dlg-body"><div class="bd-pre">');
+  return f;
+}
+
 // the board header (name, status, counts, Preview, Publish) and its four tabs, on every tab's page
 function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }, active = "setup" } = {}) {
   const L = SC.labels(sc), depth = SC.depthOf(sc), keys = SC.levelKeys(sc);
@@ -156,6 +185,44 @@ async function headerData(sc) {
   const tops = (await query(`SELECT count(*)::int AS n FROM board_nodes WHERE schedule_id=$1 AND parent_id IS NULL`, [sc.id])).rows[0].n;
   return { tops, totals };
 }
+
+// ---------- card grid + card views, the same on Board details, Access & people, and Board defaults ----------
+// Mark sections with data-card="id" (and data-title, data-sum; an optional <span class="card-ico" hidden>svg</span>).
+// No ?card= in the address: a grid of cards. ?card=id: only that section, with "← Back to …".
+const CARD_HUB_JS = `<script>(function () {
+  var root = document.querySelector("[data-hub]"); if (!root) return;
+  var cards = [].slice.call(root.querySelectorAll("[data-card]")), q = new URLSearchParams(location.search), want = q.get("card");
+  var url = function (id) { var u = new URLSearchParams(location.search); if (id) u.set("card", id); else u.delete("card"); u.delete("g"); return location.pathname + "?" + u.toString(); };
+  var pick = cards.filter(function (c) { return c.dataset.card === want; })[0];
+  if (pick) {
+    root.classList.add("ch-view"); cards.forEach(function (c) { c.hidden = c !== pick; });
+    var back = document.createElement("a"); back.className = "back-btn ch-back"; back.href = url("");
+    back.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Back to ' + root.dataset.hub;
+    root.insertBefore(back, root.firstChild);
+    var ed = pick.querySelector(".ss-edit"); if (ed && !pick.querySelector(".ss-form:not([hidden])")) ed.click();   // Board defaults: open its form
+    return;
+  }
+  root.classList.add("ch-hub"); cards.forEach(function (c) { c.hidden = true; });
+  var grid = document.createElement("div"); grid.className = "ch-grid";
+  cards.slice().sort(function (x, y) { return (+x.dataset.order || 50) - (+y.dataset.order || 50); }).forEach(function (c) {
+    var t = c.dataset.title || ((c.querySelector("h3, h2") || {}).textContent || "").trim();
+    var sum = c.dataset.sum;
+    if (sum == null) {   // a section's answer table: its first two answers, as short lines
+      var rows = [].slice.call(c.querySelectorAll(".ss-view .ss-rows > div")).slice(0, 2);
+      sum = rows.map(function (r) { var dt = r.querySelector("dt"), dd = r.querySelector("dd"); if (!dd) return "";
+        var first = dd.firstElementChild && /^(P|DIV|SPAN)$/.test(dd.firstElementChild.tagName) && dd.childNodes.length > 1 ? dd.firstChild.textContent : dd.textContent;
+        var t = (first || dd.textContent).replace(/\\s+/g, " ").trim(); if (t.length > 70) t = t.slice(0, 68) + "…";
+        var e = document.createElement("div"); e.className = "ch-line"; e.innerHTML = "<b></b> <span></span>"; e.querySelector("b").textContent = (dt ? dt.textContent : "").replace(/:$/, "") + ":"; e.querySelector("span").textContent = t; return e.outerHTML; }).join("");
+    }
+    var sub = c.dataset.sub != null ? c.dataset.sub : ((c.querySelector(".ss-head .fine") || {}).textContent || "");
+    var ico = c.querySelector(".card-ico, .ss-ico"); var a = document.createElement("a");
+    a.className = "ch-card"; a.href = c.dataset.href || url(c.dataset.card);
+    a.innerHTML = '<span class="ch-ico">' + (ico ? ico.innerHTML : "") + '</span><span class="ch-t"><b></b><small></small></span><span class="ch-sum"></span><span class="ch-open">Open<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>';
+    a.querySelector("b").textContent = t; a.querySelector("small").textContent = sub; a.querySelector(".ch-sum").innerHTML = sum;
+    grid.appendChild(a);
+  });
+  if (cards[0]) cards[0].parentNode.insertBefore(grid, cards[0]); else root.appendChild(grid);
+})();</script>`;
 
 // ---------- the whole page ----------
 function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
@@ -197,14 +264,9 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
       <aside class="sp3-right" id="sp-right">${pane.right}</aside>
     </div>
     ${P.datalist()}
-    ${locked ? "" : require("./home").editDialog(sc)
-      .replace(/<dialog class="edit-dlg" id="edit-(\d+)"[^>]*>/, '<section class="bd-panel" id="bd-panel" hidden>')
-      .replace(/<\/dialog>\s*$/, "</section>")
-      .replace(/<button type="button" class="dlg-x"[^>]*>×<\/button>/, "")
-      .replace(/<h2 id="edit-\d+-t">[^<]*<\/h2>/, '<h2>Board details</h2><p class="fine bd-sub">What the board is: its name, dates, location, description, type, picture, and organizer.</p>')
-      .replace('name="return_to" value="/admin/settings"', `name="return_to" value="/admin/setup?s=${sc.id}&tab=details"`)
-      .replace(`onclick="this.closest('form').reset(); this.closest('dialog').close()"`, `onclick="this.closest('form').reset(); window.boardTab('setup')"`)}
+    ${locked ? "" : detailsCards(sc)}
     ${locked ? "" : `${P.placeDialog()}${require("./setup").IMAGE_JS}`}
+    ${CARD_HUB_JS.replace("<script>(function () {", '<script>(function () { if (!/[?&]tab=details/.test(location.search)) return;')}
     <script>(function () {
       var panel = document.getElementById("bd-panel"), grid = document.querySelector(".sp3"), dirty = false, sid = ${sc.id};
       if (!panel) return;
@@ -348,4 +410,4 @@ const CLIENT_JS = `
   });
 })();`;
 
-module.exports = { setupPage, panels, boardHeader, headerData };
+module.exports = { setupPage, panels, boardHeader, headerData, CARD_HUB_JS };

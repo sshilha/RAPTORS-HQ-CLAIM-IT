@@ -196,7 +196,7 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   const sc2 = await SC.get(id);
   await SC.ensureStructure(sc2); // a 1-level board's built-in activity follows the level name
   const L2 = SC.labels(sc2);
-  const back = dest(req, `/admin/setup/schedule?s=${id}${/^[a-z]+$/.test(b.q || "") ? `#q-${b.q}` : ""}`);
+  const back = dest(req, `/admin/setup/schedule?s=${id}${/^[a-z]+$/.test(b.q || "") ? `&card=${b.q}#q-${b.q}` : ""}`);
   go(res, back, badCoaches.length
     ? { err: `Saved, but these coach emails weren't valid and were left out: ${badCoaches.join(", ")}` }
     : { ok: "Saved." });

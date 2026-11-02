@@ -291,7 +291,7 @@ function boardDefaultsSectionsRaw(sc) {
   const at = s.opens_at ? inputParts(s.opens_at) : null;
   const rows = (list) => `<dl class="ss-rows">${list.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>`;
   const radio = (name, val, cur, label) => `<label class="radio-row"><input type="radio" name="${name}" value="${val}"${cur === val ? " checked" : ""}> ${label}</label>`;
-  const sec = (id, icon, title, sub, view, inner) => `<section class="ss" id="rg-${id}">
+  const sec = (id, icon, title, sub, view, inner) => `<section class="ss" id="rg-${id}" data-card="${id}">
       <div class="ss-head"><span class="ss-ico">${icon}</span><div class="ss-titles"><h3>${title}</h3><p class="fine">${sub}</p></div>
         <button type="button" class="btn-ghost ss-edit">${I.pencil()} Edit</button></div>
       <div class="ss-view">${view}</div>

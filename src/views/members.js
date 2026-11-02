@@ -23,12 +23,20 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
   const L = SC.labels(sc);
   const groups = SC.groupsFor(sc);
   const tags = sc.tags || [];
-  const back = `/admin/members?s=${sc.id}${group ? `&g=${encodeURIComponent(group)}` : ""}`;
+  const back = `/admin/members?s=${sc.id}&card=people${group ? `&g=${encodeURIComponent(group)}` : ""}`;
+  const noGroup = members.filter((m) => !m.group_name).length;
+  const ICO = (d) => `<span class="card-ico" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
+  const sumList = (xs, none) => xs.length ? esc(xs.slice(0, 6).join(" · ")) + (xs.length > 6 ? ` +${xs.length - 6}` : "") : none;
+  const cardTeams = teams
+    .replace('<section class="panel page-intro" id="teams">', `<section class="panel page-intro" id="teams" data-card="copy" data-order="6" data-title="Copy groups &amp; tags" data-sum="From another board" data-sub="Start from another board's ${esc(L.group.many.toLowerCase())} and tags">${ICO('<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M5 16H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v1"/>')}`)
+    .replace('<section class="panel" id="groups">', `<section class="panel" id="groups" data-card="groups" data-order="3" data-title="${esc(L.group.many)}" data-sum="${sumList(groups, "None yet")}" data-sub="Each person is on one, like an age group">${ICO('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c.6-3.6 3-5.5 5.5-5.5s4.9 1.9 5.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.6c2.4.2 4 1.9 4.5 5"/>')}`)
+    .replace('<section class="panel" id="tags">', `<section class="panel" id="tags" data-card="tags" data-order="4" data-title="Tags" data-sum="${sumList(tags, "None yet")}" data-sub="Extra labels; a person can have several">${ICO('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>')}`)
+    .replace('<section class="panel" id="presets">', `<section class="panel" id="presets" data-card="presets" data-order="5" data-title="${esc(L.group.one)} shortcuts" data-sum="Optional time-saver" data-sub="Pick several ${esc(L.group.many.toLowerCase())} at once">${ICO('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>')}`);
   return page({
     title: `${sc.name} ${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, tab: "members", user, flash,
     body: `${head}
-    ${teams}
-    <section class="panel" id="people">
+    <div data-hub="Access &amp; people">
+    <section class="panel" id="people" data-card="add" data-order="2" data-title="Add people" data-sum="From People, or quick add someone new" data-sub="Put people on this board">${ICO('<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20c.6-3.8 3.3-6 6.5-6s5.9 2.2 6.5 6M19 8v6M16 11h6"/>')}
       <div class="athlete-head"><div><h2>${esc(L.participant.many)}</h2>
         <p class="muted tight">${total} on ${esc(sc.name)}</p></div>
         <span class="head-btns"><a class="btn-ghost" href="/admin/people/import" title="Bring a roster into People first, then add the list here">⇪ Import into People</a></span></div>
@@ -78,11 +86,13 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
       
         </div>
       </div>
-      <h3 class="ilist-head">Your ${esc(L.participant.many.toLowerCase())} <span class="fine-inline">(${total})</span></h3>
+    </section>
+    <section class="panel" id="people-list" data-card="people" data-order="1" data-title="${esc(L.participant.many)} on this board" data-sum="<b>${total}</b> on ${esc(sc.name)}${noGroup && !group ? ` · ${noGroup} without a ${esc(L.group.one.toLowerCase())}` : ""}" data-sub="Their ${esc(L.group.one.toLowerCase())} and tags here">${ICO('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c.6-3.6 3-5.5 5.5-5.5s4.9 1.9 5.5 5.5"/><path d="M16 4h5M16 8h5M16 12h3"/>')}
+      <h3 class="ilist-head">${esc(L.participant.many)} on ${esc(sc.name)} <span class="fine-inline">(${total})</span></h3>
       ${groups.length ? `<nav class="chip-filter" aria-label="Filter by ${esc(L.group.one.toLowerCase())}">
-        <a href="/admin/members?s=${sc.id}"${!group ? ' aria-current="page"' : ""}>All</a>
-        ${groups.map((g) => `<a href="/admin/members?s=${sc.id}&g=${encodeURIComponent(g)}"${group === g ? ' aria-current="page"' : ""}>${esc(g)}</a>`).join("")}
-        <a href="/admin/members?s=${sc.id}&g=none"${group === "none" ? ' aria-current="page"' : ""}>No ${esc(L.group.one.toLowerCase())}</a>
+        <a href="/admin/members?s=${sc.id}&card=people"${!group ? ' aria-current="page"' : ""}>All</a>
+        ${groups.map((g) => `<a href="/admin/members?s=${sc.id}&card=people&g=${encodeURIComponent(g)}"${group === g ? ' aria-current="page"' : ""}>${esc(g)}</a>`).join("")}
+        <a href="/admin/members?s=${sc.id}&card=people&g=none"${group === "none" ? ' aria-current="page"' : ""}>No ${esc(L.group.one.toLowerCase())}</a>
         ${(sc.tags || []).map((t) => `<a class="tag-filter" href="/admin/members?s=${sc.id}&g=${encodeURIComponent("tag:" + t)}"${group === "tag:" + t ? ' aria-current="page"' : ""}>🏷 ${esc(t)}</a>`).join("")}</nav>` : ""}
       ${members.length ? `<div class="table-wrap"><table>
         <thead><tr><th><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th>${tags.length ? "<th>Tags</th>" : ""}<th>Emails</th><th>Also in</th><th></th></tr></thead>
@@ -114,9 +124,12 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
       </form>` : ""}
       ${tags.length ? "" : `<p class="fine">Need tags like Catcher or Pitcher? Add them in the ${esc(L.group.many)} &amp; tags step.</p>`}
     </section>
+    ${cardTeams}
+    <section class="panel" data-card="who" data-order="7" data-href="/admin/setup/schedule?s=${sc.id}&card=who" data-title="Who can claim" data-sum="${esc({ public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" }[SC.claimMode(sc)] || "")}" data-sub="Set under Board defaults">${ICO('<path d="M12 3 4 7v5c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V7z"/>')}</section>
+    </div>
 
     </div>
-    ${ADD_PEOPLE_JS}`,
+    ${ADD_PEOPLE_JS}${require("./setup2").CARD_HUB_JS}`,
   });
 }
 

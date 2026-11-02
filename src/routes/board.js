@@ -138,7 +138,7 @@ router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
 // ---------- board-wide defaults (Settings page) ----------
 router.post("/:sid/defaults", wrap(async (req, res) => {
   const sc = await board(req); const b = req.body;
-  const back = `/admin/setup/schedule?s=${sc.id}#rg-${["limits", "timing", "question"].includes(b.q) ? b.q : "limits"}`;
+  const back = (() => { const q = ["limits", "timing", "question"].includes(b.q) ? b.q : "limits"; return `/admin/setup/schedule?s=${sc.id}&card=${q}#rg-${q}`; })();
   const s = { ...(sc.settings || {}) };
   if (b.q === "limits") {
     if (b.limit_mode === "n") s.limit = Math.max(1, Math.min(int(b.limit_n) || 1, 99)); else delete s.limit;

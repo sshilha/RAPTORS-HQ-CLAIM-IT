@@ -659,7 +659,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
   const action = `/admin/setup/schedules/${sc.id}?s=${sc.id}`;
   const rows = (list) => `<dl class="ss-rows">${list.filter(Boolean).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>`;
   // One setup section: icon, title, description, Edit at top right; Edit swaps the answers for its form
-  const sec = (id, icon, title, sub, view, form) => `<section class="ss" id="ss-${id}">
+  const sec = (id, icon, title, sub, view, form) => `<section class="ss" id="ss-${id}" data-card="${id}">
       <div class="ss-head"><span class="ss-ico">${icon}</span><div class="ss-titles"><h3>${title}</h3><p class="fine">${sub}</p></div>
         <button type="button" class="btn-ghost ss-edit">${I.pencil()} Edit</button></div>
       <div class="ss-view">${view}</div>
@@ -678,10 +678,12 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
   return page({
     title: `${sc.name} Settings`, tab, user, flash, xwide: true,
     body: `${head}
-    <div class="settings-one">
-    <div class="scope-banner"><b>Board defaults for ${esc(sc.name)} only.</b> These settings apply to everything on this board, not to other boards.
-      ${depth > 1 ? `Each level can change any of them with its own <b>⚙ Settings</b> on the <a href="/admin/setup?s=${sc.id}">Setup</a> screen; a change there applies to everything inside that level.` : ""}
-      ${overrides && overrides.length ? `<div class="ovr"><p class="ovr-h">Levels that change these</p><ul>${overrides.map((o) => `<li><a href="/admin/setup?s=${sc.id}&open=${o.id}#n${o.id}">${esc(o.path.join(" › "))}</a>: ${esc(o.c.join(" · "))}</li>`).join("")}</ul></div>` : ""}</div>
+    <div class="settings-one" data-hub="Board defaults">
+    <p class="scope-note ch-hub-only"><b>Board defaults for ${esc(sc.name)} only.</b> They apply to everything on this board, not other boards. ${depth > 1 ? `Any level can change them in its own ⚙ Settings on the <a href="/admin/setup?s=${sc.id}">Setup</a> tab.` : ""}</p>
+    ${depth > 1 ? `<section class="ss" id="ss-levels" data-card="levels" data-order="90" data-title="Levels with their own settings" data-sum="${overrides && overrides.length ? `<b>${overrides.length}</b> level${overrides.length === 1 ? "" : "s"} change these defaults` : "None: every level uses the defaults"}" data-sub="Where a level changed a default">
+      <span class="card-ico" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1"/><rect x="2.5" y="16.5" width="6" height="5" rx="1"/><rect x="15.5" y="16.5" width="6" height="5" rx="1"/><path d="M12 7.5V12M5.5 16.5V12h13v4.5"/></svg></span>
+      <div class="ss-head"><div class="ss-titles"><h3>Levels with their own settings</h3><p class="fine">Each one changes a board default for everything inside it. Click a level to open it on the Setup tab.</p></div></div>
+      ${overrides && overrides.length ? `<ul class="ovr-list">${overrides.map((o) => `<li><a href="/admin/setup?s=${sc.id}&n=${o.id}">${esc(o.path.join(" › "))}</a><span>${esc(o.c.join(" · "))}</span></li>`).join("")}</ul>` : `<p class="muted">No level has changed a default yet.</p>`}</section>` : ""}
     <section class="panel setup-panel" id="setup-form">
 
       ${sec("who", I.users(), "Who can claim", "Who can see this board and claim from it, and whether some things are limited.",
@@ -760,7 +762,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
       var h = location.hash && document.querySelector(location.hash.replace("#q-", "#ss-"));
       if (h) { h.classList.add("just-saved"); setTimeout(function () { h.classList.remove("just-saved"); }, 1800); }
     })();
-    </script>`,
+    </script>${require("./setup2").CARD_HUB_JS}`,
   });
 }
 

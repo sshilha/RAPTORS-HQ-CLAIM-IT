@@ -15,7 +15,7 @@ const clean = (s, max = 40) => str(s).replace(/\s+/g, " ").slice(0, max);
 const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 const COLORS = ["#93c47d", "#7fa7d9", "#f6cf55", "#d0503f", "#9a85cc", "#5fb3b3", "#e69a4a", "#c27ba0", "#8d9db6", "#6aa84f"];
 const acts = (sc) => `/admin/settings/activities?s=${sc.id}`;
-const grps = (sc, anchor = "") => `/admin/settings/groups?s=${sc.id}${anchor}`;
+const grps = (sc, anchor = "") => `/admin/members?s=${sc.id}${/^#(groups|tags|presets)$/.test(anchor) ? `&card=${anchor.slice(1)}` : ""}`;
 const app = (anchor) => `/admin/settings/app?part=${anchor}`;
 
 function readActivity(b) {

@@ -531,3 +531,13 @@ SportsEngine group, Check all shown; group "Match their team" puts each person i
 their team) or **Quick add someone new** (first + last name required; "Add all details" for athlete/adult,
 team, SE group, birth year, jersey, parent emails or the adult's email/phone, notes; saved in People). Names
 link to People for editing. Checked people: Set group, Add/Remove tag, Remove from board (they stay in People).
+
+
+## Board tabs as cards
+Board details, Access & people, and Board defaults each show a grid of cards (like App settings), each with
+its current value; **Open** shows just that section under the board header with "← Back to …"
+(?card=<id> in the address). Saves return to the same card. Board details cards (Name & dates, Location,
+Description, Board type, Picture & short code, Organizer, Structure & names) share one form, so saving a card
+keeps everything else. Access & people: Athletes on this board, Add people, Groups, Tags, Group shortcuts,
+Copy groups & tags, Who can claim (opens it in Board defaults). Board defaults: Who can claim, Who's going,
+Limits, Timing, Question, Attendance, Levels with their own settings.
