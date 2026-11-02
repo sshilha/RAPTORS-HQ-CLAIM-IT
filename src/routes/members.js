@@ -54,11 +54,22 @@ router.post("/", wrap(async (req, res) => {
   if (!first || !last) return go(res, home(sc, "#add"), { err: `Enter the ${L.participant.one.toLowerCase()}'s first and last name.` });
   const dupe = (await query(`SELECT id FROM athletes WHERE lower(first_name)=lower($1) AND lower(last_name)=lower($2)`, [first, last])).rows[0];
   const tags = [].concat(req.body.tags || []).map(String).filter((t) => (sc.tags || []).includes(t));
-  const a = (await query(`INSERT INTO athletes (first_name, last_name) VALUES ($1,$2) RETURNING id`, [first, last])).rows[0];
+  const b = req.body, kind = b.kind === "adult" ? "adult" : "athlete", opt = (x, n) => str(x).slice(0, n) || null;
+  const email = kind === "adult" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(str(b.email)) ? str(b.email).toLowerCase() : null;
+  let a;
+  if (email) {   // an adult with an email: one person per email (it may already be in People)
+    a = (await require("../people").ensureAdult(email, { first, last })).person;
+    await query(`UPDATE athletes SET first_name=COALESCE(NULLIF(first_name,''),$2), last_name=COALESCE(NULLIF(last_name,''),$3), phone=COALESCE($4, phone), team=COALESCE($5, team), se_group=COALESCE($6, se_group), notes=COALESCE($7, notes) WHERE id=$1`,
+      [a.id, first, last, opt(b.phone, 30), opt(b.team, 40), opt(b.se_group, 60), opt(b.notes, 200)]);
+  } else {
+    a = (await query(`INSERT INTO athletes (kind, first_name, last_name, team, se_group, birth_year, jersey, phone, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [kind, first, last, opt(b.team, 40), opt(b.se_group, 60), int(b.birth_year) || null, opt(b.jersey, 4), kind === "adult" ? opt(b.phone, 30) : null, opt(b.notes, 200)])).rows[0];
+  }
+  if ((await query(`SELECT 1 FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, a.id])).rowCount) return go(res, home(sc), { ok: `${first} ${last} is already on ${sc.name}.` });
   await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name, tags) VALUES ($1,$2,$3,$4)`, [sc.id, a.id, group, tags]);
-  const bad = await linkParents(a.id, req.body.parent_emails);
+  const bad = kind === "athlete" ? await linkParents(a.id, req.body.parent_emails) : [];
   go(res, home(sc), bad.length ? { err: `Added ${first}, but these emails weren't valid: ${bad.join(", ")}` }
-    : { ok: `Added ${first} ${last}${group ? ` to ${group}` : ""}${tags.length ? `, tagged ${tags.join(", ")}` : ""}.` + (dupe ? ` (There's already a ${first} ${last}; if that's the same person, use "Add someone already in the app" next time.)` : "") });
+    : { ok: `Added ${first} ${last}${group ? ` to ${group}` : ""}${tags.length ? `, tagged ${tags.join(", ")}` : ""}.` + (dupe && !email ? ` Note: People already had a ${first} ${last}. If that's the same person, remove this one and use Add from People instead.` : "") });
 }));
 
 // ---------- import from a spreadsheet (CSV file or pasted rows) ----------
@@ -94,7 +105,7 @@ function readRows(rows, map) {
   }
   return out;
 }
-router.get("/import", wrap(async (req, res) => res.send(v.importPage({ user: req.user, flash: flashFrom(req), sc: req.sched.sc }))));
+router.get("/import", (req, res) => go(res, "/admin/people/import", { ok: "Imports happen in People now. Import the roster here, then add the list on the board's Access & people tab." }));
 async function plan(sc, rows, map) {
   const people = readRows(rows, map);
   const groups = SC.groupsFor(sc);
@@ -163,10 +174,17 @@ router.post("/import/commit", wrap(async (req, res) => {
 router.post("/add", wrap(async (req, res) => {
   const { sc } = req.sched;
   const ids = [].concat(req.body.athlete_id || []).map(int).filter(Boolean);
-  const group = SC.groupsFor(sc).includes(str(req.body.group)) ? str(req.body.group) : null;
+  const groups = SC.groupsFor(sc), match = str(req.body.group) === "__team";
+  const group = groups.includes(str(req.body.group)) ? str(req.body.group) : null;
   if (!ids.length) return go(res, home(sc, "#add"), { err: "Pick at least one person." });
-  for (const id of ids) await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [sc.id, id, group]);
-  go(res, home(sc), { ok: `Added ${ids.length} ${ids.length === 1 ? "person" : "people"} to ${sc.name}${group ? ` in ${group}` : ""}.` });
+  const people = (await query(`SELECT id, team, se_group FROM athletes WHERE id = ANY($1)`, [ids])).rows;
+  const byName = new Map(groups.map((g) => [g.toLowerCase(), g])); let matched = 0;
+  for (const p of people) {
+    const g = match ? byName.get(String(p.team || "").toLowerCase()) || byName.get(String(p.se_group || "").toLowerCase()) || null : group;
+    if (match && g) matched++;
+    await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [sc.id, p.id, g]);
+  }
+  go(res, home(sc), { ok: `Added ${people.length} ${people.length === 1 ? "person" : "people"} to ${sc.name}${match ? (groups.length ? ` (${matched} matched a ${SC.labels(sc).group.one.toLowerCase()} by their team${people.length - matched ? `; ${people.length - matched} ${people.length - matched === 1 ? "has" : "have"} none yet` : ""})` : "") : group ? ` in ${group}` : ""}.` });
 }));
 
 // Tags: one person's set, or one tag on/off for many people
@@ -174,7 +192,17 @@ router.post("/bulk-tag", wrap(async (req, res) => {
   const { sc } = req.sched;
   const ids = [].concat(req.body.athlete_id || []).map(int).filter(Boolean);
   const tag = str(req.body.tag);
-  if (!ids.length || !(sc.tags || []).includes(tag)) return go(res, dest(req, home(sc)), { err: "Check some people and pick a tag." });
+  if (!ids.length) return go(res, dest(req, home(sc)), { err: "Check some people first." });
+  if (req.body.mode === "group") {
+    const g = SC.groupsFor(sc).includes(str(req.body.group)) ? str(req.body.group) : null;
+    await query(`UPDATE schedule_members SET group_name=$3 WHERE schedule_id=$1 AND athlete_id = ANY($2)`, [sc.id, ids, g]);
+    return go(res, dest(req, home(sc)), { ok: `${g ? `Moved ${ids.length} into ${g}` : `Cleared the ${SC.labels(sc).group.one.toLowerCase()} for ${ids.length}`}.` });
+  }
+  if (req.body.mode === "off") {
+    await query(`DELETE FROM schedule_members WHERE schedule_id=$1 AND athlete_id = ANY($2)`, [sc.id, ids]);
+    return go(res, dest(req, home(sc)), { ok: `Removed ${ids.length} from ${sc.name}. They stay in People and keep their sign-ups.` });
+  }
+  if (!(sc.tags || []).includes(tag)) return go(res, dest(req, home(sc)), { err: "Pick a tag." });
   const on = req.body.mode !== "remove";
   await require("../groups").bulkTag(sc.id, ids, tag, on);
   go(res, dest(req, home(sc)), { ok: `${on ? "Tagged" : "Untagged"} ${ids.length} ${ids.length === 1 ? "person" : "people"} ${on ? "as" : "from"} ${tag}.` });

@@ -521,3 +521,13 @@ navy, or its short code with lime stripes. The name sits in the same place on ev
 top level, its people (the assigned list, or who has signed up on open boards), and its sessions; next
 session and upcoming claims. Buttons: Open · Duplicate · Archive (archived: View · Duplicate · Reopen ·
 Delete permanently). 4 / 3 / 2 / 1 cards per row as the screen narrows (laptop / small laptop / tablet / phone).
+
+
+## People vs. a board's people
+**People (App settings) is where people live:** details, families/parents, contact info, lists, and the only
+spreadsheet import. A board's **Access & people** tab keeps who is on that board and their group and tags
+there (groups and tags are per board). Add people with **Add from People** (search, filter by list / team /
+SportsEngine group, Check all shown; group "Match their team" puts each person in the board group named like
+their team) or **Quick add someone new** (first + last name required; "Add all details" for athlete/adult,
+team, SE group, birth year, jersey, parent emails or the adult's email/phone, notes; saved in People). Names
+link to People for editing. Checked people: Set group, Add/Remove tag, Remove from board (they stay in People).

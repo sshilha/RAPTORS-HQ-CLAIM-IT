@@ -31,26 +31,35 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
     <section class="panel" id="people">
       <div class="athlete-head"><div><h2>${esc(L.participant.many)}</h2>
         <p class="muted tight">${total} on ${esc(sc.name)}</p></div>
-        <span class="head-btns"><a class="btn-ghost" href="/admin/members/import?s=${sc.id}">⇪ Import from a spreadsheet</a></span></div>
+        <span class="head-btns"><a class="btn-ghost" href="/admin/people/import" title="Bring a roster into People first, then add the list here">⇪ Import into People</a></span></div>
       ${needBanner(sc, L)}
-      <details class="where-d"><summary>Adding here vs. in People?</summary>${require("./people").WHERE_NOTE}</details>
+      <p class="fine where-note">Everyone lives in <a href="/admin/people">People</a> (names, families, contact info). This board keeps <b>who is on it</b> and their ${esc(L.group.one.toLowerCase())} and tags here. For a whole roster: import it in People, then add the list below.</p>
       <div class="add-people" id="add">
         <div class="ap-tabs" role="tablist">
-          <button type="button" role="tab" class="ap-tab on" data-ap="new" aria-selected="true">New ${esc(L.participant.one.toLowerCase())}</button>
-          <button type="button" role="tab" class="ap-tab" data-ap="existing" aria-selected="false">From People${others.length ? ` (${others.length})` : ""}</button>
+          <button type="button" role="tab" class="ap-tab on" data-ap="existing" aria-selected="true">Add from People${others.length ? ` (${others.length})` : ""}</button>
+          <button type="button" role="tab" class="ap-tab" data-ap="new" aria-selected="false">Quick add someone new</button>
         </div>
-        <form method="post" action="/admin/members?s=${sc.id}" class="grid-form ap-pane" data-ap="new">
+        <form method="post" action="/admin/members?s=${sc.id}" class="grid-form ap-pane qa" data-ap="new" hidden>
+          <p class="fine full">Someone who isn't in People yet. They're added to People and to this board.</p>
           <div><label>First name<input name="first_name" required maxlength="40"></label></div>
           <div><label>Last name<input name="last_name" required maxlength="40"></label></div>
-          <div><label>${esc(L.group.one)}${groupSelect(sc, null)}</label></div>
-          <div class="full"><span class="field-lbl">Tags</span>
-            ${(sc.tags || []).length ? `<div class="tag-checks">${sc.tags.map((t) => `<label class="tag-box"><input type="checkbox" name="tags" value="${esc(t)}"> ${esc(t)}</label>`).join("")}</div>`
-              : `<span class="fine">No tags yet. Add tags like Catcher or Pitcher in ${esc(L.group.many)} &amp; tags above, then they'll show here.</span>`}</div>
-          <div class="full"><label>Parent or contact emails<input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label>
-            <span class="fine">They sign in with these to claim spots. For an adult signing up themselves, use their own email.</span></div>
-          <div class="full ap-actions"><button class="btn-small" type="submit">Add ${esc(L.participant.one.toLowerCase())}</button></div>
+          <div><label>${esc(L.group.one)} on this board${groupSelect(sc, null)}</label></div>
+          ${(sc.tags || []).length ? `<div class="full"><span class="field-lbl">Tags on this board</span><div class="tag-checks">${sc.tags.map((t) => `<label class="tag-box"><input type="checkbox" name="tags" value="${esc(t)}"> ${esc(t)}</label>`).join("")}</div></div>` : ""}
+          <details class="full qa-more"><summary class="link-dark">Add all details</summary>
+            <div class="grid-form qa-grid">
+              <div class="full qa-kind"><label class="radio-row"><input type="radio" name="kind" value="athlete" checked> ${esc(L.participant.one === "Volunteer" ? "Athlete" : L.participant.one)}</label><label class="radio-row"><input type="radio" name="kind" value="adult"> Adult (volunteer, coach, parent)</label></div>
+              <div><label>Current team<input name="team" maxlength="40" placeholder="e.g. 12U Shilha"></label></div>
+              <div><label>SportsEngine group<input name="se_group" maxlength="60"></label></div>
+              <div class="qa-ath"><label>Birth year<input name="birth_year" type="number" min="1940" max="2100"></label></div>
+              <div class="qa-ath"><label>Jersey #<input name="jersey" maxlength="4"></label></div>
+              <div class="full qa-ath"><label>Parent emails<input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label><span class="fine">They sign in with these to claim for this athlete.</span></div>
+              <div class="qa-adult" hidden><label>Email<input name="email" type="email" maxlength="120"></label></div>
+              <div class="qa-adult" hidden><label>Phone<input name="phone" maxlength="30"></label></div>
+              <div class="full"><label>Notes<input name="notes" maxlength="200"></label></div>
+            </div></details>
+          <div class="full ap-actions"><button class="btn-small" type="submit">Add to People and ${esc(sc.name)}</button></div>
         </form>
-        <div class="ap-pane" data-ap="existing" hidden>
+        <div class="ap-pane" data-ap="existing">
           <p class="fine">Everyone in the app's <a href="/admin/people">People</a> directory who isn't on this board yet. Filter by their current team or SportsEngine group, check who to add, then pick their ${esc(L.group.one.toLowerCase())} here.</p>
           ${others.length ? (() => { const uniq = (k) => [...new Set(others.map((o) => o[k]).filter(Boolean))].sort();
             const sel = (k, label) => uniq(k).length ? `<select class="ap-f" data-f="${k}" aria-label="${label}"><option value="">${label}: any</option>${uniq(k).map((x) => `<option>${esc(x)}</option>`).join("")}</select>` : "";
@@ -63,7 +72,7 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
           <div class="ap-list">${others.map((a) => `<label class="ap-person" data-kind="${a.kind}" data-team="${esc(a.team || "")}" data-se_group="${esc(a.se_group || "")}" data-lists="${esc((a.lists || []).join("|"))}"><input type="checkbox" name="athlete_id" value="${a.id}"> ${a.first_name || a.last_name ? `${esc(a.last_name)}, ${esc(a.first_name)}` : esc(a.email || "(no name)")}
             <span class="fine">${[a.kind === "adult" ? ((a.roles || []).join(", ") || "adult") : "", a.team, a.se_group].filter(Boolean).map(esc).join(" · ")}</span></label>`).join("")}</div>
           <span class="fine ap-count">Check everyone to add.</span>
-          <label>${esc(L.group.one)}${groupSelect(sc, null)}</label>
+          <label>${esc(L.group.one)} on this board${groupSelect(sc, null).replace(/(<select[^>]*>)/, `$1<option value="__team" selected>Match their team (if it's a ${esc(L.group.one.toLowerCase())} here)</option>`)}</label>
           <div class="ap-actions"><button class="btn-small" type="submit">Add to ${esc(sc.name)}</button></div>
         </form>` : `<p class="muted">Everyone in the app is already on ${esc(sc.name)}.</p>`}
       
@@ -76,10 +85,10 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
         <a href="/admin/members?s=${sc.id}&g=none"${group === "none" ? ' aria-current="page"' : ""}>No ${esc(L.group.one.toLowerCase())}</a>
         ${(sc.tags || []).map((t) => `<a class="tag-filter" href="/admin/members?s=${sc.id}&g=${encodeURIComponent("tag:" + t)}"${group === "tag:" + t ? ' aria-current="page"' : ""}>🏷 ${esc(t)}</a>`).join("")}</nav>` : ""}
       ${members.length ? `<div class="table-wrap"><table>
-        <thead><tr>${tags.length ? `<th><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th>` : ""}<th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th>${tags.length ? "<th>Tags</th>" : ""}<th>Emails</th><th>Also in</th><th></th></tr></thead>
+        <thead><tr><th><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th>${tags.length ? "<th>Tags</th>" : ""}<th>Emails</th><th>Also in</th><th></th></tr></thead>
         <tbody>${members.map((a) => `<tr>
-          ${tags.length ? `<td><input type="checkbox" class="pick" name="athlete_id" value="${a.id}" form="bulk" aria-label="Select ${esc(a.first_name)}"></td>` : ""}
-          <td><a href="/admin/athletes/${a.id}">${esc(a.last_name)}, ${esc(a.first_name)}</a>${a.self_user_id ? ` <span class="fine-inline">adult</span>` : ""}</td>
+          <td><input type="checkbox" class="pick" name="athlete_id" value="${a.id}" form="bulk" aria-label="Select ${esc(a.first_name)}"></td>
+          <td><a href="/admin/people/${a.id}" title="Details, family, and contact info are edited in People">${esc(a.last_name)}, ${esc(a.first_name)}</a>${a.self_user_id ? ` <span class="fine-inline">adult</span>` : ""}</td>
           <td><form method="post" action="/admin/members/${a.id}?s=${sc.id}" class="inline-group">
             <input type="hidden" name="return_to" value="${esc(back)}">
             ${groupSelect(sc, a.group_name, `onchange="this.form.submit()" aria-label="${esc(L.group.one)}"`)}
@@ -94,12 +103,14 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
             <input type="hidden" name="return_to" value="${esc(back)}"><button class="x" type="submit" aria-label="Remove from ${esc(sc.name)}">×</button></form></td>
         </tr>`).join("")}</tbody></table></div>`
         : `<p class="muted">${group ? "No one in this filter." : `No ${esc(L.participant.many.toLowerCase())} yet. Add them below.`}</p>`}
-      ${tags.length && members.length ? `<form id="bulk" method="post" action="/admin/members/bulk-tag?s=${sc.id}" class="bulk-tag">
+      ${members.length ? `<form id="bulk" method="post" action="/admin/members/bulk-tag?s=${sc.id}" class="bulk-tag">
         <input type="hidden" name="return_to" value="${esc(back)}">
         <span class="label-like">Checked people:</span>
-        <select name="tag" required aria-label="Tag">${tags.map((t) => `<option>${esc(t)}</option>`).join("")}</select>
-        <button class="btn-ghost" type="submit" name="mode" value="add">Add tag</button>
-        <button class="btn-ghost" type="submit" name="mode" value="remove">Remove tag</button>
+        ${groups.length ? `<select name="group" aria-label="${esc(L.group.one)}"><option value="">No ${esc(L.group.one.toLowerCase())}</option>${groups.map((g) => `<option>${esc(g)}</option>`).join("")}</select>
+          <button class="btn-ghost" type="submit" name="mode" value="group">Set ${esc(L.group.one.toLowerCase())}</button>` : ""}
+        ${tags.length ? `<select name="tag" aria-label="Tag">${tags.map((t) => `<option>${esc(t)}</option>`).join("")}</select>
+          <button class="btn-ghost" type="submit" name="mode" value="add">Add tag</button><button class="btn-ghost" type="submit" name="mode" value="remove">Remove tag</button>` : ""}
+        <button class="btn-ghost danger" type="submit" name="mode" value="off" onclick="return confirm('Remove the checked people from ${esc(sc.name).replace(/'/g, "")}? They stay in People and keep their sign-ups.')">Remove from board</button>
       </form>` : ""}
       ${tags.length ? "" : `<p class="fine">Need tags like Catcher or Pitcher? Add them in the ${esc(L.group.many)} &amp; tags step.</p>`}
     </section>
@@ -116,6 +127,10 @@ const ADD_PEOPLE_JS = `<script>
     document.querySelectorAll(".ap-tab").forEach(function (x) { var on = x === t; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); });
     document.querySelectorAll(".ap-pane").forEach(function (p) { p.hidden = p.dataset.ap !== t.dataset.ap; });
   }); });
+  var qa = document.querySelector(".qa");
+  if (qa) { function kind() { var ad = qa.querySelector("input[name=kind][value=adult]").checked;
+      qa.querySelectorAll(".qa-adult").forEach(function (x) { x.hidden = !ad; }); qa.querySelectorAll(".qa-ath").forEach(function (x) { x.hidden = ad; }); }
+    qa.addEventListener("change", function (e) { if (e.target.name === "kind") kind(); }); kind(); }
   var q = document.querySelector(".ap-search");
   function filt() {
     var v = q ? q.value.toLowerCase() : "", f = {};
