@@ -629,7 +629,7 @@ function eventDates(sc) {
   return `${f(sc.event_date, { month: "short", day: "numeric" })} – ${f(sc.event_end, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
-function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null }) {
+function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null, overrides = [] }) {
   const L = SC.labels(sc);
   const I = require("./icons");
   const P = require("../locations");
@@ -680,10 +680,13 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
     body: `<div class="page-top"><h1 class="page-title">${esc(sc.name)} <span class="h-sub">Settings</span></h1>
       <a class="btn-ghost" href="/admin/setup?s=${sc.id}">← Back to ${esc(sc.name)}</a></div>
     <div class="settings-one">
+    <div class="scope-banner"><b>Board defaults for ${esc(sc.name)} only.</b> These settings apply to everything on this board, not to other boards.
+      ${depth > 1 ? `Each level can change any of them with its own <b>⚙ Settings</b> on the <a href="/admin/setup?s=${sc.id}">Setup</a> screen; a change there applies to everything inside that level.` : ""}
+      ${overrides && overrides.length ? `<div class="ovr"><p class="ovr-h">Levels that change these</p><ul>${overrides.map((o) => `<li><a href="/admin/setup?s=${sc.id}&open=${o.id}#n${o.id}">${esc(o.path.join(" › "))}</a>: ${esc(o.c.join(" · "))}</li>`).join("")}</ul></div>` : ""}</div>
     <section class="panel setup-panel" id="setup-form">
 
       ${sec("who", I.users(), "Who can claim", "Who can see this board and claim from it, and whether some things are limited.",
-        rows([["Who can claim", `${CLAIM[claim]}<div class="fine">${{ public: "No sign-in needed; anyone with the link.", family: `Anyone who signs in, not just ${esc(require("../config").LABELS.org_name || "your organization")}.`, roster: `Only the ${esc(L.participant.many.toLowerCase())} on this board's list.` }[claim]}</div>`], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
+        rows([["Who can claim", `${CLAIM[claim]}<div class="fine">${{ public: "No account needed; anyone with the link. People with an account also see it on My Claims.", family: "Only people with an approved account.", roster: `Only the ${esc(L.participant.many.toLowerCase())} assigned to this board, or family linked to them.` }[claim]}</div>`], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
         `<div class="opt-row three">
           ${radio("claim", "public", claim, "Anyone with the link", claimHelp(L).public, EX.claim.public)}
           ${radio("claim", "family", claim, "Anyone with an account", claimHelp(L).family, EX.claim.family)}

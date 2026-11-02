@@ -55,7 +55,9 @@ router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req
   const coaches = (await query(`SELECT email FROM schedule_coaches WHERE schedule_id=$1 ORDER BY email`, [sc.id])).rows.map((r) => r.email);
   const published = (await query(`SELECT 1 FROM rounds WHERE schedule_id=$1 AND published_at IS NOT NULL LIMIT 1`, [sc.id])).rowCount > 0;
   const main = SC.depthOf(sc) <= 2 ? await SC.ensureStructure(sc) : null;
-  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, main, counts: { items: Number(counts.items), members: Number(counts.members), coaches, published } }));
+  const nodes = (await query(`SELECT id, parent_id, name, settings, visible_from FROM board_nodes WHERE schedule_id=$1`, [sc.id])).rows;
+  res.send(v.scheduleSettingsPage({ user: req.user, flash: flashFrom(req), sc, part, main, overrides: require("../views/board").levelOverrides(nodes),
+    counts: { items: Number(counts.items), members: Number(counts.members), coaches, published } }));
 }));
 
 // ---------- schedules ----------

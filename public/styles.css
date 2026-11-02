@@ -2483,3 +2483,11 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .sp-who { display: flex; flex-direction: column; gap: 2px; } .sp-tags { display: flex; gap: 4px; flex-wrap: wrap; } .pill.warn { background: #fff1e6; color: #9a3412; }
 .sp-rm { display: flex; align-items: center; gap: 12px; margin: 0; } .sp-add select { width: 100%; } .sp-add .radio-row { display: flex; gap: 10px; align-items: flex-start; text-transform: none; font: 400 14px var(--body); }
 @media (max-width: 700px) { .sp-row { flex-direction: column; align-items: flex-start; } }
+/* "this board only" scope notes */
+.card-scope { display: inline-block; margin-left: 6px; font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .04em; color: #2f6d0c; background: #E4F5D2; border-radius: 999px; padding: 2px 8px; vertical-align: middle; }
+.scope-note { font-size: 13px; color: var(--text-2); background: #f6f8fb; border-left: 3px solid var(--d-lime); border-radius: 6px; padding: 7px 10px; margin: 4px 0 10px; }
+.scope-note svg { width: 13px; height: 13px; vertical-align: -2px; }
+.scope-banner { font-size: 14px; color: var(--navy); background: #F1F9E8; border: 1px solid #cde9a0; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; line-height: 1.5; }
+.ovr { margin-top: 8px; } .ovr-h { margin: 0 0 4px; font: 700 13px var(--body); color: var(--navy); }
+.ovr ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-2); } .ovr li { margin: 2px 0; } .ovr .link-dark { font-size: 13px; padding: 0; }
+.ovr-none { margin-top: 8px; }

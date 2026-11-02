@@ -136,6 +136,20 @@ function itemRowE(sc, it) {
 }
 
 // The board as an outline: every container with a twisty, its contents (and Add form) inside
+function levelChanges(n) { const st = n.settings || {}, b = [];
+    if (st.who && st.who.mode) b.push(whoText(st.who)); if (st.limit != null) b.push(`limit ${st.limit} per person`);
+    if (st.opens_at) b.push(`opens ${fmtDateTime(st.opens_at)}`); if (n.visible_from) b.push(`hidden until ${fmtDateTime(n.visible_from)}`);
+    if (st.cancel_hours != null) b.push(`cancel deadline ${st.cancel_hours} h`); if (st.leftover_hours !== undefined) b.push(st.leftover_hours == null ? "no open leftover spots" : `leftover spots ${st.leftover_hours} h before`);
+    if (st.waitlist === true) b.push("waitlist on"); if (st.waitlist === false) b.push("waitlist off");
+    if (st.attendance === true) b.push("attendance on"); if (st.attendance === false) b.push("attendance off"); if (st.location) b.push(`location ${st.location}`);
+    return b; }
+// every level that changed a default, with its path: [{ id, path: [names], c: [changes] }]
+function levelOverrides(nodes) {
+  const byId = new Map(nodes.map((n) => [n.id, n])), out = [];
+  const pathOf = (n) => { const p = []; let x = n, g = 0; while (x && g++ < 10) { p.unshift(x.name); x = byId.get(x.parent_id); } return p; };
+  for (const n of nodes) { const c = levelChanges(n); if (c.length) out.push({ id: n.id, path: pathOf(n), c }); }
+  return out.sort((a, b) => a.path.join(" ").localeCompare(b.path.join(" ")));
+}
 function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, totals }) {
   const L = SC.labels(sc);
   const depth = SC.depthOf(sc);
@@ -162,6 +176,12 @@ function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, tot
     if (n.visible_from) b.push(`Hidden until ${fmtDateTime(n.visible_from)}`); if (st.opens_at) b.push(`Opens ${fmtDateTime(st.opens_at)}`);
     if (st.attendance === true) b.push("Attendance"); if (st.waitlist === true) b.push("Waitlist"); if (st.location) b.push(`📍 ${st.location}`);
     return b.map((x) => `<span class="nbadge">${esc(x)}</span>`).join(""); };
+
+  const overrides = []; const walk = (t, trail) => { const here = [...trail, t.node.name]; const c = levelChanges(t.node); if (c.length) overrides.push({ id: t.node.id, path: here, c }); (t.kids || []).forEach((k) => walk(k, here)); };
+  (tree || []).forEach((t) => walk(t, []));
+  const overridesHtml = depth > 1 ? (overrides.length
+    ? `<div class="ovr"><p class="ovr-h">Levels with their own settings</p><ul>${overrides.map((o) => `<li><button type="button" class="link-dark" onclick="document.getElementById('set-${o.id}').showModal()">${esc(o.path.join(" › "))}</button>: ${esc(o.c.join(" · "))}</li>`).join("")}</ul></div>`
+    : `<p class="fine ovr-none">No level has changed these yet. Everything on the board uses the defaults.</p>`) : "";
   const rowsHtml = (rows) => `<dl class="rc-list">${rows.map(([k, v, src]) => `<div><dt>${k}</dt><dd>${v}<span class="src">${esc(src)}</span></dd></div>`).join("")}</dl>`;
   const dialogs = [];
   const render = (t, lvl) => {
@@ -170,7 +190,8 @@ function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, tot
     const childW = isLastContainer ? L.slot : levelWord(lvl + 1);
     const c = t.count;
     dialogs.push(`<dialog class="edit-dlg" id="set-${n.id}"><div class="dlg-head"><h2>Settings for ${esc(n.name)}</h2><button type="button" class="dlg-x" onclick="this.closest('dialog').close()">×</button></div>
-      <div class="dlg-body"><details class="in-force"><summary>What applies here now</summary>${rowsHtml(settingRows(sc, t.eff, n.settings || {}, "node"))}</details>
+      <div class="dlg-body"><p class="scope-note">Changes here apply to everything inside <b>${esc(n.name)}</b>. Anything left as “same as above” follows the board defaults (or a level above this one).</p>
+        <details class="in-force"><summary>What applies here now</summary>${rowsHtml(settingRows(sc, t.eff, n.settings || {}, "node"))}</details>
         ${settingsForm(sc, n, t.inherited)}</div></dialog>`);
     return `<details class="tnode lvl-${lvl}" id="node-${n.id}" data-id="${n.id}"${open.has(n.id) ? " open" : ""}>
       <summary><span class="tw" aria-hidden="true"></span>
@@ -199,11 +220,13 @@ function boardSetupPage({ user, flash, sc, tree, topItems, open, focus, eff, tot
     : addContainer(null, topW) + `<div class="tree-tools"><h3 class="ilist-head">Your ${esc(topW.many.toLowerCase())} <span class="fine-inline">(${tree.length})</span></h3>
         ${tree.length ? `<span><button type="button" class="link-dark" data-tree="open">Open all</button> · <button type="button" class="link-dark" data-tree="close">Close all</button></span>` : ""}</div>` +
       (tree.length ? `<div class="tree">${tree.map((t) => render(t, 0)).join("")}</div>` : `<p class="muted small items-empty">No ${esc(topW.many.toLowerCase())} yet. Add one above.</p>`);
-  const boardCard = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Settings</h2><a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">${I.gear()} Manage</a></div>
+  const boardCard = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.gear()}</span><h2>Board defaults <span class="card-scope">this board only</span></h2><a class="btn-ghost" href="/admin/setup/schedule?s=${sc.id}">${I.gear()} Manage</a></div>
+      <p class="scope-note">These apply to everything on <b>this board</b>, not to other boards.${depth > 1 ? ` Any level can change them with its own <b>${I.gear()} Settings</b>; a change there applies to everything inside that level.` : ""}</p>
       ${rowsHtml(settingRows(sc, eff, sc.settings || {}, "board"))}
-      <p class="fine">Board-wide defaults. ${depth > 1 ? `Use <b>Settings</b> on any ${esc(levelWord(0).one.toLowerCase())} to change them for what's inside it.` : ""}</p></section>`;
-  const peopleCard = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span><h2>${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</h2>
+      ${overridesHtml}</section>`;
+  const peopleCard = `<section class="panel side-card"><div class="card-head"><span class="ss-ico">${I.userCheck()}</span><h2>${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())} <span class="card-scope">this board only</span></h2>
       <a class="btn-ghost" href="/admin/members?s=${sc.id}">${I.gear()} Manage</a></div>
+    <p class="scope-note">The ${esc(L.group.many.toLowerCase())}, tags, and ${esc(L.participant.many.toLowerCase())} for <b>this board</b>. Other boards keep their own. Each person's main record is in <a href="/admin/people">App settings → People</a>.</p>
     <dl class="rc-list"><div><dt>${esc(L.group.many)}</dt><dd>${esc(SC.groupsFor(sc).join(", ") || "None")}</dd></div><div><dt>Tags</dt><dd>${esc((sc.tags || []).join(", ") || "None")}</dd></div>
       <div><dt>${esc(L.participant.many)}</dt><dd>${sc.member_count || 0}</dd></div></dl></section>`;
   return page({
@@ -350,4 +373,4 @@ function spotPeoplePage({ user, flash, sc, it, path, people, onBoard, everyone }
       </form></section>` });
 }
 
-module.exports = { spotPeoplePage, copyPage, boardSetupPage, boardDefaultsSections };
+module.exports = { levelOverrides, spotPeoplePage, copyPage, boardSetupPage, boardDefaultsSections };
