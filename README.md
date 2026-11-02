@@ -526,8 +526,8 @@ Delete permanently). 4 / 3 / 2 / 1 cards per row as the screen narrows (laptop /
 ## People vs. a board's people
 **People (App settings) is where people live:** details, families/parents, contact info, lists, and the only
 spreadsheet import. A board's **Access & people** tab keeps who is on that board and their group and tags
-there (groups and tags are per board). Add people with **Add from People** (search, filter by list / team /
-SportsEngine group, Check all shown; group "Match their team" puts each person in the board group named like
+there (groups and tags are per board). Add people with **Add from People** (search, filter by list / team,
+Check all shown; group "Match their team" puts each person in the board group named like
 their team) or **Quick add someone new** (first + last name required; "Add all details" for athlete/adult,
 team, SE group, birth year, jersey, parent emails or the adult's email/phone, notes; saved in People). Names
 link to People for editing. Checked people: Set group, Add/Remove tag, Remove from board (they stay in People).
@@ -545,8 +545,16 @@ Limits, Timing, Question, Attendance, Levels with their own settings.
 
 ## App Settings header
 Every App settings page uses the same header: navy band (App Settings, live counts of people / requests
-waiting / admins, page buttons such as + Add person and Import on People) and a gray tab bar: People (red badge
-when requests are waiting) · Accounts & sign-in · Locations · Wording. App Settings opens on People. Requests,
-a person's page, and Import sit under People; Administrators and Sign-in activity sit under Accounts & sign-in. Page filters sit in the gray bar: People
-(search, kind, role, team, SportsEngine group), Requests (Waiting / Handled / All), Sign-in activity (search,
-Only problems), Locations (search).
+waiting / admins, no page buttons; the gray bar holds only the tabs): People (red badge
+when requests are waiting) · Accounts & sign-in · Locations · Wording. App Settings opens on People. Areas with more
+than one page have a second row of sub-tabs: People → People · Requests; Accounts & sign-in → Account settings ·
+Administrators · Sign-in activity. A person's page and Import light People. Each page's own buttons and filters sit below
+the header: People's toolbar (+ Add person, Import, + New list; filters: List, search, kind, role, team), Requests (Show: Waiting / Handled / All), Sign-in activity (search, Only problems),
+Locations (search).
+
+
+## Lists instead of SportsEngine group
+The SportsEngine group field is gone. On first start of this version, any existing values become lists of the
+same name (with those people on them), then the old column is dropped. The People import has **Make lists
+from this column** (guessed from columns like Program or SportsEngine Group): each person goes on the list
+named in that column, creating lists as needed, in addition to the optional "put everyone on a list".

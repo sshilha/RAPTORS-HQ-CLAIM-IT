@@ -9,7 +9,6 @@ async function migrate() {
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS phone TEXT;
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS birth_year INTEGER;
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS jersey TEXT;
-    ALTER TABLE athletes ADD COLUMN IF NOT EXISTS se_group TEXT;                          -- SportsEngine group
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS organization TEXT;
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS notes TEXT;
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS roles TEXT[] NOT NULL DEFAULT '{}';     -- parent, coach, volunteer
@@ -30,6 +29,16 @@ async function migrate() {
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS report_access JSONB;
     -- adults who signed up for themselves are adults
     UPDATE athletes SET kind='adult' WHERE self_user_id IS NOT NULL AND kind <> 'adult';
+    -- SportsEngine group is retired: any values become lists of the same name (once), then the column is dropped
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='athletes' AND column_name='se_group' AND table_schema=current_schema()) THEN
+        INSERT INTO people_lists (name) SELECT DISTINCT ON (lower(trim(se_group))) trim(se_group) FROM athletes
+          WHERE coalesce(trim(se_group), '') <> '' AND NOT EXISTS (SELECT 1 FROM people_lists l WHERE lower(l.name) = lower(trim(athletes.se_group)));
+        INSERT INTO people_list_members (list_id, athlete_id) SELECT l.id, a.id FROM athletes a JOIN people_lists l ON lower(l.name) = lower(trim(a.se_group))
+          WHERE coalesce(trim(a.se_group), '') <> '' ON CONFLICT DO NOTHING;
+        ALTER TABLE athletes DROP COLUMN se_group;
+      END IF;
+    END $$;
   `);
 }
 

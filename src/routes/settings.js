@@ -16,7 +16,7 @@ const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 const COLORS = ["#93c47d", "#7fa7d9", "#f6cf55", "#d0503f", "#9a85cc", "#5fb3b3", "#e69a4a", "#c27ba0", "#8d9db6", "#6aa84f"];
 const acts = (sc) => `/admin/settings/activities?s=${sc.id}`;
 const grps = (sc, anchor = "") => `/admin/members?s=${sc.id}${/^#(groups|tags|presets)$/.test(anchor) ? `&card=${anchor.slice(1)}` : ""}`;
-const app = (part) => (part === "admins" ? "/admin/settings/app?part=accounts#admins-h" : `/admin/settings/app${part ? `?part=${part}` : ""}${part ? `#${part}` : ""}`);
+const app = (part) => `/admin/settings/app${part ? `?part=${part}` : ""}${part ? `#${part}` : ""}`;
 
 function readActivity(b) {
   const spots = int(b.default_spots), block = int(b.default_block), limit = int(b.default_limit);
@@ -143,7 +143,6 @@ router.post("/app/change-email", wrap(async (req, res) => {
 
 router.get("/app", (req, res, next) => {
   if (req.query.part === "change") return res.redirect("/admin/requests#notify");
-  if (req.query.part === "admins") return res.redirect("/admin/settings/app?part=accounts#admins");   // Administrators are on Accounts & sign-in
   if (!req.query.part) return res.redirect("/admin/people" + (req.query.ok || req.query.err ? `?${new URLSearchParams({ ...(req.query.ok ? { ok: req.query.ok } : {}), ...(req.query.err ? { err: req.query.err } : {}) })}` : ""));
   next();
 });
@@ -156,10 +155,9 @@ router.get("/app", wrap(async (req, res) => {
       count(*) FILTER (WHERE kind='adult')::int AS adults FROM athletes WHERE archived_at IS NULL`)).rows[0];
   counts.requests = (await require("../db").query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
   const AH = require("../views/apphead"), hc = await AH.counts();
-  const TAB = { accounts: "accounts", places: "locations", admins: "admins", labels: "wording" };
-  const head = (part) => AH.appHeader({ c: hc, active: TAB[part] || "overview",
-    tools: part === "places" ? `<label class="dt-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" placeholder="Search places…" aria-label="Search places" oninput="var v=this.value.toLowerCase();document.querySelectorAll('table.places tbody tr').forEach(function(r){r.hidden=v&&r.textContent.toLowerCase().indexOf(v)<0;})"></label>`
-      : part === "accounts" ? `<a class="sb-btn" href="/admin/signins">Sign-in activity</a>` : "" });
+  const TAB = { accounts: "accounts", places: "locations", admins: "admins", labels: "wording" };   // admins = a sub-tab of Accounts
+  const head = (part) => AH.appHeader({ c: hc, active: TAB[part] || "overview" }) + ((t) => (t ? `<div class="page-toolbar">${t}</div>` : ""))(part === "places" ? `<label class="dt-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" placeholder="Search places…" aria-label="Search places" oninput="var v=this.value.toLowerCase();document.querySelectorAll('table.places tbody tr').forEach(function(r){r.hidden=v&&r.textContent.toLowerCase().indexOf(v)<0;})"></label>`
+      : "");
   res.send(v.appPage({ head, user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins(),
     places: require("../locations").all(), used, mapsKey: process.env.GOOGLE_MAPS_API_KEY || "", part: String(req.query.part || ""), counts }));
 }));

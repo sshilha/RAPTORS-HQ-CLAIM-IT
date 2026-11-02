@@ -29,7 +29,7 @@ router.get("/", wrap(async (req, res) => {
      WHERE m.schedule_id=$1 AND ($2 = '' OR coalesce(m.group_name,'') = $2 OR ($2 LIKE 'tag:%' AND substr($2, 5) = ANY(m.tags)))
      ORDER BY m.group_name NULLS LAST, a.last_name, a.first_name`, [sc.id, group === "none" ? "" : group])).rows;
   const others = (await query(
-    `SELECT a.id, a.first_name, a.last_name, a.self_user_id, a.kind, a.team, a.se_group, a.roles, a.email,
+    `SELECT a.id, a.first_name, a.last_name, a.self_user_id, a.kind, a.team, a.roles, a.email,
        ARRAY(SELECT l.name FROM people_list_members m JOIN people_lists l ON l.id=m.list_id WHERE m.athlete_id=a.id) AS lists FROM athletes a
      WHERE a.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM schedule_members m WHERE m.schedule_id=$1 AND m.athlete_id=a.id)
      ORDER BY lower(a.last_name), lower(a.first_name)`, [sc.id])).rows;
@@ -59,11 +59,11 @@ router.post("/", wrap(async (req, res) => {
   let a;
   if (email) {   // an adult with an email: one person per email (it may already be in People)
     a = (await require("../people").ensureAdult(email, { first, last })).person;
-    await query(`UPDATE athletes SET first_name=COALESCE(NULLIF(first_name,''),$2), last_name=COALESCE(NULLIF(last_name,''),$3), phone=COALESCE($4, phone), team=COALESCE($5, team), se_group=COALESCE($6, se_group), notes=COALESCE($7, notes) WHERE id=$1`,
-      [a.id, first, last, opt(b.phone, 30), opt(b.team, 40), opt(b.se_group, 60), opt(b.notes, 200)]);
+    await query(`UPDATE athletes SET first_name=COALESCE(NULLIF(first_name,''),$2), last_name=COALESCE(NULLIF(last_name,''),$3), phone=COALESCE($4, phone), team=COALESCE($5, team), notes=COALESCE($6, notes) WHERE id=$1`,
+      [a.id, first, last, opt(b.phone, 30), opt(b.team, 40), opt(b.notes, 200)]);
   } else {
-    a = (await query(`INSERT INTO athletes (kind, first_name, last_name, team, se_group, birth_year, jersey, phone, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [kind, first, last, opt(b.team, 40), opt(b.se_group, 60), int(b.birth_year) || null, opt(b.jersey, 4), kind === "adult" ? opt(b.phone, 30) : null, opt(b.notes, 200)])).rows[0];
+    a = (await query(`INSERT INTO athletes (kind, first_name, last_name, team, birth_year, jersey, phone, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [kind, first, last, opt(b.team, 40), int(b.birth_year) || null, opt(b.jersey, 4), kind === "adult" ? opt(b.phone, 30) : null, opt(b.notes, 200)])).rows[0];
   }
   if ((await query(`SELECT 1 FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, a.id])).rowCount) return go(res, home(sc), { ok: `${first} ${last} is already on ${sc.name}.` });
   await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name, tags) VALUES ($1,$2,$3,$4)`, [sc.id, a.id, group, tags]);
@@ -130,7 +130,8 @@ const mapFrom = (b, headers) => {
   return { first: pick("first"), last: pick("last"), name: pick("name"), group: pick("group"), tags: pick("tags"), cteam: pick("cteam"), se: pick("se"),
     emails: b.col_emails === undefined && !b.mapped ? g.emails : [].concat(b.col_emails || []).map(int).filter((x) => x >= 0) };
 };
-router.post("/import/preview", wrap(async (req, res) => {
+router.post("/import/preview", (req, res, next) => go(res, "/admin/people/import", { ok: "Imports happen in People now." }));
+router.post("/import/preview-old", wrap(async (req, res) => {
   const { sc } = req.sched;
   const rows = CSV.parse(req.body.data);
   if (rows.length < 2) return go(res, `/admin/members/import?s=${sc.id}`, { err: "That file has no rows under its headings. Make sure the first row is the column names." });
@@ -139,7 +140,8 @@ router.post("/import/preview", wrap(async (req, res) => {
   const p = await plan(sc, body, map);
   res.send(v.importPreview({ user: req.user, flash: flashFrom(req), sc, headers, map, data: req.body.data, ...p }));
 }));
-router.post("/import/commit", wrap(async (req, res) => {
+router.post("/import/commit", (req, res, next) => go(res, "/admin/people/import", { ok: "Imports happen in People now." }));
+router.post("/import/commit-old", wrap(async (req, res) => {
   const { sc } = req.sched;
   const rows = CSV.parse(req.body.data);
   const headers = rows[0] || [], map = mapFrom(req.body, headers);
@@ -154,8 +156,6 @@ router.post("/import/commit", wrap(async (req, res) => {
     if (p.status === "skip") { skipped++; continue; }
     let id = p.athleteId;
     if (!id) { id = (await query(`INSERT INTO athletes (first_name, last_name) VALUES ($1,$2) RETURNING id`, [p.first, p.last])).rows[0].id; added++; }
-    // the People directory: current team and SportsEngine group (only when the file has them)
-    if (p.cteam || p.se) await query(`UPDATE athletes SET team=COALESCE(NULLIF($2,''), team), se_group=COALESCE(NULLIF($3,''), se_group) WHERE id=$1`, [id, p.cteam, p.se]);
     const group = groups.find((g) => p.group && g.toLowerCase() === p.group.toLowerCase()) || null;
     const ptags = p.tagMatch.filter((t) => tags.includes(t));
     const ex = (await query(`SELECT tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, id])).rows[0];
@@ -177,10 +177,10 @@ router.post("/add", wrap(async (req, res) => {
   const groups = SC.groupsFor(sc), match = str(req.body.group) === "__team";
   const group = groups.includes(str(req.body.group)) ? str(req.body.group) : null;
   if (!ids.length) return go(res, home(sc, "#add"), { err: "Pick at least one person." });
-  const people = (await query(`SELECT id, team, se_group FROM athletes WHERE id = ANY($1)`, [ids])).rows;
+  const people = (await query(`SELECT id, team FROM athletes WHERE id = ANY($1)`, [ids])).rows;
   const byName = new Map(groups.map((g) => [g.toLowerCase(), g])); let matched = 0;
   for (const p of people) {
-    const g = match ? byName.get(String(p.team || "").toLowerCase()) || byName.get(String(p.se_group || "").toLowerCase()) || null : group;
+    const g = match ? byName.get(String(p.team || "").toLowerCase()) || null : group;
     if (match && g) matched++;
     await query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [sc.id, p.id, g]);
   }

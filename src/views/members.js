@@ -57,7 +57,6 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
             <div class="grid-form qa-grid">
               <div class="full qa-kind"><label class="radio-row"><input type="radio" name="kind" value="athlete" checked> ${esc(L.participant.one === "Volunteer" ? "Athlete" : L.participant.one)}</label><label class="radio-row"><input type="radio" name="kind" value="adult"> Adult (volunteer, coach, parent)</label></div>
               <div><label>Current team<input name="team" maxlength="40" placeholder="e.g. 12U Shilha"></label></div>
-              <div><label>SportsEngine group<input name="se_group" maxlength="60"></label></div>
               <div class="qa-ath"><label>Birth year<input name="birth_year" type="number" min="1940" max="2100"></label></div>
               <div class="qa-ath"><label>Jersey #<input name="jersey" maxlength="4"></label></div>
               <div class="full qa-ath"><label>Parent emails<input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label><span class="fine">They sign in with these to claim for this athlete.</span></div>
@@ -68,17 +67,17 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
           <div class="full ap-actions"><button class="btn-small" type="submit">Add to People and ${esc(sc.name)}</button></div>
         </form>
         <div class="ap-pane" data-ap="existing">
-          <p class="fine">Everyone in the app's <a href="/admin/people">People</a> directory who isn't on this board yet. Filter by their current team or SportsEngine group, check who to add, then pick their ${esc(L.group.one.toLowerCase())} here.</p>
+          <p class="fine">Everyone in the app's <a href="/admin/people">People</a> directory who isn't on this board yet. Filter by list or current team, check who to add, then pick their ${esc(L.group.one.toLowerCase())} here.</p>
           ${others.length ? (() => { const uniq = (k) => [...new Set(others.map((o) => o[k]).filter(Boolean))].sort();
             const sel = (k, label) => uniq(k).length ? `<select class="ap-f" data-f="${k}" aria-label="${label}"><option value="">${label}: any</option>${uniq(k).map((x) => `<option>${esc(x)}</option>`).join("")}</select>` : "";
             return `<div class="ap-filter"><input type="search" class="ap-search" placeholder="Type to find someone…" aria-label="Find someone">
               <select class="ap-f" data-f="kind" aria-label="Kind"><option value="">Everyone</option><option value="athlete">Athletes</option><option value="adult">Adults</option></select>
               ${(() => { const ls = [...new Set(others.flatMap((o) => o.lists || []))].sort(); return ls.length ? `<select class="ap-f" data-f="lists" aria-label="List"><option value="">List: any</option>${ls.map((x) => `<option>${esc(x)}</option>`).join("")}</select>` : ""; })()}
-              ${sel("team", "Current team")}${sel("se_group", "SportsEngine group")}
+              ${sel("team", "Current team")}
               <button type="button" class="link-dark ap-all">Check all shown</button></div>`; })() : ""}
           ${others.length ? `<form method="post" action="/admin/members/add?s=${sc.id}" class="stack ap-existing">
-          <div class="ap-list">${others.map((a) => `<label class="ap-person" data-kind="${a.kind}" data-team="${esc(a.team || "")}" data-se_group="${esc(a.se_group || "")}" data-lists="${esc((a.lists || []).join("|"))}"><input type="checkbox" name="athlete_id" value="${a.id}"> ${a.first_name || a.last_name ? `${esc(a.last_name)}, ${esc(a.first_name)}` : esc(a.email || "(no name)")}
-            <span class="fine">${[a.kind === "adult" ? ((a.roles || []).join(", ") || "adult") : "", a.team, a.se_group].filter(Boolean).map(esc).join(" · ")}</span></label>`).join("")}</div>
+          <div class="ap-list">${others.map((a) => `<label class="ap-person" data-kind="${a.kind}" data-team="${esc(a.team || "")}" data-lists="${esc((a.lists || []).join("|"))}"><input type="checkbox" name="athlete_id" value="${a.id}"> ${a.first_name || a.last_name ? `${esc(a.last_name)}, ${esc(a.first_name)}` : esc(a.email || "(no name)")}
+            <span class="fine">${[a.kind === "adult" ? ((a.roles || []).join(", ") || "adult") : "", a.team].filter(Boolean).map(esc).join(" · ")}</span></label>`).join("")}</div>
           <span class="fine ap-count">Check everyone to add.</span>
           <label>${esc(L.group.one)} on this board${groupSelect(sc, null).replace(/(<select[^>]*>)/, `$1<option value="__team" selected>Match their team (if it's a ${esc(L.group.one.toLowerCase())} here)</option>`)}</label>
           <div class="ap-actions"><button class="btn-small" type="submit">Add to ${esc(sc.name)}</button></div>
@@ -208,7 +207,7 @@ function importPreview({ user, flash, sc, headers, map, data, people, newGroups,
       <div class="imp-grid">
         ${col("first", "First name")}${col("last", "Last name")}${col("name", "Or one full-name column")}
         ${col("group", `${esc(L.group.one)} on this board`)}${col("tags", "Tags <span class=\"opt\">(comma-separated)</span>")}
-        ${col("cteam", "Current team <span class=\"opt\">(for People)</span>")}${col("se", "SportsEngine group <span class=\"opt\">(for People)</span>")}
+        ${col("cteam", "Current team <span class=\"opt\">(for People)</span>")}
         <fieldset class="field-l imp-emails"><span>Parent / contact emails <span class="opt">(check all that apply)</span></span>
           ${headers.map((h, i) => `<label class="radio-row"><input type="checkbox" name="col_emails" value="${i}"${map.emails.includes(i) ? " checked" : ""} onchange="this.form.submit()"> ${esc(h || `Column ${i + 1}`)}</label>`).join("")}
           <input type="hidden" name="col_emails" value="-1"></fieldset>

@@ -28,7 +28,7 @@ router.get("/", wrap(async (req, res) => {
   const show = ["waiting", "handled", "all"].includes(req.query.show) ? req.query.show : "waiting";
   const tools = `<form method="get" action="/admin/requests"><label>Show <select name="show" onchange="this.form.submit()">${[["waiting", "Waiting"], ["handled", "Handled"], ["all", "All"]].map(([k, l]) => `<option value="${k}"${show === k ? " selected" : ""}>${l}</option>`).join("")}</select></label></form>`;
   const shownRows = show === "all" ? rows : show === "handled" ? rows.filter((r) => r.status !== "waiting") : rows.filter((r) => r.status === "waiting");
-  res.send(require("../views/requests").requestsPage({ user: req.user, flash: flashFrom(req), rows: shownRows, show, head: await AH.head({ active: "requests", tools }) }));
+  res.send(require("../views/requests").requestsPage({ user: req.user, flash: flashFrom(req), rows: shownRows, show, tools, head: await AH.head({ active: "requests" }) }));
 }));
 
 router.post("/:id/approve", wrap(async (req, res) => {

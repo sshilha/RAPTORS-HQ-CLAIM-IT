@@ -14,8 +14,7 @@ function fields(p, kind) {
   const common = `
     <div><label>First name<input name="first_name" required maxlength="40" value="${v("first_name")}"></label></div>
     <div><label>Last name<input name="last_name" required maxlength="40" value="${v("last_name")}"></label></div>
-    <div><label><span>Current team <span class="opt">(optional)</span></span><input name="team" maxlength="40" value="${v("team")}" placeholder="e.g. 12U Shilha" list="dir-teams"></label></div>
-    <div><label><span>SportsEngine group <span class="opt">(optional)</span></span><input name="se_group" maxlength="60" value="${v("se_group")}" placeholder="e.g. 2026 Travel Program" list="dir-groups"></label></div>`;
+    <div><label><span>Current team <span class="opt">(optional)</span></span><input name="team" maxlength="40" value="${v("team")}" placeholder="e.g. 12U Shilha" list="dir-teams"></label></div>`;
   const athlete = `
     <div><label><span>Birth year <span class="opt">(optional)</span></span><input type="number" name="birth_year" min="1950" max="2100" value="${v("birth_year")}" placeholder="e.g. 2014"></label></div>
     <div><label><span>Jersey # <span class="opt">(optional)</span></span><input name="jersey" maxlength="6" value="${v("jersey")}" placeholder="e.g. 12"></label></div>`;
@@ -39,13 +38,7 @@ function acctStatus(p) {
 function directoryPage({ user, flash, people, total, f, teams, groups, lists = [], head = null, waiting = 0 }) {
   const cur = lists.find((l) => l.id === f.list);
   const qs = (extra) => `/admin/people?${new URLSearchParams(Object.fromEntries(Object.entries({ ...f, ...extra }).filter(([, x]) => x)))}`;
-  const listBar = `<div class="list-bar" id="lists"><span class="field-lbl">Lists</span>
-    <a class="lchip${f.list ? "" : " on"}" href="${qs({ list: "" })}">Everyone <span>${total}</span></a>
-    ${lists.map((l) => `<a class="lchip${f.list === l.id ? " on" : ""}" href="${qs({ list: l.id })}">${esc(l.name)} <span>${l.n}</span></a>`).join("")}
-    <details class="new-list"><summary class="lchip add">＋ New list</summary>
-      <form method="post" action="/admin/people/lists" class="inline-add"><input name="name" required maxlength="60" placeholder="e.g. 2026 Season Athletes" aria-label="List name"><button class="btn-small" type="submit">Make list</button></form></details>
-  </div>
-  ${cur ? `<div class="list-head"><b>${esc(cur.name)}</b> <span class="fine">${cur.n} ${cur.n === 1 ? "person" : "people"}</span>
+  const listBar = `  ${cur ? `<div class="list-head"><b>${esc(cur.name)}</b> <span class="fine">${cur.n} ${cur.n === 1 ? "person" : "people"}</span>
     <details class="list-manage"><summary class="link-dark">Rename or delete</summary><div class="lm-box">
       <form method="post" action="/admin/people/lists/${cur.id}" class="inline-add"><input name="name" value="${esc(cur.name)}" maxlength="60" required aria-label="List name"><button class="btn-ghost" type="submit">Rename</button></form>
       <form method="post" action="/admin/people/lists/${cur.id}/delete" onsubmit="return confirm('Delete the list ${esc(cur.name.replace(/'/g, ""))}? The people on it stay in People.')"><button class="link-dark danger-link" type="submit">Delete this list</button></form>
@@ -60,20 +53,25 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
   const opt = (list, cur) => list.map((x) => `<option value="${esc(x)}"${cur === x ? " selected" : ""}>${esc(x)}</option>`).join("");
   const dl = `<datalist id="dir-teams">${opt(teams)}</datalist><datalist id="dir-groups">${opt(groups)}</datalist>`;
   // the filters live in the header's gray bar
-  const filterForm = `<form method="get" action="/admin/people" class="dir-filters-bar"><input type="hidden" name="list" value="${f.list || ""}">
+  const filterForm = `<form method="get" action="/admin/people" class="dir-filters-bar">
+        <select name="list" aria-label="List" onchange="this.form.submit()"><option value="">All people (${total})</option>${lists.map((l) => `<option value="${l.id}"${f.list === l.id ? " selected" : ""}>${esc(l.name)} (${l.n})</option>`).join("")}</select>
         <input type="search" name="q" value="${esc(f.q)}" placeholder="Search name, email, phone…" aria-label="Search">
         <select name="kind" aria-label="Kind" onchange="this.form.submit()"><option value="">Everyone</option><option value="athlete"${f.kind === "athlete" ? " selected" : ""}>Athletes</option><option value="adult"${f.kind === "adult" ? " selected" : ""}>Adults</option></select>
         <select name="role" aria-label="Role" onchange="this.form.submit()"><option value="">Any role</option>${Object.entries(ROLE).map(([k, l]) => `<option value="${k}"${f.role === k ? " selected" : ""}>${l}</option>`).join("")}</select>
         ${teams.length ? `<select name="team" aria-label="Current team" onchange="this.form.submit()"><option value="">Any team</option>${opt(teams, f.team)}</select>` : ""}
-        ${groups.length ? `<select name="se" aria-label="SportsEngine group" onchange="this.form.submit()"><option value="">Any SE group</option>${opt(groups, f.se)}</select>` : ""}
-        ${f.q || f.kind || f.role || f.team || f.se ? `<a class="link-dark" href="/admin/people${f.list ? `?list=${encodeURIComponent(f.list)}` : ""}">Clear</a>` : ""}</form>`;
+        ${f.q || f.kind || f.role || f.team || f.list ? `<a class="link-dark" href="/admin/people">Clear</a>` : ""}</form>`;
   return page({ title: "People", tab: "people", user, flash, xwide: true,
-    body: `${head ? head({ active: "people", tools: filterForm, actions: `<button type="button" class="sb-btn primary" onclick="var d=document.querySelector('.add-wrap'); d.open=!d.open; if (d.open) d.scrollIntoView({block:'start'})">+ Add person</button><a class="sb-btn" href="/admin/people/import">⇪ Import</a>` }) : ""}
+    body: `${head ? head({ active: "people" }) : ""}
     ${dl}
     ${waiting ? `<div class="req-note"><b>${waiting} request${waiting === 1 ? "" : "s"} waiting</b> <span>New accounts, family members to add, or changes people asked for.</span><a class="sb-btn primary" href="/admin/requests">Review</a></div>` : ""}
     <section class="panel">
-      ${WHERE_NOTE}
-      <p class="fine">Only admins can change these details; people can send a change request from My Account.</p>
+      <div class="pp-toolbar">
+        <div class="pp-acts"><button type="button" class="sb-btn primary" onclick="var d=document.querySelector('.add-wrap'); d.open=!d.open; if (d.open) d.querySelector('input:not([type=hidden])').focus()">+ Add person</button>
+          <a class="sb-btn" href="/admin/people/import">⇪ Import</a>
+          <details class="new-list"><summary class="sb-btn">+ New list</summary>
+            <form method="post" action="/admin/people/lists" class="inline-add nl-pop"><input name="name" required maxlength="60" placeholder="e.g. 2026 Season Athletes" aria-label="List name"><button class="btn-small" type="submit">Make list</button></form></details></div>
+        <div class="pp-filters">${filterForm}</div>
+      </div>
       <div class="head-btns"><details class="add-wrap"${total ? "" : " open"}><summary class="btn-small add-sum">＋ Add a person</summary>
       <div class="add-people" id="add">
         <div class="ap-tabs" role="tablist">
@@ -90,9 +88,9 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
       ${listBar}
       ${cur ? "" : `<h3 class="ilist-head">${people.length === total ? "Everyone" : "Matching"} <span class="fine-inline">(${people.length})</span></h3>`}
       ${people.length ? bulk : ""}
-      ${people.length ? `<div class="table-wrap"><table class="dir-table"><thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Name</th><th>Kind</th><th>Current team</th><th>SportsEngine group</th><th>Contact</th><th>Family</th><th>Boards</th><th>Account</th></tr></thead><tbody>
+      ${people.length ? `<div class="table-wrap"><table class="dir-table"><thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Name</th><th>Kind</th><th>Current team</th><th>Contact</th><th>Family</th><th>Boards</th><th>Account</th></tr></thead><tbody>
         ${people.map((p) => `<tr><td><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td><td><a href="/admin/people/${p.id}"><b>${esc(PP.display(p))}</b></a>${(p.list_ids || []).length ? `<div class="mini-lists">${lists.filter((l) => p.list_ids.includes(l.id)).map((l) => `<span>${esc(l.name)}</span>`).join("")}</div>` : ""}${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}</td>
-          <td>${kindTag(p)}</td><td>${esc(p.team || "")}</td><td>${esc(p.se_group || "")}</td>
+          <td>${kindTag(p)}</td><td>${esc(p.team || "")}</td>
           <td><span class="fine">${[p.email, p.phone].filter(Boolean).map(esc).join("<br>")}</span></td>
           <td><span class="fine">${p.kind === "athlete" ? (p.parents.length ? `Parents: ${esc(p.parents.join(", "))}` : "") : (p.kids.length ? `Kids: ${esc(p.kids.join(", "))}` : "")}</span></td>
           <td>${chips(p.boards)}${p.coaching.length ? chips(p.coaching.map((c) => `Coach: ${c}`), "chip-s coach") : ""}</td>
@@ -205,9 +203,9 @@ function importPage({ user, flash, head = null }) {
       <form method="post" action="/admin/people/import/preview" class="stack" id="imp-form">
         <label class="field-l">Choose a CSV file<input type="file" accept=".csv,text/csv,.txt" id="imp-file"></label>
         <label class="field-l"><span>…or paste the rows here</span><textarea name="data" id="imp-data" rows="10" required
-          placeholder="First Name,Last Name,Team,SportsEngine Group,Parent 1 Email,Parent 2 Email&#10;Ava,Smith,12U Shilha,2026 Travel,jane@example.com,tom@example.com"></textarea></label>
+          placeholder="First Name,Last Name,Team,Program,Parent 1 Email,Parent 2 Email&#10;Ava,Smith,12U Shilha,2026 Travel,jane@example.com,tom@example.com"></textarea></label>
         <div class="q-actions"><button class="btn-small" type="submit">Preview</button></div></form>
-      <p class="ex">e.g. columns we recognize: First Name, Last Name (or one Name column), Team / Current Team, SportsEngine Group / Program, and any column with "email" in it (several parents are fine).</p>
+      <p class="ex">e.g. columns we recognize: First Name, Last Name (or one Name column), Team / Current Team, a Program or SportsEngine Group / Program, and any column with "email" in it (several parents are fine).</p>
     </section>
     <script>document.getElementById("imp-file").addEventListener("change", function () { var f = this.files && this.files[0]; if (!f) return;
       var r = new FileReader(); r.onload = function () { document.getElementById("imp-data").value = r.result; }; r.readAsText(f); });</script>` });
@@ -223,7 +221,7 @@ function importPreview({ user, flash, headers, map, data, people, lists = [], he
     <form method="post" action="/admin/people/import/preview" class="panel imp-map">${hidden}
       <h2>Step 2: Match the columns</h2><p class="fine">Guessed from your column names. Change any that are wrong, and the preview updates.</p>
       <div class="imp-grid">${col("first", "First name")}${col("last", "Last name")}${col("name", "Or one full-name column")}
-        ${col("cteam", "Current team")}${col("se", "SportsEngine group")}
+        ${col("cteam", "Current team")}${col("se", "Make lists from this column <span class=\"opt\">(optional: one list per value, e.g. a SportsEngine program)</span>")}
         <fieldset class="field-l imp-emails"><span>Parent / contact emails <span class="opt">(check all that apply)</span></span>
           ${headers.map((h, i) => `<label class="radio-row"><input type="checkbox" name="col_emails" value="${i}"${map.emails.includes(i) ? " checked" : ""} onchange="this.form.submit()"> ${esc(h || `Column ${i + 1}`)}</label>`).join("")}
           <input type="hidden" name="col_emails" value="-1"></fieldset></div></form>
@@ -231,9 +229,9 @@ function importPreview({ user, flash, headers, map, data, people, lists = [], he
       ${["first", "last", "name", "cteam", "se"].map((k) => `<input type="hidden" name="col_${k}" value="${map[k]}">`).join("")}${map.emails.map((i) => `<input type="hidden" name="col_emails" value="${i}">`).join("")}
       <h2>Step 3: Check and import</h2>
       <p class="imp-sum"><b>${people.length}</b> rows · <b>${count("new")}</b> new · <b>${count("existing")}</b> already in People (updated, not duplicated) · <b>${count("skip")}</b> skipped</p>
-      <div class="table-wrap"><table class="imp-table"><thead><tr><th></th><th>Name</th><th>Current team</th><th>SportsEngine group</th><th>Parent emails</th></tr></thead><tbody>
+      <div class="table-wrap"><table class="imp-table"><thead><tr><th></th><th>Name</th><th>Current team</th>${map.se >= 0 ? "<th>List</th>" : ""}<th>Parent emails</th></tr></thead><tbody>
         ${people.map((p) => `<tr class="st-${p.status}"><td><span class="pill ${{ new: "ok", existing: "info", skip: "warn" }[p.status]}">${{ new: "New", existing: "Already in People", skip: "Skipped: no name" }[p.status]}</span></td>
-          <td>${esc(`${p.first} ${p.last}`.trim()) || "<span class='fine'>(blank)</span>"}</td><td>${esc(p.cteam || "") || "—"}</td><td>${esc(p.se || "") || "—"}</td>
+          <td>${esc(`${p.first} ${p.last}`.trim()) || "<span class='fine'>(blank)</span>"}</td><td>${esc(p.cteam || "") || "—"}</td>${map.se >= 0 ? `<td>${esc(p.se || "") || "—"}</td>` : ""}
           <td class="fine">${esc(p.emails.join(", ")) || "—"}</td></tr>`).join("")}</tbody></table></div>
       <div class="imp-list"><label class="field-l"><span>Put everyone in this file on a list <span class="opt">(optional)</span></span>
         <select name="to_list" onchange="this.form.new_list.hidden = this.value !== 'new'"><option value="">No list</option>${lists.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}<option value="new">＋ New list…</option></select></label>

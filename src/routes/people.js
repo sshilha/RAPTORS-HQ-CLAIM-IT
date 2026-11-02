@@ -28,17 +28,17 @@ async function directory() {
 
 router.get("/", wrap(async (req, res) => {
   const all = await directory();
-  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), se: str(req.query.se), list: int(req.query.list) || 0 };
+  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), list: int(req.query.list) || 0 };
   const shown = all.filter((p) => (!f.q || `${p.first_name} ${p.last_name} ${p.email || ""} ${p.phone || ""}`.toLowerCase().includes(f.q))
     && (!f.list || (p.list_ids || []).includes(f.list))
-    && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.se || p.se_group === f.se));
-  const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [...new Set(all.map((p) => p.se_group).filter(Boolean))].sort();
+    && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team));
+  const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [];
   const waiting = (await query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
   res.send(v.directoryPage({ waiting, head: await AHead(), user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
 }));
 
 function readPerson(b, kind) {
-  const out = { first_name: clean(b.first_name, 40), last_name: clean(b.last_name, 40), team: clean(b.team, 40) || null, se_group: clean(b.se_group, 60) || null,
+  const out = { first_name: clean(b.first_name, 40), last_name: clean(b.last_name, 40), team: clean(b.team, 40) || null,
     notes: String(b.notes || "").trim().slice(0, 1000) || null };
   if (kind === "athlete") Object.assign(out, { birth_year: int(b.birth_year) || null, jersey: clean(b.jersey, 6) || null });
   else Object.assign(out, { email: auth.normalizeEmail(b.email) || null, phone: clean(b.phone, 30) || null, organization: clean(b.organization, 80) || null,
@@ -55,12 +55,12 @@ router.post("/", wrap(async (req, res) => {
     if (!auth.isValidEmail(p.email)) return go(res, "/admin/people#add", { err: "That email doesn't look right." });
     const { person } = await PP.ensureAdult(p.email, { first: p.first_name, last: p.last_name });
     id = person.id;
-    await query(`UPDATE athletes SET first_name=$2, last_name=$3, phone=$4, organization=$5, roles=$6, team=$7, se_group=$8, notes=$9 WHERE id=$1`,
-      [id, p.first_name, p.last_name, p.phone, p.organization, p.roles, p.team, p.se_group, p.notes]);
+    await query(`UPDATE athletes SET first_name=$2, last_name=$3, phone=$4, organization=$5, roles=$6, team=$7, notes=$8 WHERE id=$1`,
+      [id, p.first_name, p.last_name, p.phone, p.organization, p.roles, p.team, p.notes]);
   } else {
-    id = (await query(`INSERT INTO athletes (kind, first_name, last_name, team, se_group, notes, birth_year, jersey, email, phone, organization, roles)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [kind, p.first_name, p.last_name, p.team, p.se_group, p.notes, p.birth_year || null, p.jersey || null, p.email || null, p.phone || null, p.organization || null, p.roles || []])).rows[0].id;
+    id = (await query(`INSERT INTO athletes (kind, first_name, last_name, team, notes, birth_year, jersey, email, phone, organization, roles)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [kind, p.first_name, p.last_name, p.team, p.notes, p.birth_year || null, p.jersey || null, p.email || null, p.phone || null, p.organization || null, p.roles || []])).rows[0].id;
   }
   // a new athlete's parents, by email
   if (kind === "athlete") for (const e of String(req.body.parent_emails || "").split(/[\s,;]+/).map(auth.normalizeEmail).filter(auth.isValidEmail)) await PP.linkParent(id, e);
@@ -156,18 +156,19 @@ router.post("/import/commit", wrap(async (req, res) => {
   const rows = CSV.parse(req.body.data);
   const map = H().mapFrom(req.body, rows[0] || []);
   const people = await dirPlan(rows.slice(1), map);
-  let added = 0, updated = 0, skipped = 0, emails = 0;
+  let added = 0, updated = 0, skipped = 0, emails = 0; const madeLists = new Set();
   for (const p of people) {
     if (p.status === "skip") { skipped++; continue; }
     let id = p.athleteId;
-    if (!id) { id = (await query(`INSERT INTO athletes (first_name, last_name, team, se_group) VALUES ($1,$2,$3,$4) RETURNING id`, [p.first, p.last, p.cteam || null, p.se || null])).rows[0].id; added++; }
-    else { await query(`UPDATE athletes SET team=COALESCE(NULLIF($2,''), team), se_group=COALESCE(NULLIF($3,''), se_group) WHERE id=$1`, [id, p.cteam, p.se]); updated++; }
+    if (!id) { id = (await query(`INSERT INTO athletes (first_name, last_name, team) VALUES ($1,$2,$3) RETURNING id`, [p.first, p.last, p.cteam || null])).rows[0].id; added++; }
+    else { await query(`UPDATE athletes SET team=COALESCE(NULLIF($2,''), team) WHERE id=$1`, [id, p.cteam]); updated++; }
+    if (p.se) { const l = await PP.listNamed(p.se); if (l) { await PP.addToList(l.id, [id]); madeLists.add(l.name); } }   // "Make lists from this column"
     for (const e of p.emails) { await PP.linkParent(id, e); emails++; }
     p.savedId = id;
   }
   const list = req.body.to_list === "new" ? await PP.listNamed(req.body.new_list) : int(req.body.to_list) ? (await query(`SELECT * FROM people_lists WHERE id=$1`, [int(req.body.to_list)])).rows[0] : null;
   if (list) await PP.addToList(list.id, people.filter((p) => p.savedId).map((p) => p.savedId));
-  go(res, list ? `/admin/people?list=${list.id}` : "/admin/people", { ok: [`Imported ${added + updated} people into People${list ? `, on the list ${list.name}` : ""}`, added ? `${added} new` : "", updated ? `${updated} already here, updated` : "",
+  go(res, list ? `/admin/people?list=${list.id}` : "/admin/people", { ok: [`Imported ${added + updated} people into People${list ? `, on the list ${list.name}` : ""}`, madeLists.size ? `sorted into ${madeLists.size} list${madeLists.size === 1 ? "" : "s"} (${[...madeLists].slice(0, 5).join(", ")}${madeLists.size > 5 ? ", …" : ""})` : "", added ? `${added} new` : "", updated ? `${updated} already here, updated` : "",
     skipped ? `${skipped} rows skipped (no name)` : "", emails ? `${emails} parent emails linked` : ""].filter(Boolean).join(" · ") + ". They're not on any board yet: add them from a board's From People." });
 }));
 
@@ -203,11 +204,11 @@ router.post("/:id", wrap(async (req, res) => {
     if (p.email && !auth.isValidEmail(p.email)) return go(res, `/admin/people/${id}`, { err: "That email doesn't look right." });
     let uid = cur.self_user_id;
     if (p.email && p.email !== (cur.email || "")) uid = (await auth.findOrCreateUser(p.email)).id;
-    await query(`UPDATE athletes SET first_name=$2, last_name=$3, email=$4, phone=$5, organization=$6, roles=$7, team=$8, se_group=$9, notes=$10, self_user_id=$11 WHERE id=$1`,
-      [id, p.first_name, p.last_name, p.email, p.phone, p.organization, p.roles, p.team, p.se_group, p.notes, uid]);
+    await query(`UPDATE athletes SET first_name=$2, last_name=$3, email=$4, phone=$5, organization=$6, roles=$7, team=$8, notes=$9, self_user_id=$10 WHERE id=$1`,
+      [id, p.first_name, p.last_name, p.email, p.phone, p.organization, p.roles, p.team, p.notes, uid]);
   } else {
-    await query(`UPDATE athletes SET first_name=$2, last_name=$3, team=$4, se_group=$5, notes=$6, birth_year=$7, jersey=$8 WHERE id=$1`,
-      [id, p.first_name, p.last_name, p.team, p.se_group, p.notes, p.birth_year, p.jersey]);
+    await query(`UPDATE athletes SET first_name=$2, last_name=$3, team=$4, notes=$5, birth_year=$6, jersey=$7 WHERE id=$1`,
+      [id, p.first_name, p.last_name, p.team, p.notes, p.birth_year, p.jersey]);
   }
   go(res, `/admin/people/${id}`, { ok: "Saved." });
 }));

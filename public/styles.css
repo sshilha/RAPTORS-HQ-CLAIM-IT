@@ -2774,3 +2774,18 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .req-note { display: flex; align-items: center; gap: 12px; background: #FFF5F5; border: 1px solid #f5c2c2; border-left: 4px solid #d64545; border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; font-size: 14px; }
 .req-note span { color: #5B6B82; flex: 1; } .req-note .sb-btn { margin-left: auto; }
 .sec-h { margin: 18px 0 8px; font: 800 18px Inter, sans-serif; color: #0B1930; text-transform: none; }
+.head-btns:has(> .add-wrap:not([open])) { display: none; }
+/* page toolbars under the App Settings header (that page's own buttons and filters) */
+.pp-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: -4px 0 12px; padding-bottom: 12px; border-bottom: 1px solid #EEF1F5; }
+.pp-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .pp-acts .new-list { position: relative; }
+.pp-acts .new-list > summary { list-style: none; } .pp-acts .new-list > summary::-webkit-details-marker { display: none; }
+.nl-pop { position: absolute; left: 0; top: 110%; z-index: 20; background: #fff; border: 1px solid #E3E8F0; border-radius: 10px; box-shadow: 0 10px 24px rgba(11,25,48,.15); padding: 8px; width: 340px; }
+.pp-filters .dir-filters-bar { justify-content: flex-end; } .pp-filters select, .pp-filters input[type=search] { padding: 6px 10px; border-radius: 8px; font: 500 13px Inter, sans-serif; width: auto; }
+.pp-filters input[type=search] { min-width: 210px; }
+.page-toolbar { display: flex; justify-content: flex-end; gap: 10px; margin: 0 0 12px; }
+.sub-tools { margin-left: auto; } .sub-tools form { display: flex; align-items: center; gap: 8px; margin: 0; } .sub-tools select, .sub-tools input[type=search] { padding: 6px 10px; border-radius: 8px; font: 500 13px Inter, sans-serif; width: auto; }
+.sub-tools label { display: inline-flex; align-items: center; gap: 6px; font: 600 13px Inter, sans-serif; text-transform: none; }
+/* second row of tabs, for areas with more than one page */
+.sub-tabs { display: flex; gap: 6px; margin: -6px 0 14px; padding: 0 4px; }
+.sub-tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; border: 1px solid #c9d1de; background: #fff; color: #0B1930; font: 600 13px Inter, sans-serif; text-decoration: none; }
+.sub-tabs a:hover { border-color: #0B1930; } .sub-tabs a[aria-current] { background: #0B1930; border-color: #0B1930; color: #fff; }

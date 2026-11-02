@@ -12,7 +12,12 @@ const IC = {
 };
 const TABS = [["people", "/admin/people", IC.people, "People"], ["accounts", "/admin/settings/app?part=accounts", IC.key, "Accounts &amp; sign-in"],
   ["locations", "/admin/settings/app?part=places", IC.pin, "Locations"], ["wording", "/admin/settings/app?part=labels", IC.type, "Wording"]];
-const ALIAS = { requests: "people", admins: "accounts", overview: "people" };   // Requests sit under People; Administrators under Accounts
+const ALIAS = { requests: "people", admins: "accounts", signins: "accounts", overview: "people" };   // sub-pages light their area
+// areas with more than one page get a second row of tabs
+const SUBS = {
+  people: [["people", "/admin/people", "People"], ["requests", "/admin/requests", "Requests"]],
+  accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["signins", "/admin/signins", "Sign-in activity"]],
+};
 
 // live counts for the gray line (people, requests waiting, admins)
 async function counts() {
@@ -24,14 +29,16 @@ async function counts() {
   return r;
 }
 function appHeader({ active = "people", c = {}, title = "App Settings", meta = "", actions = "", tools = "" } = {}) {
-  active = ALIAS[active] || active;
+  const sub = active; active = ALIAS[active] || active;
+  const subs = SUBS[active] || [];
   const line = meta || `${c.people || 0} ${c.people === 1 ? "person" : "people"} · ${c.waiting || 0} request${c.waiting === 1 ? "" : "s"} waiting · ${c.admins || 0} admin${c.admins === 1 ? "" : "s"}`;
   return `<section class="bh2">
       <div class="bh2-l"><span class="bh2-tile dash-tile">${IC.gear}</span>
         <div><div class="bh2-t"><h1>${esc(title)}</h1></div><span class="bh2-meta">${line}</span></div></div>
       ${actions ? `<div class="bh2-acts">${actions}</div>` : ""}</section>
     <nav class="bh2-tabs dash-tabs app-tabs">${TABS.map(([k, href, ic, label]) => `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${ic}${label}${k === "people" && c.waiting ? ` <i class="app-badge" title="${c.waiting} request${c.waiting === 1 ? "" : "s"} waiting">${c.waiting}</i>` : ""}</a>`).join("")}
-      ${tools ? `<span class="dash-tools app-tools">${tools}</span>` : ""}</nav>`;
+      ${tools ? `<span class="dash-tools app-tools">${tools}</span>` : ""}</nav>
+    ${subs.length ? `<nav class="sub-tabs" aria-label="In ${TABS.find((t) => t[0] === active)[3]}">${subs.map(([k, href, label]) => `<a href="${href}"${k === sub ? ' aria-current="page"' : ""}>${label}${k === "requests" && c.waiting ? ` <i class="app-badge">${c.waiting}</i>` : ""}</a>`).join("")}</nav>` : ""}`;
 }
 // for routes: the header with fresh counts
 async function head(opts = {}) { return appHeader({ ...opts, c: await counts() }); }

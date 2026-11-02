@@ -45,7 +45,7 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
     </div><div class="a-col">
       ${card("family", "My family", "People linked to your account. To add someone or fix their details, send a request below.", `
         ${kids.length ? `<ul class="a-list">${kids.map((k) => `<li><b>${esc(k.first_name)} ${esc(k.last_name)}</b>
-            <span>${[k.team, k.se_group].filter(Boolean).map(esc).join(" · ") || "&nbsp;"}</span>
+            <span>${[k.team].filter(Boolean).map(esc).join(" · ") || "&nbsp;"}</span>
             ${k.boards.length ? `<span class="fine">On: ${esc(k.boards.join(", "))}</span>` : ""}
             ${k.other_parents.length ? `<span class="fine">Also linked: ${esc(k.other_parents.join(", "))}</span>` : ""}</li>`).join("")}</ul>`
           : `<p class="muted">No one is linked to your account yet.</p>`}`, true)}
