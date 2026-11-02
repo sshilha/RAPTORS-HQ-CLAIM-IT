@@ -2710,3 +2710,13 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .dm { padding: 6px 12px 6px 10px; } .dm b { font-size: 20px; } .dm-ic svg { width: 24px; height: 24px; }
 .bc-next .muted { font-size: 12px; }
 .dash-tabs { margin-bottom: 14px; }
+.bh2-tabbtn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: 8px; color: #0B1930; font: 600 14px Inter, sans-serif; background: none; border: 0; cursor: pointer; }
+.bh2-tabbtn svg { width: 16px; height: 16px; } .bh2-tabbtn:hover { background: #fff; }
+/* Board details as a tab panel under the header */
+.bd-panel { background: #fff; border: 1px solid #E3E8F0; border-radius: 14px; box-shadow: 0 1px 3px rgba(11,25,48,.06); max-width: 860px; }
+.bd-panel[hidden], .sp3[hidden] { display: none; }
+.bd-panel .dlg-head { padding: 14px 20px 6px; border-bottom: 0; display: block; } .bd-panel .dlg-head h2 { margin: 0; font: 800 20px Inter, sans-serif; color: #0B1930; }
+.bd-panel .bd-sub { margin: 2px 0 0; }
+.bd-panel .dlg-body, .bd-panel .dlg-form { max-height: none !important; overflow: visible !important; }
+.bd-panel .dlg-body { padding: 8px 20px 4px; }
+.bd-panel .dlg-actions { position: static !important; padding: 12px 20px 16px; border-top: 1px solid #EEF1F5; justify-content: flex-start; flex-direction: row-reverse; }

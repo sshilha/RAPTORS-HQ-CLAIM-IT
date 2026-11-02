@@ -19,15 +19,14 @@ function needHelp(sc, L) {
   return `<p class="fine page-help"><b>Not in use on this board.</b> It's open to ${SCm.claimMode(sc) === "public" ? "anyone with the link" : "anyone signed in"}, so people just claim spots. <a href="/admin/setup/schedule?s=${sc.id}">Back to settings</a></p>`;
 }
 
-function membersPage({ user, flash, sc, members, others, group, total, teams = "" }) {
+function membersPage({ user, flash, sc, members, others, group, total, teams = "", head = "" }) {
   const L = SC.labels(sc);
   const groups = SC.groupsFor(sc);
   const tags = sc.tags || [];
   const back = `/admin/members?s=${sc.id}${group ? `&g=${encodeURIComponent(group)}` : ""}`;
   return page({
     title: `${sc.name} ${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, tab: "members", user, flash,
-    body: `<div class="page-top"><h1 class="page-title">${esc(sc.name)} <span class="h-sub">${esc(L.group.many)}, tags &amp; ${esc(L.participant.many.toLowerCase())}</span></h1>
-      <a class="btn-ghost" href="/admin/setup?s=${sc.id}">← Back to ${esc(sc.name)}</a></div>
+    body: `${head}
     ${teams}
     <section class="panel" id="people">
       <div class="athlete-head"><div><h2>${esc(L.participant.many)}</h2>

@@ -123,6 +123,40 @@ function inlineSettings(sc, t, locked) {
         <div class="st-inline-acts"><button type="button" class="btn-ghost st-cancel">Cancel</button><button class="btn-small" type="submit">Save</button></div></form>` : ""}</div>`; }).join("")}</dl>`;
 }
 
+// the board header (name, status, counts, Preview, Publish) and its four tabs, on every tab's page
+function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }, active = "setup" } = {}) {
+  const L = SC.labels(sc), depth = SC.depthOf(sc), keys = SC.levelKeys(sc);
+  const word = (i) => L[keys[i]];
+  const published = !!sc.published_at, locked = !!sc.archived_at;
+  const pct = totals.spots ? Math.round((totals.claimed / totals.spots) * 100) : 0;
+  const tree = { length: tops };
+  // on the Setup page, Board setup / Board details switch in place (data-btab); elsewhere they're plain links
+  const inPlace = active === "setup" || active === "details";
+  const tab = (k, href, ic, label) => `<a href="${href}"${k === active ? ' aria-current="page"' : ""}${inPlace && (k === "setup" || k === "details") ? ` data-btab="${k}"` : ""}>${ic}${label}</a>`;
+  const shareUrl = sc.share_code ? `${process.env.APP_URL || ""}/s/${sc.share_code}` : "";
+  return `<section class="bh2">
+    <div class="bh2-l">${sc.image ? `<span class="d-thumb photo bh2-tile"><img src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code bh2-tile"><b>${esc(require("./setup").codeOf(sc))}</b></span>`}
+      <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
+        <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
+    <div class="bh2-acts">
+      <a class="sb-btn" href="/b/${sc.id}?preview=1" target="_blank" rel="noopener" title="See the board as a family would, even before it's published">${IC.eye}Preview</a>
+      ${published && SC.claimMode(sc) === "public" && shareUrl ? `<details class="share-pop"><summary class="sb-btn">Share</summary><div class="share-panel">
+          <p class="fine">Anyone with this link can sign up, no account needed.</p>
+          <div class="share-row"><input readonly value="${esc(shareUrl)}" class="share-url" onclick="this.select()"><button type="button" class="btn-small" onclick="var i=this.previousElementSibling; i.select(); navigator.clipboard && navigator.clipboard.writeText(i.value); this.textContent='Copied'">Copy</button></div>
+          <div class="share-qr"><img src="/admin/b/${sc.id}/qr.svg" alt="QR code" width="140" height="140"><span><a class="btn-ghost" href="/admin/b/${sc.id}/qr.svg?download=1">Download QR code</a></span></div></div></details>` : ""}
+      ${locked ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
+        <button class="sb-btn ${published ? "" : "primary"}" type="submit">${published ? "Unpublish" : "Publish"}</button></form>`}</div>
+  </section>
+  <nav class="bh2-tabs">${tab("setup", `/admin/setup?s=${sc.id}`, IC.gear, "Board setup")}${locked ? "" : tab("details", `/admin/setup?s=${sc.id}&tab=details`, IC.board, "Board details")}${tab("access", `/admin/members?s=${sc.id}`, IC.people, "Access &amp; people")}${tab("defaults", `/admin/setup/schedule?s=${sc.id}`, IC.edit, "Board defaults")}</nav>`;
+}
+// what the header needs, for pages other than Setup
+async function headerData(sc) {
+  const { query } = require("../db");
+  const totals = await require("../engine").boardTotals(sc.id);
+  const tops = (await query(`SELECT count(*)::int AS n FROM board_nodes WHERE schedule_id=$1 AND parent_id IS NULL`, [sc.id])).rows[0].n;
+  return { tops, totals };
+}
+
 // ---------- the whole page ----------
 function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
   const L = SC.labels(sc), depth = SC.depthOf(sc), keys = SC.levelKeys(sc);
@@ -147,22 +181,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
             <button type="button" class="danger" data-delete="${t.node.id}" data-name="${esc(t.node.name)}">${IC.trash}Delete</button></span></span>`}</div>
       ${t.kids.length ? `<ul>${t.kids.map((k) => node(k, lvl + 1)).join("")}</ul>` : ""}</li>`;
   };
-  const shareUrl = sc.share_code ? `${process.env.APP_URL || ""}/s/${sc.share_code}` : "";
-  const header = `<section class="bh2">
-    <div class="bh2-l">${sc.image ? `<span class="d-thumb photo bh2-tile"><img src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code bh2-tile"><b>${esc(require("./setup").codeOf(sc))}</b></span>`}
-      <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
-        <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
-    <div class="bh2-acts">
-      <a class="sb-btn" href="/b/${sc.id}?preview=1" target="_blank" rel="noopener" title="See the board as a family would, even before it's published">${IC.eye}Preview</a>
-      ${published && SC.claimMode(sc) === "public" && shareUrl ? `<details class="share-pop"><summary class="sb-btn">Share</summary><div class="share-panel">
-          <p class="fine">Anyone with this link can sign up, no account needed.</p>
-          <div class="share-row"><input readonly value="${esc(shareUrl)}" class="share-url" onclick="this.select()"><button type="button" class="btn-small" onclick="var i=this.previousElementSibling; i.select(); navigator.clipboard && navigator.clipboard.writeText(i.value); this.textContent='Copied'">Copy</button></div>
-          <div class="share-qr"><img src="/admin/b/${sc.id}/qr.svg" alt="QR code" width="140" height="140"><span><a class="btn-ghost" href="/admin/b/${sc.id}/qr.svg?download=1">Download QR code</a></span></div></div></details>` : ""}
-      ${locked ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
-        <button class="sb-btn ${published ? "" : "primary"}" type="submit">${published ? "Unpublish" : "Publish"}</button></form>`}</div>
-  </section>
-  <nav class="bh2-tabs"><a aria-current="page" href="/admin/setup?s=${sc.id}">${IC.gear}Board setup</a><a href="/admin/settings?from=setup#edit-${sc.id}">${IC.board}Board details</a>
-    <a href="/admin/members?s=${sc.id}">${IC.people}Access &amp; people</a><a href="/admin/setup/schedule?s=${sc.id}">${IC.edit}Board defaults</a></nav>`;
+  const header = boardHeader(sc, { tops: tree.length, totals, active: "setup" });
   const L0 = depth > 1 ? word(0) : L.slot;
   return page({ title: pane.title, tab: "setup", user, flash, xwide: true,
     body: `${header}
@@ -178,6 +197,30 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
       <aside class="sp3-right" id="sp-right">${pane.right}</aside>
     </div>
     ${P.datalist()}
+    ${locked ? "" : require("./home").editDialog(sc)
+      .replace(/<dialog class="edit-dlg" id="edit-(\d+)"[^>]*>/, '<section class="bd-panel" id="bd-panel" hidden>')
+      .replace(/<\/dialog>\s*$/, "</section>")
+      .replace(/<button type="button" class="dlg-x"[^>]*>×<\/button>/, "")
+      .replace(/<h2 id="edit-\d+-t">[^<]*<\/h2>/, '<h2>Board details</h2><p class="fine bd-sub">What the board is: its name, dates, location, description, type, picture, and organizer.</p>')
+      .replace('name="return_to" value="/admin/settings"', `name="return_to" value="/admin/setup?s=${sc.id}&tab=details"`)
+      .replace(`onclick="this.closest('form').reset(); this.closest('dialog').close()"`, `onclick="this.closest('form').reset(); window.boardTab('setup')"`)}
+    ${locked ? "" : `${P.placeDialog()}${require("./setup").IMAGE_JS}`}
+    <script>(function () {
+      var panel = document.getElementById("bd-panel"), grid = document.querySelector(".sp3"), dirty = false, sid = ${sc.id};
+      if (!panel) return;
+      var form = panel.querySelector("form"); form.addEventListener("input", function () { dirty = true; }); form.addEventListener("change", function () { dirty = true; }); form.addEventListener("submit", function () { dirty = false; });
+      window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+      window.boardTab = function (t, push) {
+        if (t === "setup" && dirty && !confirm("You have unsaved board details. Leave without saving?")) return;
+        if (t === "setup") { dirty = false; form.reset(); }
+        panel.hidden = t !== "details"; grid.hidden = t === "details";
+        document.querySelectorAll("[data-btab]").forEach(function (a) { if (a.dataset.btab === t) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+        history.replaceState(null, "", "/admin/setup?s=" + sid + (t === "details" ? "&tab=details" : (location.search.match(/[?&]n=\\d+/) || [""])[0].replace("?", "&")));
+        if (t === "details") { var f = form.querySelector("input:not([type=hidden])"); if (f) f.focus({ preventScroll: true }); }
+      };
+      document.querySelectorAll("[data-btab]").forEach(function (a) { a.addEventListener("click", function (e) { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); window.boardTab(a.dataset.btab); }); });
+      if (/[?&](tab=details|details=1)/.test(location.search)) window.boardTab("details");
+    })();</script>
     <dialog class="edit-dlg sd" id="dlg-node"><form method="post" class="stack"><input type="hidden" name="parent_id">
       <div class="dlg-head"><h2></h2><button type="button" class="dlg-x" data-close>×</button></div>
       <label>Name<input name="name" required maxlength="60" autocomplete="off"></label>
@@ -305,4 +348,4 @@ const CLIENT_JS = `
   });
 })();`;
 
-module.exports = { setupPage, panels };
+module.exports = { setupPage, panels, boardHeader, headerData };

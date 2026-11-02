@@ -143,7 +143,6 @@ function dashCard(sc) {
               <button class="btn-small del-go" type="submit" disabled>Delete permanently</button></div></form></dialog>` : ""}
       </div>
     </div>
-    ${archived ? "" : editDialog(sc)}
   </article>`;
 }
 function dashboardPage({ user, flash, rows, metrics, tab = "" }) {
@@ -166,9 +165,7 @@ function dashboardPage({ user, flash, rows, metrics, tab = "" }) {
     <p class="d-none" hidden></p>
     ${require("./setup").IMAGE_JS}
     <script>(function () {
-      var m = /^#edit-(\\d+)$/.exec(location.hash); var d = m && document.getElementById("edit-" + m[1]);
-      if (d && d.showModal) { if (/[?&]from=setup/.test(location.search)) { var back = "/admin/setup?s=" + m[1], f = d.querySelector("form"), r = f && f.querySelector("[name=return_to]"), saving = false;
-          if (r) r.value = back; if (f) f.addEventListener("submit", function () { saving = true; }); d.addEventListener("close", function () { if (!saving) location.href = back; }); } d.showModal(); }
+      var m = /^#edit-(\\d+)$/.exec(location.hash); if (m) { location.replace("/admin/setup?s=" + m[1] + "&details=1"); return; }
       document.querySelectorAll("[data-match]").forEach(function (i) { var b = i.form.querySelector(".del-go");
         i.addEventListener("input", function () { b.disabled = i.value.trim().replace(/\\s+/g, " ").toLowerCase() !== i.dataset.match.trim().toLowerCase(); }); });
       // tabs, search, sort: all on this page, no reloading
@@ -274,4 +271,4 @@ function copyPage({ user, flash, sc, counts }) {
   });
 }
 
-module.exports = { dashboardPage, homePage, archivedPage, copyPage };
+module.exports = { editDialog, dashboardPage, homePage, archivedPage, copyPage };

@@ -41,7 +41,8 @@ router.get("/", wrap(async (req, res) => {
   for (const t of sc.tags || []) usage[`tag:${t}`] = await G.tagUsage(sc.id, t);
   const boards = req.sched.list.filter((x) => x.id !== sc.id && ((x.groups || []).length || (x.tags || []).length));
   const teams = require("../views/settings").groupsPage({ user: req.user, sc, usage, others: boards, embed: true });
-  res.send(v.membersPage({ user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams }));
+  const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "access" });
+  res.send(v.membersPage({ head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams }));
 }));
 
 // A brand-new person, added to this schedule

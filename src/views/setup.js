@@ -629,7 +629,7 @@ function eventDates(sc) {
   return `${f(sc.event_date, { month: "short", day: "numeric" })} – ${f(sc.event_end, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
-function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null, overrides = [] }) {
+function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null, overrides = [], head = "" }) {
   const L = SC.labels(sc);
   const I = require("./icons");
   const P = require("../locations");
@@ -677,8 +677,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
   const dates = eventDates(sc);
   return page({
     title: `${sc.name} Settings`, tab, user, flash, xwide: true,
-    body: `<div class="page-top"><h1 class="page-title">${esc(sc.name)} <span class="h-sub">Settings</span></h1>
-      <a class="btn-ghost" href="/admin/setup?s=${sc.id}">← Back to ${esc(sc.name)}</a></div>
+    body: `${head}
     <div class="settings-one">
     <div class="scope-banner"><b>Board defaults for ${esc(sc.name)} only.</b> These settings apply to everything on this board, not to other boards.
       ${depth > 1 ? `Each level can change any of them with its own <b>⚙ Settings</b> on the <a href="/admin/setup?s=${sc.id}">Setup</a> screen; a change there applies to everything inside that level.` : ""}
