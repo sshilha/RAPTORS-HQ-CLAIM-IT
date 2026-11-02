@@ -7,6 +7,8 @@ const v = require("../views/people");
 const { wrap, flashFrom, go, int, str } = require("./util");
 
 const router = express.Router();
+// the App Settings header (with fresh counts) for these pages
+const AHead = async () => { const AH = require("../views/apphead"), c = await AH.counts(); return (o = {}) => AH.appHeader({ c, ...o }); };
 router.use(auth.requireAdmin);
 const clean = (x, n) => str(x).replace(/\s+/g, " ").slice(0, n);
 const ROLES = ["parent", "coach", "volunteer"];
@@ -31,7 +33,7 @@ router.get("/", wrap(async (req, res) => {
     && (!f.list || (p.list_ids || []).includes(f.list))
     && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.se || p.se_group === f.se));
   const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [...new Set(all.map((p) => p.se_group).filter(Boolean))].sort();
-  res.send(v.directoryPage({ user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
+  res.send(v.directoryPage({ head: await AHead(), user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
 }));
 
 function readPerson(b, kind) {
@@ -141,13 +143,13 @@ async function dirPlan(rows, map) {
   }
   return people;
 }
-router.get("/import", wrap(async (req, res) => res.send(v.importPage({ user: req.user, flash: flashFrom(req) }))));
+router.get("/import", wrap(async (req, res) => res.send(v.importPage({ user: req.user, flash: flashFrom(req), head: await AHead() }))));
 router.post("/import/preview", wrap(async (req, res) => {
   const rows = CSV.parse(req.body.data);
   if (rows.length < 2) return go(res, "/admin/people/import", { err: "That file has no rows under its headings. Make sure the first row is the column names." });
   const map = H().mapFrom(req.body, rows[0]);
   if (req.body.col_cteam === undefined && map.cteam < 0 && map.group >= 0) map.cteam = map.group; // a "Team" column is their current team here
-  res.send(v.importPreview({ user: req.user, flash: flashFrom(req), headers: rows[0], map, data: req.body.data, people: await dirPlan(rows.slice(1), map), lists: await PP.lists() }));
+  res.send(v.importPreview({ head: await AHead(), user: req.user, flash: flashFrom(req), headers: rows[0], map, data: req.body.data, people: await dirPlan(rows.slice(1), map), lists: await PP.lists() }));
 }));
 router.post("/import/commit", wrap(async (req, res) => {
   const rows = CSV.parse(req.body.data);
@@ -187,7 +189,7 @@ router.get("/:id", wrap(async (req, res) => {
   const acct = p.self_user_id ? (await query(`SELECT * FROM users WHERE id=$1`, [p.self_user_id])).rows[0] : null;
   const history = acct || p.email ? (await query(`SELECT * FROM login_events WHERE user_id=$1 OR (user_id IS NULL AND lower(identity)=lower($2)) ORDER BY at DESC LIMIT 25`, [acct ? acct.id : 0, p.email || ""])).rows : [];
   const allTeams = [...new Set((await query(`SELECT unnest(groups) AS g FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.g))].sort();
-  res.send(v.personPage({ user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
+  res.send(v.personPage({ head: await AHead(), user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
 }));
 
 router.post("/:id", wrap(async (req, res) => {

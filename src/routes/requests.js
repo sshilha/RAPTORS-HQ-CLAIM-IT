@@ -24,7 +24,11 @@ router.get("/", wrap(async (req, res) => {
   // possible matches already in People, so an approval links instead of duplicating
   for (const r of rows) if (r.kind === "add_family" && r.status === "waiting")
     r.matches = (await query(`SELECT id, first_name, last_name, team FROM athletes WHERE kind='athlete' AND archived_at IS NULL AND lower(first_name)=lower($1) AND lower(last_name)=lower($2)`, [r.data.first_name, r.data.last_name])).rows;
-  res.send(require("../views/requests").requestsPage({ user: req.user, flash: flashFrom(req), rows }));
+  const AH = require("../views/apphead");
+  const show = ["waiting", "handled", "all"].includes(req.query.show) ? req.query.show : "waiting";
+  const tools = `<form method="get" action="/admin/requests"><label>Show <select name="show" onchange="this.form.submit()">${[["waiting", "Waiting"], ["handled", "Handled"], ["all", "All"]].map(([k, l]) => `<option value="${k}"${show === k ? " selected" : ""}>${l}</option>`).join("")}</select></label></form>`;
+  const shownRows = show === "all" ? rows : show === "handled" ? rows.filter((r) => r.status !== "waiting") : rows.filter((r) => r.status === "waiting");
+  res.send(require("../views/requests").requestsPage({ user: req.user, flash: flashFrom(req), rows: shownRows, show, head: await AH.head({ active: "requests", tools }) }));
 }));
 
 router.post("/:id/approve", wrap(async (req, res) => {

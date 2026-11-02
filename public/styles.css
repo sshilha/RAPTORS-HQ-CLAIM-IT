@@ -2756,3 +2756,15 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .ovr-list { list-style: none; margin: 8px 0 0; padding: 0; } .ovr-list li { display: flex; gap: 14px; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #EEF1F5; font-size: 14px; }
 .ovr-list li span { color: #5B6B82; text-align: right; }
 .ch-line { font-size: 13px; line-height: 1.4; } .ch-line b { font-weight: 600; color: #334155; } .ch-line span { color: #0B1930; }
+/* App Settings header (same as the board / dashboard headers) */
+.app-tabs { margin-bottom: 14px; } .app-tabs a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 8px; color: #0B1930; font: 600 14px Inter, sans-serif; text-decoration: none; }
+.app-tabs a svg { width: 16px; height: 16px; } .app-tabs a[aria-current] { background: #8DDC32; } .app-tabs a:not([aria-current]):hover { background: #fff; }
+.app-badge { font-style: normal; background: #d64545; color: #fff; border-radius: 999px; padding: 0 7px; font: 700 11px/18px Inter, sans-serif; }
+.app-tools form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+.app-tools select, .app-tools input[type=search] { padding: 6px 10px; border-radius: 8px; font: 500 13px Inter, sans-serif; width: auto; }
+.app-tools input[type=search] { min-width: 220px; } .app-tools label { display: inline-flex; align-items: center; gap: 6px; font: 600 13px Inter, sans-serif; color: #334155; text-transform: none; }
+.sub-top { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; } .sub-top h2 { margin: 0; font: 800 20px Inter, sans-serif; color: #0B1930; text-transform: none; }
+.dir-filters-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .dir-filters-bar select { max-width: 160px; }
+.app-intro { margin-top: 0; }
+.app-tools { flex-basis: 100%; justify-content: flex-end; margin: 4px 0 0; }
+.add-wrap > summary.add-sum { display: none; }

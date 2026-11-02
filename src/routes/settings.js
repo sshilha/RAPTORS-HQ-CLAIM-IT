@@ -150,7 +150,12 @@ router.get("/app", wrap(async (req, res) => {
   const counts = (await require("../db").query(`SELECT count(*)::int AS people, count(*) FILTER (WHERE kind='athlete')::int AS athletes,
       count(*) FILTER (WHERE kind='adult')::int AS adults FROM athletes WHERE archived_at IS NULL`)).rows[0];
   counts.requests = (await require("../db").query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
-  res.send(v.appPage({ user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins(),
+  const AH = require("../views/apphead"), hc = await AH.counts();
+  const TAB = { accounts: "accounts", places: "locations", admins: "admins", labels: "wording" };
+  const head = (part) => AH.appHeader({ c: hc, active: TAB[part] || "overview",
+    tools: part === "places" ? `<label class="dt-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" placeholder="Search places…" aria-label="Search places" oninput="var v=this.value.toLowerCase();document.querySelectorAll('table.places tbody tr').forEach(function(r){r.hidden=v&&r.textContent.toLowerCase().indexOf(v)<0;})"></label>`
+      : part === "accounts" ? `<a class="sb-btn" href="/admin/signins">Sign-in activity</a>` : "" });
+  res.send(v.appPage({ head, user: req.user, flash: flashFrom(req), c: catalog.current(), admins, envAdmins: auth.envAdmins(),
     places: require("../locations").all(), used, mapsKey: process.env.GOOGLE_MAPS_API_KEY || "", part: String(req.query.part || ""), counts }));
 }));
 

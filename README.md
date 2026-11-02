@@ -541,3 +541,12 @@ Description, Board type, Picture & short code, Organizer, Structure & names) sha
 keeps everything else. Access & people: Athletes on this board, Add people, Groups, Tags, Group shortcuts,
 Copy groups & tags, Who can claim (opens it in Board defaults). Board defaults: Who can claim, Who's going,
 Limits, Timing, Question, Attendance, Levels with their own settings.
+
+
+## App Settings header
+Every App settings page uses the same header: navy band (App Settings, live counts of people / requests
+waiting / admins, page buttons such as + Add person and Import on People) and a gray tab bar: Overview ·
+People · Accounts & sign-in · Requests (waiting count) · Locations · Administrators · Wording. A person's page
+and Import light People; Sign-in activity lights Accounts & sign-in. Page filters sit in the gray bar: People
+(search, kind, role, team, SportsEngine group), Requests (Waiting / Handled / All), Sign-in activity (search,
+Only problems), Locations (search).

@@ -36,7 +36,7 @@ function acctStatus(p) {
   if (p.invited_at) return `Invited ${shortDate(p.invited_at)}`;
   return p.email ? "Not invited" : "No email";
 }
-function directoryPage({ user, flash, people, total, f, teams, groups, lists = [] }) {
+function directoryPage({ user, flash, people, total, f, teams, groups, lists = [], head = null }) {
   const cur = lists.find((l) => l.id === f.list);
   const qs = (extra) => `/admin/people?${new URLSearchParams(Object.fromEntries(Object.entries({ ...f, ...extra }).filter(([, x]) => x)))}`;
   const listBar = `<div class="list-bar" id="lists"><span class="field-lbl">Lists</span>
@@ -59,14 +59,21 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
     <button class="btn-small" type="submit">Apply</button></form>`;
   const opt = (list, cur) => list.map((x) => `<option value="${esc(x)}"${cur === x ? " selected" : ""}>${esc(x)}</option>`).join("");
   const dl = `<datalist id="dir-teams">${opt(teams)}</datalist><datalist id="dir-groups">${opt(groups)}</datalist>`;
+  // the filters live in the header's gray bar
+  const filterForm = `<form method="get" action="/admin/people" class="dir-filters-bar"><input type="hidden" name="list" value="${f.list || ""}">
+        <input type="search" name="q" value="${esc(f.q)}" placeholder="Search name, email, phone…" aria-label="Search">
+        <select name="kind" aria-label="Kind" onchange="this.form.submit()"><option value="">Everyone</option><option value="athlete"${f.kind === "athlete" ? " selected" : ""}>Athletes</option><option value="adult"${f.kind === "adult" ? " selected" : ""}>Adults</option></select>
+        <select name="role" aria-label="Role" onchange="this.form.submit()"><option value="">Any role</option>${Object.entries(ROLE).map(([k, l]) => `<option value="${k}"${f.role === k ? " selected" : ""}>${l}</option>`).join("")}</select>
+        ${teams.length ? `<select name="team" aria-label="Current team" onchange="this.form.submit()"><option value="">Any team</option>${opt(teams, f.team)}</select>` : ""}
+        ${groups.length ? `<select name="se" aria-label="SportsEngine group" onchange="this.form.submit()"><option value="">Any SE group</option>${opt(groups, f.se)}</select>` : ""}
+        ${f.q || f.kind || f.role || f.team || f.se ? `<a class="link-dark" href="/admin/people${f.list ? `?list=${encodeURIComponent(f.list)}` : ""}">Clear</a>` : ""}</form>`;
   return page({ title: "People", tab: "people", user, flash, xwide: true,
-    body: `<div class="page-top"><h1 class="page-title">People <span class="h-sub">${total} in the app</span></h1>
-      <a class="btn-ghost" href="/admin/settings/app">← App settings</a></div>
+    body: `${head ? head({ active: "people", tools: filterForm, actions: `<button type="button" class="sb-btn primary" onclick="var d=document.querySelector('.add-wrap'); d.open=!d.open; if (d.open) d.scrollIntoView({block:'start'})">+ Add person</button><a class="sb-btn" href="/admin/people/import">⇪ Import</a>` }) : ""}
     ${dl}
     <section class="panel">
       ${WHERE_NOTE}
-      <p class="fine">Only admins can change these details; people can send a change request from My Claims.</p>
-      <div class="head-btns"><details class="add-wrap"${total ? "" : " open"}><summary class="btn-small">＋ Add a person</summary>
+      <p class="fine">Only admins can change these details; people can send a change request from My Account.</p>
+      <div class="head-btns"><details class="add-wrap"${total ? "" : " open"}><summary class="btn-small add-sum">＋ Add a person</summary>
       <div class="add-people" id="add">
         <div class="ap-tabs" role="tablist">
           <button type="button" class="ap-tab on" data-ap="athlete">New athlete</button><button type="button" class="ap-tab" data-ap="adult">New adult (parent, coach, volunteer)</button>
@@ -78,15 +85,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
         <form method="post" action="/admin/people" class="grid-form ap-pane" data-ap="adult" hidden><input type="hidden" name="kind" value="adult">
           ${fields({}, "adult")}
           <div class="full ap-actions"><button class="btn-small" type="submit">Add adult</button></div></form>
-      </div></details><a class="btn-ghost imp-btn" href="/admin/people/import">⇪ Import from a spreadsheet</a></div>
-      <form method="get" action="/admin/people" class="dir-filters"><input type="hidden" name="list" value="${f.list || ""}">
-        <input type="search" name="q" value="${esc(f.q)}" placeholder="Search name, email, phone…" aria-label="Search">
-        <select name="kind" aria-label="Kind"><option value="">Everyone</option><option value="athlete"${f.kind === "athlete" ? " selected" : ""}>Athletes</option><option value="adult"${f.kind === "adult" ? " selected" : ""}>Adults</option></select>
-        <select name="role" aria-label="Role"><option value="">Any role</option>${Object.entries(ROLE).map(([k, l]) => `<option value="${k}"${f.role === k ? " selected" : ""}>${l}</option>`).join("")}</select>
-        <select name="team" aria-label="Current team"><option value="">Any team</option>${opt(teams, f.team)}</select>
-        <select name="se" aria-label="SportsEngine group"><option value="">Any SportsEngine group</option>${opt(groups, f.se)}</select>
-        <button class="btn-ghost" type="submit">Filter</button>${f.q || f.kind || f.role || f.team || f.se ? `<a class="link-dark" href="/admin/people">Clear</a>` : ""}
-      </form>
+      </div></details></div>
       ${listBar}
       ${cur ? "" : `<h3 class="ilist-head">${people.length === total ? "Everyone" : "Matching"} <span class="fine-inline">(${people.length})</span></h3>`}
       ${people.length ? bulk : ""}
@@ -117,12 +116,11 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
     </script>` });
 }
 
-function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [], acct = null, history = [] }) {
+function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [], acct = null, history = [], head = null }) {
   const ra = p.report_access || {}, mode = ra.mode || "none";
   const name = PP.display(p);
   return page({ title: name, tab: "people", user, flash, xwide: true,
-    body: `<div class="page-top"><h1 class="page-title">${esc(name)} <span class="h-sub">${p.kind === "adult" ? "Adult" : "Athlete"}</span></h1>
-      <a class="btn-ghost" href="/admin/people">← People</a></div>
+    body: `${head ? head({ active: "people" }) : ""}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>${esc(name)} <span class="h-sub">${p.kind === "adult" ? "Adult" : "Athlete"}</span></h2></div>
     <div class="board-cols"><div class="bc-left">
       <section class="panel"><h2>Details</h2>
         <form method="post" action="/admin/people/${p.id}" class="grid-form">${fields(p, p.kind)}
@@ -193,14 +191,13 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
 }
 
 // The two ways to add people, explained (shown on People and on a board's people card)
-const WHERE_NOTE = `<div class="where-note"><b>Two ways to add people</b>
-  <span><b>Here in People:</b> everyone in the app. Add or import once, and they're available to add to any board, but they aren't on a board yet.</span>
-  <span><b>On a board</b> (its Teams, tags &amp; people page): puts them on that board's list right away, and adds them to People too if they're new.</span>
-  <span class="fine">Building next season's roster? Add or import here. Adding someone to one board right now? Do it on the board.</span></div>`;
+const WHERE_NOTE = `<div class="where-note"><b>Everyone lives here</b>
+  <span>People holds each person's details, family, and contact info, and is the only place to import a roster.</span>
+  <span>Boards add people <b>from here</b> (a board's <b>Access &amp; people</b> tab → Add from People), or quick-add someone new, who's saved here too.</span></div>`;
 
-function importPage({ user, flash }) {
+function importPage({ user, flash, head = null }) {
   return page({ title: "Import people", tab: "people", user, flash, xwide: true,
-    body: `<div class="page-top"><h1 class="page-title">People <span class="h-sub">Import</span></h1><a class="btn-ghost" href="/admin/people">← People</a></div>
+    body: `${head ? head({ active: "people" }) : ""}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>Import people</h2></div>
     <section class="panel"><h2>Step 1: Your spreadsheet</h2>
       <p class="fine">Use a <b>CSV file</b> (like a SportsEngine roster export) or paste rows from Excel or Google Sheets. The first row should be the column names.
         This adds people to the directory only. Add them to a board afterward from that board's <b>From People</b>.</p>
@@ -215,13 +212,13 @@ function importPage({ user, flash }) {
       var r = new FileReader(); r.onload = function () { document.getElementById("imp-data").value = r.result; }; r.readAsText(f); });</script>` });
 }
 
-function importPreview({ user, flash, headers, map, data, people, lists = [] }) {
+function importPreview({ user, flash, headers, map, data, people, lists = [], head = null }) {
   const col = (k, label) => `<label class="field-l"><span>${label}</span><select name="col_${k}" onchange="this.form.submit()"><option value="-1">— Not in my file —</option>
       ${headers.map((h, i) => `<option value="${i}"${map[k] === i ? " selected" : ""}>${esc(h || `Column ${i + 1}`)}</option>`).join("")}</select></label>`;
   const count = (st) => people.filter((p) => p.status === st).length;
   const hidden = `<input type="hidden" name="data" value="${esc(data)}"><input type="hidden" name="mapped" value="1">`;
   return page({ title: "Import people", tab: "people", user, flash, xwide: true,
-    body: `<div class="page-top"><h1 class="page-title">People <span class="h-sub">Import</span></h1><a class="btn-ghost" href="/admin/people/import">← Start over</a></div>
+    body: `${head ? head({ active: "people" }) : ""}<div class="sub-top"><a class="back-btn" href="/admin/people/import">← Start over</a><h2>Import people <span class="h-sub">Check and confirm</span></h2></div>
     <form method="post" action="/admin/people/import/preview" class="panel imp-map">${hidden}
       <h2>Step 2: Match the columns</h2><p class="fine">Guessed from your column names. Change any that are wrong, and the preview updates.</p>
       <div class="imp-grid">${col("first", "First name")}${col("last", "Last name")}${col("name", "Or one full-name column")}

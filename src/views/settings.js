@@ -135,7 +135,7 @@ ${SC.depthOf(sc) >= 3 ? `    <section class="panel" id="presets"><details>
   return page({ title: `${L.group.many} · ${sc.name}`, tab: "groups", user, flash, body });
 }
 
-function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, mapsKey = "", part = "", counts = {} }) {
+function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, mapsKey = "", part = "", counts = {}, head = null }) {
   const P = require("../locations");
   const al = c.app_labels || {};
   const { fmtDateTime } = require("../time");
@@ -251,14 +251,13 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
     </section>`],
   };
   if (sections[part]) return page({ title: `${sections[part][0]} · App settings`, tab: "settings", user, flash,
-    body: `<div class="page-top"><h1 class="page-title">App settings <span class="h-sub">${sections[part][0]}</span></h1>
-      <a class="btn-ghost" href="/admin/settings/app">← App settings</a></div>${sections[part][1]}` });
+    body: `${head ? head(part) : ""}${sections[part][1]}` });
   const card = (icon, title, summary, actions, note = "") => `<section class="panel side-card hub-card"><div class="card-head"><span class="ss-ico">${icon}</span><h2>${title}</h2></div>
       <p class="hub-sum">${summary}</p>${note ? `<p class="fine">${note}</p>` : ""}<div class="hub-actions">${actions}</div></section>`;
   const btn = (href, label, primary = false) => `<a class="${primary ? "btn-small" : "btn-ghost"}" href="${href}">${label}</a>`;
   return page({ title: "App settings", tab: "settings", user, flash,
-    body: `<div class="page-top"><h1 class="page-title">App settings</h1></div>
-    <p class="muted">Things that apply across the whole app. Everything else lives inside each ${esc((al.schedule || ["Claim Board"])[0])}.</p>
+    body: `${head ? head("") : ""}
+    <p class="muted app-intro">Things that apply across the whole app. Everything else lives inside each ${esc((al.schedule || ["Claim Board"])[0])}.</p>
     <div class="hub-grid">
       ${card(I.users(), "People", `<b>${counts.people || 0}</b> people · ${counts.athletes || 0} athletes · ${counts.adults || 0} adults`,
         btn("/admin/people", "Manage", true) + btn("/admin/people/import", "⇪ Import"),
