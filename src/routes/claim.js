@@ -55,7 +55,7 @@ router.get("/dashboard", wrap(async (req, res) => {
   const who = req.query.who === "me" ? (people.me ? people.me.id : -1) : int(req.query.who) || 0;
   const shownIds = who ? ids.filter((x) => x === who) : ids;
   const claims = shownIds.length ? (await query(`SELECT c.*, i.title, i.starts_at, i.ends_at, i.location, i.node_id, i.schedule_id, sc.name AS board_name, sc.labels AS board_labels,
-      sc.image IS NOT NULL AS board_image, sc.image_at AS board_image_at, sc.short_code AS board_code,
+      sc.image IS NOT NULL AS board_image, sc.image_at AS board_image_at, sc.short_code AS board_code, sc.event_location AS board_location,
       a.first_name, a.last_name, a.self_user_id,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path

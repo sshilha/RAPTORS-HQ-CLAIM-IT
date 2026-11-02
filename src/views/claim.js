@@ -85,7 +85,7 @@ function homePage({ user, flash, claims, boards, extra, admin, coach, family = [
         <span class="d-group-s">${when === "past" ? `<b>${cs.length} done</b>${cs[0] && cs[0].starts_at ? ` · Latest ${esc(shortDay(cs[0].starts_at))}` : ""}` : `<b>${upcoming.length} claimed</b>${next ? ` · Next ${esc(shortDay(next.starts_at))}` : ""}`}</span></div>
       ${rows.map((c) => `<div class="d-claim${c.past ? " past" : ""}${c.status === "waitlisted" ? " wl" : ""}">${dayBlock(c.starts_at)}
         <div class="d-claim-b"><div class="d-claim-t"><b>${c.starts_at ? esc(timeRange(c.starts_at, c.ends_at)) : esc(c.title || "Anytime")}</b>${c.status === "waitlisted" ? `<span class="d-pill wl">Waitlist</span>` : ""}${c.past ? `<span class="d-pill">Done</span>` : ""}</div>
-          <span>${esc([c.self_user_id ? "You" : c.first_name, ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}</span></div>
+          <span>${esc([c.self_user_id ? "You" : c.first_name, ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}${c.location && c.location !== c.board_location ? ` · ${P.link(c.location)}` : ""}</span></div>
         <div class="d-acts">${details(c)}
         ${c.past ? "" : c.cancelable ? `<form method="post" action="/claims/${c.id}/cancel" class="d-cancel" onsubmit="return confirm('Cancel this spot for ${esc((c.self_user_id ? "yourself" : c.first_name).replace(/'/g, ""))}? It will open for someone else.')">
             <input type="hidden" name="back" value="/dashboard"><button type="submit">${IC.trash}<span>Cancel</span></button></form>`

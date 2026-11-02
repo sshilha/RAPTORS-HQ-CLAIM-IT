@@ -11,6 +11,8 @@ app.use(express.urlencoded({ extended: false, limit: "15mb" })); // room for upl
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(auth.loadUser);
+// pages always show current data: no saved copies (Back button, reopened tabs), and nothing to see after signing out
+app.use((req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
 app.use((req, res, next) => {   // finish the Welcome step first (password etc.), then the rest of the app
   if (!req.user || !require("./accounts").mustSetUp(req.user)) return next();
   if (/^\/(welcome|logout|account\/email\/confirm|img\/|favicon|.*\.(css|js|png|jpg|svg|ico|webmanifest)$)/.test(req.path)) return next();
