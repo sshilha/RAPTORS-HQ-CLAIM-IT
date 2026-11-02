@@ -151,7 +151,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
   const header = `<section class="bh2">
     <div class="bh2-l">${sc.image ? `<span class="d-thumb photo bh2-tile"><img src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code bh2-tile"><b>${esc(require("./setup").codeOf(sc))}</b></span>`}
       <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
-        <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)${sc.event_location ? ` · ${IC.pin}${P.link(sc.event_location)}` : ""}</span></div></div>
+        <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
     <div class="bh2-acts">
       <a class="sb-btn" href="/b/${sc.id}?preview=1" target="_blank" rel="noopener" title="See the board as a family would, even before it's published">${IC.eye}Preview</a>
       ${published && SC.claimMode(sc) === "public" && shareUrl ? `<details class="share-pop"><summary class="sb-btn">Share</summary><div class="share-panel">

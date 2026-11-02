@@ -2678,3 +2678,15 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 @media (max-width: 1180px) { .bc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .bc-grid, .dms { grid-template-columns: 1fr; } .dh2 { flex-wrap: wrap; } .dh2-ic { display: none; } .dtools { align-items: stretch; } .dt-sort { width: 100%; } .dt-sort select { flex: 1; } }
 .dh2 .bc-btn.primary { flex: none; }
+/* dashboard header = Board Setup header (navy band + gray tab bar) */
+.dash-tile { display: grid; place-items: center; background: #13284a; border-radius: 8px; } .dash-tile svg { width: 26px; height: 26px; color: #8DDC32; }
+.dash-tabs { align-items: center; flex-wrap: wrap; gap: 2px 4px; }
+.dash-tabs .dt-tab { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: 8px; color: #0B1930; font: 600 14px Inter, sans-serif; background: none; box-shadow: none; }
+.dash-tabs .dt-tab svg { width: 16px; height: 16px; } .dash-tabs .dt-tab i { color: #5B6B82; font-weight: 500; font-style: normal; }
+.dash-tabs .dt-tab.on { background: #8DDC32; color: #0B1930; box-shadow: none; } .dash-tabs .dt-tab.on i { color: #2f6d0c; }
+.dash-tabs .dt-tab:not(.on):hover { background: #fff; }
+.dash-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; padding: 2px 4px; }
+.dash-tools .dt-search { min-width: 240px; padding: 0 10px; } .dash-tools .dt-search input { padding: 6px 0 !important; }
+.dash-tools .dt-sort select { padding: 6px 10px; }
+.dms { margin-bottom: 16px; }
+@media (max-width: 1000px) { .dash-tools { margin-left: 0; width: 100%; } .dash-tools .dt-search { flex: 1; min-width: 0; } }

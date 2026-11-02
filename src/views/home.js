@@ -153,17 +153,15 @@ function dashboardPage({ user, flash, rows, metrics, tab = "" }) {
   const tabBtn = (k, label, ic) => `<button type="button" class="dt-tab${start === k ? " on" : ""}" data-tab="${k}">${ic}${label} <i>(${n[k]})</i></button>`;
   const metric = (ic, v, label) => `<div class="dm"><span class="dm-ic">${ic}</span><span><b>${v}</b><small>${label}</small></span></div>`;
   return page({ title: "Claim Board Dashboard", tab: "home", user, flash, xwide: true,
-    body: `<section class="dh2"><span class="dh2-ic">${DI.board}</span>
-      <div class="dh2-t"><h1>Claim Board Dashboard</h1><p>Create, manage, and monitor your signup boards.</p></div>
-      <a class="bc-btn primary big" href="/admin/setup/new">${DI.plus}Create Board</a></section>
-    <section class="dpanel">
-      <div class="dms">${metric(DI.layers, metrics.active, `Active board${metrics.active === 1 ? "" : "s"}`)}${metric(DI.calok, metrics.upcoming, `Upcoming claim${metrics.upcoming === 1 ? "" : "s"}`)}${metric(DI.people, metrics.volunteers, `Volunteer${metrics.volunteers === 1 ? "" : "s"}`)}</div>
-      <div class="dtools">
-        <div class="dt-tabs" role="tablist">${tabBtn("all", "All Boards", DI.layers)}${tabBtn("pub", "Published", DI.ok)}${tabBtn("draft", "Draft", DI.pen)}${tabBtn("arch", "Archived", DI.arch)}</div>
-        <label class="dt-search">${DI.search}<input type="search" placeholder="Search boards…" aria-label="Search boards"></label>
+    body: `<section class="bh2">
+      <div class="bh2-l"><span class="bh2-tile dash-tile">${DI.board}</span>
+        <div><div class="bh2-t"><h1>Claim Board Dashboard</h1></div><span class="bh2-meta">Create, manage, and monitor your signup boards.</span></div></div>
+      <div class="bh2-acts"><a class="sb-btn primary" href="/admin/setup/new">${DI.plus}Create Board</a></div></section>
+    <nav class="bh2-tabs dash-tabs" role="tablist">${tabBtn("all", "All Boards", DI.layers)}${tabBtn("pub", "Published", DI.ok)}${tabBtn("draft", "Draft", DI.pen)}${tabBtn("arch", "Archived", DI.arch)}
+      <span class="dash-tools"><label class="dt-search">${DI.search}<input type="search" placeholder="Search boards…" aria-label="Search boards"></label>
         <label class="dt-sort"><span>Sort by</span><select aria-label="Sort boards"><option value="name">Name (A–Z)</option><option value="name-d">Name (Z–A)</option>
-          <option value="next">Next date (soonest)</option><option value="status">Status</option><option value="new">Newest first</option></select></label>
-      </div></section>
+          <option value="next">Next date (soonest)</option><option value="status">Status</option><option value="new">Newest first</option></select></label></span></nav>
+    <div class="dms">${metric(DI.layers, metrics.active, `Active board${metrics.active === 1 ? "" : "s"}`)}${metric(DI.calok, metrics.upcoming, `Upcoming claim${metrics.upcoming === 1 ? "" : "s"}`)}${metric(DI.people, metrics.volunteers, `Volunteer${metrics.volunteers === 1 ? "" : "s"}`)}</div>
     <h2 class="dlist-h">Active Claim Boards</h2>
     <div class="bc-grid">${rows.map(dashCard).join("")}</div>
     <p class="d-none" hidden></p>
