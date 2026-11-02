@@ -4,7 +4,7 @@ const { query } = require("../db");
 const auth = require("../auth");
 const E = require("../engine");
 const SC = require("../schedules");
-const { wrap, go, int, str, dest } = require("./util");
+const { wrap, go, int, str, dest, flashFrom } = require("./util");
 
 const router = express.Router();
 router.use(auth.requireAdmin);
@@ -160,6 +160,60 @@ router.post("/:sid/items/:iid", wrap(async (req, res) => {
   const moved = await E.setCapacity(it.id, v.capacity);
   go(res, at(sc.id, it.node_id), { ok: `Saved "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}".${moved.length ? ` ${moved.length} moved off the waitlist.` : ""}` });
 }));
+// ---------- who's in a spot (admins can add and remove people) ----------
+async function spot(req) {
+  const sc = await board(req);
+  const it = sc && (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];
+  return { sc, it };
+}
+router.get("/:sid/items/:iid/people", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const chain = await E.chainFor(it.id);
+  const people = (await query(`SELECT c.*, a.first_name, a.last_name, a.kind, m.group_name, u.email AS booked_email,
+      ARRAY(SELECT u2.email FROM parent_athletes pa JOIN users u2 ON u2.id=pa.user_id WHERE pa.athlete_id=a.id) AS parent_emails, a.email AS own_email
+    FROM board_claims c JOIN athletes a ON a.id=c.athlete_id LEFT JOIN schedule_members m ON m.schedule_id=$2 AND m.athlete_id=a.id LEFT JOIN users u ON u.id=c.booked_by
+    WHERE c.item_id=$1 AND c.status<>'canceled' ORDER BY c.status, c.created_at, c.id`, [it.id, sc.id])).rows;
+  const inIds = people.map((p) => p.athlete_id);
+  const onBoard = (await query(`SELECT a.id, a.first_name, a.last_name, m.group_name FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
+    WHERE m.schedule_id=$1 AND a.archived_at IS NULL AND a.id <> ALL($2) ORDER BY lower(a.last_name), lower(a.first_name)`, [sc.id, inIds])).rows;
+  const everyone = (await query(`SELECT id, first_name, last_name, kind FROM athletes WHERE archived_at IS NULL AND id <> ALL($1) ORDER BY lower(last_name), lower(first_name) LIMIT 1000`,
+    [[...inIds, ...onBoard.map((p) => p.id)]])).rows;
+  res.send(require("../views/board").spotPeoplePage({ user: req.user, flash: flashFrom(req), sc, it, path: chain ? chain.nodes.map((n) => n.name) : [], people, onBoard, everyone }));
+}));
+router.post("/:sid/items/:iid/people/add", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const back = `/admin/b/${sc.id}/items/${it.id}/people`;
+  const aid = int(req.body.athlete_id); if (!aid) return go(res, back, { err: "Pick someone to add." });
+  const p = (await query(`SELECT first_name, last_name FROM athletes WHERE id=$1`, [aid])).rows[0]; if (!p) return go(res, back, { err: "Not found." });
+  const note = str(req.body.note).slice(0, 120) || null, email = req.body.email === "1", override = req.body.override === "1";
+  let c;
+  try {
+    c = await E.claim({ itemId: it.id, athleteId: aid, userId: req.user.id, note });
+  } catch (e) {
+    if (!(e instanceof E.ClaimError)) throw e;
+    if (!override) return go(res, back, { err: `${p.first_name} ${p.last_name} can't be added: ${e.message} Check "Override the rules" to add them anyway.` });
+    if ((await query(`SELECT 1 FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status<>'canceled'`, [it.id, aid])).rowCount) return go(res, back, { err: `${p.first_name} is already in this spot.` });
+    c = (await query(`INSERT INTO board_claims (item_id, athlete_id, booked_by, status, counts, note, override) VALUES ($1,$2,$3,'confirmed',true,$4,true) RETURNING *`, [it.id, aid, req.user.id, note])).rows[0];
+  }
+  // Override means "put them in the spot": a full spot's waitlist doesn't apply
+  if (override && c.status === "waitlisted") c = (await query(`UPDATE board_claims SET status='confirmed', counts=true, override=true WHERE id=$1 RETURNING *`, [c.id])).rows[0];
+  await query(`UPDATE board_claims SET added_by_admin=true WHERE id=$1`, [c.id]);
+  if (email) await require("../engine/notify").claimed(c, null).catch((e) => console.error(e.message));
+  go(res, back, { ok: `Added ${p.first_name} ${p.last_name}${c.status === "waitlisted" ? " to the waitlist" : ""}${c.override ? " (rules overridden)" : ""}.${email ? " They were emailed." : ""}` });
+}));
+router.post("/:sid/items/:iid/people/:cid/remove", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const back = `/admin/b/${sc.id}/items/${it.id}/people`;
+  const c = (await query(`SELECT c.*, a.first_name, a.last_name FROM board_claims c JOIN athletes a ON a.id=c.athlete_id WHERE c.id=$1 AND c.item_id=$2`, [int(req.params.cid), it.id])).rows[0];
+  if (!c) return go(res, back, {});
+  try {
+    const r = await E.cancel({ claimId: c.id, admin: true });
+    // the removed person is emailed only if asked; anyone moved up off the waitlist always hears they're in
+    await require("../engine/notify").canceled(r, null, { tellCanceled: req.body.email === "1" }).catch((e) => console.error(e.message));
+    go(res, back, { ok: `Removed ${c.first_name} ${c.last_name}.${r.promoted && r.promoted.length ? ` ${r.promoted.length} moved up from the waitlist.` : ""}${req.body.email === "1" ? " They were emailed." : ""}` });
+  } catch (e) { if (e instanceof E.ClaimError) return go(res, back, { err: e.message }); throw e; }
+}));
+
 router.post("/:sid/items/:iid/delete", wrap(async (req, res) => {
   const sc = await board(req);
   const it = (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];

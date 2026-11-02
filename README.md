@@ -474,3 +474,12 @@ Claim Boards → Copy: always copies the setup and levels (with every level's se
 groups, picture, type, location, organizer). Optional: sessions (every date moved to a new first day, same
 local times; suggested: same weekday a year later), people on the board, coaches. Never claims; the copy
 starts unpublished.
+
+
+## Admins assigning people to spots
+Board Setup → each spot's **👥** link opens its People page: who's in it (and the waitlist) with answers and
+labels, **Remove** (works past the cancel deadline; the waitlist moves up), and **+ Add someone** (from the
+board's people or anyone in People). Adding follows the board's rules (eligibility, limits, full → waitlist)
+unless **Override the rules** is checked, which puts them in the spot anyway. **Email them** (on by default)
+sends the usual claimed / canceled email; people moved up off the waitlist are always told. Admin adds show
+as "Added by admin" (and "Override") on the page and in Reports.

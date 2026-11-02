@@ -22,7 +22,7 @@ router.get("/", wrap(async (req, res) => {
   const sid = boards.some((b) => b.id === int(req.query.s)) ? int(req.query.s) : busiest ? busiest.schedule_id : boards[0].id;
   const board = boards.find((b) => b.id === sid);
   const teamFilter = str(req.query.team);
-  let rows = (await query(`SELECT c.id, c.status, c.counts, c.note, c.attended, c.walk_in, c.created_at, a.id AS athlete_id, a.first_name, a.last_name, a.kind,
+  let rows = (await query(`SELECT c.id, c.status, c.counts, c.note, c.attended, c.walk_in, c.added_by_admin, c.override, c.created_at, a.id AS athlete_id, a.first_name, a.last_name, a.kind,
       m.group_name, i.title, i.starts_at, i.ends_at,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path

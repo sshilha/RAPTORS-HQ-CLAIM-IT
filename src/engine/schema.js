@@ -64,6 +64,9 @@ async function migrate() {
     ALTER TABLE schedules ADD COLUMN IF NOT EXISTS share_code TEXT;
     CREATE UNIQUE INDEX IF NOT EXISTS uq_schedules_share ON schedules (share_code) WHERE share_code IS NOT NULL;
     ALTER TABLE board_claims ADD COLUMN IF NOT EXISTS cancel_token TEXT;
+    -- an admin put them in the spot (and whether they overrode the rules: full, past a limit, or not eligible)
+    ALTER TABLE board_claims ADD COLUMN IF NOT EXISTS added_by_admin BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE board_claims ADD COLUMN IF NOT EXISTS override BOOLEAN NOT NULL DEFAULT false;
     CREATE UNIQUE INDEX IF NOT EXISTS uq_claims_cancel ON board_claims (cancel_token) WHERE cancel_token IS NOT NULL;
   `);
 }

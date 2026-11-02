@@ -2475,3 +2475,11 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
   .ck-p { flex-direction: column; align-items: stretch; gap: 8px; } .ck-btns button { flex: 1; min-height: 50px; }
   .ck-days b { font-size: 14px; }
 }
+/* a spot's People page (admins) */
+.ir-people { font: 600 13px var(--body); color: var(--navy); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: #fff; white-space: nowrap; }
+.ir-people:hover { border-color: var(--navy); }
+.sp-sub { margin: 4px 0 0; color: var(--text-2); font-size: 14px; } .sp-h { margin: 0 0 8px; font: 700 17px var(--body); } .sp-h3 { margin: 14px 0 6px; font: 700 15px var(--body); }
+.sp-list { list-style: none; margin: 0; padding: 0; } .sp-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.sp-who { display: flex; flex-direction: column; gap: 2px; } .sp-tags { display: flex; gap: 4px; flex-wrap: wrap; } .pill.warn { background: #fff1e6; color: #9a3412; }
+.sp-rm { display: flex; align-items: center; gap: 12px; margin: 0; } .sp-add select { width: 100%; } .sp-add .radio-row { display: flex; gap: 10px; align-items: flex-start; text-transform: none; font: 400 14px var(--body); }
+@media (max-width: 700px) { .sp-row { flex-direction: column; align-items: flex-start; } }

@@ -114,7 +114,7 @@ function itemRowE(sc, it) {
   const f = `it-${it.id}`;
   return `<li class="irow">
     <div class="ir-view"><div class="ir-main"><b>${esc(slotName(it))}</b><span class="ir-meta">${meta.map(esc).join(" · ")}</span></div>
-      <div class="ir-side"><span class="ir-claimed">${it.claimed ? `${it.claimed} claimed` : "No claims yet"}${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}</span>
+      <div class="ir-side"><a class="ir-people" href="/admin/b/${sc.id}/items/${it.id}/people" title="See, add, or remove people">👥 ${it.claimed ? `${it.claimed} of ${it.capacity}` : "People"}${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}</a>
         <button type="button" class="link-dark ir-edit-btn" onclick="this.closest('.irow').classList.add('editing')">Edit</button></div></div>
     <div class="ir-edit">
       <form id="${f}" method="post" action="/admin/b/${sc.id}/items/${it.id}"></form>
@@ -321,4 +321,33 @@ function copyPage({ user, flash, sc, counts: c }) {
     <script>(function () { var b = document.getElementById("cp-items"), s = document.getElementById("cp-start"); if (b && s) { b.addEventListener("change", function () { s.hidden = !b.checked; }); } })();</script>` });
 }
 
-module.exports = { copyPage, boardSetupPage, boardDefaultsSections };
+function spotPeoplePage({ user, flash, sc, it, path, people, onBoard, everyone }) {
+  const q = sc.question || {};
+  const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
+  const tags = (p) => [p.group_name, p.added_by_admin ? "Added by admin" : "", p.override ? "Override" : "", p.counts === false && !p.walk_in ? "Extra spot" : "", p.walk_in ? "Walk-in" : ""].filter(Boolean);
+  const row = (p) => `<li class="sp-row"><div class="sp-who"><b>${esc(p.first_name)} ${esc(p.last_name)}</b>
+      <span class="sp-tags">${tags(p).map((t) => `<span class="pill${t === "Override" ? " warn" : ""}">${esc(t)}</span>`).join("")}</span>
+      ${q.label && p.note ? `<span class="fine">${esc(q.label)}: ${esc(p.note)}</span>` : ""}
+      <span class="fine">${p.added_by_admin ? "Added" : "Claimed"} ${esc(require("../time").fmtDateTime(p.created_at))}${p.booked_email ? ` by ${esc(p.booked_email)}` : ""}</span></div>
+    <form method="post" action="/admin/b/${sc.id}/items/${it.id}/people/${p.id}/remove" class="sp-rm" onsubmit="return confirm('Remove ${esc(`${p.first_name} ${p.last_name}`.replace(/'/g, ""))} from this spot?')">
+      <label class="fine"><input type="checkbox" name="email" value="1" checked> Email them</label><button class="link-dark danger-link" type="submit">Remove</button></form></li>`;
+  return page({ title: `People · ${slotName(it)}`, tab: "setup", user, flash, wide: true,
+    body: `<div class="page-top"><div><h1 class="page-title">${esc(it.title && !it.starts_at ? it.title : path[path.length - 1] || it.title || "Spot")}</h1>
+        <p class="sp-sub">${esc([sc.name, ...path.slice(0, -1)].join(" • "))}<br><b>${esc(slotName(it))}</b>${it.location ? ` · ${esc(it.location)}` : ""}</p></div>
+      <a class="btn-ghost" href="/admin/setup?s=${sc.id}#n${it.node_id || ""}">← Back to setup</a></div>
+    <section class="panel"><h2 class="sp-h">In this spot <span class="h-sub">${conf.length} of ${it.capacity}</span></h2>
+      ${conf.length ? `<ul class="sp-list">${conf.map(row).join("")}</ul>` : `<p class="muted">No one yet.</p>`}
+      ${wl.length ? `<h3 class="sp-h3">Waitlist</h3><ul class="sp-list">${wl.map(row).join("")}</ul>` : ""}</section>
+    <section class="panel" id="add"><h2 class="sp-h">+ Add someone</h2>
+      <form method="post" action="/admin/b/${sc.id}/items/${it.id}/people/add" class="stack sp-add">
+        <label>Who<select name="athlete_id" required><option value="">Choose…</option>
+          ${onBoard.length ? `<optgroup label="On this board">${onBoard.map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.group_name ? ` (${esc(p.group_name)})` : ""}</option>`).join("")}</optgroup>` : ""}
+          ${everyone.length ? `<optgroup label="Everyone else in People">${everyone.map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.kind === "adult" ? " (adult)" : ""}</option>`).join("")}</optgroup>` : ""}</select></label>
+        ${q.label ? `<label>${esc(q.label)} <span class="opt">(optional)</span><input name="note" maxlength="120"></label>` : ""}
+        <label class="radio-row"><input type="checkbox" name="override" value="1"> <span><b>Override the rules</b> <span class="fine">Add them even if the spot is full, they're past a limit, or the spot isn't open to them.</span></span></label>
+        <label class="radio-row"><input type="checkbox" name="email" value="1" checked> <span><b>Email them</b> <span class="fine">The usual “Spot claimed” email to them (or their parents).</span></span></label>
+        <div class="q-actions"><button class="btn-small" type="submit">Add to this spot</button></div>
+      </form></section>` });
+}
+
+module.exports = { spotPeoplePage, copyPage, boardSetupPage, boardDefaultsSections };

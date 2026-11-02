@@ -25,9 +25,9 @@ async function claimed(c, user, cancelUrl = null) {
   await sendEmail({ to: to(d, user), subject, text: `${waiting ? `${d.first_name} is on the waitlist.` : `Spot claimed for ${d.first_name}.`}\n\n${L.join("\n")}\n\n${cancelUrl ? `Can't make it? Cancel here: ${cancelUrl}` : "See or cancel it in Claim It under My Claims."}`,
     html: shell(waiting ? `${esc(d.first_name)} is on the waitlist` : `Spot claimed for ${esc(d.first_name)}!`, `<p>${L.map(esc).join("<br>")}</p>${cancelUrl ? `<p style="color:#5b6b7a">Can't make it? Use the button below to cancel, so someone else can claim it.</p>` : ""}`, btn) });
 }
-async function canceled(r, user) {
+async function canceled(r, user, { tellCanceled = true } = {}) {
   const d = await details(r.canceled.id); if (!d) return;
-  await sendEmail({ to: to(d, user), subject: `Canceled: ${d.first_name}, ${d.board_name}: ${slotName(d)}`, text: `${d.first_name}'s spot was canceled.\n\n${lines(d).join("\n")}`,
+  if (tellCanceled) await sendEmail({ to: to(d, user), subject: `Canceled: ${d.first_name}, ${d.board_name}: ${slotName(d)}`, text: `${d.first_name}'s spot was canceled.\n\n${lines(d).join("\n")}`,
     html: shell(`${esc(d.first_name)}'s spot was canceled`, `<p>${lines(d).map(esc).join("<br>")}</p>`) });
   for (const p of r.promoted || []) {
     const q = await details(p.id); if (!q) continue;
