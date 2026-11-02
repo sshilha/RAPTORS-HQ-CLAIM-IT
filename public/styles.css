@@ -2690,3 +2690,23 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .dash-tools .dt-sort select { padding: 6px 10px; }
 .dms { margin-bottom: 16px; }
 @media (max-width: 1000px) { .dash-tools { margin-left: 0; width: 100%; } .dash-tools .dt-search { flex: 1; min-width: 0; } }
+/* dashboard cards: 4 per row on laptops, a little more compact */
+.bc-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.bc-head { height: 112px; }
+.bc-top { left: 14px; right: 12px; top: 10px; } .bc-type, .bc-st { font-size: 11px; padding: 2px 8px; } .bc-type svg, .bc-st svg { width: 12px; height: 12px; }
+.bc-title { left: 14px; right: 14px; top: 44px; font-size: 18px; }
+.bc-levels { left: 14px; right: 14px; top: 74px; font-size: 12px; }
+.bc-code { font-size: 36px; right: 14px; }
+.bc-body { padding: 10px 12px 12px; }
+.bc-stats b { font-size: 18px; } .bc-stats small { font-size: 11px; } .bc-stats { padding-bottom: 8px; }
+.bc-next { min-height: 34px; padding: 6px 2px; font-size: 12px; margin-bottom: 10px; } .bc-next svg { width: 15px; height: 15px; }
+.bc-pill { font-size: 10px; padding: 2px 8px; }
+.bc-acts { gap: 6px; } .bc-acts .bc-btn { padding: 6px 10px; font-size: 12px; border-radius: 8px; } .bc-acts .bc-btn svg { width: 14px; height: 14px; }
+@media (max-width: 1320px) { .bc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .bc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .bc-grid { grid-template-columns: 1fr; } }
+.bc-head:not(.has-img) .bc-title, .bc-head:not(.has-img) .bc-levels { right: 92px; }
+.bc-next > span:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bc-pill { flex: none; }
+.dm { padding: 6px 12px 6px 10px; } .dm b { font-size: 20px; } .dm-ic svg { width: 24px; height: 24px; }
+.bc-next .muted { font-size: 12px; }
+.dash-tabs { margin-bottom: 14px; }

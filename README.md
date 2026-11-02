@@ -512,7 +512,7 @@ on it) to see exactly their sessions, eligibility, and limits. Claim/Cancel are 
 
 
 ## Claim Board Dashboard (/admin/settings)
-Header with Create Board; counts (Active boards = not archived; Upcoming claims = confirmed claims on future
+Header (like Board Setup) with Create Board; the gray line shows counts (active boards = not archived; Upcoming claims = confirmed claims on future
 sessions; Volunteers = different people signed up for upcoming shifts on volunteer boards). Tabs All /
 Published / Draft / Archived (existing published/archived state), search, and sort (name, next date, status,
 newest) all on the page (sort is remembered). Cards: navy header with the board's type, status, name, and
@@ -520,4 +520,4 @@ level names; the board's own picture (the same /img/board/<id> My Claims uses) o
 navy, or its short code with lime stripes. The name sits in the same place on every card. Stats: the board's
 top level, its people (the assigned list, or who has signed up on open boards), and its sessions; next
 session and upcoming claims. Buttons: Open · Duplicate · Archive (archived: View · Duplicate · Reopen ·
-Delete permanently). 3 / 2 / 1 cards per row on desktop / tablet / phone.
+Delete permanently). 4 / 3 / 2 / 1 cards per row as the screen narrows (laptop / small laptop / tablet / phone).

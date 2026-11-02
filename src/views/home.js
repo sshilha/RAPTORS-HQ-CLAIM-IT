@@ -118,13 +118,13 @@ function dashCard(sc) {
       <span class="bc-shade"></span>
       <span class="bc-top"><span class="bc-type">${type === "volunteer" ? DI.people : DI.train}${type === "volunteer" ? "Volunteer" : "Training"}</span>
         <span class="bc-st ${status}">${status === "pub" ? `${DI.ok}Published` : status === "draft" ? `${DI.pen}Draft` : `${DI.arch}Archived`}</span></span>
-      <span class="bc-title">${esc(sc.name)}</span>
+      <span class="bc-title" title="${esc(sc.name)}">${esc(sc.name)}</span>
       <span class="bc-levels">${SC.levelKeys(sc).map((k) => esc(L[k].many)).join(" › ")}</span>
     </a>
     <div class="bc-body">
       <div class="bc-stats">${stats.map(([n, l]) => `<span><b>${n}</b><small>${l}</small></span>`).join("")}</div>
       <div class="bc-next">${DI.cal}${archived ? `<span>Archived ${esc(new Date(sc.archived_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}</span>`
-        : sc.next ? `<span>Next: <b>${esc(sc.next)}</b></span>${sc.claimed ? `<span class="bc-pill">${sc.claimed} upcoming claim${sc.claimed === 1 ? "" : "s"}</span>` : ""}` : `<span class="muted">No upcoming ${esc(L.slot.many.toLowerCase())}</span>`}</div>
+        : sc.next ? `<span>Next: <b>${esc(sc.next)}</b></span>${sc.claimed ? `<span class="bc-pill" title="${sc.claimed} upcoming spot${sc.claimed === 1 ? "" : "s"} claimed">${sc.claimed} claimed</span>` : ""}` : `<span class="muted">No upcoming ${esc(L.slot.many.toLowerCase())}</span>`}</div>
       <div class="bc-acts">
         <a class="bc-btn primary" href="/admin/setup?s=${sc.id}">${DI.open}${archived ? "View" : "Open"}</a>
         <a class="bc-btn" href="/admin/setup/schedules/${sc.id}/copy">${DI.copy}Duplicate</a>
@@ -155,13 +155,12 @@ function dashboardPage({ user, flash, rows, metrics, tab = "" }) {
   return page({ title: "Claim Board Dashboard", tab: "home", user, flash, xwide: true,
     body: `<section class="bh2">
       <div class="bh2-l"><span class="bh2-tile dash-tile">${DI.board}</span>
-        <div><div class="bh2-t"><h1>Claim Board Dashboard</h1></div><span class="bh2-meta">Create, manage, and monitor your signup boards.</span></div></div>
+        <div><div class="bh2-t"><h1>Claim Board Dashboard</h1></div><span class="bh2-meta">${metrics.active} active board${metrics.active === 1 ? "" : "s"} · ${metrics.upcoming} upcoming claim${metrics.upcoming === 1 ? "" : "s"} · ${metrics.volunteers} volunteer${metrics.volunteers === 1 ? "" : "s"} signed up</span></div></div>
       <div class="bh2-acts"><a class="sb-btn primary" href="/admin/setup/new">${DI.plus}Create Board</a></div></section>
     <nav class="bh2-tabs dash-tabs" role="tablist">${tabBtn("all", "All Boards", DI.layers)}${tabBtn("pub", "Published", DI.ok)}${tabBtn("draft", "Draft", DI.pen)}${tabBtn("arch", "Archived", DI.arch)}
       <span class="dash-tools"><label class="dt-search">${DI.search}<input type="search" placeholder="Search boards…" aria-label="Search boards"></label>
         <label class="dt-sort"><span>Sort by</span><select aria-label="Sort boards"><option value="name">Name (A–Z)</option><option value="name-d">Name (Z–A)</option>
           <option value="next">Next date (soonest)</option><option value="status">Status</option><option value="new">Newest first</option></select></label></span></nav>
-    <div class="dms">${metric(DI.layers, metrics.active, `Active board${metrics.active === 1 ? "" : "s"}`)}${metric(DI.calok, metrics.upcoming, `Upcoming claim${metrics.upcoming === 1 ? "" : "s"}`)}${metric(DI.people, metrics.volunteers, `Volunteer${metrics.volunteers === 1 ? "" : "s"}`)}</div>
     <h2 class="dlist-h">Active Claim Boards</h2>
     <div class="bc-grid">${rows.map(dashCard).join("")}</div>
     <p class="d-none" hidden></p>
