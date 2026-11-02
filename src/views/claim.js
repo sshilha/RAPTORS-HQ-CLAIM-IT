@@ -341,14 +341,19 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const hidden = (o) => Object.entries(o).filter(([, x]) => x).map(([k, x]) => `<input type="hidden" name="${k}" value="${esc(x)}">`).join("");
   return layout({ title: `${preview ? "Preview · " : ""}${board.name}`, user, flash, admin, tab: preview ? "" : "home", dash: true,
     body: `${preview ? `<div class="prev-banner"><b>Preview</b> ${preview.archived ? "This board is archived, so families can't see it." : preview.published ? "This board is live. This is what the person below sees." : "Families can't see this board yet. This is what it will look like once it's published."} Claiming is turned off here.</div>` : ""}<div class="d-wrap b-wrap">
-    <section class="b-head">
-      ${preview ? `<a class="b-back" href="/admin/setup?s=${board.id}">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Setup</a>` : guest ? "" : `<a class="b-back" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Dashboard</a>`}
-      ${board.image ? `<span class="d-thumb photo b-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code b-tile"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
-      <div class="b-head-t"><div class="b-head-line"><h1>${esc(board.name)}</h1>
-          ${range || board.event_location ? `<span class="b-head-meta">${[range ? `${IC.cal}${esc(range)}` : "", board.event_location ? `${IC.pin}${P.link(board.event_location)}` : ""].filter(Boolean).map((x) => `<span>${x}</span>`).join("")}</span>` : ""}
-          ${board.contact_name || board.contact_info ? `<span class="b-org">Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}</span>` : ""}</div>
-        ${board.description ? `<p>${esc(board.description)}</p>` : ""}</div>
+    ${preview ? `<nav class="back-row"><a class="back-btn" href="/admin/setup?s=${board.id}">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Setup</a></nav>` : guest ? "" : `<nav class="back-row"><a class="back-btn" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}My Claims</a></nav>`}
+    <section class="bh2 b-hd">
+      <div class="bh2-l">${board.image ? `<span class="bh2-tile b-hd-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="bh2-tile b-hd-tile code"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
+        <div><div class="bh2-t"><h1>${esc(board.name)}</h1><span class="b-hd-type">${require("./setup").boardTypeOf(board) === "volunteer" ? "Volunteer" : "Program"}</span></div>
+          <span class="bh2-meta">${[range ? esc(range) : "", board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean).join(" · ")}</span></div></div>
     </section>
+    <nav class="bh2-tabs dash-tabs b-vtabs">
+      <a href="${link({ v: "list", m: "" })}"${mode !== "cal" || !dated ? ' aria-current="page"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List</a>
+      ${dated ? `<a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="page"' : ""}>${IC.cal}Calendar</a>` : ""}
+    </nav>
+    ${mode !== "cal" && dated ? `<nav class="sub-tabs b-subtabs" aria-label="Group sessions"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="page"' : ""}>By ${esc(require("../schedules").labels(board).activity.one.toLowerCase())}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="page"' : ""}>By day</a></nav>` : ""}
+    <div class="sub-body b-sheet${mode !== "cal" && dated ? "" : " no-subs"}">
+    ${board.description ? `<p class="b-desc">${esc(board.description)}</p>` : ""}
     ${preview ? `<section class="b-bar b-bar-prev"><span class="b-bar-l">Previewing as:</span>
       <form method="get" action="/b/${board.id}" class="prev-as"><input type="hidden" name="preview" value="1">${mode === "cal" ? `<input type="hidden" name="v" value="cal">` : ""}
         <select name="as" onchange="this.form.submit()" aria-label="Preview as">${preview.members.map((m) => `<option value="${m.id}"${m.id === preview.as ? " selected" : ""}>${esc(m.first_name)} ${esc(m.last_name)}${m.group_name ? ` (${esc(m.group_name)})` : ""}</option>`).join("")}
@@ -362,11 +367,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     ${preview && !rows.length ? `<p class="b-pick">${preview.as ? `${esc(person.first_name)} wouldn't see anything to claim on this board.` : board.claim_mode === "roster" ? "Someone not on the board's list wouldn't see anything: this board is only for people assigned to it." : "Nothing to claim here yet."} Check the levels' <b>Who can claim</b> settings, or add ${esc(SC_LABELS(board))} to the board.</p>` : ""}
     ${!person ? `<p class="b-pick">👆 Tap who's signing up to see what's available.</p>` : `
     <div class="b-tools">
-      ${dated ? `<nav class="b-view"><a href="${link({ v: "list", m: "" })}"${mode !== "cal" ? ' aria-current="true"' : ""}>${SVG('<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>')}List View</a>
-        <a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="true"' : ""}>${IC.cal}Calendar View</a></nav>` : ""}
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}${limFor(a.id)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
-      ${mode !== "cal" && dated ? `<div class="b-group-w"><span class="b-group-l" id="grp-l">Group by</span><nav class="b-group" aria-labelledby="grp-l"><a href="${link({ g: "activity" })}"${group !== "day" ? ' aria-current="true"' : ""}>${esc(require("../schedules").labels(board).activity.one)}</a><a href="${link({ g: "day" })}"${group === "day" ? ' aria-current="true"' : ""}>Day</a></nav></div>` : ""}
       <form method="get" action="${basePath}" class="b-filters">${hidden({ preview: preview ? "1" : "", as: preview ? String(preview.as) : "", p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
         ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', guest ? "" : `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
         ${actNames.length > 1 ? sel("act", require("../schedules").labels(board).activity.one, actNames, filters.act, "All") : ""}
@@ -374,6 +376,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       </form>
     </div>
     ${mode === "cal" && dated ? calHtml.html : group === "day" && dated ? (byDayHtml() || listHtml) : listHtml}
+    </div>
     ${dialogs}
     ${guest ? `<dialog class="b-dlg" id="guest-claim"><div class="b-dlg-h"><span class="b-dlg-t"><b>Claim this spot</b><small class="gc-what"></small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
       <form method="post" action="${basePath}/claim" class="b-dlg-b a-form gc-form"><input type="hidden" name="item"><input type="hidden" name="back" value="${esc(back)}">

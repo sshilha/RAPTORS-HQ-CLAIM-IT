@@ -595,3 +595,12 @@ the bar is navy with lime stripes. Board pictures (Board details → Type & look
 **Organizers:** a board can have several (Board details → Organizers: one row each, + Add organizer, ×). Stored in
 schedules.organizers; every page and email shows them on one line ("Questions? Jane Smith (jane@…) · Bob Lee (715…)"),
 or name and contact as before when there's just one. Existing organizers carried over.
+
+
+## Sign-up page layout
+The family sign-up page (/b/<id>), the public link (/s/<code>), and admin Preview share the app's layout:
+← My Claims (or ← Back to Setup in Preview; none on the public link) · navy header (board picture or short-code tile,
+name, Program/Volunteer badge, dates · location · organizers) · gray tab bar with the views (List · Calendar, only those
+the board allows) · folder sub-tabs under List (By <activity level> · By day) · white sheet with the description, the
+"Signing up for" toolbar (person pills and limits; "No account needed" on the public link; "Previewing as" in
+Preview), the filters, and the sessions or calendar.
