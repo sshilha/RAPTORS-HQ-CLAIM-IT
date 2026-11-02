@@ -19,7 +19,7 @@ function requestsPage({ user, flash, rows, head = "" }) {
       ${r.kind === "change" ? `<p class="fine">Make the change in <a href="/admin/people">People</a>, then mark it done.</p>` : ""}
     </div>` : ""}</li>`;
   return page({ title: "Requests", tab: "people", user, flash, xwide: true,
-    body: `${head}
+    body: `${head}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>Requests <span class="h-sub">${waiting.length} waiting</span></h2></div>
     <form method="post" action="/admin/settings/app/change-email" class="rq-notify" id="notify">
       <span>Email new requests to:</span><b class="rq-addr">${esc(require("../catalog").current().change_email || "info@chippewavalleyraptors.com")}</b>
       <details><summary class="link-dark">Change</summary><span class="rq-edit"><input type="email" name="email" required value="${esc(require("../catalog").current().change_email || "info@chippewavalleyraptors.com")}" aria-label="Email address"><button class="btn-small" type="submit">Save</button></span></details>

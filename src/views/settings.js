@@ -250,6 +250,7 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
         <button class="btn-small" type="submit">Add</button></form>
     </section>`],
   };
+  if (part === "accounts" && sections.admins) sections.accounts = ["Accounts & sign-in", sections.accounts[1] + `<span id="admins-h"></span>` + sections.admins[1]];
   if (sections[part]) return page({ title: `${sections[part][0]} · App settings`, tab: "settings", user, flash,
     body: `${head ? head(part) : ""}${sections[part][1]}` });
   const card = (icon, title, summary, actions, note = "") => `<section class="panel side-card hub-card"><div class="card-head"><span class="ss-ico">${icon}</span><h2>${title}</h2></div>

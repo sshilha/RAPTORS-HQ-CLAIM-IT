@@ -2768,3 +2768,9 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .app-intro { margin-top: 0; }
 .app-tools { flex-basis: 100%; justify-content: flex-end; margin: 4px 0 0; }
 .add-wrap > summary.add-sum { display: none; }
+/* four tabs: filters fit on the same line again */
+.app-tools { flex-basis: auto; margin: 0 0 0 auto; }
+@media (max-width: 1250px) { .app-tools { flex-basis: 100%; justify-content: flex-end; margin-top: 4px; } }
+.req-note { display: flex; align-items: center; gap: 12px; background: #FFF5F5; border: 1px solid #f5c2c2; border-left: 4px solid #d64545; border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; font-size: 14px; }
+.req-note span { color: #5B6B82; flex: 1; } .req-note .sb-btn { margin-left: auto; }
+.sec-h { margin: 18px 0 8px; font: 800 18px Inter, sans-serif; color: #0B1930; text-transform: none; }

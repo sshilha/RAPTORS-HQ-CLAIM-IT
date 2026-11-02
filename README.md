@@ -545,8 +545,8 @@ Limits, Timing, Question, Attendance, Levels with their own settings.
 
 ## App Settings header
 Every App settings page uses the same header: navy band (App Settings, live counts of people / requests
-waiting / admins, page buttons such as + Add person and Import on People) and a gray tab bar: Overview ·
-People · Accounts & sign-in · Requests (waiting count) · Locations · Administrators · Wording. A person's page
-and Import light People; Sign-in activity lights Accounts & sign-in. Page filters sit in the gray bar: People
+waiting / admins, page buttons such as + Add person and Import on People) and a gray tab bar: People (red badge
+when requests are waiting) · Accounts & sign-in · Locations · Wording. App Settings opens on People. Requests,
+a person's page, and Import sit under People; Administrators and Sign-in activity sit under Accounts & sign-in. Page filters sit in the gray bar: People
 (search, kind, role, team, SportsEngine group), Requests (Waiting / Handled / All), Sign-in activity (search,
 Only problems), Locations (search).

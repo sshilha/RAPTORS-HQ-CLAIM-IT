@@ -36,7 +36,7 @@ function acctStatus(p) {
   if (p.invited_at) return `Invited ${shortDate(p.invited_at)}`;
   return p.email ? "Not invited" : "No email";
 }
-function directoryPage({ user, flash, people, total, f, teams, groups, lists = [], head = null }) {
+function directoryPage({ user, flash, people, total, f, teams, groups, lists = [], head = null, waiting = 0 }) {
   const cur = lists.find((l) => l.id === f.list);
   const qs = (extra) => `/admin/people?${new URLSearchParams(Object.fromEntries(Object.entries({ ...f, ...extra }).filter(([, x]) => x)))}`;
   const listBar = `<div class="list-bar" id="lists"><span class="field-lbl">Lists</span>
@@ -70,6 +70,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
   return page({ title: "People", tab: "people", user, flash, xwide: true,
     body: `${head ? head({ active: "people", tools: filterForm, actions: `<button type="button" class="sb-btn primary" onclick="var d=document.querySelector('.add-wrap'); d.open=!d.open; if (d.open) d.scrollIntoView({block:'start'})">+ Add person</button><a class="sb-btn" href="/admin/people/import">⇪ Import</a>` }) : ""}
     ${dl}
+    ${waiting ? `<div class="req-note"><b>${waiting} request${waiting === 1 ? "" : "s"} waiting</b> <span>New accounts, family members to add, or changes people asked for.</span><a class="sb-btn primary" href="/admin/requests">Review</a></div>` : ""}
     <section class="panel">
       ${WHERE_NOTE}
       <p class="fine">Only admins can change these details; people can send a change request from My Account.</p>

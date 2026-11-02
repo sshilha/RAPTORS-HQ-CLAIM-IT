@@ -10,8 +10,9 @@ const IC = {
   pin: SVG('<path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/>'), shield: SVG('<path d="M12 3 4 7v5c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V7z"/>'),
   type: SVG('<path d="M4 7V4h16v3M9 20h6M12 4v16"/>'),
 };
-const TABS = [["overview", "/admin/settings/app", IC.grid, "Overview"], ["people", "/admin/people", IC.people, "People"], ["accounts", "/admin/settings/app?part=accounts", IC.key, "Accounts &amp; sign-in"],
-  ["requests", "/admin/requests", IC.inbox, "Requests"], ["locations", "/admin/settings/app?part=places", IC.pin, "Locations"], ["admins", "/admin/settings/app?part=admins", IC.shield, "Administrators"], ["wording", "/admin/settings/app?part=labels", IC.type, "Wording"]];
+const TABS = [["people", "/admin/people", IC.people, "People"], ["accounts", "/admin/settings/app?part=accounts", IC.key, "Accounts &amp; sign-in"],
+  ["locations", "/admin/settings/app?part=places", IC.pin, "Locations"], ["wording", "/admin/settings/app?part=labels", IC.type, "Wording"]];
+const ALIAS = { requests: "people", admins: "accounts", overview: "people" };   // Requests sit under People; Administrators under Accounts
 
 // live counts for the gray line (people, requests waiting, admins)
 async function counts() {
@@ -22,13 +23,14 @@ async function counts() {
   r.admins += (process.env.ADMIN_EMAILS || "").split(",").map((x) => x.trim()).filter(Boolean).length;
   return r;
 }
-function appHeader({ active = "overview", c = {}, title = "App Settings", meta = "", actions = "", tools = "" } = {}) {
+function appHeader({ active = "people", c = {}, title = "App Settings", meta = "", actions = "", tools = "" } = {}) {
+  active = ALIAS[active] || active;
   const line = meta || `${c.people || 0} ${c.people === 1 ? "person" : "people"} · ${c.waiting || 0} request${c.waiting === 1 ? "" : "s"} waiting · ${c.admins || 0} admin${c.admins === 1 ? "" : "s"}`;
   return `<section class="bh2">
       <div class="bh2-l"><span class="bh2-tile dash-tile">${IC.gear}</span>
         <div><div class="bh2-t"><h1>${esc(title)}</h1></div><span class="bh2-meta">${line}</span></div></div>
       ${actions ? `<div class="bh2-acts">${actions}</div>` : ""}</section>
-    <nav class="bh2-tabs dash-tabs app-tabs">${TABS.map(([k, href, ic, label]) => `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${ic}${label}${k === "requests" && c.waiting ? ` <i class="app-badge">${c.waiting}</i>` : ""}</a>`).join("")}
+    <nav class="bh2-tabs dash-tabs app-tabs">${TABS.map(([k, href, ic, label]) => `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${ic}${label}${k === "people" && c.waiting ? ` <i class="app-badge" title="${c.waiting} request${c.waiting === 1 ? "" : "s"} waiting">${c.waiting}</i>` : ""}</a>`).join("")}
       ${tools ? `<span class="dash-tools app-tools">${tools}</span>` : ""}</nav>`;
 }
 // for routes: the header with fresh counts

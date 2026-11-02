@@ -16,7 +16,7 @@ const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 const COLORS = ["#93c47d", "#7fa7d9", "#f6cf55", "#d0503f", "#9a85cc", "#5fb3b3", "#e69a4a", "#c27ba0", "#8d9db6", "#6aa84f"];
 const acts = (sc) => `/admin/settings/activities?s=${sc.id}`;
 const grps = (sc, anchor = "") => `/admin/members?s=${sc.id}${/^#(groups|tags|presets)$/.test(anchor) ? `&card=${anchor.slice(1)}` : ""}`;
-const app = (anchor) => `/admin/settings/app?part=${anchor}`;
+const app = (part) => (part === "admins" ? "/admin/settings/app?part=accounts#admins-h" : `/admin/settings/app${part ? `?part=${part}` : ""}${part ? `#${part}` : ""}`);
 
 function readActivity(b) {
   const spots = int(b.default_spots), block = int(b.default_block), limit = int(b.default_limit);
@@ -141,7 +141,12 @@ router.post("/app/change-email", wrap(async (req, res) => {
   go(res, "/admin/requests#notify", { ok: `New requests will be emailed to ${e}.` });
 }));
 
-router.get("/app", (req, res, next) => (req.query.part === "change" ? res.redirect("/admin/requests#notify") : next()));
+router.get("/app", (req, res, next) => {
+  if (req.query.part === "change") return res.redirect("/admin/requests#notify");
+  if (req.query.part === "admins") return res.redirect("/admin/settings/app?part=accounts#admins");   // Administrators are on Accounts & sign-in
+  if (!req.query.part) return res.redirect("/admin/people" + (req.query.ok || req.query.err ? `?${new URLSearchParams({ ...(req.query.ok ? { ok: req.query.ok } : {}), ...(req.query.err ? { err: req.query.err } : {}) })}` : ""));
+  next();
+});
 router.get("/app", wrap(async (req, res) => {
   const admins = (await require("../db").query(`SELECT a.*, u.last_login_at FROM app_admins a LEFT JOIN users u ON u.email=a.email ORDER BY a.email`)).rows;
   const used = Object.fromEntries((await require("../db").query(
