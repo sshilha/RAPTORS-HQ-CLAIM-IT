@@ -663,3 +663,13 @@ Back / Continue / Create board. Details uses the Board details section names: Ge
 **Duplicate board:** ← All Boards · navy header (source board's picture or code, "Duplicate <board>", starts unpublished /
 claims never come along) · gray bar with what the board has (levels · sessions · people · coaches) · the form on the sheet
 (name, what comes along, new first day) with Cancel / Create the duplicate.
+
+
+## v0.25.0
+**Public-link cancel page** (/s/<code>/cancel/<token>): the board header (picture or code, name, Program/Volunteer badge,
+location · organizers), then "Cancel your spot?" with the person and time, Keep my spot / Yes, cancel my spot (or
+"already canceled" / "too late to cancel online, please contact …").
+
+**Cleanup:** the 17 old-system files listed under v0.24.0 are now actually removed (the earlier delete didn't run), plus
+never-shown leftovers: the old "Who's signing up?" page, the old board import screens and their routes, the old
+Duplicate screen (boards made before the rebuild now explain they can't be duplicated), and the old Archived page.
