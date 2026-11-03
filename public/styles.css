@@ -2898,3 +2898,26 @@ body:not(.dash) main.page, body:not(.dash) main.page.wide, body:not(.dash) main.
 .b-left-x { display: inline-flex; align-items: center; gap: 4px; color: #1d4ed8; font-weight: 600; } .fine-w { color: #5B6B82; }
 .b-sheet .b-bar-fam, .b-sheet .b-bar-prev, .b-sheet .b-bar-guest { display: none !important; }
 .b-vsubs { margin-top: 0; }
+/* sign-up page: only the list / calendar scrolls */
+.b-scroll { overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 0 6px 6px; scrollbar-gutter: stable; }
+html.b-fixed, html.b-fixed body { overflow: hidden; height: 100%; }
+html.b-fixed footer.foot, html.b-measure footer.foot { display: none; }
+html.b-fixed .b-acct { margin: 8px 0 0; }
+html.b-fixed .b-sheet { margin-bottom: 0; }
+/* sign-up page: a tighter fixed area so the list gets the room */
+.b-hd { padding-top: 10px; padding-bottom: 10px; }
+.b-hd-desc { display: block; max-width: 100%; margin-top: 3px; padding: 0; border: 0; background: none; color: #E4F5D2; font: 400 13px Inter, sans-serif; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; } .b-hd-desc.open { white-space: normal; }
+.b-hd .bh2-l > div { min-width: 0; } .b-hd .bh2-meta { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.back-row { margin-bottom: 8px; } .b-whobar { margin-bottom: 10px; padding-top: 4px; padding-bottom: 4px; }
+.b-sheet { padding-top: 12px; } .b-sheet .b-tools { margin-bottom: 10px; align-items: center; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.b-sheet .b-f select { padding: 6px 10px; font-size: 13px; }
+@media (max-width: 760px) {
+  .b-hd .b-hd-tile { display: none; } .b-hd h1 { font-size: 18px; } .b-hd .b-hd-type { margin-left: 6px; }
+  .b-whobar .b-who-l { display: none; } .b-whobar { gap: 2px 8px; } .b-who > a { padding: 6px 12px; }
+  .b-left { font-size: 12px; } .b-sheet { padding: 10px 10px 8px; }
+  .b-sheet .b-tools { flex-wrap: nowrap; gap: 6px; } .b-sheet .b-tools .b-filters { display: flex; gap: 6px; flex-wrap: nowrap; min-width: 0; }
+  .b-sheet .b-f select { max-width: 120px; padding: 5px 6px; font-size: 12px; } .b-group a { padding: 6px 9px; font-size: 12px; }
+  .back-row { margin-bottom: 6px; }
+}

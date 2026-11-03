@@ -604,3 +604,11 @@ name, Program/Volunteer badge, dates · location · organizers) · gray bar: "Si
 left and their remaining spots on the right ("Previewing as" picker in Preview; "No account needed" on the public link) ·
 folder sub-tabs List · Calendar (when sessions have dates) · white sheet: description, one row with By <activity level> ·
 By day on the left (month arrows in Calendar) and the filters on the right, then the sessions or calendar.
+
+**Remaining spots line:** lists each limit that applies to the selected person, and adds "no limit on anything else" when
+there's no board-wide limit and some of what they can see isn't under any limit.
+
+**Scrolling on the sign-up page:** the page fits the window and only the list (or the calendar) scrolls; everything above
+it stays put, so you can switch person or view at any time. The scroll spot is remembered across claiming, cancelling,
+and switching person (per board and view). Windows too short for this (under ~260px of room) fall back to normal page
+scrolling. The description shows as one line in the header (tap to expand); filters carry their label in the first choice.

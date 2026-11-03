@@ -337,7 +337,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const leafIds = new Set(acts.map((a) => a.id));
   const limitBits = person ? view.limits.map((L) => `<span><b>${L.left} of ${L.limit}</b> left ${L.kind === "board" ? "on this board" : `in ${esc(L.label || L.name)}`}</span>`) : [];
   const extra = rows.filter((r) => r.leftover && r.canClaim && r.open > 0);
-  const sel = (name, label, list, cur, all) => `<label class="b-f"><span>${label}</span><select name="${name}" onchange="this.form.submit()"><option value="">${all}</option>${list.map((x) => `<option${cur === x ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>`;
+  const sel = (name, label, list, cur, all) => `<label class="b-f"><span class="vh">${label}</span><select name="${name}" aria-label="${label}" onchange="this.form.submit()"><option value="">${label}: ${all.toLowerCase()}</option>${list.map((x) => `<option${cur === x ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>`;
   const hidden = (o) => Object.entries(o).filter(([, x]) => x).map(([k, x]) => `<input type="hidden" name="${k}" value="${esc(x)}">`).join("");
   return layout({ title: `${preview ? "Preview · " : ""}${board.name}`, user, flash, admin, tab: preview ? "" : "home", dash: true,
     body: `${preview ? `<div class="prev-banner"><b>Preview</b> ${preview.archived ? "This board is archived, so families can't see it." : preview.published ? "This board is live. This is what the person below sees." : "Families can't see this board yet. This is what it will look like once it's published."} Claiming is turned off here.</div>` : ""}<div class="d-wrap b-wrap">
@@ -345,7 +345,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     <section class="bh2 b-hd">
       <div class="bh2-l">${board.image ? `<span class="bh2-tile b-hd-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="bh2-tile b-hd-tile code"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
         <div><div class="bh2-t"><h1>${esc(board.name)}</h1><span class="b-hd-type">${require("./setup").boardTypeOf(board) === "volunteer" ? "Volunteer" : "Program"}</span></div>
-          <span class="bh2-meta">${[range ? esc(range) : "", board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean).join(" · ")}</span></div></div>
+          <span class="bh2-meta">${[range ? esc(range) : "", board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean).join(" · ")}</span>
+          ${board.description ? `<button type="button" class="b-hd-desc" title="${esc(board.description)}" onclick="this.classList.toggle('open')">${esc(board.description)}</button>` : ""}</div></div>
     </section>
     <nav class="bh2-tabs dash-tabs b-whobar">
       ${preview ? `<span class="b-who"><span class="b-who-l">Previewing as</span>
@@ -355,11 +356,14 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       : guest ? `<span class="b-who b-who-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email.</span></span>`
       : `<span class="b-who"><span class="b-who-l">Signing up for</span>${people.map((p) => { const on = person && ((p.self_user_id && person.self_user_id) || p.id === person.id);
           return `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${on ? ' aria-current="page"' : ""}>${esc(nm(p))}</a>`; }).join("")}</span>`}
-      ${person && !guest ? `<span class="b-left">${limitBits.length ? `${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span>` : `<span class="fine-w">No claim limits for ${esc(nm(person))}</span>`}${extra.length ? `<span class="b-left-x">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open</span>` : ""}</span>` : ""}
+      ${person && !guest ? `<span class="b-left">${limitBits.length ? `${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}${(() => {
+        // say so when some of what they can see isn't under any limit
+        const ids = new Set(view.limits.filter((x) => x.kind === "node").map((x) => x.id));
+        return !view.limits.some((x) => x.kind === "board") && view.items.some((r) => !r.chain.some((n) => ids.has(n.id))) ? ` · <span class="fine-w">no limit on anything else</span>` : ""; })()}</span>` : `<span class="fine-w">No claim limits for ${esc(nm(person))}</span>`}${extra.length ? `<span class="b-left-x">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open</span>` : ""}</span>` : ""}
     </nav>
     ${dated ? `<nav class="sub-tabs b-vsubs" aria-label="View"><a href="${link({ v: "list", m: "" })}"${mode !== "cal" ? ' aria-current="page"' : ""}>List</a><a href="${link({ v: "cal" })}"${mode === "cal" ? ' aria-current="page"' : ""}>Calendar</a></nav>` : ""}
     <div class="sub-body b-sheet${dated ? "" : " no-subs"}">
-    ${board.description ? `<p class="b-desc">${esc(board.description)}</p>` : ""}
+
     ${preview ? `<section class="b-bar b-bar-prev" hidden>
       ${limitBits.length ? `<span class="b-bar-lim">${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}</span></span>` : ""}</section>` : guest ? `<section class="b-bar b-bar-guest" hidden>${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email. You'll get a confirmation email with a link to cancel.</span></section>` : `<section class="b-bar b-bar-fam" hidden>
       <nav class="b-people" hidden>${people.map((p) => `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${person && ((p.self_user_id && person.self_user_id) || p.id === person.id) ? ' aria-current="true"' : ""}>${esc(nm(p))}</a>`).join("")}</nav>
@@ -378,8 +382,25 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
         ${groups.length > 1 ? sel("grp", "Group", groups, filters.grp, "All") : ""}
       </form>
     </div>
-    ${mode === "cal" && dated ? calHtml.html : group === "day" && dated ? (byDayHtml() || listHtml) : listHtml}
+    <div class="b-scroll" id="b-scroll">${mode === "cal" && dated ? calHtml.html : group === "day" && dated ? (byDayHtml() || listHtml) : listHtml}</div>
     </div>
+    <script>(function () {
+      // only the list (or the calendar) scrolls; everything above it stays put. Tiny windows fall back to normal scrolling.
+      var box = document.getElementById("b-scroll"), root = document.documentElement, key = "b-scroll:" + location.pathname + ":" + (/[?&]v=cal/.test(location.search) ? "cal" : "list");
+      function fit() {
+        root.classList.remove("b-fixed"); box.style.height = "";
+        root.classList.add("b-measure");   // hide the footer while measuring; keep anything else below the list (like Sign in)
+        var after = document.documentElement.scrollHeight - (box.getBoundingClientRect().bottom + window.scrollY);
+        root.classList.remove("b-measure");
+        var h = window.innerHeight - (box.getBoundingClientRect().top + window.scrollY) - after - 10;
+        if (h < 260) return;
+        root.classList.add("b-fixed"); box.style.height = h + "px";
+      }
+      fit(); window.addEventListener("resize", fit);
+      // come back to the same spot after claiming, cancelling, or switching person
+      try { var y = +sessionStorage.getItem(key); if (y) box.scrollTop = y; } catch (e) {}
+      window.addEventListener("beforeunload", function () { try { sessionStorage.setItem(key, String(box.scrollTop)); } catch (e) {} });
+    })();</script>
     ${dialogs}
     ${guest ? `<dialog class="b-dlg" id="guest-claim"><div class="b-dlg-h"><span class="b-dlg-t"><b>Claim this spot</b><small class="gc-what"></small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
       <form method="post" action="${basePath}/claim" class="b-dlg-b a-form gc-form"><input type="hidden" name="item"><input type="hidden" name="back" value="${esc(back)}">
