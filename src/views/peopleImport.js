@@ -6,7 +6,7 @@ const KINDS = [["athlete", "Athletes", "Players, with their parents' or guardian
   ["mixed", "Mixed", "Both, with a column that says which (like Type: Player / Coach)."]];
 const steps = (n) => `<nav class="bh2-tabs dash-tabs wz-tabs" aria-label="Steps"><ol class="wz-progress">${["Your file", "Match the columns", "Review &amp; import"].map((l, i) =>
   `<li class="${i + 1 <= n ? "on" : ""}${i + 1 === n ? " now" : ""}${i + 1 < n ? " done" : ""}"><button type="button" disabled><span>${i + 1}</span>${l}</button></li>`).join("")}</ol></nav>`;
-const top = (head, n) => `${head({ active: "people" })}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>Import people</h2></div>${steps(n)}`;
+const top = (head, n) => `<nav class="back-row"><a class="back-btn" href="/admin/people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>People</a></nav>${head({ active: "people" })}<div class="sub-top"><h2>Import people</h2></div>${steps(n)}`;
 
 // ---------- 1: the file ----------
 function step1Page({ user, flash, head }) {
@@ -127,7 +127,7 @@ function resultPage({ user, flash, head, b, invite, undoable, lists = [], compar
 function cleanupPage({ user, flash, head, rows }) {
   const when = (d) => (d ? new Date(d).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" }) : "");
   return page({ title: "Clean up · People", tab: "people", user, flash, xwide: true,
-    body: `${head({ active: "people" })}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>Clean up</h2></div>
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>People</a></nav>${head({ active: "people" })}<div class="sub-top"><h2>Clean up</h2></div>
     <section class="panel">
       <p class="fine">People with a sign-in who haven't signed in for a year or more (or were set up over a year ago and never signed in). <b>Keep</b> hides them from this list for a year.
         <b>Delete</b> removes their sign-in and takes them out of People. Anyone with past claims is <b>archived</b> instead, so Reports keeps their history. Admins never appear here.</p>

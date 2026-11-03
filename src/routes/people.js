@@ -270,7 +270,7 @@ router.get("/:id(\\d+)/merge", wrap(async (req, res) => {
   const dupId = int(req.query.with), dup = dupId && others.find((o) => o.id === dupId);
   const pv = dup ? await PP.mergePreview(keep.id, dup.id) : null;
   res.send(require("../views/admin").page({ title: `Merge into ${nameOf(keep)}`, tab: "people", user: req.user, flash: flashFrom(req), xwide: true,
-    body: `${(await AHead())({ active: "people" })}<div class="sub-top"><a class="back-btn" href="/admin/people/${keep.id}">← ${esc(nameOf(keep))}</a><h2>Merge a duplicate into ${esc(nameOf(keep))}</h2></div>
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/people/${keep.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>${esc(nameOf(keep))}</a></nav>${(await AHead())({ active: "people" })}<div class="sub-top"><h2>Merge a duplicate into ${esc(nameOf(keep))}</h2></div>
     <section class="panel mg">
       <p class="fine">Pick the duplicate. Everything that belongs to it moves to <b>${esc(nameOf(keep))}</b>, which you keep: claims, boards (with their group and tags), parents/guardians, lists, and their sign-in. Details ${esc(keep.first_name || "they")} is missing are filled in from the duplicate, and the duplicate is archived. This can't be undone.</p>
       <form method="get" action="/admin/people/${keep.id}/merge" class="mg-pick"><label class="field-l"><span>The duplicate</span>

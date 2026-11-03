@@ -58,7 +58,7 @@ function listPage({ user, flash, head, templates, brand: b, logo }) {
 function editPage({ user, flash, head, t, brand: b }) {
   const chip = (k, d) => `<button type="button" class="cm-chip" data-var="${esc(k)}" title="${esc(d)}">{{${esc(k)}}}</button>`;
   return page({ title: `Edit · ${t.name}`, tab: "people", user, flash, xwide: true,
-    body: `${head({ active: "communication" })}<div class="sub-top"><a class="back-btn" href="/admin/people/communication">← Communication</a><h2>${esc(t.name)} ${t.custom ? `<span class="st-pill info">Customized</span>` : `<span class="st-pill plain">Default</span>`}</h2></div>
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/people/communication"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Communication</a></nav>${head({ active: "communication" })}<div class="sub-top"><h2>${esc(t.name)} ${t.custom ? `<span class="st-pill info">Customized</span>` : `<span class="st-pill plain">Default</span>`}</h2></div>
     <p class="fine cm-meta"><b>Sent when:</b> ${esc(t.when)} · <b>Goes to:</b> ${esc(t.to)}${t.custom && t.updated_by ? ` · Last changed by ${esc(t.updated_by)}, ${esc(fmt(t.updated_at))}` : ""}</p>
     <div class="cm-edit">
       <form method="post" action="/admin/people/communication/${t.key}" class="panel cm-form" id="cm-form">

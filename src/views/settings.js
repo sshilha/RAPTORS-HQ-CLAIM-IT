@@ -75,7 +75,7 @@ ${SC.depthOf(sc) >= 3 ? `    <section class="panel" id="presets"><details>
         <input type="hidden" name="original" value="${esc(p.name)}">
         <input name="name" value="${esc(p.name)}" maxlength="30" aria-label="Shortcut name" class="w-name">
         <span class="ages">${groups.map((g) => `<label class="check"><input type="checkbox" name="ages" value="${esc(g)}"${p.ages.includes(g) ? " checked" : ""}> ${esc(g)}</label>`).join("")}</span>
-        <button class="btn-ghost" type="submit">Save</button>
+        <button class="btn-small" type="submit">Save</button>
         <button class="x" type="submit" formaction="/admin/settings/presets/remove${q}" aria-label="Remove shortcut">×</button>
       </form>`).join("")}
       ${groups.length ? `<form method="post" action="/admin/settings/presets${q}" class="preset-edit new">
@@ -103,7 +103,7 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
         <div class="full"><label>Organization<input name="org_name" maxlength="60" value="${esc(al.org_name)}" placeholder="Chippewa Valley Raptors"></label></div>
         <div class="pair"><div><label>Call each one a<input name="schedule_one" required maxlength="24" value="${esc((al.schedule || [])[0] || "Claim Board")}" placeholder="Claim Board"></label></div>
           <div><label>Plural<input name="schedule_many" maxlength="24" value="${esc((al.schedule || [])[1] || "Claim Boards")}" placeholder="Claim Boards"></label></div></div>
-        <div class="full"><button class="btn-ghost" type="submit">Save</button></div>
+        <div class="full q-actions"><button class="btn-small" type="submit">Save</button></div>
       </form>
     </section>
 `],

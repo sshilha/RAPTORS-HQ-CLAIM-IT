@@ -82,6 +82,7 @@ router.post("/password", wrap(async (req, res) => {
   go(res, back("password"), { ok: u.password_hash ? "Password changed." : "Password set. You can now sign in with it." });
 }));
 router.post("/password/remove", wrap(async (req, res) => {
+  if (require("../accounts").settings().passwords === "required") return res.redirect("/account?tab=account&sub=profile&err=" + encodeURIComponent("Passwords are required here, so yours can't be removed. You can change it instead."));
   await query(`UPDATE users SET password_hash=NULL, password_set_at=NULL WHERE id=$1`, [req.user.id]);
   go(res, back("password"), { ok: "Password removed. You'll sign in with an emailed link (or a texted code)." });
 }));

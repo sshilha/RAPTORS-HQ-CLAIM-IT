@@ -178,6 +178,19 @@ test/engine.test.js       engine tests (npm test)
 test/check.js             page health check (npm run check)
 ```
 
+### Layout standard (keep new pages to it)
+- **Page top:** the same space below the top bar on every page (28px; 16px on phones).
+- **Back button:** always **above** the header, in a `<nav class="back-row"><a class="back-btn" href="…">(arrow svg)Label</a></nav>`.
+  Nothing else goes above the header (page-wide status banners, like Preview and shadow mode, are the only exception).
+- **Header:** the navy `bh2` band (or the App Settings header), then tabs / folder sub-tabs, then the white sheet.
+- **Form buttons:** a `q-actions` (or `a-act`) row at the end of the form: right-aligned, **Cancel first, then the main
+  action**, 16px below the last field. The main button is lime (`btn-small` or `sb-btn primary`); Cancel is outlined
+  (`btn-ghost` / `link-dark`); Delete / Remove / Decline is a red outline (`btn-ghost danger`). All buttons in a row are
+  the same height and line up.
+- **One-line rows** (add, rename, filter, bulk actions) keep their button beside the field (`inline-add`, `inline-edit`).
+- **Phones:** nothing wider than the screen; tab bars scroll sideways; long text and toolbars wrap.
+- The rules live at the end of `public/styles.css` ("CONSISTENCY STANDARD"), so most pages follow them without extra work.
+
 Conventions: pages are template strings built on the server (`esc()` every value); forms post and redirect with a flash
 message (`go(res, url, { ok | err })`); every database change is additive and runs at startup, so deploying is just a push.
 
@@ -198,6 +211,9 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.31** Consistency pass: headers in two spots (with / without a back button), back buttons always above the header,
+  form buttons right-aligned Cancel · Save 16px below the last field with one lime main button, red Delete/Decline, nothing
+  wider than a phone (27 pages were); My Account Change rows and Requests Decline match every other form.
 - **v0.30.1** Passwords: Required now means password sign-in after the first time (email only for Forgot password).
 - **v0.30** Cleanup: old-data tool; app independent of the old tables; dead code and unused styles removed (visually
   identical, checked with before/after screenshots); fixes found along the way (new 1–2-level boards couldn't be

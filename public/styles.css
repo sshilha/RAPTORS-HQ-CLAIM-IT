@@ -2555,3 +2555,108 @@ html.b-measure body, html.b-measure main, html.b-measure .page, html.b-measure .
   .board-tabs::-webkit-scrollbar { display: none; }
   .board-tabs a { flex: none; white-space: nowrap; }
 }
+
+/* ===================================================================================================
+   CONSISTENCY STANDARD (applies everywhere; it comes last, so it wins)
+   1. Page top: the same space below the top bar on every page. 2. Back row: always above the header,
+   one height, one gap to the header; nothing else above the header. 3. Form buttons: right-aligned,
+   Cancel first then the main action, 16px below the last field. 4. One look for the main button (lime),
+   outlined for secondary, red outline for Delete/Remove.
+   =================================================================================================== */
+.page, .d-wrap, .dash-page .d-wrap { padding-top: 28px !important; }
+@media (max-width: 760px) { .page, .d-wrap, .dash-page .d-wrap { padding-top: 16px !important; } }
+.back-row { display: flex; align-items: center; min-height: 32px; margin: 0 0 10px !important; padding: 0 !important; }
+.back-btn { height: 32px; box-sizing: border-box; padding: 0 12px !important; font: 600 13px Inter, sans-serif !important; }
+.back-btn svg { width: 15px; height: 15px; }
+/* button rows */
+.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .imp-dlg-acts, .fam-chgform .a-act, .ck-walk .a-act {
+  display: flex !important; flex-direction: row !important; flex-wrap: wrap; justify-content: flex-end !important; align-items: center !important;
+  gap: 10px !important; margin: 16px 0 0 !important; padding-top: 0 !important; border-top: 0 !important; width: 100%; }
+.stack > .q-actions, .stack > .a-act, .a-form > .a-act, .ss-form > .q-actions, .grid-form > .q-actions { margin-top: 6px !important; }   /* those forms already space their rows 10px apart */
+.q-actions > .btn-ghost:not(.danger), .q-actions > .link-dark, .q-actions > .ss-cancel, .q-actions > a.btn-ghost, .a-act > .link-dark, .a-act > .btn-ghost,
+.dlg-actions > .btn-ghost, .dlg-actions > .link-dark, .st-inline-acts > .btn-ghost, .st-inline-acts > .link-dark, .imp-dlg-acts > .btn-ghost { order: -1; }
+.q-actions > .danger, .a-act > .danger { order: -2; margin-right: auto; }   /* Delete/Remove sits apart, on the left */
+/* the main button: lime */
+.btn-small, .q-actions .b-claim, .a-act .b-claim, .st-inline-acts .b-claim, .ck-walk .a-act .b-claim, .fam-chgform .b-claim {
+  background: #8DDC32 !important; border: 1px solid #8DDC32 !important; color: #0B1930 !important; border-radius: 9px !important;
+  font: 700 14px Inter, sans-serif !important; padding: 9px 18px !important; min-height: 38px; box-shadow: none !important; text-transform: none !important; letter-spacing: 0 !important; }
+.btn-small:hover, .q-actions .b-claim:hover, .a-act .b-claim:hover { background: #7fcd27 !important; border-color: #7fcd27 !important; }
+.q-actions .btn-ghost, .a-act .btn-ghost, .dlg-actions .btn-ghost, .st-inline-acts .btn-ghost, .imp-dlg-acts .btn-ghost, .q-actions .link-dark, .a-act .link-dark {
+  border-radius: 9px !important; font: 600 14px Inter, sans-serif !important; padding: 9px 16px !important; min-height: 38px; box-sizing: border-box; }
+.q-actions .link-dark, .a-act .link-dark { border: 1px solid #c9d1de !important; background: #fff !important; color: #0B1930 !important; text-decoration: none !important; display: inline-flex; align-items: center; }
+/* the gap above a button row is always 16px: whatever sits just above it gives up its own bottom spacing */
+.wz-nav, .cm-acts { margin: 16px 0 0 !important; padding-top: 0 !important; border-top: 0 !important; }
+.wz-nav { display: flex; justify-content: flex-end; gap: 10px; } .wz-nav #wz-back { order: -1; margin-right: auto; }
+:is(form, .wz-step, .ss-form, .a-form) :is(*):has(+ :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts)) { margin-bottom: 0 !important; padding-bottom: 0 !important; }
+:is(form, .ss-form, .a-form) :is(*):has(+ :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts)) :is(:last-child) { margin-bottom: 0 !important; }
+/* small action forms (Requests' Approve / Mark done, Old data's Remove) follow the same rule */
+.rq-act form.stack > button:last-child, .od-rm > button:last-child { margin-top: 6px !important; align-self: flex-end; }
+.od-rm { gap: 10px !important; }
+/* exact 16px above every button row, whatever the container spaces its parts by:
+   each container states its own spacing (--row-gap, not inherited) and the row subtracts it */
+@property --row-gap { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.stack, .dlg-body, .cm-form, .self-form { --row-gap: 10px; } .st-inline { --row-gap: 6px; } .rc-form, .grid-form { --row-gap: 14px; }
+.nt-sheet { --row-gap: 4px; } .ap-pics { --row-gap: 18px; }
+:is(.stack, .dlg-body, .cm-form, .self-form, .st-inline, .rc-form, .grid-form, .nt-sheet, .ap-pics, form, .ss-form, .a-form, .panel, .sub-body, div, section) > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) {
+  margin-top: calc(16px - var(--row-gap-parent, 0px)) !important; }
+
+.stack > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 6px !important; }
+.dlg-body > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 6px !important; }
+.cm-form > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 6px !important; }
+.self-form > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 6px !important; }
+.st-inline > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 10px !important; }
+.rc-form > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 2px !important; }
+.grid-form > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 2px !important; }
+.nt-sheet > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 12px !important; }
+.ap-pics > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: -2px !important; }
+.ss-form:not(.rc-form) > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts), .a-form > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts) { margin-top: 16px !important; }
+.a-form > :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts) { margin-top: 8px !important; }   /* .a-form spaces its parts 8px apart */
+.st-inline > fieldset, .rc-form > fieldset { padding-bottom: 0 !important; margin-bottom: 0 !important; }
+/* everything nested at the bottom of what sits above a button row gives up its bottom spacing (form controls keep theirs) */
+:has(+ :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts)) :is(:last-child):not(input, textarea, select, button, .choice, .tag-box, .cm-chip) { margin-bottom: 0 !important; padding-bottom: 0 !important; }
+:has(+ :is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .wz-nav, .cm-acts)):not(input, textarea, select, .choice) { margin-bottom: 0 !important; padding-bottom: 0 !important; }
+/* a row of choice cards (or a script tag) just above the buttons shouldn't add space either */
+.opt-row:last-child, .opt-row:has(+ script:last-child), :has(+ script + :is(.q-actions, .a-act, .dlg-actions, .st-inline-acts, .cp-acts)) .opt-row:last-child,
+:has(+ script + :is(.q-actions, .a-act, .dlg-actions, .st-inline-acts, .cp-acts)), .sub-q:last-of-type > .opt-row:last-child { margin-bottom: 0 !important; padding-bottom: 0 !important; }
+:has(+ script + :is(.q-actions, .a-act, .dlg-actions, .st-inline-acts, .cp-acts)) :is(:last-child):not(input, textarea, select, button, .choice, .mode-opt, .tag-box) { margin-bottom: 0 !important; }
+/* text boxes sit on their own line, with no extra space under them */
+textarea { display: block; vertical-align: top; }
+/* My Account → Change rows: the field takes the width, then Cancel · Save below (like every form) */
+.a-edit .a-inline { display: block !important; } .a-edit .a-inline label { display: flex; flex-direction: column; gap: 4px; }
+.a-edit .a-inline input { width: 100%; box-sizing: border-box; } .a-edit > .a-cancel { display: none; }
+/* Requests: Decline matches Approve (note, then the button below, right) */
+.rq-decline { display: flex !important; flex-direction: column !important; align-items: stretch !important; }
+.rq-decline > button { align-self: flex-end; margin-top: 6px !important; }
+/* one-line add / rename / filter rows: the same spacing and heights everywhere */
+:is(.inline-add, .inline-edit, .bulk-tag, .bulk-bar, .rq-notify, .copy-from) { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+:is(.inline-add, .inline-edit, .bulk-tag, .bulk-bar, .rq-notify, .copy-from) :is(input, select, button) { min-height: 36px; box-sizing: border-box; margin: 0 !important; }
+/* every main (submit) button in a button row: lime, and every button in a row the same height */
+:is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .imp-dlg-acts, .wz-nav) > button[type=submit]:not(.danger):not(.link-dark):not(.btn-ghost) {
+  background: #8DDC32 !important; border: 1px solid #8DDC32 !important; color: #0B1930 !important; border-radius: 9px !important; font: 700 14px Inter, sans-serif !important; padding: 9px 18px !important; }
+:is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .imp-dlg-acts, .wz-nav, .cm-acts) :is(button, a) { min-height: 38px !important; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+:is(.q-actions, .a-act, .st-inline-acts, .dlg-actions, .cp-acts, .imp-dlg-acts, .wz-nav, .cm-acts) > :is(button, a, form, span) { margin-top: 0 !important; margin-bottom: 0 !important; align-self: center !important; }
+.a-edit .a-inline > .a-act { margin-top: 16px !important; }
+.rq-decline { gap: 0 !important; } .rq-decline > button { margin-top: 16px !important; }
+.rq-act form.stack:not(.rq-decline) { gap: 0 !important; } .rq-act form.stack:not(.rq-decline) > button:last-child { margin-top: 16px !important; }
+.rq-act form.stack.rq-decline > button:last-child { margin-top: 16px !important; }
+/* Decline / Remove / Delete: red outline, the same size and corners as the other buttons */
+.rq-decline > button, .q-actions > .danger, .a-act > .danger, .od-rm > button.danger, .btn-ghost.danger { color: #b91c1c !important; border: 1px solid #f0b4b4 !important; background: #fff !important;
+  border-radius: 9px !important; min-height: 38px; padding: 9px 16px !important; font: 600 14px Inter, sans-serif !important; box-sizing: border-box; }
+.rq-decline > button:hover, .btn-ghost.danger:hover { background: #fdf2f2 !important; border-color: #e58c8c !important; }
+/* phones: nothing wider than the screen. Folder sub-tabs scroll sideways (like the board tabs); summary lines and toolbars wrap */
+@media (max-width: 760px) {
+  .sub-tabs { display: flex; flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .sub-tabs::-webkit-scrollbar { display: none; }
+  .sub-tabs > a { flex: none; white-space: nowrap; }
+  .bh2-meta, .bh2-meta * { white-space: normal !important; } .bh2-l { min-width: 0; flex-wrap: wrap; } .bh2-t { flex-wrap: wrap; min-width: 0; }
+  .sub-top, .sub-tools, .c-legend, .rq-edit, .dash-tabs, .bh2-tabs:not(.board-tabs) { flex-wrap: wrap !important; min-width: 0; max-width: 100%; }
+  .sub-top > *, .sub-tools > * { min-width: 0; }
+  .panel, section, .sub-body { max-width: 100%; box-sizing: border-box; }
+}
+@media (max-width: 760px) {
+  .panel, .sub-body, .sh-cols, .sh-cols > *, .sh-row, .sh-p { min-width: 0 !important; overflow-wrap: anywhere; }
+  select, input:not([type=checkbox]):not([type=radio]), textarea { max-width: 100%; min-width: 0; }
+  .sub-tools form, .sub-tools, form.inline-add, form.inline-edit, .copy-from, .preset-edit { flex-wrap: wrap !important; max-width: 100%; }
+  .sub-tools form > *, .copy-from > *, .preset-edit > * { min-width: 0; max-width: 100%; }
+}
+@media (max-width: 760px) { .settings-2, .hub-grid { grid-template-columns: minmax(0, 1fr) !important; } }

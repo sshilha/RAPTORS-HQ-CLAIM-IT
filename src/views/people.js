@@ -124,7 +124,7 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
   const ra = p.report_access || {}, mode = ra.mode || "none";
   const name = PP.display(p);
   return page({ title: name, tab: "people", user, flash, xwide: true,
-    body: `${head ? head({ active: "people" }) : ""}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>${esc(name)} <span class="h-sub">${p.kind === "adult" ? "Adult" : "Athlete"}</span></h2></div>
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>People</a></nav>${head ? head({ active: "people" }) : ""}<div class="sub-top"><h2>${esc(name)} <span class="h-sub">${p.kind === "adult" ? "Adult" : "Athlete"}</span></h2></div>
     <div class="board-cols"><div class="bc-left">
       <section class="panel"><h2>Details</h2>
         <form method="post" action="/admin/people/${p.id}" class="grid-form">${fields(p, p.kind)}

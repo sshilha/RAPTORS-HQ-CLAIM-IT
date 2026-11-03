@@ -3,10 +3,22 @@ const A = require("../accounts");
 const { fmtDateTime } = require("../time");
 
 const ROLE = { parent: "Parent/guardian", coach: "Coach", volunteer: "Volunteer / outside participant" };
+// a Change row's form: its main button and Cancel share one right-aligned row (Cancel first), like every other form
+const CANCEL = `<button type="button" class="link-dark a-cancel" onclick="var c=this.closest('.a-rowcard'); c.classList.remove('editing'); c.querySelectorAll('form').forEach(function(f){f.reset();});">Cancel</button>`;
+function withCancel(body) {
+  let done = false;
+  return body.replace(/(<form[^>]*class="a-form[^"]*"[^>]*>)([\s\S]*?)(<\/form>)/, (m, open, inner, close) => {
+    if (done) return m; done = true;
+    if (/<div class="a-act">/.test(inner)) return open + inner.replace('<div class="a-act">', '<div class="a-act">' + CANCEL) + close;
+    const i = inner.search(/<button[^>]*type="submit"/); if (i < 0) return m;
+    const j = inner.indexOf('</button>', i) + 9;
+    return open + inner.slice(0, i) + '<div class="a-act">' + CANCEL + inner.slice(i, j) + '</div>' + inner.slice(j) + close;
+  }) + (done ? "" : CANCEL);
+}
 const SUM = {};   // current values for the Profile rows (set when the page is built)
 const card = (id, title, sub, body, lock = false) => SUM[id] != null ? `<section class="d-card a-card a-rowcard" id="${id}"><div class="a-h"><h2>${title}</h2></div>
     <div class="a-sum"><span class="a-sum-v">${SUM[id]}</span><button type="button" class="sb-btn a-chg" onclick="var c=this.closest('.a-rowcard'); c.classList.add('editing'); var f=c.querySelector('.a-edit input:not([type=hidden])'); if (f) f.focus();">Change</button></div>
-    <div class="a-edit">${sub ? `<p class="fine a-edit-sub">${sub}</p>` : ""}${body}<button type="button" class="link-dark a-cancel" onclick="var c=this.closest('.a-rowcard'); c.classList.remove('editing'); c.querySelectorAll('form').forEach(function(f){f.reset();});">Cancel</button></div></section>`
+    <div class="a-edit">${sub ? `<p class="fine a-edit-sub">${sub}</p>` : ""}${withCancel(body)}</div></section>`
   : `<section class="d-card a-card" id="${id}"><div class="a-h"><h2>${title}</h2>${lock ? `<span class="a-lock" title="Only admins can change this">🔒 View only</span>` : ""}</div>${sub ? `<p class="a-sub">${sub}</p>` : ""}${body}</section>`;
 const status = { waiting: ["Waiting", "wl"], approved: ["Approved", "ok"], declined: ["Declined", "no"], done: ["Done", "ok"] };
 
@@ -17,7 +29,7 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
   SUM.profile = nmTxt ? `<b>${esc(nmTxt)}</b>${p.organization ? ` · ${esc(p.organization)}` : ""}` : `<span class="muted">No name yet</span>`;
   SUM.phone = u.phone && u.phone_verified_at ? `${esc(A.prettyPhone(u.phone))} <span class="d-pill ok">Confirmed</span>` : p.phone ? esc(p.phone) : `<span class="muted">None</span>`;
   SUM.email = `<b>${esc(u.email)}</b>`;
-  SUM.password = u.password_hash ? `Set ${u.password_set_at ? esc(fmtDateTime(u.password_set_at)) : ""}. <span class="muted">You can also always sign in with an emailed link.</span>` : `<span class="muted">No password yet: you sign in with emailed links.</span>`;
+  SUM.password = u.password_hash ? `Set ${u.password_set_at ? esc(fmtDateTime(u.password_set_at)) : ""}. <span class="muted">${require("../accounts").settings().passwords === "required" ? "Forgot it? Use Forgot password? on the sign-in page." : "You can also always sign in with an emailed link."}</span>` : `<span class="muted">No password yet: you sign in with emailed links.</span>`;
   return layout({ title: "My Account", user, flash, admin, tab: "account", dash: true,
     body: `<div class="d-wrap a-wrap">
     ${(() => {
@@ -45,11 +57,11 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
           <label><span>Organization <span class="opt">(optional)</span></span><input name="organization" maxlength="80" value="${esc(p.organization || "")}" placeholder="e.g. Altoona Booster Club"></label>
           <div class="a-act"><button class="b-claim" type="submit">Save profile</button></div>
         </form>`)}
-      ${card("email", "Sign-in email", "We'll email a confirmation link to the new address. The change happens when you click it.", `
+      ${card("email", "Sign-in email", "We'll email a confirmation link to the new address. The change happens when you click it, and your claims and family stay with you.", `
         <p class="a-cur">${esc(u.email)}</p>
         <form method="post" action="/account/email" class="a-form a-inline"><label>New email<input type="email" name="email" required placeholder="new@example.com"></label>
           <button class="b-cancelf-btn" type="submit">Send confirmation link</button></form>
-        <p class="fine">We'll email a link to the new address. The change happens when you click it, and your claims and family stay with you.</p>`)}
+`)}
       ${card("password", "Password", u.password_hash ? "" : "Optional. Set one to sign in without waiting for an email.", `
         <form method="post" action="/account/password" class="a-form">
           ${u.password_hash ? `<label>Current password<input type="password" name="current" required autocomplete="current-password"></label>` : ""}
@@ -58,14 +70,14 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
           <span class="fine">At least ${A.MIN_PASSWORD} characters.</span>
           <div class="a-act"><button class="b-claim" type="submit">${u.password_hash ? "Change password" : "Set password"}</button></div>
         </form>
-        ${u.password_hash ? `<form method="post" action="/account/password/remove" onsubmit="return confirm('Remove your password? You will sign in with an emailed link instead.')"><button class="link-dark danger-link" type="submit">Remove my password</button></form>` : ""}`)}
+        ${u.password_hash && require("../accounts").settings().passwords !== "required" ? `<form method="post" action="/account/password/remove" onsubmit="return confirm('Remove your password? You will sign in with an emailed link instead.')"><button class="link-dark danger-link" type="submit">Remove my password</button></form>` : ""}`)}
       ${card("phone", "Phone", "A number the club can reach you at.", `
         ${u.phone && u.phone_verified_at ? `<p class="a-cur">${esc(A.prettyPhone(u.phone))} <span class="d-pill ok">Confirmed</span></p>
           <form method="post" action="/account/phone/remove"><button class="link-dark danger-link" type="submit">Stop using this number for sign-in</button></form>`
           : p.phone ? `<p class="a-cur">${esc(p.phone)}</p>` : ""}
         ${pendingPhone ? `<form method="post" action="/account/phone/verify" class="a-form a-inline"><label>Code texted to ${esc(A.prettyPhone(pendingPhone))}<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="code-box" placeholder="123456"></label>
             <button class="b-claim" type="submit">Confirm</button></form>${devCode ? `<p class="devbox">Testing mode: the text says <b>${esc(devCode)}</b></p>` : ""}`
-          : `<form method="post" action="/account/phone" class="a-form a-inline"><label>${u.phone_verified_at || p.phone ? "Change number" : "Mobile number"}<input name="phone" inputmode="tel" required placeholder="715-555-0123"></label>
+          : `<form method="post" action="/account/phone" class="a-form a-inline"><label>${u.phone_verified_at || p.phone ? "Change number" : "Mobile number"}<input name="phone" inputmode="tel" required></label>
             <button class="b-cancelf-btn" type="submit">${sms ? "Text me a code" : "Save"}</button></form>`}`)}
     </div><div class="a-col">
       ${card("family", "My family", "", `
