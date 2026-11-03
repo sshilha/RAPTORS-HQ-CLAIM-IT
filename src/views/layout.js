@@ -54,7 +54,7 @@ const foot = () => `<footer class="foot">© ${new Date().getFullYear()} ${esc(LA
 // Signed-out pages use the dark sign-in gate, like the tryout app's admin login
 function gateLayout({ title, body, flash }) {
   return `${head(title)}
-<body class="gate">
+<body class="gate">${shadowBar()}
 <main class="gate-box">
   <h1 class="gate-brand"><img class="gate-logo" src="/claim-it-logo.png" width="900" height="450" alt="${esc(LABELS.app_name)}"></h1>
   ${LABELS.org_name ? `<p class="gate-sub">${esc(LABELS.org_name)}</p>` : ""}
@@ -90,7 +90,7 @@ function topNav(tab, admin, coach) {
 // Public sign-up sheets: light page with the app bar, for people who aren't signed in
 function publicLayout({ title, body, flash }) {
   return `${head(title)}
-<body>
+<body>${shadowBar()}
 <header class="appbar"><div class="appbar-inner">
   <span class="brand"><img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></span>
   <span class="spacer"></span><a class="link-btn" href="/">Sign in</a>
@@ -121,7 +121,7 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
     ...(admin ? [["/admin/settings", LABELS.schedules, DI.board, on === "boards"]] : []),
     ...(admin || coach ? [["/checkin", "Check-in", DI.check, on === "checkin"]] : []),
     ...(admin || user.can_reports ? [["/reports", "Reports", DI.report, on === "reports"]] : [])];
-  const role = admin ? "Administrator" : coach ? "Coach" : "Parent Account";
+  const role = admin ? "Administrator" : coach ? "Coach" : "Parent/Guardian Account";
   return `<header class="dh">
   <div class="dh-in">
     <a class="dh-logo" href="/dashboard"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
@@ -145,6 +145,15 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
 </header>`;
 }
 
+// Shadow mode banner (an admin using the app as someone else)
+function shadowBar() {
+  const c = require("../shadow").current(); if (!c.shadow) return "";
+  const who = c.target ? `<b>${esc(c.target.name)}</b>${c.target.name !== c.target.email ? ` <span>(${esc(c.target.email)})</span>` : ""}` : c.pending ? `signing in as <b>${esc(c.pending.name)}</b>` : "<b>a visitor</b> (not signed in)";
+  return `<div class="sh-bar" role="status"><span class="sh-tag">Shadow mode</span><span class="sh-who">You're using Claim It as ${who}.</span>
+    <span class="sh-note">Changes are real. Emails are held, not sent.</span>
+    <a class="sh-held" href="/shadow/outbox">${c.held} email${c.held === 1 ? "" : "s"} held</a>
+    <a class="sh-exit" href="/shadow/exit">Exit shadow mode</a></div>`;
+}
 function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, tab, pub, dash }) {
   const coach = !!(user && user.is_coach);
   if (user && require("../auth").isAdmin(user)) admin = admin || true; // admins always get their links
@@ -153,7 +162,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
   if (dash) return `${head(title)}
-<body class="member-area dash">
+<body class="member-area dash">${shadowBar()}
 ${user ? dashHeader(user, admin, coach, tab) : `<header class="dh"><div class="dh-in"><a class="dh-logo" href="/"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
   <div class="dh-right dh-guest"><a class="dh-signin" href="/">Sign in</a></div></div></header>`}
 <main class="dash-page">${flashHtml(flash)}${body}</main>
@@ -162,7 +171,7 @@ ${FLASH_JS}
 </body>
 </html>`;
   return `${head(title)}
-<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">
+<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">${shadowBar()}
 ${dashHeader(user, admin, coach, tab, false)}
 <main class="page${w}${ro}">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}

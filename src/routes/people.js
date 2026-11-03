@@ -162,8 +162,8 @@ router.post("/import/commit", wrap(async (req, res) => {
   let rows = [], headers = [], map = null;
   try { rows = JSON.parse(req.body.rows || "[]"); headers = JSON.parse(req.body.headers || "[]"); map = JSON.parse(req.body.map || "null"); } catch (e) { return go(res, "/admin/people/import", { err: "Something went wrong reading the review. Start the import again." }); }
   try {
-    const toList = req.body.to_list && req.body.to_list !== "new" ? req.body.to_list : null;
-    const out = await IM().commit(rows, { toList, newList: req.body.to_list === "new" ? str(req.body.new_list) : "", by: req.user.email });
+    const out = await IM().commit(rows, { toLists: [].concat(req.body.to_lists || []), newLists: str(req.body.new_lists),
+      pLists: [].concat(req.body.p_lists || []), pNewLists: str(req.body.p_new_lists), by: req.user.email });
     if (map && headers.length) await IM().saveMap(headers, map, KINDS.includes(req.body.kind) ? req.body.kind : "athlete");   // next time a file like this lines up by itself
     go(res, `/admin/people/import/${out.batch}`, { ok: `Imported ${out.summary.imported} ${out.summary.imported === 1 ? "person" : "people"}.` });
   } catch (e) { go(res, "/admin/people/import", { err: e.message }); }
@@ -182,6 +182,55 @@ router.post("/import/:batch(\\d+)/undo", wrap(async (req, res) => {
   try { const r = await IM().undoBatch(int(req.params.batch));
     go(res, `/admin/people/import/${req.params.batch}`, { ok: `Undone. Removed ${r.removed} ${r.removed === 1 ? "person" : "people"} it added${r.kept ? `; kept ${r.kept} who were put on a board or linked since` : ""}, and put changed details back.` });
   } catch (e) { go(res, `/admin/people/import/${req.params.batch}`, { err: e.message }); }
+}));
+
+// ---------- Communication: every email, its wording, and the branding ----------
+const ET = () => require("../emailTemplates"), CV = () => require("../views/communication");
+router.get("/communication", wrap(async (req, res) => {
+  const all = await Promise.all(ET().TEMPLATES.map((t) => ET().get(t.key)));
+  res.send(CV().listPage({ user: req.user, flash: flashFrom(req), head: await AHead(), templates: all, brand: await ET().brand(), logo: (await require("../appimages").urls()).email_logo }));
+}));
+router.post("/communication/brand", wrap(async (req, res) => {
+  const b = req.body, hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(str(v)) ? str(v) : d), D = ET().BRAND_DEFAULTS;
+  const names = [].concat(b.var_name || []), vals = [].concat(b.var_value || []);
+  const vars = names.map((n, i) => ({ name: str(n).toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/^_+|_+$/g, "").slice(0, 40), value: str(vals[i]).slice(0, 300) })).filter((x) => x.name);
+  const reserved = new Set(["org_name", "app_name", "app_link", ...ET().TEMPLATES.flatMap((t) => t.vars.map((v) => v[0]))]);
+  const clash = vars.find((x) => reserved.has(x.name));
+  if (clash) return go(res, "/admin/people/communication#brand", { err: `{{${clash.name}}} is already used by the app. Pick another name for your variable.` });
+  const reply = str(b.reply_to).toLowerCase();
+  if (reply && !auth.isValidEmail(reply)) return go(res, "/admin/people/communication#brand", { err: "The reply-to address isn't a valid email." });
+  await ET().saveBrand({ header_color: hex(b.header_color, D.header_color), button_color: hex(b.button_color, D.button_color), button_text: hex(b.button_text, D.button_text),
+    sender_name: str(b.sender_name).slice(0, 60), reply_to: reply, footer: String(b.footer || "").replace(/\r/g, "").trim().slice(0, 600), logo_app: b.logo_app === "1", vars });
+  try { if (b.remove_logo === "1") await require("../appimages").set("email_logo", null); else if (b.logo_data) await require("../appimages").set("email_logo", b.logo_data); }
+  catch (e) { return go(res, "/admin/people/communication#brand", { err: e.message }); }
+  go(res, "/admin/people/communication#brand", { ok: "Saved the branding. Every email uses it." });
+}));
+router.get("/communication/:key", wrap(async (req, res) => {
+  const t = await ET().get(req.params.key); if (!t) return go(res, "/admin/people/communication", { err: "Not found." });
+  res.send(CV().editPage({ user: req.user, flash: flashFrom(req), head: await AHead(), t, brand: await ET().brand() }));
+}));
+const draftOf = (b) => ({ subject: str(b.subject).slice(0, 200), heading: str(b.heading).slice(0, 200), body: String(b.body || "").replace(/\r/g, "").slice(0, 6000), buttonLabel: b.button_label == null ? null : str(b.button_label).slice(0, 60) });
+router.post("/communication/:key", wrap(async (req, res) => {
+  const t = await ET().get(req.params.key); if (!t) return go(res, "/admin/people/communication", { err: "Not found." });
+  const d = draftOf(req.body); if (!d.subject) return go(res, `/admin/people/communication/${t.key}`, { err: "Give the email a subject." });
+  await ET().save(t.key, d, req.user.email);
+  go(res, `/admin/people/communication/${t.key}`, { ok: `Saved “${t.name}”.` });
+}));
+router.post("/communication/:key/reset", wrap(async (req, res) => {
+  const t = await ET().get(req.params.key); if (!t) return go(res, "/admin/people/communication", {});
+  await ET().reset(t.key); go(res, `/admin/people/communication/${t.key}`, { ok: `“${t.name}” is back to the default wording.` });
+}));
+// the editor's live preview, and "Send me a test" (both use sample values; nothing is saved)
+router.post("/communication/:key/preview", wrap(async (req, res) => {
+  const t = ET().byKey[req.params.key]; if (!t) return res.status(404).json({ ok: false });
+  const r = await ET().render(t.key, ET().SAMPLE, draftOf(req.body));
+  res.json({ ok: true, subject: r.subject, html: r.html });
+}));
+router.post("/communication/:key/test", wrap(async (req, res) => {
+  const t = ET().byKey[req.params.key]; if (!t) return res.status(404).json({ ok: false });
+  const r = await ET().render(t.key, ET().SAMPLE, draftOf(req.body));
+  await require("../email").sendEmail({ to: req.user.email, subject: `[Test] ${r.subject}`, html: r.html, text: r.text, replyTo: r.replyTo, fromName: r.fromName });
+  res.json({ ok: true, to: req.user.email, sent: !!process.env.RESEND_API_KEY });
 }));
 
 router.get("/:id", wrap(async (req, res) => {
@@ -232,7 +281,7 @@ router.post("/:id/family", wrap(async (req, res) => {
   if (!p) return go(res, "/admin/people", {});
   if (p.kind === "athlete") {
     const e = auth.normalizeEmail(req.body.email);
-    if (!auth.isValidEmail(e)) return go(res, `/admin/people/${id}#family`, { err: "Enter the parent's email." });
+    if (!auth.isValidEmail(e)) return go(res, `/admin/people/${id}#family`, { err: "Enter the parent/guardian's email." });
     await PP.linkParent(id, e);
     return go(res, `/admin/people/${id}#family`, { ok: `Linked ${e}.` });
   }

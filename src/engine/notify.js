@@ -17,23 +17,24 @@ const to = (d, user) => { const fam = d.family_emails === false ? [] : d.parent_
 const lines = (d) => [slotName(d), d.board_name, d.location || d.event_location ? `Location: ${d.location || d.event_location}` : "",
   d.contact_name || d.contact_info ? `Questions? ${[d.contact_name, d.contact_info].filter(Boolean).join(", ")}` : ""].filter(Boolean);
 
+// the variables a claim email gets
+function claimVars(d) {
+  return { person_first: d.first_name, person_name: [d.first_name, d.last_name].filter(Boolean).join(" "), board_name: d.board_name, session: slotName(d),
+    location: d.location || d.event_location || "", organizers: [d.contact_name, d.contact_info].filter(Boolean).join(", "), my_claims_link: `${process.env.APP_URL || ""}/dashboard` };
+}
+const T = (key, to, vars) => require("../emailTemplates").send(key, to, vars);
 async function claimed(c, user, cancelUrl = null) {
   const d = await details(c.id); if (!d) return;
   const waiting = c.status === "waitlisted";
-  const subject = `${waiting ? "Waitlisted" : "Claimed"}: ${d.first_name}, ${d.board_name}: ${slotName(d)}`;
-  const L = lines(d);
-  const btn = cancelUrl ? { href: cancelUrl, label: waiting ? "Leave the waitlist" : "Cancel my spot" } : { href: `${process.env.APP_URL || ""}/dashboard`, label: "My Claims" };
-  await sendEmail({ to: to(d, user), subject, text: `${waiting ? `${d.first_name} is on the waitlist.` : `Spot claimed for ${d.first_name}.`}\n\n${L.join("\n")}\n\n${cancelUrl ? `Can't make it? Cancel here: ${cancelUrl}` : "See or cancel it in Claim It under My Claims."}`,
-    html: shell(waiting ? `${esc(d.first_name)} is on the waitlist` : `Spot claimed for ${esc(d.first_name)}!`, `<p>${L.map(esc).join("<br>")}</p>${cancelUrl ? `<p style="color:#5b6b7a">Can't make it? Use the button below to cancel, so someone else can claim it.</p>` : ""}`, btn) });
+  const key = cancelUrl ? (waiting ? "claim_public_waitlisted" : "claim_public") : (waiting ? "claim_waitlisted" : "claim_confirmed");
+  await T(key, to(d, user), { ...claimVars(d), cancel_link: cancelUrl || "" });
 }
 async function canceled(r, user, { tellCanceled = true } = {}) {
   const d = await details(r.canceled.id); if (!d) return;
-  if (tellCanceled) await sendEmail({ to: to(d, user), subject: `Canceled: ${d.first_name}, ${d.board_name}: ${slotName(d)}`, text: `${d.first_name}'s spot was canceled.\n\n${lines(d).join("\n")}`,
-    html: shell(`${esc(d.first_name)}'s spot was canceled`, `<p>${lines(d).map(esc).join("<br>")}</p>`) });
+  if (tellCanceled) await T("claim_canceled", to(d, user), claimVars(d));
   for (const p of r.promoted || []) {
     const q = await details(p.id); if (!q) continue;
-    await sendEmail({ to: to(q, null), subject: `You're in: ${q.first_name}, ${q.board_name}: ${slotName(q)}`, text: `A spot opened and ${q.first_name} moved off the waitlist.\n\n${lines(q).join("\n")}`,
-      html: shell(`${esc(q.first_name)} moved off the waitlist`, `<p>${lines(q).map(esc).join("<br>")}</p>`, { href: `${process.env.APP_URL || ""}/dashboard`, label: "My Claims" }) });
+    await T("waitlist_moved_up", to(q, null), claimVars(q));
   }
 }
 module.exports = { claimed, canceled };

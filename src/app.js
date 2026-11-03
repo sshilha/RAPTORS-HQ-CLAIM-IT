@@ -11,6 +11,8 @@ app.use(express.urlencoded({ extended: false, limit: "15mb" })); // room for upl
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(auth.loadUser);
+app.use(require("./shadow").middleware);   // shadow mode: an admin using the app as someone else (see src/shadow.js)
+app.use(require("./routes/shadow"));
 // pages always show current data: no saved copies (Back button, reopened tabs), and nothing to see after signing out
 app.use((req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
 app.use((req, res, next) => {   // finish the Welcome step first (password etc.), then the rest of the app

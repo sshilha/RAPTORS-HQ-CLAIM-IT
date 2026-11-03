@@ -63,11 +63,11 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
           ${(sc.tags || []).length ? `<div class="full"><span class="field-lbl">Tags on this board</span><div class="tag-checks">${sc.tags.map((t) => `<label class="tag-box"><input type="checkbox" name="tags" value="${esc(t)}"> ${esc(t)}</label>`).join("")}</div></div>` : ""}
           <details class="full qa-more"><summary class="link-dark">Add all details</summary>
             <div class="grid-form qa-grid">
-              <div class="full qa-kind"><label class="radio-row"><input type="radio" name="kind" value="athlete" checked> ${esc(L.participant.one === "Volunteer" ? "Athlete" : L.participant.one)}</label><label class="radio-row"><input type="radio" name="kind" value="adult"> Adult (volunteer, coach, parent)</label></div>
+              <div class="full qa-kind"><label class="radio-row"><input type="radio" name="kind" value="athlete" checked> ${esc(L.participant.one === "Volunteer" ? "Athlete" : L.participant.one)}</label><label class="radio-row"><input type="radio" name="kind" value="adult"> Adult (volunteer, coach, parent/guardian)</label></div>
               <div><label>Current team<input name="team" maxlength="40" placeholder="e.g. 12U Shilha"></label></div>
               <div class="qa-ath"><label>Birth year<input name="birth_year" type="number" min="1940" max="2100"></label></div>
               <div class="qa-ath"><label>Jersey #<input name="jersey" maxlength="4"></label></div>
-              <div class="full qa-ath"><label>Parent emails<input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label><span class="fine">They sign in with these to claim for this athlete.</span></div>
+              <div class="full qa-ath"><label>Parent/guardian emails<input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label><span class="fine">They sign in with these to claim for this athlete.</span></div>
               <div class="qa-adult" hidden><label>Email<input name="email" type="email" maxlength="120"></label></div>
               <div class="qa-adult" hidden><label>Phone<input name="phone" maxlength="30"></label></div>
               <div class="full"><label>Notes<input name="notes" maxlength="200"></label></div>

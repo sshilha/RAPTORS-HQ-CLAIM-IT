@@ -18,7 +18,7 @@ const LEVELS = [
   ["middle", "Sheet level", "One sign-up sheet: its own dates, booking rules, limits, and who can sign up.", "Round / Event / Week"],
   ["activity", "Type", "What people sign up for, with default spots and limits.", "Activity / Role / Item"],
   ["slot", "Slot", "One bookable time with spots, whole or split into blocks.", "Session / Shift / Slot"],
-  ["participant", "Participant", "The people who use this schedule. They can be kids, parents, or anyone.", "Athlete / Volunteer / Member"],
+  ["participant", "Participant", "The people who use this schedule. They can be kids, parents/guardians, or anyone.", "Athlete / Volunteer / Member"],
   ["group", "Group", "How participants are sorted, so sheets can be limited to certain groups.", "12U / Team / Level"],
 ];
 

@@ -16,7 +16,7 @@ const BY_DEPTH = {
     tag: "Grill cook only for people tagged Adult",
     tagNames: "Adult, Has a truck",
     groupNames: "10U, 12U, 14U",
-    person: "Ava Smith · 10U · parent jane@example.com",
+    person: "Ava Smith · 10U · parent/guardian jane@example.com",
     levels: "Items: Bring a case of water (10 spots)",
   },
   2: {
@@ -52,7 +52,7 @@ const BY_DEPTH = {
     tag: "Catching only for people tagged Catcher",
     tagNames: "Catcher, Pitcher",
     groupNames: "8U, 10U, 12U, 14U, 16U, 18U",
-    person: "Ava Smith · 12U · Catcher · parent jane@example.com",
+    person: "Ava Smith · 12U · Catcher · parent/guardian jane@example.com",
     levels: "Rounds › Activities › Sessions: Round 1 › Hitting › Mon 6:00 PM",
   },
   4: {

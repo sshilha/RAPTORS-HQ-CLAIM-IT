@@ -68,6 +68,11 @@ async function logEvent(req, { userId = null, identity = null, method, ok, reaso
 // The one way everyone gets signed in: session, history, and where to go next (Welcome if setup is needed)
 async function signedIn(req, res, userId, method, next = "/dashboard") {
   const auth = require("./auth");
+  if (req.shadow) {   // shadow mode: become this person; the admin's own sign-in is left alone
+    await require("./shadow").setTarget(req, userId, method);
+    const t = (await query(`SELECT * FROM users WHERE id=$1`, [userId])).rows[0];
+    return res.redirect(mustSetUp(t) || !t.welcomed_at ? "/welcome" : next);
+  }
   await auth.createSession(res, userId);
   const u = (await query(`UPDATE users SET last_login_at=now(), joined_at=COALESCE(joined_at, now()), failed_logins=0, locked_until=NULL WHERE id=$1 RETURNING *`, [userId])).rows[0];
   await logEvent(req, { userId, identity: u.email, method, ok: true });
@@ -167,9 +172,8 @@ async function sendInvite(req, userId) {
   const link = `${APP_URL || `${req.protocol}://${req.get("host")}`}/invite?token=${encodeURIComponent(t)}`;
   const org = (require("./config").LABELS.org_name) || "Chippewa Valley Raptors";
   if (!process.env.RESEND_API_KEY) console.log(`[invite] ${u.email}: ${link}`);
-  else await sendEmail({ to: u.email, subject: `You're invited to ${LABELS.app_name}`,
-    html: shell(`Welcome to ${LABELS.app_name}`, `<p>${org} uses ${LABELS.app_name} for training sign-ups and volunteer shifts. Click below to set your password and get started. This link works for 7 days.</p>`, { href: link, label: "Set up my account" }),
-    text: `${org} invited you to ${LABELS.app_name}. Set up your account (link works for 7 days): ${link}` });
+  else { const who = (await query(`SELECT first_name FROM athletes WHERE self_user_id=$1 ORDER BY id LIMIT 1`, [userId])).rows[0];
+    await require("./emailTemplates").send("invite", u.email, { invite_link: link, first_name: who ? who.first_name : "" }); }
   return link;
 }
 

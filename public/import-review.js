@@ -11,7 +11,7 @@
     var bits = [r.birth, r.team, r.jersey ? "#" + r.jersey : "", r.email, r.phone].filter(Boolean).map(esc);
     var ps = (r.parents || []).map(function (p) { var n = [p.first, p.last].filter(Boolean).join(" ");
       return "<div class='imp-p1'>" + (n ? esc(n) + (p.email ? " · <span class='imp-em'>" + esc(p.email) + "</span>" : "") : "<span class='imp-em'>" + esc(p.email) + "</span>") + "</div>"; });
-    return (bits.length ? bits.join(" · ") : "<span class='fine'>—</span>") + (ps.length ? "<div class='imp-ps'><span class='imp-lbl'>Parents</span>" + ps.join("") + "</div>" : "") + (r.lists ? "<div class='imp-ps'><span class='imp-lbl'>List</span> " + esc(r.lists) + "</div>" : "");
+    return (bits.length ? bits.join(" · ") : "<span class='fine'>—</span>") + (ps.length ? "<div class='imp-ps'><span class='imp-lbl'>Parents/guardians</span>" + ps.join("") + "</div>" : "") + (r.lists ? "<div class='imp-ps'><span class='imp-lbl'>Lists</span> " + esc(String(r.lists).split(/[;|]+/).map(function (x) { return x.trim(); }).filter(Boolean).join(", ")) + "</div>" : "");
   }
   function happens(r) {
     var out = (r.messages || []).map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + (r.warnings || []).map(function (m) { return "<li class='w'>" + esc(m) + "</li>"; }).join("");
@@ -27,13 +27,13 @@
     var h = "<div class='imp-ed'>" + field(r, "first", "First name") + field(r, "last", "Last name") +
       (kind === "mixed" ? "<label>Type<select data-f='kind' data-r='" + r.i + "'><option value='athlete'" + (r.kind === "athlete" ? " selected" : "") + ">Athlete</option><option value='adult'" + (r.kind === "adult" ? " selected" : "") + ">Adult</option></select></label>" : "") +
       field(r, "birth", "Birth year") + field(r, "team", "Team") + field(r, "jersey", "Jersey #") + field(r, "email", r.kind === "athlete" ? "Own email" : "Email") + field(r, "phone", "Phone") +
-      field(r, "lists", "List") + field(r, "notes", "Notes") + (r.kind === "adult" ? "<label>Roles<input data-f='roles' data-r='" + r.i + "' value='" + esc((r.roles || []).join(", ")) + "' placeholder='coach, volunteer'></label>" : "") + "</div>";
+      field(r, "lists", "Lists (separate with ;)") + field(r, "notes", "Notes") + (r.kind === "adult" ? "<label>Roles<input data-f='roles' data-r='" + r.i + "' value='" + esc((r.roles || []).join(", ")) + "' placeholder='coach, volunteer'></label>" : "") + "</div>";
     if (r.kind === "athlete") {
       h += "<div class='imp-ed-ps'>" + (r.parents || []).map(function (p, n) {
-        return "<div class='imp-ed-p'><b>Parent " + (n + 1) + "</b>" + ["first", "last", "email", "phone"].map(function (k) {
+        return "<div class='imp-ed-p'><b>Parent/guardian " + (n + 1) + "</b>" + ["first", "last", "email", "phone"].map(function (k) {
           return "<input data-pf='" + k + "' data-pn='" + n + "' data-r='" + r.i + "' value='" + esc(p[k]) + "' placeholder='" + { first: "First", last: "Last", email: "Email", phone: "Phone" }[k] + "'>"; }).join("") +
-          "<button type='button' class='x' data-prm='" + n + "' data-r='" + r.i + "' aria-label='Remove parent'>×</button></div>"; }).join("") +
-        ((r.parents || []).length < 3 ? "<button type='button' class='link-dark' data-padd='" + r.i + "'>+ Add a parent</button>" : "") + "</div>";
+          "<button type='button' class='x' data-prm='" + n + "' data-r='" + r.i + "' aria-label='Remove parent/guardian'>×</button></div>"; }).join("") +
+        ((r.parents || []).length < 3 ? "<button type='button' class='link-dark' data-padd='" + r.i + "'>+ Add a parent/guardian</button>" : "") + "</div>";
     }
     return h;
   }

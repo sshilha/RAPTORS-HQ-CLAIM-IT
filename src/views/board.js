@@ -375,7 +375,7 @@ function spotPeoplePage({ head = "", user, flash, sc, it, path, people, onBoard,
           ${everyone.length ? `<optgroup label="Everyone else in People">${everyone.map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.kind === "adult" ? " (adult)" : ""}</option>`).join("")}</optgroup>` : ""}</select></label>
         ${q.label ? `<label>${esc(q.label)} <span class="opt">(optional)</span><input name="note" maxlength="120"></label>` : ""}
         <label class="radio-row"><input type="checkbox" name="override" value="1"> <span><b>Override the rules</b> <span class="fine">Add them even if the spot is full, they're past a limit, or the spot isn't open to them.</span></span></label>
-        <label class="radio-row"><input type="checkbox" name="email" value="1" checked> <span><b>Email them</b> <span class="fine">The usual “Spot claimed” email to them (or their parents).</span></span></label>
+        <label class="radio-row"><input type="checkbox" name="email" value="1" checked> <span><b>Email them</b> <span class="fine">The usual “Spot claimed” email to them (or their parents/guardians).</span></span></label>
         <div class="q-actions"><button type="button" class="link-dark" onclick="var a=document.getElementById('add'); a.hidden=true; a.querySelector('form').reset();">Cancel</button><button class="btn-small" type="submit">Add to this spot</button></div>
       </form></section>
     <section class="sp-in">

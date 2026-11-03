@@ -686,8 +686,38 @@ src/peopleImport.js (logic), src/views/peopleImport.js (screens), public/import-
    Problem), details, and what happens (changes like "Team: 12U → 14U · Adds parent Tom Lee", problems like "Missing last
    name", warnings like a bad email or the same person twice). Possible matches need a choice (that person / someone new).
    Edit any row (all fields and parents), Re-check runs the matching again. Filters: All · New · Updates · Needs attention ·
-   Left out. Optional "put everyone on a list". Nothing is saved until Import. Problem rows are left out until fixed.
+   Left out. Optional lists, set separately for the athletes and for their parents/guardians (from the parent/guardian
+   columns): tick any existing lists and/or name new ones (comma-separated).
+   A list column can hold several lists per person, separated by ";". Nothing is saved until Import. Problem rows are left out until fixed.
    Matching: email first; then name + birth year, with a shared parent email deciding ties; a nickname with the same last
    name, birth year and a parent email is offered as a possible match.
 4. **After:** summary · View the people imported (People ?batch=) · Invite the new adults with emails · Undo for 24 hours
    (removes people it added unless used since, restores changed details, removes added parent links / list entries).
+
+**Wording:** "parent/guardian" everywhere people see it (import, People, Access & people, My Account, account badge, status
+"No parent/guardian"). Stored values (the "parent" role, database columns) are unchanged.
+
+
+## Communication (v0.27.0)
+App Settings → People → Communication (src/emailTemplates.js, src/views/communication.js). All 18 emails the app sends,
+grouped Sign-in & accounts · Claims · Requests · Notices to admins, each with when it's sent, who gets it, and its subject;
+Default or Customized. Edit: subject, heading, message (blank line = paragraph, **bold**, [text](link)), button label, with
+clickable variables (the email's own, every email's {{org_name}} {{app_name}} {{app_link}}, and your own), a live preview
+with sample details, Send me a test, Save, Reset to default. A line whose variables are all empty is left out.
+Branding (every email): your logo (+ the Claim It logo), header and button colors, sender name, reply-to, footer, and your
+own variables ({{season}} = 2026–27). Stored in email_templates and app_kv; the logo in app_images (email_logo).
+Every send goes through emailTemplates.send(key, to, vars). The unused old src/notify.js was removed.
+
+
+## Shadow mode: Sign in as (v0.28.0)
+App Settings → Accounts & sign-in → Sign in as (or "Sign in as this person" on a person's page). src/shadow.js,
+src/routes/shadow.js. Pick someone with a sign-in, or "Start as a visitor". You land on the real sign-in screen (their
+email filled in, plus "Continue as … (admin, no password)"), then use the app exactly as they would: their pages, choices,
+limits, Welcome step. A striped banner stays on top: who you are, emails held, Exit shadow mode.
+- Rides on the admin's own session (cookie rt_shadow, 4 hours); only valid with a real admin session; the admin's sign-in
+  is never replaced. Signing in/out inside shadow mode changes the shadowed person (signedIn / logout check req.shadow).
+- Emails are never sent in shadow mode: sendEmail holds them (shadow_outbox); "N emails held" shows them, links work.
+  Each held email: Send to me (to the admin, "[Shadow test]") or Send to them (the real recipients, after a confirm);
+  "Send all N to them" when two or more are unsent. Each send is logged in Sign-in activity.
+- Changes are real (a claim is their claim). Their last sign-in time is not touched.
+- Logged in Sign-in activity: shadow start / sign-in as / end.

@@ -22,9 +22,7 @@ async function emailLink(req, res, user, email) {
   const link = `${base(req)}/auth/verify?token=${encodeURIComponent(token)}`;
   try {
     if (!process.env.RESEND_API_KEY) console.log(`[login link] ${user.email}: ${link}`);
-    else await sendEmail({ to: user.email, subject: `Your ${LABELS.app_name} sign-in link`,
-      html: shell(`Sign in to ${LABELS.app_name}`, `<p style="color:#5b6b7a">This link works once and expires in ${auth.LOGIN_TOKEN_MINUTES} minutes. If you didn't request it, ignore this email.</p>`, { href: link, label: "Sign in" }),
-      text: `Sign in to ${LABELS.app_name}: ${link}\n\nThis link works once and expires in ${auth.LOGIN_TOKEN_MINUTES} minutes.` });
+    else await require("../emailTemplates").send("signin_link", user.email, { sign_in_link: link, minutes: auth.LOGIN_TOKEN_MINUTES });
   } catch (err) { console.error("Login email failed:", err.message); return res.status(502).send(v.loginPage({ error: "We couldn't send the email. Try again in a minute.", email })); }
   res.send(v.checkEmailPage({ email: user.email === email ? email : mask(user.email), devLink: DEV_SHOW_LINK ? link : null }));
 }
@@ -96,9 +94,7 @@ router.post("/forgot", wrap(async (req, res) => {
     const t = await A.issueToken(found.user.id, "reset_link", null, 60);
     const link = `${base(req)}/reset?token=${encodeURIComponent(t)}`;
     if (!process.env.RESEND_API_KEY) console.log(`[reset link] ${found.user.email}: ${link}`);
-    else await sendEmail({ to: found.user.email, subject: `Reset your ${LABELS.app_name} password`,
-      html: shell("Reset your password", `<p style="color:#5b6b7a">This link works once and expires in 60 minutes. If you didn't ask for it, ignore this email.</p>`, { href: link, label: "Set a new password" }),
-      text: `Reset your ${LABELS.app_name} password: ${link}\n\nThis link works once and expires in 60 minutes.` }).catch((e) => console.error(e.message));
+    else await require("../emailTemplates").send("password_reset", found.user.email, { reset_link: link }).catch((e) => console.error(e.message));
     if (DEV_SHOW_LINK) devLink = link;
   }
   res.send(v.sentResetPage({ email: found.user && found.user.email !== who ? mask(found.user.email) : who, devLink }));
@@ -155,8 +151,7 @@ router.post("/request-account", wrap(async (req, res) => {
   if (!recent) {
     await query(`INSERT INTO account_requests (user_id, kind, data) VALUES (NULL, 'new_account', $1)`, [JSON.stringify(data)]);
     const to = require("../catalog").current().change_email || "info@chippewavalleyraptors.com";
-    sendEmail({ to, subject: `Account request: ${data.first_name} ${data.last_name}`, text: `${data.first_name} ${data.last_name} (${data.email}) asked for an account.\n\n${data.connection}\n\nReview: App settings → Requests.`,
-      html: shell("New account request", `<p><b>${data.first_name} ${data.last_name}</b> (${data.email}) asked for an account.</p><p>${data.connection.replace(/</g, "&lt;")}</p>`, { href: `${base(req)}/admin/requests`, label: "Review requests" }) }).catch((e) => console.error(e.message));
+    require("../emailTemplates").send("admin_account_request", to, { requester_name: `${data.first_name} ${data.last_name}`.trim(), requester_email: data.email, connection: data.connection, review_link: `${base(req)}/admin/requests` }).catch((e) => console.error(e.message));
   }
   res.send(v.requestSentPage({ email: data.email }));
 }));
@@ -198,7 +193,10 @@ router.post("/welcome", auth.requireUser, wrap(async (req, res) => {
   res.redirect("/dashboard?ok=" + encodeURIComponent("You're all set. Welcome!"));
 }));
 
-router.post("/logout", wrap(async (req, res) => {
+router.post("/logout", wrap(async (req, res, next) => {
+  if (req.shadow) { await require("../shadow").signOut(req); return res.redirect("/"); }   // shadow mode: back to the sign-in screen as a visitor
+  next();
+}), wrap(async (req, res) => {
   await auth.destroySession(req, res);
   res.redirect("/");
 }));

@@ -10,6 +10,7 @@ const norm = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
 const low = (s) => norm(s).toLowerCase();
 const isEmail = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 const nowYear = () => new Date().getFullYear();
+const listNames = (v) => [...new Set(String(v == null ? "" : v).split(/[;|]+/).map(norm).filter(Boolean))];   // "Spring 2027; Pitching Clinic"
 
 let ready = false;
 async function ensure() {
@@ -121,8 +122,8 @@ async function analyze(rows) {
     if (norm(r.birth) && !by) warns.push(`“${norm(r.birth)}” isn't a birth year or date, so it's left out`);
     if (by && (by < 1930 || by > nowYear())) warns.push(`Birth year ${by} looks wrong, so it's left out`);
     if (r.email && !isEmail(r.email)) warns.push(`${r.email} isn't a valid email, so it's left out`);
-    r.parents.forEach((p) => { if (p.email && !isEmail(p.email)) warns.push(`Parent email ${p.email} isn't valid, so it's left out`); });
-    if (r.kind === "adult" && r.parents.length) warns.push(`Adults don't have parents in People, so the parent columns are left out`);
+    r.parents.forEach((p) => { if (p.email && !isEmail(p.email)) warns.push(`Parent/guardian email ${p.email} isn't valid, so it's left out`); });
+    if (r.kind === "adult" && r.parents.length) warns.push(`Adults don't have parents/guardians in People, so those columns are left out`);
     const key = `${low(r.first)}|${low(r.last)}|${by || ""}`;
     if (r.first && seen.has(key)) warns.push(`Appears twice in this file (also row ${seen.get(key) + 2})`); else seen.set(key, r.i);
     // find who this is
@@ -154,13 +155,14 @@ async function analyze(rows) {
       if (r.notes && r.notes !== norm(match.notes)) changes.push("Updates notes");
       if (r.email && isEmail(r.email) && r.email !== low(match.email)) changes.push(match.email ? `Email stays ${match.email} (the file has ${r.email})` : `${r.kind === "athlete" ? "Signs in themselves with" : "Adds email"} ${r.email}`);
       for (const role of r.roles || []) if (!(match.roles || []).includes(role)) changes.push(`Adds role ${role}`);
-      for (const p of r.parents) if (isEmail(p.email) && !(match.parent_emails || []).includes(p.email) && r.kind === "athlete") changes.push(`Adds parent ${[p.first, p.last].filter(Boolean).join(" ") || p.email}${p.first || p.last ? ` (${p.email})` : ""}`);
-      const L = norm(r.lists); if (L && !(match.lists || []).includes(low(L))) changes.push(`Adds to list ${L}`);
+      for (const p of r.parents) if (isEmail(p.email) && !(match.parent_emails || []).includes(p.email) && r.kind === "athlete") changes.push(`Adds parent/guardian ${[p.first, p.last].filter(Boolean).join(" ") || p.email}${p.first || p.last ? ` (${p.email})` : ""}`);
+      const add = listNames(r.lists).filter((L) => !(match.lists || []).includes(low(L)));
+      if (add.length) changes.push(`Adds to list${add.length === 1 ? "" : "s"} ${add.join(", ")}`);
     } else {
       const ps = r.kind === "athlete" ? r.parents.filter((p) => isEmail(p.email)) : [];
       const newPs = ps.filter((p) => !byEmail.has(p.email)).length;
-      msgs.push(`New ${r.kind === "athlete" ? "athlete" : "adult"}${ps.length ? ` · ${ps.length} parent${ps.length === 1 ? "" : "s"}${newPs ? ` (${newPs} new to People)` : ""}` : ""}${norm(r.lists) ? ` · list ${norm(r.lists)}` : ""}`);
-      if (r.kind === "athlete" && !ps.length && !(r.email && isEmail(r.email))) warns.push("No parent email, so nobody can claim for them yet");
+      msgs.push(`New ${r.kind === "athlete" ? "athlete" : "adult"}${ps.length ? ` · ${ps.length} ${ps.length === 1 ? "parent/guardian" : "parents/guardians"}${newPs ? ` (${newPs} new to People)` : ""}` : ""}${listNames(r.lists).length ? ` · list${listNames(r.lists).length === 1 ? "" : "s"} ${listNames(r.lists).join(", ")}` : ""}`);
+      if (r.kind === "athlete" && !ps.length && !(r.email && isEmail(r.email))) warns.push("No parent/guardian email, so nobody can claim for them yet");
     }
     r.status = problems.length ? "problem" : cands.length && !match && r.choice !== "new" ? "match" : match ? (changes.length ? "update" : "same") : "new";
     if (r.status === "same") msgs.push("Already in People, nothing to change");
@@ -180,7 +182,7 @@ const counts = (rows) => {
 };
 
 // ---------- import ----------
-async function commit(rows, { toList = null, newList = "", by = "" } = {}) {
+async function commit(rows, { toLists = [], newLists = "", pLists = [], pNewLists = "", by = "" } = {}) {
   await ensure();
   rows = await analyze(rows);
   const todo = rows.filter((r) => r.include);
@@ -190,7 +192,12 @@ async function commit(rows, { toList = null, newList = "", by = "" } = {}) {
   let added = 0, updated = 0, parentsNew = 0;
   const listFor = async (name) => { const before = (await query(`SELECT id FROM people_lists WHERE lower(name)=lower($1)`, [norm(name)])).rows[0]; const l = await PP.listNamed(name); if (l && !before) undo.listsMade.push(l.id); return l; };
   const putOn = async (list, id) => { if (!list) return; const r = await query(`INSERT INTO people_list_members (list_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [list.id, id]); if (r.rowCount) undo.listAdds.push([list.id, id]); };
-  const everyone = toList ? { id: Number(toList) } : newList ? await listFor(newList) : null;
+  // everyone imported also goes on these lists (existing ones ticked, plus any new names)
+  const everyone = [...(await query(`SELECT * FROM people_lists WHERE id = ANY($1)`, [[].concat(toLists).map(Number).filter(Boolean)])).rows];
+  for (const n of String(newLists || "").split(/[,;]+/).map(norm).filter(Boolean)) { const l = await listFor(n); if (l && !everyone.some((x) => x.id === l.id)) everyone.push(l); }
+  // their parents/guardians go on these lists (separately from the athletes)
+  const pEveryone = [...(await query(`SELECT * FROM people_lists WHERE id = ANY($1)`, [[].concat(pLists).map(Number).filter(Boolean)])).rows];
+  for (const n of String(pNewLists || "").split(/[,;]+/).map(norm).filter(Boolean)) { const l = await listFor(n); if (l && !pEveryone.some((x) => x.id === l.id)) pEveryone.push(l); }
   for (const r of todo) {
     const by = yearOf(r.birth), byOk = by && by >= 1930 && by <= nowYear() ? by : null;
     const email = r.email && isEmail(r.email) ? r.email : null;
@@ -231,11 +238,12 @@ async function commit(rows, { toList = null, newList = "", by = "" } = {}) {
       if (p.phone) await query(`UPDATE athletes SET phone=COALESCE(phone,$2) WHERE id=$1`, [person.id, p.phone]);
       const l = await query(`INSERT INTO parent_athletes (user_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [user.id, id]);
       if (l.rowCount) undo.links.push([user.id, id]);
+      for (const pl of pEveryone) await putOn(pl, person.id);
     }
-    if (norm(r.lists)) await putOn(await listFor(r.lists), id);
-    if (everyone) await putOn(everyone, id);
+    for (const L of listNames(r.lists)) await putOn(await listFor(L), id);
+    for (const l of everyone) await putOn(l, id);
   }
-  const summary = { rows: rows.length, imported: todo.length, added, updated, parentsNew, left: rows.length - todo.length };
+  const summary = { rows: rows.length, imported: todo.length, added, updated, parentsNew, left: rows.length - todo.length, lists: everyone.map((l) => l.name), pLists: pEveryone.map((l) => l.name) };
   const b = (await query(`INSERT INTO import_batches (created_by, summary, people, created, undo) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
     [by, JSON.stringify(summary), [...new Set(touched)], [...new Set(created)], JSON.stringify(undo)])).rows[0];
   return { batch: b.id, summary };

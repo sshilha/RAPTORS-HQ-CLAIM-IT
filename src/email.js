@@ -1,8 +1,9 @@
 const { LABELS } = require("./config");
 
-async function sendEmail({ to, subject, html, text }) {
+async function sendEmail({ to, subject, html, text, replyTo = null, fromName = null, reallySend = false }) {
   const recipients = [].concat(to).filter(Boolean);
   if (!recipients.length) return;
+  if (!reallySend && await require("./shadow").hold({ to: recipients, subject, html, text })) return;   // shadow mode: held, never sent
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.log(`[email] to=${recipients.join(",")} | ${subject}\n${text}\n`);
@@ -12,8 +13,9 @@ async function sendEmail({ to, subject, html, text }) {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: process.env.EMAIL_FROM || `${LABELS.app_name} <onboarding@resend.dev>`,
-      to: recipients, subject, html, text,
+      from: (() => { const f = process.env.EMAIL_FROM || `${LABELS.app_name} <onboarding@resend.dev>`; if (!fromName) return f;
+        const addr = (/<([^>]+)>/.exec(f) || [null, f])[1].trim(); return `${String(fromName).replace(/[<>"]/g, "")} <${addr}>`; })(),
+      to: recipients, subject, html, text, ...(replyTo ? { reply_to: replyTo } : {}),
     }),
   });
   if (!res.ok) throw new Error(`Resend error ${res.status}: ${await res.text()}`);

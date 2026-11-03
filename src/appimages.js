@@ -1,6 +1,6 @@
 // App-wide pictures (App Settings → Organization → Pictures): header images for the My Claims cards.
 const { query } = require("./db");
-const KEYS = { upcoming: "Your Upcoming Claims", signup: "Sign Up for Something" };
+const KEYS = { upcoming: "Your Upcoming Claims", signup: "Sign Up for Something", email_logo: "Email logo" };
 let ready = false;
 async function ensure() {
   if (ready) return;

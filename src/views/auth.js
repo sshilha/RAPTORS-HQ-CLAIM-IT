@@ -4,7 +4,12 @@ const gate = (title, body, flash) => layout({ title, body, flash, gate: true });
 const smsOn = () => require("../sms").enabled();
 const devCode = (code) => (code ? `<div class="devbox"><p>Testing mode: the text message is shown here instead of being sent.</p><b class="dev-code">${esc(code)}</b></div>` : "");
 
-const loginPage = ({ error = "", email = "", notice = "" } = {}) => gate("Sign in", `
+// shadow mode on the sign-in screen: continue as the chosen person without their password
+const shadowContinue = () => { const c = require("../shadow").current(); if (!c.shadow || !c.pending) return "";
+  return `<form method="post" action="/shadow/continue" class="sh-cont"><b>Shadow mode</b><span>Continue as <b>${esc(c.pending.name)}</b>${c.pending.name !== c.pending.email ? ` (${esc(c.pending.email)})` : ""}, the way they'd sign in, without their password.</span>
+    <button class="btn" type="submit">Continue as ${esc(c.pending.name)} (admin, no password)</button><span class="fine">Or sign in below with their email or password, the way they would.</span></form>`; };
+const loginPage = ({ error = "", email = "", notice = "" } = {}) => { const _c = require("../shadow").current(); if (!email && _c.pending) email = _c.pending.email; return loginPage0({ error, email, notice }); };
+const loginPage0 = ({ error = "", email = "", notice = "" } = {}) => gate("Sign in", `${shadowContinue()}
   <form method="post" action="/login" class="stack signin">
     <label for="who">Email</label>
     <input id="who" name="email" type="email" autocomplete="username" required value="${esc(email)}" placeholder="you@example.com">

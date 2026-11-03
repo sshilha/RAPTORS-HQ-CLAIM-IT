@@ -11,9 +11,9 @@ const { esc } = require("../views/layout");
 const router = express.Router();
 router.use(auth.requireAdmin);
 
-async function tell(r, subject, msg) {
+async function tell(r, key, vars) {
   const u = r.user_id ? (await query(`SELECT email FROM users WHERE id=$1`, [r.user_id])).rows[0] : r.data && r.data.email ? { email: r.data.email } : null; if (!u) return;
-  sendEmail({ to: u.email, subject, text: `${msg}\n\n${APP_URL || ""}/account`, html: shell(subject, `<p>${esc(msg)}</p>`, { href: `${APP_URL || ""}/account`, label: "My Account" }) }).catch((e) => console.error(e.message));
+  require("../emailTemplates").send(key, u.email, { account_link: `${APP_URL || ""}/account`, ...vars }).catch((e) => console.error(e.message));
 }
 
 router.get("/", wrap(async (req, res) => {
@@ -51,11 +51,11 @@ router.post("/:id/approve", wrap(async (req, res) => {
       [r.data.first_name, r.data.last_name, r.data.birth_year || null, r.data.team || null])).rows[0].id;
     await PP.linkParent(athleteId, u.email);
     await query(`UPDATE account_requests SET status='approved', admin_note=$2, decided_by=$3, decided_at=now() WHERE id=$1`, [r.id, str(req.body.note) || null, req.user.id]);
-    await tell(r, "Your request was approved", `${r.data.first_name} ${r.data.last_name} is now linked to your account.`);
+    await tell(r, "family_approved", { family_member: `${r.data.first_name} ${r.data.last_name}`.trim() });
     return go(res, "/admin/requests", { ok: `Approved. ${r.data.first_name} ${r.data.last_name} is linked to ${u.email}.` });
   }
   await query(`UPDATE account_requests SET status='done', admin_note=$2, decided_by=$3, decided_at=now() WHERE id=$1`, [r.id, str(req.body.note) || null, req.user.id]);
-  await tell(r, "Your change request is done", `We made the change you asked for${r.data.about ? ` (${r.data.about})` : ""}.${str(req.body.note) ? ` Note: ${str(req.body.note)}` : ""}`);
+  await tell(r, "change_done", { about: r.data.about ? `(${r.data.about})` : "", note: str(req.body.note) });
   go(res, "/admin/requests", { ok: "Marked done. They've been emailed." });
 }));
 
@@ -63,9 +63,8 @@ router.post("/:id/decline", wrap(async (req, res) => {
   const r = (await query(`UPDATE account_requests SET status='declined', admin_note=$2, decided_by=$3, decided_at=now() WHERE id=$1 AND status='waiting' RETURNING *`,
     [int(req.params.id), str(req.body.note).slice(0, 300) || null, req.user.id])).rows[0];
   if (!r) return go(res, "/admin/requests", { err: "That request was already handled." });
-  await tell(r, r.kind === "new_account" ? "About your account request" : "Your request wasn't approved",
-    r.kind === "new_account" ? `Thanks for your interest. We weren't able to set up an account for you right now.${r.admin_note ? ` Note: ${r.admin_note}` : ""}`
-    : `Your request ${r.kind === "add_family" ? `to add ${r.data.first_name} ${r.data.last_name}` : "for a change"} wasn't approved.${r.admin_note ? ` Note: ${r.admin_note}` : ""}`);
+  await tell(r, r.kind === "new_account" ? "account_declined" : "request_declined",
+    { note: r.admin_note || "", what: r.kind === "add_family" ? `to add ${r.data.first_name} ${r.data.last_name}` : "for a change" });
   go(res, "/admin/requests", { ok: "Declined. They've been emailed." });
 }));
 

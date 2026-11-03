@@ -58,8 +58,7 @@ router.post("/email", wrap(async (req, res) => {
   const t = await A.issueToken(req.user.id, "email_change", e, 60);
   const link = `${APP_URL || `${req.protocol}://${req.get("host")}`}/account/email/confirm?token=${encodeURIComponent(t)}`;
   if (!process.env.RESEND_API_KEY) console.log(`[email change] ${e}: ${link}`);
-  else await sendEmail({ to: e, subject: `Confirm your new ${LABELS.app_name} email`, html: shell("Confirm your new email", `<p style="color:#5b6b7a">Click to make <b>${e}</b> the email you sign in with. This link expires in 60 minutes.</p>`, { href: link, label: "Confirm email" }),
-    text: `Confirm ${e} as your ${LABELS.app_name} sign-in email: ${link}` });
+  else await require("../emailTemplates").send("email_confirm", e, { new_email: e, confirm_link: link });
   go(res, back("email"), { ok: `We sent a link to ${e}. Click it to finish the change.${process.env.DEV_SHOW_LINK === "true" ? ` (Testing: ${link})` : ""}` });
 }));
 router.get("/email/confirm", wrap(async (req, res) => {
@@ -70,8 +69,7 @@ router.get("/email/confirm", wrap(async (req, res) => {
   await query(`UPDATE users SET email=$2 WHERE id=$1`, [row.user_id, row.extra]);
   await query(`UPDATE athletes SET email=$2 WHERE self_user_id=$1 AND kind='adult'`, [row.user_id, row.extra]);
   await query(`UPDATE schedule_coaches SET email=$2 WHERE lower(email)=lower($1)`, [old, row.extra]);
-  if (process.env.RESEND_API_KEY) sendEmail({ to: old, subject: `Your ${LABELS.app_name} email was changed`, text: `Your sign-in email was changed to ${row.extra}. If this wasn't you, contact the club right away.`,
-    html: shell("Your email was changed", `<p>Your sign-in email is now <b>${row.extra}</b>. If this wasn't you, contact the club right away.</p>`) }).catch(() => {});
+  if (process.env.RESEND_API_KEY) require("../emailTemplates").send("email_changed", old, { new_email: row.extra }).catch(() => {});
   go(res, back("email"), { ok: `Done. You now sign in with ${row.extra}.` });
 }));
 
@@ -138,8 +136,7 @@ router.post("/request", wrap(async (req, res) => {
   await query(`INSERT INTO account_requests (user_id, kind, data) VALUES ($1,$2,$3)`, [req.user.id, kind, JSON.stringify(data)]);
   const to = require("../catalog").current().change_email || "info@chippewavalleyraptors.com";
   const what = kind === "add_family" ? `add ${data.first_name} ${data.last_name} to their family` : `change ${data.about || "their info"}`;
-  sendEmail({ to, subject: `Request from ${req.user.email}: ${what}`, text: `${req.user.email} asked to ${what}.\n\nReview it in ${LABELS.app_name}: App settings → Requests.`,
-    html: shell("New request", `<p><b>${req.user.email}</b> asked to ${what}.</p>`, { href: `${APP_URL || ""}/admin/requests`, label: "Review requests" }) }).catch((e) => console.error(e.message));
+  require("../emailTemplates").send("admin_family_request", to, { requester_email: req.user.email, what, review_link: `${APP_URL || ""}/admin/requests` }).catch((e) => console.error(e.message));
   go(res, back("requests"), { ok: "Request sent. An admin will review it, and you'll get an email when it's done." });
 }));
 

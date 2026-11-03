@@ -107,7 +107,7 @@ async function reportScope(user) {
 }
 
 // A person's status in People: what (if anything) needs attention
-const STATUS = { active: "Active", invited: "Invited", notinvited: "Not invited", setup: "Needs setup", noemail: "No email", ready: "Ready", noparent: "No parent" };
+const STATUS = { active: "Active", invited: "Invited", notinvited: "Not invited", setup: "Needs setup", noemail: "No email", ready: "Ready", noparent: "No parent/guardian" };
 // 18 or older (by birth year): an athlete who can change their own family sharing
 const isAdultAge = (p) => !!(p && p.birth_year && new Date().getFullYear() - p.birth_year >= 18);
 function statusOf(p) {

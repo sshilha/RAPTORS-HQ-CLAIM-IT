@@ -143,6 +143,33 @@ router.get("/app", (req, res, next) => {
   if (!req.query.part) return res.redirect("/admin/people" + (req.query.ok || req.query.err ? `?${new URLSearchParams({ ...(req.query.ok ? { ok: req.query.ok } : {}), ...(req.query.err ? { err: req.query.err } : {}) })}` : ""));
   next();
 });
+// Accounts & sign-in → Sign in as: shadow mode (use the app as someone else, to test and troubleshoot)
+router.get("/app", wrap(async (req, res, next) => {
+  if (req.query.part !== "shadow") return next();
+  const people = (await require("../db").query(`SELECT u.id, u.email, u.last_login_at, a.first_name, a.last_name, a.kind, a.roles
+    FROM users u LEFT JOIN LATERAL (SELECT * FROM athletes x WHERE x.self_user_id=u.id AND x.archived_at IS NULL ORDER BY (x.kind='athlete') DESC LIMIT 1) a ON true
+    WHERE u.id <> $1 ORDER BY lower(coalesce(nullif(a.last_name,''), u.email)), lower(a.first_name)`, [req.user.id])).rows;
+  const recent = await require("../shadow").recent(req.user.id);
+  const head = await require("../views/apphead").head({ active: "shadow" });
+  const esc = require("../views/layout").esc, when = (d) => new Date(d).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const isAdm = (p) => require("../auth").isAdmin({ email: p.email });
+  res.send(require("../views/admin").page({ title: "Sign in as · App settings", tab: "settings", user: req.user, flash: flashFrom(req),
+    body: `${head}<div class="sub-top"><h2>Sign in as someone else</h2></div>
+    <section class="panel sh-intro"><p>Use the app exactly as someone else would, to test or troubleshoot: the same pages, choices and limits they get, starting from the sign-in screen. <b>Changes you make are real</b> (a claim is their claim), but <b>no emails are sent</b>: they're held so you can read them. A banner stays on top until you choose <b>Exit shadow mode</b>.</p></section>
+    <div class="sh-cols">
+      <section class="panel"><h3>Someone in the app</h3>
+        <input type="search" class="sh-find" placeholder="Search name or email…" oninput="var v=this.value.toLowerCase(); document.querySelectorAll('.sh-row').forEach(function(r){ r.hidden = v && r.dataset.k.indexOf(v) < 0; })">
+        <div class="sh-list">${people.map((p) => { const n = [p.first_name, p.last_name].filter(Boolean).join(" ");
+          return `<form method="post" action="/admin/shadow/start" class="sh-row" data-k="${esc((n + " " + p.email).toLowerCase())}"><input type="hidden" name="user_id" value="${p.id}">
+            <span class="sh-p"><b>${esc(n || p.email)}</b><span class="fine">${n ? esc(p.email) + " · " : ""}${p.kind === "athlete" ? "Athlete" : (p.roles || []).length ? esc(p.roles.join(", ")) : "Adult"}${isAdm(p) ? " · admin" : ""} · ${p.last_login_at ? `last in ${esc(when(p.last_login_at))}` : "never signed in"}</span></span>
+            <button class="sb-btn" type="submit">Sign in as</button></form>`; }).join("") || `<p class="muted">No one else has a sign-in yet.</p>`}</div></section>
+      <section class="panel"><h3>Someone not in the app</h3>
+        <p class="fine">Start signed out, like a brand-new visitor: try an unknown email, Request an account, or a public link. Sign-in links they'd get are held in the banner, so you can follow them.</p>
+        <form method="post" action="/admin/shadow/start"><input type="hidden" name="user_id" value="visitor"><button class="sb-btn primary" type="submit">Start as a visitor</button></form>
+        ${recent.length ? `<h3 class="sh-rh">Recent</h3><ul class="sh-recent">${recent.map((r) => `<li>${esc(when(r.started_at))} · ${esc(r.who || "a visitor")} · ${r.held} email${r.held === 1 ? "" : "s"} held${r.ended_at ? "" : " · <b>still on</b>"}</li>`).join("")}</ul>` : ""}</section>
+    </div>` }));
+}));
+
 // Organization → Pictures: header pictures for the My Claims cards
 router.get("/app", wrap(async (req, res, next) => {
   if (req.query.part !== "pictures") return next();
@@ -219,10 +246,7 @@ router.post("/admins", wrap(async (req, res) => {
   await auth.loadAdmins();
   const { sendEmail, shell } = require("../email");
   const { APP_URL, LABELS } = require("../config");
-  sendEmail({ to: email, subject: `You're an administrator for ${LABELS.app_name}`,
-    html: shell(`You're an administrator`, `<p>${req.user.email} added you as an administrator for ${LABELS.app_name}. Sign in with this email to manage Claim Boards, people, and reports.</p>`,
-      { href: `${APP_URL}/`, label: "Sign in" }),
-    text: `${req.user.email} added you as an administrator for ${LABELS.app_name}. Sign in with this email: ${APP_URL}/` }).catch((e) => console.error("admin email:", e.message));
+  require("../emailTemplates").send("admin_added", email, { added_by: req.user.email }).catch((e) => console.error("admin email:", e.message));
   go(res, app("admins"), { ok: `${email} is now an administrator. They've been emailed.` });
 }));
 

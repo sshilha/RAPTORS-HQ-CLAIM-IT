@@ -2,7 +2,7 @@ const { esc, layout } = require("./layout");
 const A = require("../accounts");
 const { fmtDateTime } = require("../time");
 
-const ROLE = { parent: "Parent", coach: "Coach", volunteer: "Volunteer / outside participant" };
+const ROLE = { parent: "Parent/guardian", coach: "Coach", volunteer: "Volunteer / outside participant" };
 const SUM = {};   // current values for the Profile rows (set when the page is built)
 const card = (id, title, sub, body, lock = false) => SUM[id] != null ? `<section class="d-card a-card a-rowcard" id="${id}"><div class="a-h"><h2>${title}</h2></div>
     <div class="a-sum"><span class="a-sum-v">${SUM[id]}</span><button type="button" class="sb-btn a-chg" onclick="var c=this.closest('.a-rowcard'); c.classList.add('editing'); var f=c.querySelector('.a-edit input:not([type=hidden])'); if (f) f.focus();">Change</button></div>

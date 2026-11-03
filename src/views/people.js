@@ -3,7 +3,7 @@ const { esc } = require("./layout");
 const { page } = require("./admin");
 const PP = require("../people");
 
-const ROLE = { parent: "Parent", coach: "Coach", volunteer: "Volunteer / outside" };
+const ROLE = { parent: "Parent/guardian", coach: "Coach", volunteer: "Volunteer / outside" };
 const chips = (list, cls = "chip-s") => (list || []).filter(Boolean).map((x) => `<span class="${cls}">${esc(x)}</span>`).join("");
 const kindTag = (p) => p.kind === "adult"
   ? ((p.roles || []).length ? (p.roles || []).map((r) => `<span class="role-pill r-${r}">${ROLE[r] || r}</span>`).join("") : `<span class="role-pill">Adult</span>`)
@@ -23,7 +23,7 @@ function fields(p, kind) {
     <div><label><span>Phone <span class="opt">(optional)</span></span><input name="phone" maxlength="30" value="${v("phone")}" placeholder="e.g. 715-555-0123"></label></div>
     <div class="full"><label><span>Organization <span class="opt">(optional, for outside participants)</span></span><input name="organization" maxlength="80" value="${v("organization")}" placeholder="e.g. Altoona Booster Club"></label></div>
     <div class="full"><span class="field-lbl">Roles</span><div class="tag-checks">${Object.entries(ROLE).map(([k, l]) => `<label class="tag-box"><input type="checkbox" name="roles" value="${k}"${(p.roles || []).includes(k) ? " checked" : ""}> ${l}</label>`).join("")}</div>
-      <span class="fine">A person can have more than one, like a parent who's also a coach.</span></div>`;
+      <span class="fine">A person can have more than one, like a parent/guardian who's also a coach.</span></div>`;
   return common + (kind === "adult" ? adult : athlete) + `<div class="full"><label><span>Notes <span class="opt">(admins only)</span></span><textarea name="notes" rows="2" maxlength="1000">${v("notes")}</textarea></label></div>`;
 }
 
@@ -31,7 +31,7 @@ const { fmtDateTime } = require("../time");
 const shortDate = (t) => new Date(t).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric" });
 const TONE = { active: "ok", ready: "ok", invited: "info", notinvited: "plain", setup: "warn", noemail: "bad", noparent: "bad" };
 const TIP = { active: "Has signed in", invited: "Invite sent, not used yet", notinvited: "Has an email but hasn't been invited", setup: "Will see the Welcome step at next sign-in",
-  noemail: "No email, so they can't sign in", ready: "Has a parent who can claim for them", noparent: "No parent linked, so nobody can claim for them yet" };
+  noemail: "No email, so they can't sign in", ready: "Has a parent/guardian who can claim for them", noparent: "No parent/guardian linked, so nobody can claim for them yet" };
 function statusPill(p) {
   const k = PP.statusOf(p), d = k === "active" ? p.last_login_at : k === "invited" ? p.invited_at : null;
   return `<span class="st-pill ${TONE[k]}" title="${TIP[k]}">${PP.STATUS[k]}</span>${d ? `<span class="fine st-date">${shortDate(d)}</span>` : ""}`;
@@ -84,11 +84,11 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
       <div class="head-btns"><details class="add-wrap"${total ? "" : " open"}><summary class="btn-small add-sum">＋ Add a person</summary>
       <div class="add-people" id="add">
         <div class="ap-tabs" role="tablist">
-          <button type="button" class="ap-tab on" data-ap="athlete">New athlete</button><button type="button" class="ap-tab" data-ap="adult">New adult (parent, coach, volunteer)</button>
+          <button type="button" class="ap-tab on" data-ap="athlete">New athlete</button><button type="button" class="ap-tab" data-ap="adult">New adult (parent/guardian, coach, volunteer)</button>
         </div>
         <form method="post" action="/admin/people" class="grid-form ap-pane" data-ap="athlete"><input type="hidden" name="kind" value="athlete">
           ${fields({}, "athlete")}
-          <div class="full"><label><span>Parent emails <span class="opt">(optional; they're added as parents)</span></span><input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label></div>
+          <div class="full"><label><span>Parent/guardian emails <span class="opt">(optional; they're added as parents)</span></span><input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label></div>
           <div class="full ap-actions"><button class="btn-small" type="submit">Add athlete</button></div></form>
         <form method="post" action="/admin/people" class="grid-form ap-pane" data-ap="adult" hidden><input type="hidden" name="kind" value="adult">
           ${fields({}, "adult")}
@@ -102,7 +102,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
           <td>${kindTag(p)}</td><td>${esc(p.team || "")}</td>
           <td>${(() => { const ns = (p.list_ids || []).map((id) => (lists.find((l) => l.id === id) || {}).name).filter(Boolean); return ns.length ? chips(ns.slice(0, 3), "chip-s list") + (ns.length > 3 ? `<span class="fine"> +${ns.length - 3} more</span>` : "") : ""; })()}</td>
           <td><span class="fine">${[p.email, p.phone].filter(Boolean).map(esc).join("<br>")}</span></td>
-          <td><span class="fine">${p.kind === "athlete" ? (p.parents.length ? `Parents: ${esc(p.parents.join(", "))}` : "") : (p.kids.length ? `Kids: ${esc(p.kids.join(", "))}` : "")}</span></td>
+          <td><span class="fine">${p.kind === "athlete" ? (p.parents.length ? `Parents/guardians: ${esc(p.parents.join(", "))}` : "") : (p.kids.length ? `Kids: ${esc(p.kids.join(", "))}` : "")}</span></td>
           <td>${chips(p.boards)}${p.coaching.length ? chips(p.coaching.map((c) => `Coach: ${c}`), "chip-s coach") : ""}</td>
           <td class="st-cell">${statusPill(p)}</td></tr>`).join("")}
       </tbody></table></div>` : `<p class="muted">No one matches.</p>`}
@@ -134,12 +134,12 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
       <section class="panel"><h2>Details</h2>
         <form method="post" action="/admin/people/${p.id}" class="grid-form">${fields(p, p.kind)}
           <div class="full q-actions"><button class="btn-small" type="submit">Save</button></div></form></section>
-      <section class="panel" id="family"><h2>${p.kind === "athlete" ? "Parents / guardians" : "Kids"}</h2>
+      <section class="panel" id="family"><h2>${p.kind === "athlete" ? "Parents/guardians" : "Kids"}</h2>
         ${p.kind === "athlete"
           ? `${parents.length ? `<ul class="fam-list">${parents.map((x) => `<li><span>${x.person_id ? `<a href="/admin/people/${x.person_id}">${esc(`${x.first_name || ""} ${x.last_name || ""}`.trim() || x.email)}</a>` : ""} <span class="fine">${esc(x.email)}${x.phone ? ` · ${esc(x.phone)}` : ""}</span></span>
               <form method="post" action="/admin/people/${p.id}/family/remove"><input type="hidden" name="user_id" value="${x.user_id}"><input type="hidden" name="athlete_id" value="${p.id}"><button class="x" type="submit" aria-label="Unlink">×</button></form></li>`).join("")}</ul>` : `<p class="muted small">No parents linked yet.</p>`}
-            <form method="post" action="/admin/people/${p.id}/family" class="inline-add tag-add"><label>Add a parent by email<input type="email" name="email" required placeholder="e.g. jane@example.com"></label><button class="btn-small" type="submit">Link parent</button></form>
-            <p class="fine">Parents sign in with their email and see this athlete under My Claims.</p>`
+            <form method="post" action="/admin/people/${p.id}/family" class="inline-add tag-add"><label>Add a parent/guardian by email<input type="email" name="email" required placeholder="e.g. jane@example.com"></label><button class="btn-small" type="submit">Link parent</button></form>
+            <p class="fine">Parents/guardians sign in with their email and see this athlete under My Claims.</p>`
           : `${kids.length ? `<ul class="fam-list">${kids.map((k) => `<li><a href="/admin/people/${k.id}">${esc(PP.display(k))}</a>${k.team ? ` <span class="fine">${esc(k.team)}</span>` : ""}
               <form method="post" action="/admin/people/${p.id}/family/remove"><input type="hidden" name="user_id" value="${p.self_user_id}"><input type="hidden" name="athlete_id" value="${k.id}"><button class="x" type="submit" aria-label="Unlink">×</button></form></li>`).join("")}</ul>` : `<p class="muted small">No kids linked.</p>`}
             <form method="post" action="/admin/people/${p.id}/family" class="inline-add tag-add"><label>Link an athlete<select name="athlete_id" required><option value="">Pick an athlete…</option>
@@ -170,10 +170,11 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
         <p class="fine">Older athletes can sign in and claim for themselves. Their family can still see and manage it, unless you turn that off.</p>
         <form method="post" action="/admin/people/${p.id}/self" class="stack self-form">
           <label class="field-l"><span>Athlete's own email <span class="opt">(leave empty if only family signs in)</span></span><input type="email" name="email" value="${esc(p.email || "")}" placeholder="athlete@example.com"></label>
-          <label class="radio-row"><input type="checkbox" name="family_access" value="1"${p.family_access !== false ? " checked" : ""}> <span><b>Family can see and manage their claims</b> <span class="fine">Parents see ${esc(p.first_name)} on My Claims and can claim or cancel for them.</span></span></label>
+          <label class="radio-row"><input type="checkbox" name="family_access" value="1"${p.family_access !== false ? " checked" : ""}> <span><b>Family can see and manage their claims</b> <span class="fine">Parents/guardians see ${esc(p.first_name)} on My Claims and can claim or cancel for them.</span></span></label>
           <label class="radio-row"><input type="checkbox" name="family_emails" value="1"${p.family_emails !== false ? " checked" : ""}> <span><b>Family gets the emails</b> <span class="fine">Confirmations, cancellations, and waitlist news. Off: only ${esc(p.first_name)} gets them.</span></span></label>
           <p class="fine">${PP.isAdultAge(p) ? `${esc(p.first_name)} is 18 or older, so they can change these themselves in My Account.` : `Only admins can change these${p.birth_year ? "" : " (add a birth year so athletes 18+ can manage it themselves)"}.`}</p>
           <div class="q-actions"><button class="btn-small" type="submit">Save</button></div></form></section>` : ""}
+      ${p.self_user_id ? `<form method="post" action="/admin/shadow/start" class="sh-person"><input type="hidden" name="user_id" value="${p.self_user_id}"><button class="sb-btn" type="submit">Sign in as ${esc(p.first_name || "this person")}</button><span class="fine">See the app exactly as they do. Emails are held, not sent.</span></form>` : ""}
       ${p.kind === "adult" || p.email ? `<section class="panel side-card" id="signin"><h2>Sign-in &amp; setup</h2>
         <dl class="rc-list">
           <div><dt>Account</dt><dd>${!acct ? (p.email ? "Not set up yet" : "No email") : acct.joined_at ? `Joined ${esc(fmtDateTime(acct.joined_at))}` : acct.invited_at ? `Invited ${esc(fmtDateTime(acct.invited_at))}` : "Not invited"}</dd></div>

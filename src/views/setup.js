@@ -496,7 +496,7 @@ const LEVEL_INFO = {
   section: () => ["A grouping inside the level above, like an area of a tournament. Its settings cover what's inside it.", "Area, Field, Team"],
   activity: (last) => [last ? "What people claim, with spots." : "A grouping of what people claim, like an activity or area. Its settings (who, limits, attendance) cover what's inside it.", "Activity, Area, Category"],
   slot: () => ["What people claim. It has a number of spots, and can have a date and time or just be a named item.", "Session, Shift, Task, Item"],
-  participant: () => ["The people who use this board. They can be kids, parents, or anyone.", "Athlete, Volunteer"],
+  participant: () => ["The people who use this board. They can be kids, parents/guardians, or anyone.", "Athlete, Volunteer"],
   group: () => ["How people are sorted, so things can be limited to certain groups.", "12U, Team, Level"],
 };
 

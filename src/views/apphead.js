@@ -13,11 +13,11 @@ const IC = {
 };
 const TABS = [["people", "/admin/people", IC.people, "People"], ["accounts", "/admin/settings/app?part=accounts", IC.key, "Accounts &amp; sign-in"],
   ["org", "/admin/settings/app?part=places", IC.org, "Organization"]];
-const ALIAS = { requests: "people", admins: "accounts", signins: "accounts", overview: "people", locations: "org", wording: "org", pictures: "org" };   // sub-pages light their area
+const ALIAS = { shadow: "accounts", communication: "people", requests: "people", admins: "accounts", signins: "accounts", overview: "people", locations: "org", wording: "org", pictures: "org" };   // sub-pages light their area
 // areas with more than one page get a second row of tabs
 const SUBS = {
-  people: [["people", "/admin/people", "People"], ["requests", "/admin/requests", "Requests"]],
-  accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["signins", "/admin/signins", "Sign-in activity"]],
+  people: [["people", "/admin/people", "People"], ["requests", "/admin/requests", "Requests"], ["communication", "/admin/people/communication", "Communication"]],
+  accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["signins", "/admin/signins", "Sign-in activity"], ["shadow", "/admin/settings/app?part=shadow", "Sign in as"]],
   org: [["locations", "/admin/settings/app?part=places", "Locations"], ["wording", "/admin/settings/app?part=labels", "Wording"], ["pictures", "/admin/settings/app?part=pictures", "Pictures"]],
 };
 
