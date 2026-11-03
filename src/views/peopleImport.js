@@ -90,7 +90,7 @@ function mapPage({ user, flash, head, headers, map, kind, data, rows, counts, li
 }
 
 // ---------- 3: the result ----------
-function resultPage({ user, flash, head, b, invite, undoable }) {
+function resultPage({ user, flash, head, b, invite, undoable, lists = [], compare = "", missing = null }) {
   const s = b.summary || {};
   return page({ title: "Import done", tab: "people", user, flash, xwide: true,
     body: `${top(head, 3)}
@@ -104,6 +104,46 @@ function resultPage({ user, flash, head, b, invite, undoable }) {
       </div>
       ${undoable ? `<p class="fine">You can undo this import for 24 hours.</p>` : ""}
       <p class="fine">Next: add them to a board from that board's <b>Access &amp; people → Add from People</b>.</p>
+    </section>
+    ${b.undone_at ? "" : `<section class="panel imp-miss" id="missing"><h2>Not in this file</h2>
+      <p class="fine">People already in People who weren't in this import, like athletes who didn't return. Compare against a list (last season's, say) or everyone.</p>
+      <form method="get" action="/admin/people/import/${b.id}#missing" class="imp-miss-pick"><label class="field-l"><span>Compare with</span>
+        <select name="compare" onchange="this.form.submit()"><option value="">Choose…</option>${lists.map((l) => `<option value="${l.id}"${String(compare) === String(l.id) ? " selected" : ""}>On the list ${esc(l.name)}</option>`).join("")}
+          <option value="all"${compare === "all" ? " selected" : ""}>Everyone in People</option></select></label></form>
+      ${missing == null ? "" : !missing.length ? `<p class="muted">Everyone ${compare === "all" ? "in People" : "on that list"} was in this file.</p>` : `
+      <form method="post" action="/admin/people/import/${b.id}/missing" class="imp-miss-f"><input type="hidden" name="compare" value="${esc(compare)}">
+        <div class="table-wrap"><table class="cm-table"><thead><tr><th><input type="checkbox" checked onclick="this.closest('form').querySelectorAll('input[name=ids]').forEach(function(c){ c.checked = this.checked; }, this)" aria-label="All"></th><th>Name</th><th>Team</th><th>Parents/guardians</th><th>Lists</th></tr></thead><tbody>
+        ${missing.map((m) => `<tr><td><input type="checkbox" name="ids" value="${m.id}" checked></td><td><a href="/admin/people/${m.id}"><b>${esc([m.first_name, m.last_name].filter(Boolean).join(" ") || m.email)}</b></a>${m.birth_year ? ` <span class="fine">${m.birth_year}</span>` : ""}</td>
+          <td>${esc(m.team || "")}</td><td class="fine">${esc((m.parents || []).join(", "))}</td><td class="fine">${esc((m.lists || []).slice(0, 3).join(", "))}</td></tr>`).join("")}</tbody></table></div>
+        <div class="imp-miss-acts">
+          <span class="imp-miss-a"><b>Archive the ones ticked</b><label class="radio-row"><input type="checkbox" name="also_parents" value="1"> Also archive their parents/guardians who have no other athletes</label>
+            <button class="btn-ghost danger" name="act" value="archive" type="submit" onclick="return confirm('Archive the people ticked? They leave People lists and boards you add from People, and can be brought back from People → Archived.')">Archive ${missing.length === 1 ? "them" : "them"}</button></span>
+          <span class="imp-miss-a"><b>Or put them on a list</b><span class="imp-tolist-r"><select name="list_id"><option value="">New list…</option>${lists.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select>
+            <input name="new_list" maxlength="60" placeholder="e.g. Did not return 2027"></span><button class="sb-btn" name="act" value="list" type="submit">Put them on the list</button></span>
+        </div></form>`}
+    </section>`}` });
+}
+// ---------- Clean up: sign-ins unused for a year ----------
+function cleanupPage({ user, flash, head, rows }) {
+  const when = (d) => (d ? new Date(d).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric" }) : "");
+  return page({ title: "Clean up · People", tab: "people", user, flash, xwide: true,
+    body: `${head({ active: "people" })}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>Clean up</h2></div>
+    <section class="panel">
+      <p class="fine">People with a sign-in who haven't signed in for a year or more (or were set up over a year ago and never signed in). <b>Keep</b> hides them from this list for a year.
+        <b>Delete</b> removes their sign-in and takes them out of People. Anyone with past claims is <b>archived</b> instead, so Reports keeps their history. Admins never appear here.</p>
+      ${rows.length ? `<form method="post" action="/admin/people/cleanup" id="cu-f">
+        <div class="table-wrap"><table class="cm-table cu-t"><thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('#cu-f input[name=ids]').forEach(function(c){ c.checked = this.checked; }, this)" aria-label="All"></th><th>Person</th><th>Last signed in</th><th>Linked to</th><th>Claims</th><th>If deleted</th><th></th></tr></thead><tbody>
+        ${rows.map((r) => { const n = [r.first_name, r.last_name].filter(Boolean).join(" ");
+          return `<tr><td><input type="checkbox" name="ids" value="${r.user_id}"></td>
+          <td>${r.person_id ? `<a href="/admin/people/${r.person_id}"><b>${esc(n || r.email)}</b></a>` : `<b>${esc(r.email)}</b>`}<div class="fine">${n ? esc(r.email) + " · " : ""}${r.kind === "athlete" ? "Athlete" : (r.roles || []).length ? esc(r.roles.join(", ")) : r.person_id ? "Adult" : "Sign-in only"}</div></td>
+          <td>${r.last_login_at ? esc(when(r.last_login_at)) : `<span class="fine">Never (set up ${esc(when(r.created_at))})</span>`}</td>
+          <td class="fine">${(r.kids || []).length ? esc(r.kids.join(", ")) : "—"}${(r.only_parent_of || []).length ? `<div class="cu-warn">Only parent/guardian of ${esc(r.only_parent_of.join(", "))}</div>` : ""}</td>
+          <td>${r.claims ? `${r.claims}${r.last_claim ? ` <span class="fine">· last ${esc(when(r.last_claim))}</span>` : ""}` : `<span class="fine">None</span>`}</td>
+          <td>${!r.person_id ? "Sign-in removed" : r.claims ? `<span class="st-pill warn">Archived</span> <span class="fine">(keeps history)</span>` : `<span class="st-pill bad">Deleted</span>`}</td>
+          <td class="cm-btns"><button class="sb-btn" name="one" value="keep:${r.user_id}" type="submit">Keep</button><button class="btn-ghost danger" name="one" value="delete:${r.user_id}" type="submit" onclick="return confirm('Delete ${esc((n || r.email).replace(/'/g, ""))}? This can\\'t be undone.')">Delete</button></td></tr>`; }).join("")}</tbody></table></div>
+        <div class="cu-bulk"><span class="fine">With the ones ticked:</span><button class="sb-btn" name="act" value="keep" type="submit">Keep</button>
+          <button class="btn-ghost danger" name="act" value="delete" type="submit" onclick="return confirm('Delete everyone ticked? Their sign-ins are removed; anyone with past claims is archived instead. This can\\'t be undone.')">Delete</button></div>
+      </form>` : `<p class="muted">Nothing to clean up. Everyone with a sign-in has used it in the last year (or was kept).</p>`}
     </section>` });
 }
-module.exports = { step1Page, mapPage, resultPage };
+module.exports = { step1Page, mapPage, resultPage, cleanupPage };

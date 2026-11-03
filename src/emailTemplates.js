@@ -9,7 +9,9 @@ const GLOBAL_VARS = [["org_name", "Your club's name"], ["app_name", "The app's n
 // ---------- the emails ----------
 const V = (k, d) => [k, d];
 const CLAIM_VARS = [V("person_first", "First name of the person the spot is for"), V("person_name", "Their full name"), V("board_name", "The board"),
-  V("session", "The session: name, date and time"), V("location", "Where it is"), V("organizers", "Organizer name(s) and contact"), V("my_claims_link", "Link to My Claims")];
+  V("session", "The session: name, date and time"), V("location", "Where it is"), V("organizers", "Organizer name(s) and contact"), V("my_claims_link", "Link to My Claims"),
+  V("calendar_link", "Add to calendar (Apple, Outlook, others)"), V("google_calendar_link", "Add to Google Calendar"), V("manage_link", "Where they view or cancel it (My Claims, or their cancel link)")];
+const CAL = "[Add to calendar]({{calendar_link}}) · [Google Calendar]({{google_calendar_link}})";
 const TEMPLATES = [
   // Sign-in & accounts
   { key: "signin_link", group: "Sign-in & accounts", name: "Sign-in link", when: "Someone asks for a sign-in link", to: "The person signing in",
@@ -38,13 +40,13 @@ const TEMPLATES = [
   // Claims
   { key: "claim_confirmed", group: "Claims", name: "Spot claimed", when: "Someone claims a spot (signed in)", to: "The person, and their parents/guardians if family sharing is on",
     subject: "Claimed: {{person_first}}, {{board_name}}: {{session}}", heading: "Spot claimed for {{person_first}}!",
-    body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}", button: { label: "My Claims", link: "my_claims_link" }, vars: CLAIM_VARS },
+    body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\n" + CAL, button: { label: "My Claims", link: "my_claims_link" }, vars: CLAIM_VARS },
   { key: "claim_waitlisted", group: "Claims", name: "Put on the waitlist", when: "Someone joins a waitlist (signed in)", to: "The person, and their parents/guardians if family sharing is on",
     subject: "Waitlisted: {{person_first}}, {{board_name}}: {{session}}", heading: "{{person_first}} is on the waitlist",
     body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\nWe'll email you if a spot opens up.", button: { label: "My Claims", link: "my_claims_link" }, vars: CLAIM_VARS },
   { key: "claim_public", group: "Claims", name: "Spot claimed (public link)", when: "A visitor claims through a public link, with no account", to: "The visitor's email",
     subject: "Claimed: {{person_first}}, {{board_name}}: {{session}}", heading: "Spot claimed for {{person_first}}!",
-    body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\nCan't make it? Use the button below to cancel, so someone else can claim it.",
+    body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\n" + CAL + "\n\nCan't make it? Use the button below to cancel, so someone else can claim it.",
     button: { label: "Cancel my spot", link: "cancel_link" }, vars: [...CLAIM_VARS, V("cancel_link", "Their private cancel link")] },
   { key: "claim_public_waitlisted", group: "Claims", name: "Waitlisted (public link)", when: "A visitor joins a waitlist through a public link", to: "The visitor's email",
     subject: "Waitlisted: {{person_first}}, {{board_name}}: {{session}}", heading: "{{person_first}} is on the waitlist",
@@ -55,7 +57,11 @@ const TEMPLATES = [
     body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}", vars: CLAIM_VARS },
   { key: "waitlist_moved_up", group: "Claims", name: "Moved off the waitlist", when: "A spot opens and someone moves up from the waitlist", to: "The person, and their parents/guardians if family sharing is on",
     subject: "You're in: {{person_first}}, {{board_name}}: {{session}}", heading: "{{person_first}} moved off the waitlist",
-    body: "A spot opened up.\n\n{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}", button: { label: "My Claims", link: "my_claims_link" }, vars: CLAIM_VARS },
+    body: "A spot opened up.\n\n{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\n" + CAL, button: { label: "My Claims", link: "my_claims_link" }, vars: CLAIM_VARS },
+  { key: "claim_reminder", group: "Claims", name: "Reminder before a session", when: "Before each claimed session (the board's Notifications tab sets when; 1 day before unless changed)", to: "The person, and their parents/guardians if family sharing is on",
+    subject: "Reminder: {{person_first}}, {{session}}", heading: "See you soon, {{person_first}}!",
+    body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\n" + CAL + "\n\nCan't make it? Cancel so someone else can have the spot.",
+    button: { label: "View or cancel my spot", link: "manage_link" }, vars: CLAIM_VARS },
   // Requests (answers to the person who asked)
   { key: "family_approved", group: "Requests", name: "Family member added", when: "An admin approves adding a family member", to: "The person who asked",
     subject: "Your request was approved", heading: "Your request was approved",
@@ -168,7 +174,8 @@ async function send(key, to, own = {}) {
 }
 // sample values for the preview and test emails
 const SAMPLE = { person_first: "Ava", person_name: "Ava Smith", first_name: "Jane", board_name: "Winter Training 2027", session: "Hitting · Tue, Nov 10, 5:00 PM–6:00 PM",
-  location: "Turn Two Athletics", organizers: "Scott (scott@example.com)", my_claims_link: "https://example.com/dashboard", cancel_link: "https://example.com/s/abc/cancel/xyz",
+  location: "Turn Two Athletics", organizers: "Scott (scott@example.com)", my_claims_link: "https://example.com/dashboard", manage_link: "https://example.com/dashboard",
+  calendar_link: "https://example.com/cal/sample.ics", google_calendar_link: "https://calendar.google.com/calendar/render?action=TEMPLATE", cancel_link: "https://example.com/s/abc/cancel/xyz",
   sign_in_link: "https://example.com/auth/verify?token=sample", minutes: "15", reset_link: "https://example.com/reset?token=sample", invite_link: "https://example.com/invite?token=sample",
   new_email: "jane.new@example.com", confirm_link: "https://example.com/account/email/confirm?token=sample", added_by: "scott@example.com", family_member: "Max Smith",
   about: "Ava moved to 14U", note: "", what: "to add Max Smith", account_link: "https://example.com/account", requester_name: "Jane Smith", requester_email: "jane@example.com",

@@ -171,7 +171,9 @@ router.post("/invite", wrap(async (req, res) => {
 
 // ---------- the Welcome step: name, password (required or optional), phone ----------
 router.get("/welcome", auth.requireUser, wrap(async (req, res) => {
-  const p = (await query(`SELECT * FROM athletes WHERE kind='adult' AND self_user_id=$1 ORDER BY id LIMIT 1`, [req.user.id])).rows[0] || {};
+  // their own record in People (an adult, or an athlete who signs in themselves), so imported details are filled in
+  const p = (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND archived_at IS NULL ORDER BY (kind='athlete') DESC, id LIMIT 1`, [req.user.id])).rows[0] || {};
+  if (!p.phone && req.user.phone && req.user.phone_verified_at) p.phone = A.prettyPhone(req.user.phone);
   res.send(v.welcomePage({ user: req.user, p, required: A.mustSetUp(req.user), hasPassword: !!req.user.password_hash, err: req.query.err }));
 }));
 router.post("/welcome", auth.requireUser, wrap(async (req, res) => {
@@ -186,7 +188,9 @@ router.post("/welcome", auth.requireUser, wrap(async (req, res) => {
     const bad = A.passwordProblem(b.password); if (bad) return res.redirect("/welcome?err=" + encodeURIComponent(bad));
     await A.setPassword(req.user.id, b.password);
   }
-  const { person } = await require("../people").ensureAdult(req.user.email, { first, last });
+  // save to their own record; only someone with no record yet gets a new (adult) one
+  const own = (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND archived_at IS NULL ORDER BY (kind='athlete') DESC, id LIMIT 1`, [req.user.id])).rows[0];
+  const person = own || (await require("../people").ensureAdult(req.user.email, { first, last })).person;
   const ph = A.normalizePhone(b.phone);
   await query(`UPDATE athletes SET first_name=$2, last_name=$3, phone=COALESCE($4, phone) WHERE id=$1`, [person.id, first, last, ph ? A.prettyPhone(ph) : null]);
   await query(`UPDATE users SET setup_required=false, welcomed_at=now() WHERE id=$1`, [req.user.id]);

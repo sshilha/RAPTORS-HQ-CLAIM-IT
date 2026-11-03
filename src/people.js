@@ -1,6 +1,6 @@
 // The People directory: everyone in the app. Athletes, and adults (parents, coaches, volunteers / outside
 // participants). Adults with an email sign in with it. Coach is a role, so a parent can also be a coach.
-const { query } = require("./db");
+const { query, pool } = require("./db");
 
 async function migrate() {
   await query(`
@@ -121,4 +121,88 @@ function statusOf(p) {
 
 const display = (p) => (`${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email || "(no name)");
 
-module.exports = { STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };
+// ---------- merge a duplicate into the person you keep ----------
+// what would move (for the preview)
+async function mergePreview(keepId, dupId) {
+  const q = async (sql) => (await query(sql, [dupId, keepId])).rows[0].n;
+  return {
+    claims: await q(`SELECT count(*)::int AS n FROM board_claims WHERE athlete_id=$1 AND item_id NOT IN (SELECT item_id FROM board_claims WHERE athlete_id=$2 AND status<>'canceled')`),
+    sameClaims: await q(`SELECT count(*)::int AS n FROM board_claims WHERE athlete_id=$1 AND item_id IN (SELECT item_id FROM board_claims WHERE athlete_id=$2 AND status<>'canceled')`),
+    boards: await q(`SELECT count(*)::int AS n FROM schedule_members WHERE athlete_id=$1 AND schedule_id NOT IN (SELECT schedule_id FROM schedule_members WHERE athlete_id=$2)`),
+    parents: await q(`SELECT count(*)::int AS n FROM parent_athletes WHERE athlete_id=$1 AND user_id NOT IN (SELECT user_id FROM parent_athletes WHERE athlete_id=$2)`),
+    lists: await q(`SELECT count(*)::int AS n FROM people_list_members WHERE athlete_id=$1 AND list_id NOT IN (SELECT list_id FROM people_list_members WHERE athlete_id=$2)`),
+  };
+}
+async function merge(keepId, dupId) {
+  if (keepId === dupId) throw new Error("Pick a different person.");
+  const [k, d] = await Promise.all([keepId, dupId].map(async (id) => (await query(`SELECT * FROM athletes WHERE id=$1 AND archived_at IS NULL`, [id])).rows[0]));
+  if (!k || !d) throw new Error("One of them isn't in People anymore.");
+  if (k.kind !== d.kind) throw new Error(`Only the same kind can be merged (${k.kind === "athlete" ? "athlete" : "adult"} with ${k.kind === "athlete" ? "athlete" : "adult"}).`);
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    // claims: move theirs over; where both claimed the same spot, keep the one you're keeping
+    await c.query(`UPDATE board_claims SET athlete_id=$2 WHERE athlete_id=$1 AND item_id NOT IN (SELECT item_id FROM board_claims WHERE athlete_id=$2 AND status<>'canceled')`, [dupId, keepId]);
+    await c.query(`DELETE FROM board_claims WHERE athlete_id=$1`, [dupId]);
+    // boards (their group and tags come along where the kept person isn't on that board yet)
+    await c.query(`INSERT INTO schedule_members (schedule_id, athlete_id, group_name, tags) SELECT schedule_id, $2, group_name, tags FROM schedule_members WHERE athlete_id=$1 ON CONFLICT DO NOTHING`, [dupId, keepId]);
+    await c.query(`DELETE FROM schedule_members WHERE athlete_id=$1`, [dupId]);
+    // parents/guardians, lists
+    await c.query(`INSERT INTO parent_athletes (user_id, athlete_id) SELECT user_id, $2 FROM parent_athletes WHERE athlete_id=$1 ON CONFLICT DO NOTHING`, [dupId, keepId]);
+    await c.query(`DELETE FROM parent_athletes WHERE athlete_id=$1`, [dupId]);
+    await c.query(`INSERT INTO people_list_members (list_id, athlete_id) SELECT list_id, $2 FROM people_list_members WHERE athlete_id=$1 ON CONFLICT DO NOTHING`, [dupId, keepId]);
+    await c.query(`DELETE FROM people_list_members WHERE athlete_id=$1`, [dupId]);
+    await c.query(`UPDATE reservations SET athlete_id=$2 WHERE athlete_id=$1`, [dupId, keepId]).catch(() => {});
+    // sign-in: if only the duplicate had one, the kept person gets it; if both did, the duplicate's family links move to the kept sign-in
+    if (d.self_user_id && !k.self_user_id) await c.query(`UPDATE athletes SET self_user_id=$2, email=COALESCE(email,$3) WHERE id=$1`, [keepId, d.self_user_id, d.email]);
+    else if (d.self_user_id && k.self_user_id && d.self_user_id !== k.self_user_id) {
+      await c.query(`INSERT INTO parent_athletes (user_id, athlete_id) SELECT $2, athlete_id FROM parent_athletes WHERE user_id=$1 ON CONFLICT DO NOTHING`, [d.self_user_id, k.self_user_id]);
+      await c.query(`DELETE FROM parent_athletes WHERE user_id=$1`, [d.self_user_id]);
+    }
+    // fill in what the kept person is missing
+    await c.query(`UPDATE athletes SET team=COALESCE(NULLIF(team,''),$2), birth_year=COALESCE(birth_year,$3), jersey=COALESCE(NULLIF(jersey,''),$4), phone=COALESCE(NULLIF(phone,''),$5),
+      notes=CASE WHEN coalesce(notes,'')='' THEN $6 WHEN coalesce($6,'')='' OR notes=$6 THEN notes ELSE notes || E'\n' || $6 END, organization=COALESCE(NULLIF(organization,''),$7),
+      roles=(SELECT ARRAY(SELECT DISTINCT unnest(coalesce(roles,'{}') || coalesce($8::text[],'{}')))) WHERE id=$1`,
+      [keepId, d.team, d.birth_year, d.jersey, d.phone, d.notes, d.organization, d.roles || []]);
+    await c.query(`UPDATE athletes SET archived_at=now(), self_user_id=NULL, notes=trim(coalesce(notes,'') || E'\nMerged into #' || $2) WHERE id=$1`, [dupId, keepId]);
+    await c.query("COMMIT");
+  } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); }
+}
+// ---------- clean up: people with a sign-in who haven't used it in a year (or never, set up over a year ago) ----------
+async function cleanupList(meId) {
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cleanup_kept_at TIMESTAMPTZ`);
+  const rows = (await query(`SELECT u.id AS user_id, u.email, u.created_at, u.last_login_at, a.id AS person_id, a.kind, a.first_name, a.last_name, a.roles,
+      ARRAY(SELECT k.first_name || ' ' || coalesce(k.last_name,'') FROM parent_athletes pa JOIN athletes k ON k.id=pa.athlete_id AND k.archived_at IS NULL WHERE pa.user_id=u.id ORDER BY k.first_name) AS kids,
+      ARRAY(SELECT k.first_name FROM parent_athletes pa JOIN athletes k ON k.id=pa.athlete_id AND k.archived_at IS NULL
+        WHERE pa.user_id=u.id AND NOT EXISTS (SELECT 1 FROM parent_athletes o WHERE o.athlete_id=k.id AND o.user_id<>u.id)) AS only_parent_of,
+      (SELECT count(*)::int FROM board_claims c WHERE c.athlete_id=a.id) AS claims,
+      (SELECT max(i.starts_at) FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE c.athlete_id=a.id) AS last_claim
+    FROM users u LEFT JOIN LATERAL (SELECT * FROM athletes x WHERE x.self_user_id=u.id AND x.archived_at IS NULL ORDER BY (x.kind='athlete') DESC LIMIT 1) a ON true
+    WHERE u.id <> $1 AND coalesce(u.last_login_at, u.created_at) < now() - interval '1 year'
+      AND (u.cleanup_kept_at IS NULL OR u.cleanup_kept_at < now() - interval '1 year')
+    ORDER BY coalesce(u.last_login_at, u.created_at)`, [meId])).rows;
+  const isAdmin = require("./auth").isAdmin;
+  return rows.filter((r) => !isAdmin({ email: r.email }) && !(r.roles || []).includes("admin"));
+}
+async function cleanupKeep(userIds) {
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cleanup_kept_at TIMESTAMPTZ`);
+  return (await query(`UPDATE users SET cleanup_kept_at=now() WHERE id = ANY($1)`, [userIds.map(Number).filter(Boolean)])).rowCount;
+}
+// delete: the sign-in goes; the person goes too, unless they have claims (then they're archived so Reports keeps their history)
+async function cleanupDelete(userIds, meId) {
+  let deleted = 0, archived = 0;
+  const isAdmin = require("./auth").isAdmin;
+  for (const uid of userIds.map(Number).filter(Boolean)) {
+    if (uid === meId) continue;
+    const u = (await query(`SELECT * FROM users WHERE id=$1`, [uid])).rows[0]; if (!u || isAdmin({ email: u.email })) continue;
+    const people = (await query(`SELECT a.id, (SELECT count(*)::int FROM board_claims c WHERE c.athlete_id=a.id) AS claims FROM athletes a WHERE a.self_user_id=$1`, [uid])).rows;
+    for (const p of people) {
+      if (p.claims > 0) { await query(`UPDATE athletes SET self_user_id=NULL, archived_at=COALESCE(archived_at, now()) WHERE id=$1`, [p.id]); archived++; }
+      else { await query(`DELETE FROM people_list_members WHERE athlete_id=$1`, [p.id]); await query(`DELETE FROM schedule_members WHERE athlete_id=$1`, [p.id]); await query(`DELETE FROM athletes WHERE id=$1`, [p.id]); deleted++; }
+    }
+    await query(`DELETE FROM users WHERE id=$1`, [uid]);   // sign-in, sessions, tokens and parent/guardian links go with it
+    if (!people.length) deleted++;
+  }
+  return { deleted, archived };
+}
+module.exports = { cleanupList, cleanupKeep, cleanupDelete, mergePreview, merge, STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };

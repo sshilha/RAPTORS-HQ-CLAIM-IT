@@ -129,11 +129,13 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   const entry = all.find((x) => x.board.id === sid);
   if (!entry) return go(res, "/dashboard", { err: "That board isn't open to you right now." });
   const ck = `ci_p_${sid}`;
+  // who's signing up: the one asked for, else who they picked last time here; anyone who no longer fits is dropped first,
+  // then if there's only one person they can sign up for, it's them (no asking)
+  const fits = (x) => x && (x === "me" ? entry.who.some((p) => p.self_user_id || !p.id) : entry.who.some((p) => p.id === x));
   let pid = req.query.p === "me" ? "me" : int(req.query.p);
-  if (!pid && req.cookies && req.cookies[ck]) pid = req.cookies[ck] === "me" ? "me" : int(req.cookies[ck]);   // who they picked last time
+  if (!fits(pid)) pid = null;
+  if (!pid && req.cookies && req.cookies[ck]) { const c = req.cookies[ck] === "me" ? "me" : int(req.cookies[ck]); if (fits(c)) pid = c; }   // who they picked last time
   if (!pid && entry.who.length === 1) pid = entry.who[0].id || "me";
-  if (pid && pid !== "me" && !entry.who.some((p) => p.id === pid)) pid = null;
-  if (pid === "me" && !entry.who.some((p) => p.self_user_id)) pid = null;
   const viewMode0 = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
   if (!pid) { req.user.can_reports = !!(await PP.reportScope(req.user));
     return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0, filters: {}, admin: auth.isAdmin(req.user) })); }

@@ -77,6 +77,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
       <div class="pp-toolbar">
         <div class="pp-acts"><button type="button" class="sb-btn primary" onclick="var d=document.querySelector('.add-wrap'); d.open=!d.open; if (d.open) d.querySelector('input:not([type=hidden])').focus()">+ Add person</button>
           <a class="sb-btn" href="/admin/people/import">⇪ Import</a>
+          <a class="sb-btn" href="/admin/people/cleanup">Clean up</a>
           <details class="new-list"><summary class="sb-btn">+ New list</summary>
             <form method="post" action="/admin/people/lists" class="inline-add nl-pop"><input name="name" required maxlength="60" placeholder="e.g. 2026 Season Athletes" aria-label="List name"><button class="btn-small" type="submit">Make list</button></form></details></div>
         <div class="pp-filters">${filterForm}</div>
@@ -174,6 +175,7 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
           <label class="radio-row"><input type="checkbox" name="family_emails" value="1"${p.family_emails !== false ? " checked" : ""}> <span><b>Family gets the emails</b> <span class="fine">Confirmations, cancellations, and waitlist news. Off: only ${esc(p.first_name)} gets them.</span></span></label>
           <p class="fine">${PP.isAdultAge(p) ? `${esc(p.first_name)} is 18 or older, so they can change these themselves in My Account.` : `Only admins can change these${p.birth_year ? "" : " (add a birth year so athletes 18+ can manage it themselves)"}.`}</p>
           <div class="q-actions"><button class="btn-small" type="submit">Save</button></div></form></section>` : ""}
+      <div class="mg-link"><a class="sb-btn" href="/admin/people/${p.id}/merge">Merge a duplicate into ${esc(p.first_name || "this person")}</a></div>
       ${p.self_user_id ? `<form method="post" action="/admin/shadow/start" class="sh-person"><input type="hidden" name="user_id" value="${p.self_user_id}"><button class="sb-btn" type="submit">Sign in as ${esc(p.first_name || "this person")}</button><span class="fine">See the app exactly as they do. Emails are held, not sent.</span></form>` : ""}
       ${p.kind === "adult" || p.email ? `<section class="panel side-card" id="signin"><h2>Sign-in &amp; setup</h2>
         <dl class="rc-list">

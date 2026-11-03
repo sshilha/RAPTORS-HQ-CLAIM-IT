@@ -144,7 +144,7 @@ const welcomePage = ({ user, p = {}, required, hasPassword, err = "" }) => gate(
         <input id="pw1" name="password" type="password" autocomplete="new-password" minlength="8"${required && !hasPassword ? " required" : ""}>
         <span class="fine">At least 8 characters. ${required ? "" : "You can always sign in with an emailed link instead."}</span>
         <label for="pw2">Type it again</label><input id="pw2" name="password2" type="password" autocomplete="new-password" minlength="8"${required && !hasPassword ? " required" : ""}>`}
-      <label for="wp">Mobile number <span class="opt">(optional)</span></label><input id="wp" name="phone" inputmode="tel" value="${esc(p.phone || "")}" placeholder="715-555-0123">
+      <label for="wp">Mobile number <span class="opt">(optional)</span></label><input id="wp" name="phone" inputmode="tel" autocomplete="tel" value="${esc(p.phone || "")}">
       <button class="btn" type="submit">Save and continue</button>
     </form>
     ${required ? "" : `<form method="post" action="/welcome"><input type="hidden" name="skip" value="1"><button class="link-btn skip" type="submit">Skip for now</button></form>`}

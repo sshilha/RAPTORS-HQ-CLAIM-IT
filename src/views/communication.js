@@ -34,7 +34,19 @@ function listPage({ user, flash, head, templates, brand: b, logo }) {
       </form></section>
     ${groups.map((g) => `<section class="panel cm-group"><h2>${esc(g)}</h2><div class="table-wrap"><table class="cm-table"><thead><tr><th>Email</th><th>Sent when</th><th>Goes to</th><th>Subject</th><th></th></tr></thead><tbody>
       ${templates.filter((t) => t.group === g).map((t) => `<tr><td><b>${esc(t.name)}</b>${t.custom ? `<span class="st-pill info">Customized</span>` : `<span class="st-pill plain">Default</span>`}</td><td class="fine">${esc(t.when)}</td><td class="fine">${esc(t.to)}</td>
-        <td><code class="cm-subj">${esc(t.subject)}</code></td><td><a class="sb-btn" href="/admin/people/communication/${t.key}">Edit</a></td></tr>`).join("")}</tbody></table></div></section>`).join("")}
+        <td><code class="cm-subj">${esc(t.subject)}</code></td><td class="cm-btns"><button type="button" class="sb-btn cm-test" data-key="${t.key}" data-name="${esc(t.name)}">Test</button><a class="sb-btn" href="/admin/people/communication/${t.key}">Edit</a></td></tr>`).join("")}</tbody></table></div></section>`).join("")}
+    <script>(function () {   // Test: send this email (as saved, with sample details) to any address
+      var me = ${JSON.stringify(user.email)};
+      document.querySelectorAll(".cm-test").forEach(function (b) { b.addEventListener("click", function () {
+        var to = prompt("Send a test of “" + b.dataset.name + "” to which email?", localStorage.getItem("cm-test-to") || me); if (!to) return;
+        to = to.trim(); if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(to)) { alert("That isn't a valid email."); return; }
+        try { localStorage.setItem("cm-test-to", to); } catch (e) {}
+        b.disabled = true; b.textContent = "Sending…";
+        fetch("/admin/people/communication/" + b.dataset.key + "/test", { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ to: to, saved: "1" }) })
+          .then(function (r) { return r.json(); }).then(function (j) { b.disabled = false; b.textContent = "Test";
+            alert(!j.ok ? j.error || "The test didn't send." : j.held ? "Held in shadow mode (not sent). Open “emails held” in the banner to send it." : j.sent ? "Sent a test to " + j.to + "." : "Test written to the server log (email isn't set up on this server)."); })
+          .catch(function () { b.disabled = false; b.textContent = "Test"; alert("The test didn't send. Try again."); }); }); });
+    })();</script>
     <script>(function () { var f = document.getElementById("cm-logo-file"); if (!f) return;
       if (location.hash === "#brand" && /err=/.test(location.search)) document.getElementById("cm-bf").hidden = false;
       f.addEventListener("change", function () { var file = f.files[0]; if (!file) return; var img = new Image(), rd = new FileReader();

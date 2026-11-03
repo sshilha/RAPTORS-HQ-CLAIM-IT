@@ -58,6 +58,12 @@ app.get("/img/board/:id", require("./routes/util").wrap(async (req, res) => {
   if (!m) return res.redirect("/claim-it-logo-sm.png");
   res.set("Content-Type", m[1]).set("Cache-Control", "public, max-age=604800").send(Buffer.from(m[2], "base64"));
 }));
+// "Add to calendar" from claim emails: a signed link, no sign-in needed
+app.get("/cal/:token.ics", require("./routes/util").wrap(async (req, res) => {
+  const C = require("./calendar"), id = await C.verify(req.params.token); const body = id && await C.ics(id);
+  if (!body) return res.status(404).send("Not found");
+  res.set("Content-Type", "text/calendar; charset=utf-8").set("Content-Disposition", `attachment; filename="claim-${id}.ics"`).send(body);
+}));
 // App pictures (My Claims header bars)
 app.get("/img/app/:key", require("./routes/util").wrap(async (req, res) => {
   const r = await require("./appimages").get(String(req.params.key));
@@ -88,6 +94,7 @@ async function start() {
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => console.log(`${require("./config").LABELS.app_name} running on port ${PORT}`));
+  require("./reminders").start();   // day-before reminders (Board → Notifications)
 }
 
 module.exports = { app, start };

@@ -170,13 +170,25 @@ router.post("/import/commit", wrap(async (req, res) => {
 }));
 router.get("/import/:batch(\\d+)", wrap(async (req, res) => {
   const b = await IM().batch(int(req.params.batch)); if (!b) return go(res, "/admin/people", { err: "Not found." });
-  res.send(IV().resultPage({ user: req.user, flash: flashFrom(req), head: await AHead(), b, invite: b.undone_at ? 0 : (await IM().invitable(b)).length, undoable: IM().canUndo(b) }));
+  const compare = str(req.query.compare), missing = compare ? await IM().missing(b, compare) : null;
+  res.send(IV().resultPage({ user: req.user, flash: flashFrom(req), head: await AHead(), b, invite: b.undone_at ? 0 : (await IM().invitable(b)).length, undoable: IM().canUndo(b),
+    lists: await PP.lists(), compare, missing }));
 }));
 router.post("/import/:batch(\\d+)/invite", wrap(async (req, res) => {
   const b = await IM().batch(int(req.params.batch)); if (!b) return go(res, "/admin/people", {});
   const list = await IM().invitable(b);
   for (const x of list) await require("../accounts").sendInvite(req, x.user_id);
   go(res, `/admin/people/import/${b.id}`, { ok: `Invited ${list.length} ${list.length === 1 ? "person" : "people"}. Their links work for 7 days.` });
+}));
+router.post("/import/:batch(\\d+)/missing", wrap(async (req, res) => {
+  const bid = int(req.params.batch), ids = [].concat(req.body.ids || []), back = `/admin/people/import/${bid}?compare=${encodeURIComponent(str(req.body.compare))}#missing`;
+  if (!ids.length) return go(res, back, { err: "Tick at least one person." });
+  try {
+    if (req.body.act === "archive") { const r = await IM().archiveMissing(ids, req.body.also_parents === "1");
+      return go(res, back, { ok: `Archived ${r.people} ${r.people === 1 ? "person" : "people"}${r.parents ? ` and ${r.parents} parent${r.parents === 1 ? "" : "s"}/guardian${r.parents === 1 ? "" : "s"}` : ""}. They can be brought back from People → Archived.` }); }
+    const l = await IM().listMissing(ids, int(req.body.list_id), str(req.body.new_list));
+    go(res, back, { ok: `Put ${ids.length} ${ids.length === 1 ? "person" : "people"} on ${l.name}.` });
+  } catch (e) { go(res, back, { err: e.message }); }
 }));
 router.post("/import/:batch(\\d+)/undo", wrap(async (req, res) => {
   try { const r = await IM().undoBatch(int(req.params.batch));
@@ -228,9 +240,52 @@ router.post("/communication/:key/preview", wrap(async (req, res) => {
 }));
 router.post("/communication/:key/test", wrap(async (req, res) => {
   const t = ET().byKey[req.params.key]; if (!t) return res.status(404).json({ ok: false });
-  const r = await ET().render(t.key, ET().SAMPLE, draftOf(req.body));
-  await require("../email").sendEmail({ to: req.user.email, subject: `[Test] ${r.subject}`, html: r.html, text: r.text, replyTo: r.replyTo, fromName: r.fromName });
-  res.json({ ok: true, to: req.user.email, sent: !!process.env.RESEND_API_KEY });
+  // from the list: the saved email, to any address; from the editor: what's on screen, to you (or the address given)
+  const to = str(req.body.to).toLowerCase() || req.user.email;
+  if (!auth.isValidEmail(to)) return res.status(400).json({ ok: false, error: "That isn't a valid email." });
+  const r = req.body.saved ? await ET().render(t.key, ET().SAMPLE) : await ET().render(t.key, ET().SAMPLE, draftOf(req.body));
+  await require("../email").sendEmail({ to, subject: `[Test] ${r.subject}`, html: r.html, text: r.text, replyTo: r.replyTo, fromName: r.fromName });
+  res.json({ ok: true, to, sent: !!process.env.RESEND_API_KEY, held: !!req.shadow });
+}));
+
+// ---------- merge a duplicate into this person ----------
+// ---------- Clean up: sign-ins unused for a year ----------
+router.get("/cleanup", wrap(async (req, res) => res.send(IV().cleanupPage({ user: req.user, flash: flashFrom(req), head: await AHead(), rows: await PP.cleanupList(req.user.id) }))));
+router.post("/cleanup", wrap(async (req, res) => {
+  let act = req.body.act, ids = [].concat(req.body.ids || []);
+  if (req.body.one) { const [a, id] = String(req.body.one).split(":"); act = a; ids = [id]; }
+  if (!ids.length) return go(res, "/admin/people/cleanup", { err: "Tick at least one person." });
+  if (act === "keep") { const n = await PP.cleanupKeep(ids); return go(res, "/admin/people/cleanup", { ok: `Kept ${n}. ${n === 1 ? "They" : "They"} won't show here for a year.` }); }
+  if (act === "delete") { const r = await PP.cleanupDelete(ids, req.user.id);
+    return go(res, "/admin/people/cleanup", { ok: `Deleted ${r.deleted}${r.archived ? `; archived ${r.archived} with past claims (their history stays in Reports)` : ""}.` }); }
+  go(res, "/admin/people/cleanup", {});
+}));
+
+router.get("/:id(\\d+)/merge", wrap(async (req, res) => {
+  const keep = (await query(`SELECT * FROM athletes WHERE id=$1 AND archived_at IS NULL`, [int(req.params.id)])).rows[0];
+  if (!keep) return go(res, "/admin/people", { err: "Not found." });
+  const esc = require("../views/layout").esc, nameOf = (p) => [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || `#${p.id}`;
+  const others = (await query(`SELECT a.id, a.first_name, a.last_name, a.email, a.team, a.birth_year FROM athletes a WHERE a.archived_at IS NULL AND a.kind=$1 AND a.id<>$2
+    ORDER BY (lower(a.last_name)=lower($3)) DESC, lower(a.last_name), lower(a.first_name)`, [keep.kind, keep.id, keep.last_name || ""])).rows;
+  const dupId = int(req.query.with), dup = dupId && others.find((o) => o.id === dupId);
+  const pv = dup ? await PP.mergePreview(keep.id, dup.id) : null;
+  res.send(require("../views/admin").page({ title: `Merge into ${nameOf(keep)}`, tab: "people", user: req.user, flash: flashFrom(req), xwide: true,
+    body: `${(await AHead())({ active: "people" })}<div class="sub-top"><a class="back-btn" href="/admin/people/${keep.id}">← ${esc(nameOf(keep))}</a><h2>Merge a duplicate into ${esc(nameOf(keep))}</h2></div>
+    <section class="panel mg">
+      <p class="fine">Pick the duplicate. Everything that belongs to it moves to <b>${esc(nameOf(keep))}</b>, which you keep: claims, boards (with their group and tags), parents/guardians, lists, and their sign-in. Details ${esc(keep.first_name || "they")} is missing are filled in from the duplicate, and the duplicate is archived. This can't be undone.</p>
+      <form method="get" action="/admin/people/${keep.id}/merge" class="mg-pick"><label class="field-l"><span>The duplicate</span>
+        <select name="with" onchange="this.form.submit()"><option value="">Choose…</option>${others.map((o) => `<option value="${o.id}"${o.id === dupId ? " selected" : ""}>${esc(nameOf(o))}${o.birth_year ? ` · ${o.birth_year}` : ""}${o.team ? ` · ${esc(o.team)}` : ""}${o.email && nameOf(o) !== o.email ? ` · ${esc(o.email)}` : ""}</option>`).join("")}</select></label></form>
+      ${dup ? `<div class="mg-pv"><h3>${esc(nameOf(dup))} → ${esc(nameOf(keep))}</h3><ul>
+        <li><b>${pv.claims}</b> claim${pv.claims === 1 ? "" : "s"} move${pv.sameClaims ? ` (${pv.sameClaims} for spots ${esc(keep.first_name || "they")} already has are dropped)` : ""}</li>
+        <li><b>${pv.boards}</b> board${pv.boards === 1 ? "" : "s"} · <b>${pv.parents}</b> parent${pv.parents === 1 ? "" : "s"}/guardian${pv.parents === 1 ? "" : "s"} · <b>${pv.lists}</b> list${pv.lists === 1 ? "" : "s"}</li></ul>
+        <form method="post" action="/admin/people/${keep.id}/merge" onsubmit="return confirm('Merge ${esc(nameOf(dup)).replace(/'/g, "")} into ${esc(nameOf(keep)).replace(/'/g, "")}? This can\\'t be undone.');">
+          <input type="hidden" name="dup_id" value="${dup.id}"><button class="sb-btn primary" type="submit">Merge into ${esc(nameOf(keep))}</button></form></div>` : ""}
+    </section>` }));
+}));
+router.post("/:id(\\d+)/merge", wrap(async (req, res) => {
+  const keepId = int(req.params.id), dupId = int(req.body.dup_id);
+  try { await PP.merge(keepId, dupId); go(res, `/admin/people/${keepId}`, { ok: "Merged. The duplicate is archived, and everything that was theirs is here now." }); }
+  catch (e) { go(res, `/admin/people/${keepId}/merge?with=${dupId}`, { err: e.message }); }
 }));
 
 router.get("/:id", wrap(async (req, res) => {

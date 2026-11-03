@@ -49,6 +49,36 @@ router.get("/rules", wrap(async (req, res) => res.redirect(`/admin/setup/schedul
 
 router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: req.user, flash: flashFrom(req) }))));
 
+// Board → Notifications: which claim emails this board sends, and when reminders go out
+const NOTE_KEYS = [["confirm", "Spot claimed", "When someone claims a spot (signed in)."], ["waitlist", "Put on the waitlist", "When someone joins a waitlist (signed in)."],
+  ["cancel", "Spot canceled", "When a claim is canceled, by them or an admin."], ["moved_up", "Moved off the waitlist", "When a spot opens and someone moves up."]];
+const REMIND = [[0, "Off"], [2, "2 hours before"], [12, "12 hours before"], [24, "1 day before"], [48, "2 days before"], [72, "3 days before"]];
+router.get("/notifications", wrap(async (req, res) => {
+  const sc = await SC.get(int(req.query.s)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
+  const n = (sc.settings && sc.settings.notify) || {}, rh = n.reminder_hours == null ? 24 : Number(n.reminder_hours);
+  const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "notify" });
+  await query(`ALTER TABLE board_claims ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ`);
+  const due = rh > 0 ? (await query(`SELECT count(*)::int AS n FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE i.schedule_id=$1 AND c.status='confirmed' AND i.starts_at > now() AND c.reminded_at IS NULL`, [sc.id])).rows[0].n : 0;
+  res.send(require("../views/admin").page({ title: `Notifications · ${sc.name}`, tab: "setup", user: req.user, flash: flashFrom(req), wide: true, noBack: true,
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All Boards</a></nav>
+    ${head}
+    <form method="post" action="/admin/setup/notifications?s=${sc.id}" class="sub-body no-subs nt-sheet">
+      <section class="nt-sec"><h3>Reminders</h3><p class="fine">A reminder before each claimed session, to the person and their parents/guardians (if family sharing is on). It has Add to calendar links and a way to cancel.</p>
+        <label class="field-l nt-when"><span>Send a reminder</span><select name="reminder_hours">${REMIND.map(([h, l]) => `<option value="${h}"${h === rh ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+        <p class="fine">${rh > 0 ? `${due} upcoming claim${due === 1 ? "" : "s"} will get a reminder. People who claim inside that window don't get one (they just signed up).` : "No reminders for this board."}</p></section>
+      <section class="nt-sec"><h3>Claim emails</h3><p class="fine">Turn off any this board shouldn't send. Their wording is in App Settings → People → <a href="/admin/people/communication">Communication</a>.</p>
+        ${NOTE_KEYS.map(([k, t, d]) => `<label class="radio-row nt-sw"><input type="checkbox" name="${k}" value="1"${n[k] !== false ? " checked" : ""}> <span><b>${t}</b><span class="fine">${d}</span></span></label>`).join("")}
+        <p class="fine">Public-link confirmations always send, because they carry the visitor's private cancel link.</p></section>
+      <div class="q-actions"><button class="sb-btn primary" type="submit">Save</button></div>
+    </form>` }));
+}));
+router.post("/notifications", wrap(async (req, res) => {
+  const sc = await SC.get(int(req.query.s)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
+  const rh = REMIND.map((r) => r[0]).includes(Number(req.body.reminder_hours)) ? Number(req.body.reminder_hours) : 24;
+  const notify = { reminder_hours: rh, ...Object.fromEntries(NOTE_KEYS.map(([k]) => [k, req.body[k] === "1"])) };
+  await query(`UPDATE schedules SET settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('notify', $2::jsonb) WHERE id=$1`, [sc.id, JSON.stringify(notify)]);
+  go(res, `/admin/setup/notifications?s=${sc.id}`, { ok: "Saved this board's notifications." });
+}));
 router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req, res) => {
   const sc = req.sched.sc;
   const counts = (await query(`SELECT (SELECT count(*) FROM rounds WHERE schedule_id=$1 AND NOT is_main)
@@ -177,6 +207,9 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   // Who's going, attendance default, coaches (one email per line)
   if (["full", "initial", "off"].includes(b.family_names)) await query(`UPDATE schedules SET family_names=$2 WHERE id=$1`, [id, b.family_names]);
   if (b.track) await query(`UPDATE schedules SET track_attendance=$2 WHERE id=$1`, [id, b.track === "on"]);
+  // check-in lock for coaches (Board defaults → Attendance)
+  if (b.checkin_lock !== undefined && ["0", "1", "2", "7", "-1"].includes(String(b.checkin_lock)))
+    await query(`UPDATE schedules SET settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('checkin_lock', $2::int) WHERE id=$1`, [id, Number(b.checkin_lock)]);
   let badCoaches = [];
   if (b.coaches !== undefined) {
     const auth = require("../auth");

@@ -746,6 +746,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
       // sections: Edit swaps the answers for the form; Cancel puts them back
       document.querySelectorAll(".ss").forEach(function (sec) {
         var f = sec.querySelector(".ss-form"), v = sec.querySelector(".ss-view"), b = sec.querySelector(".ss-edit");
+        if (!f || !b) return;   // a read-only section (like "Levels with their own settings") has nothing to edit
         b.addEventListener("click", function () {
           document.querySelectorAll(".ss.open .ss-cancel, .inl.open .inl-cancel").forEach(function (c) { c.click(); });
           f.hidden = false; v.hidden = true; b.hidden = true; sec.classList.add("open");
@@ -756,6 +757,7 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
       // header: pencil edits in place
       document.querySelectorAll(".inl").forEach(function (x) {
         var f = x.querySelector(".inl-form"), v = x.querySelector(".inl-view");
+        if (!f || !x.querySelector(".pencil")) return;
         x.querySelector(".pencil").addEventListener("click", function () {
           document.querySelectorAll(".ss.open .ss-cancel, .inl.open .inl-cancel").forEach(function (c) { c.click(); });
           f.hidden = false; v.hidden = true; x.classList.add("open"); var i = f.querySelector("input:not([type=hidden])"); if (i) i.focus();

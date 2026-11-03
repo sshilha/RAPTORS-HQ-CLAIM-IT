@@ -184,7 +184,7 @@ function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }
       ${locked ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
         <button class="sb-btn ${published ? "" : "primary"}" type="submit">${published ? "Unpublish" : "Publish"}</button></form>`}</div>
   </section>
-  <nav class="bh2-tabs">${tab("setup", `/admin/setup?s=${sc.id}`, IC.gear, "Board setup")}${locked ? "" : tab("details", `/admin/setup?s=${sc.id}&tab=details`, IC.board, "Board details")}${tab("access", `/admin/members?s=${sc.id}`, IC.people, "Access &amp; people")}${tab("defaults", `/admin/setup/schedule?s=${sc.id}`, IC.edit, "Board defaults")}</nav>`;
+  <nav class="bh2-tabs">${tab("setup", `/admin/setup?s=${sc.id}`, IC.gear, "Board setup")}${locked ? "" : tab("details", `/admin/setup?s=${sc.id}&tab=details`, IC.board, "Board details")}${tab("access", `/admin/members?s=${sc.id}`, IC.people, "Access &amp; people")}${tab("defaults", `/admin/setup/schedule?s=${sc.id}`, IC.edit, "Board defaults")}${tab("notify", `/admin/setup/notifications?s=${sc.id}`, `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`, "Notifications")}</nav>`;
 }
 // what the header needs, for pages other than Setup
 async function headerData(sc) {

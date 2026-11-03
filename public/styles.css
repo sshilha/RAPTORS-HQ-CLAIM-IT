@@ -3120,3 +3120,19 @@ html.b-fixed body, html.b-fixed main, html.b-fixed .page, html.b-fixed .app, htm
 .sh-vlist { max-height: 300px; margin-bottom: 6px; } .sh-links { padding-left: 18px; } .sh-links li { margin: 4px 0; } .sh-links-a { margin-left: auto; }
 .sh-links-a + .sh-held { margin-left: 0; }
 .sh-ob h3 { text-transform: none; letter-spacing: 0; font: 800 16px Inter, sans-serif; color: #0B1930; margin: 18px 0 6px; }
+/* Board → Notifications */
+.nt-sheet { display: flex; flex-direction: column; gap: 4px; } .nt-sec { padding: 4px 0 14px; border-bottom: 1px solid #EEF1F5; margin-bottom: 10px; }
+.nt-sec h3 { margin: 0 0 4px; font: 800 16px Inter, sans-serif; color: #0B1930; } .nt-when select { max-width: 260px; }
+.nt-sw { display: flex; gap: 10px; align-items: flex-start; margin: 8px 0; text-transform: none; font: 400 14px Inter, sans-serif; } .nt-sw .fine { display: block; }
+/* Board → Notifications */
+.nt-sheet { display: flex; flex-direction: column; gap: 4px; } .nt-sec { padding: 4px 0 14px; border-bottom: 1px solid #EEF1F5; margin-bottom: 10px; }
+.nt-sec h3 { margin: 0 0 4px; font: 800 16px Inter, sans-serif; color: #0B1930; } .nt-when select { max-width: 260px; }
+.nt-sw { display: flex; gap: 10px; align-items: flex-start; margin: 8px 0; text-transform: none; font: 400 14px Inter, sans-serif; } .nt-sw .fine { display: block; }
+.mg-pick select { max-width: 520px; } .mg-pv { margin-top: 12px; padding: 12px 14px; background: #F6F8FB; border: 1px solid #E3E8F0; border-radius: 10px; } .mg-pv h3 { margin: 0 0 6px; font: 800 16px Inter, sans-serif; }
+.mg-pv ul { margin: 0 0 10px; padding-left: 18px; } .mg-link { margin: 0 0 10px; }
+.cm-btns { white-space: nowrap; } .cm-btns .sb-btn + .sb-btn { margin-left: 6px; }
+/* import: Not in this file · Clean up */
+.imp-miss h2 { margin: 0 0 4px; font: 800 18px Inter, sans-serif; } .imp-miss-pick select { max-width: 360px; }
+.imp-miss-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; } .imp-miss-a { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 10px 12px; background: #F6F8FB; border-radius: 10px; }
+.cu-warn { color: #b45309; font-weight: 600; margin-top: 2px; } .cu-bulk { display: flex; gap: 8px; align-items: center; margin-top: 10px; } .cu-t td { vertical-align: top; }
+@media (max-width: 800px) { .imp-miss-acts { grid-template-columns: 1fr; } }

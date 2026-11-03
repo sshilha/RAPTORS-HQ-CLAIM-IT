@@ -278,4 +278,37 @@ async function undoBatch(id) {
   await query(`UPDATE import_batches SET undone_at=now() WHERE id=$1`, [id]);
   return { removed, kept };
 }
-module.exports = { PARENTS, guess, mapFrom, savedMap, saveMap, toRows, analyze, counts, commit, batch, canUndo, invitable, undoBatch, yearOf };
+// people of the same kind who weren't in this import: on a chosen list, or anyone in People
+async function missing(b, compare) {
+  const kinds = (await query(`SELECT DISTINCT kind FROM athletes WHERE id = ANY($1)`, [b.people])).rows.map((r) => r.kind).filter(Boolean);
+  if (!kinds.length) return [];
+  const onList = compare && compare !== "all" ? Number(compare) : null;
+  return (await query(`SELECT a.id, a.kind, a.first_name, a.last_name, a.team, a.birth_year, a.email,
+      ARRAY(SELECT coalesce(nullif(trim(p.first_name || ' ' || coalesce(p.last_name,'')),''), u.email) FROM parent_athletes pa JOIN users u ON u.id=pa.user_id
+        LEFT JOIN athletes p ON p.self_user_id=u.id AND p.archived_at IS NULL WHERE pa.athlete_id=a.id) AS parents,
+      ARRAY(SELECT l.name FROM people_list_members m JOIN people_lists l ON l.id=m.list_id WHERE m.athlete_id=a.id ORDER BY l.id DESC) AS lists
+    FROM athletes a WHERE a.archived_at IS NULL AND a.kind = ANY($1) AND NOT (a.id = ANY($2)) AND a.created_at < $3
+      AND ($4::int IS NULL OR EXISTS (SELECT 1 FROM people_list_members m WHERE m.athlete_id=a.id AND m.list_id=$4))
+    ORDER BY lower(a.last_name), lower(a.first_name)`, [kinds, b.people, b.created_at, onList])).rows;
+}
+// archive them (and, if asked, their parents/guardians who have no other athletes left)
+async function archiveMissing(ids, alsoParents) {
+  ids = ids.map(Number).filter(Boolean); if (!ids.length) return { people: 0, parents: 0 };
+  let parents = 0;
+  if (alsoParents) {
+    const lone = (await query(`SELECT DISTINCT p.id FROM parent_athletes pa JOIN athletes p ON p.self_user_id=pa.user_id AND p.archived_at IS NULL AND p.kind='adult'
+      WHERE pa.athlete_id = ANY($1) AND NOT EXISTS (SELECT 1 FROM parent_athletes o JOIN athletes k ON k.id=o.athlete_id AND k.archived_at IS NULL
+        WHERE o.user_id=pa.user_id AND NOT (o.athlete_id = ANY($1)))`, [ids])).rows.map((r) => r.id);
+    if (lone.length) parents = (await query(`UPDATE athletes SET archived_at=now() WHERE id = ANY($1) AND archived_at IS NULL`, [lone])).rowCount;
+  }
+  const n = (await query(`UPDATE athletes SET archived_at=now() WHERE id = ANY($1) AND archived_at IS NULL`, [ids])).rowCount;
+  return { people: n, parents };
+}
+async function listMissing(ids, listId, newName) {
+  ids = ids.map(Number).filter(Boolean); if (!ids.length) return null;
+  const l = listId ? (await query(`SELECT * FROM people_lists WHERE id=$1`, [Number(listId)])).rows[0] : newName ? await PP.listNamed(newName) : null;
+  if (!l) throw new Error("Pick a list, or name a new one.");
+  for (const id of ids) await query(`INSERT INTO people_list_members (list_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [l.id, id]);
+  return l;
+}
+module.exports = { missing, archiveMissing, listMissing, PARENTS, guess, mapFrom, savedMap, saveMap, toRows, analyze, counts, commit, batch, canUndo, invitable, undoBatch, yearOf };

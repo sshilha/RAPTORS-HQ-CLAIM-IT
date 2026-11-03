@@ -724,3 +724,28 @@ limits, Welcome step. A striped banner stays on top: who you are, emails held, E
   banner lists their spots with the private cancel link from each confirmation email.
 - Changes are real (a claim is their claim). Their last sign-in time is not touched.
 - Logged in Sign-in activity: shadow start / sign-in as / end.
+
+
+## v0.29.0
+- **Reminders** (src/reminders.js): checked every 15 minutes inside the app (a database lock prevents doubles), sent once
+  per confirmed claim at the board's reminder time (default 1 day before), to the same people as the confirmation. Not
+  sent to anyone who claimed inside the window. Email: "Reminder before a session" in Communication. NO_REMINDERS=1 turns
+  the checker off (for local testing). board_claims.reminded_at.
+- **Board → Notifications** (5th board tab): reminder timing (Off · 2 h · 12 h · 1 day · 2 days · 3 days before) and
+  switches for Spot claimed · Waitlisted · Canceled · Moved off the waitlist (schedules.settings.notify). Public-link
+  confirmations always send (they carry the cancel link).
+- **Add to calendar** (src/calendar.js): {{calendar_link}} (signed .ics at /cal/<id>-<sig>.ics, no sign-in) and
+  {{google_calendar_link}}, in the claimed, public claimed, moved-up and reminder emails.
+- **Merge people**: a person's page → "Merge a duplicate into …": pick the duplicate, preview what moves, confirm.
+  Claims (same-spot duplicates dropped), boards with group/tags, parents/guardians, lists, sign-in move; empty details are
+  filled in; the duplicate is archived. Same kind only.
+- **Communication → Test** beside every email: asks for an address, sends the saved email with sample details as [Test].
+- **Tidy-up**: removed src/booking.js, src/locks.js, src/scheduleImport.js and the old program/session/athlete screens in
+  views/admin.js (now just the shared page wrapper).
+
+- **Import result → Not in this file**: compare with a list (or everyone in People) and see people of the same kind who
+  weren't in this import; tick and Archive (optionally their parents/guardians who have no other athletes) or put them on
+  a list (e.g. "Did not return 2027").
+- **People → Clean up**: everyone with a sign-in unused for a year (or set up over a year ago and never used), except
+  admins. Keep (hidden for a year, users.cleanup_kept_at) or Delete (removes the sign-in; the person is deleted too, or
+  archived if they have past claims so Reports keeps their history). Warns when someone is a child's only parent/guardian.
