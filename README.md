@@ -655,3 +655,7 @@ Archived tab. Old data in the database is left as is.
 
 **A session's People page** (Board setup → a session → People): ← Back to Setup · the board header (Board setup lit) ·
 the session line · "In this spot (n of capacity)" with + Add someone (opens the add form above the list) · Waitlist.
+
+**Create Board:** ← All Boards · navy header (Create Board, "Step n of 3 · …") · the three steps as tabs in the gray bar
+(current lime; finished ✓ and clickable to go back; later ones unlock as you go) · the step on the white sheet with
+Back / Continue / Create board. Details uses the Board details section names: General · Type & look · Organizer.

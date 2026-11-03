@@ -3016,3 +3016,19 @@ html.b-fixed body, html.b-fixed main, html.b-fixed .page, html.b-fixed .app, htm
 .sp-addbox { background: #F6F8FB; border: 1px solid #E3E8F0; border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; } .sp-addbox[hidden] { display: none; }
 .sp-addbox h3 { margin: 0 0 8px; font: 700 15px Inter, sans-serif; } .sp-addbox .q-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
 .sp-in .sp-list { margin-top: 0; }
+/* Create Board: header, step tabs, sheet */
+.wz-tabs { margin-bottom: 14px; } .wz-tabs .wz-progress { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.wz-tabs .wz-progress li { margin: 0; padding: 0; border: 0; background: none; flex: none; } .wz-tabs .wz-progress li::before, .wz-tabs .wz-progress li::after { content: none; }
+.wz-tabs .wz-progress button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border: 0; border-radius: 8px; background: none; color: #475569; font: 600 14px Inter, sans-serif; cursor: pointer; }
+.wz-tabs .wz-progress button span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #dfe5ee; color: #475569; font: 700 12px Inter, sans-serif; }
+.wz-tabs .wz-progress li.now button { background: #8DDC32; color: #0B1930; } .wz-tabs .wz-progress li.now button span { background: #0B1930; color: #8DDC32; }
+.wz-tabs .wz-progress li.done button { color: #0B1930; } .wz-tabs .wz-progress li.done button span { background: #2f6d0c; color: #fff; font-size: 0; }
+.wz-tabs .wz-progress li.done button span::after { content: "✓"; font-size: 12px; } .wz-tabs .wz-progress li.done button:hover { background: #fff; }
+.wz-tabs .wz-progress button:disabled { cursor: default; opacity: .7; }
+.sub-body.wizard { max-width: none; } .wizard .wz-h3 { margin: 18px 0 8px; font: 800 16px Inter, sans-serif; color: #0B1930; } .wizard .wz-h3:first-child { margin-top: 0; }
+.wizard .wz-h3 .opt { font: 400 12px Inter, sans-serif; color: #5B6B82; }
+.wizard .wz-nav { border-top: 1px solid #EEF1F5; margin-top: 16px; padding-top: 14px; }
+.sub-body.wizard form, .sub-body.wizard .wz-step { border: 0 !important; background: none !important; box-shadow: none !important; padding: 0 !important; margin: 0; }
+.wizard .wz-nav #wz-next, .wizard .wz-nav #wz-create { background: #8DDC32; border-color: #8DDC32; color: #0B1930; border-radius: 9px; }
+.wizard .wz-nav #wz-next:hover, .wizard .wz-nav #wz-create:hover { background: #7fcd27; }
+.wizard .wz-nav #wz-back { border-radius: 9px; }

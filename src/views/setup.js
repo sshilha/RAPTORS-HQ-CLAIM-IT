@@ -787,19 +787,18 @@ function newSchedulePage({ user, flash }) {
   const opt = (name, value, title, text, exKey) => `<label class="choice"><input type="radio" name="${name}" value="${value}">
     <span class="choice-body"><b>${title}</b><span>${text}</span>${exKey ? `<span class="ex" data-ex="${exKey}"></span>` : ""}</span><span class="choice-check" aria-hidden="true">✓</span></label>`;
   return page({
-    title: "New", tab: "home", user, flash,
-    body: `<a class="back" href="/admin/settings">All ${esc(LABELS.schedules.toLowerCase())}</a>
-    <section class="panel wizard">
-      <h1>Create ${esc(SC.an(LABELS.schedule))}</h1>
-      <p class="muted tight">Set up your board in three simple steps. You can change everything later.</p>
-      <ol class="wz-progress" aria-label="Steps">
-        <li data-step="1" class="on"><span>1</span>Details</li><li data-step="2"><span>2</span>Structure</li><li data-step="3"><span>3</span>Settings</li>
-      </ol>
+    title: "Create Board", tab: "home", user, flash, noBack: true,
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All Boards</a></nav>
+    <section class="bh2 wz-hd"><div class="bh2-l"><span class="bh2-tile dash-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18M12 13v6M9 16h6"/></svg></span>
+      <div><div class="bh2-t"><h1>Create Board</h1></div><span class="bh2-meta" id="wz-meta">Step 1 of 3 · Details. You can change everything later.</span></div></div></section>
+    <nav class="bh2-tabs dash-tabs wz-tabs" aria-label="Steps"><ol class="wz-progress">
+      <li data-step="1" class="on now"><button type="button" data-go="1"><span>1</span>Details</button></li><li data-step="2"><button type="button" data-go="2"><span>2</span>Structure</button></li><li data-step="3"><button type="button" data-go="3"><span>3</span>Settings</button></li>
+    </ol></nav>
+    <section class="sub-body no-subs wizard">
       <form method="post" action="/admin/setup/schedules" id="wz">
 
         <div class="wz-step" data-step="1">
-          <h2>Board details</h2>
-          <p class="muted tight">Give it a name people will recognize.</p>
+          <h3 class="wz-h3">General</h3>
           <label class="field">Board name<input name="name" id="wz-name" required maxlength="60" autocomplete="off" placeholder="e.g. Winter Training 2026–27"></label>
           <div class="tip"><b>Helpful tip</b>Use a season or event name people will recognize, like "Winter Training 2026–27" or "Raptors Rumble Concessions".</div>
           <div class="field-row">
@@ -810,16 +809,16 @@ function newSchedulePage({ user, flash }) {
             <span class="fine">Areas and items can have their own location too, like the concession stand.</span></label>
           <label class="field-l"><span>Description <span class="opt">(optional, shown to people at the top)</span></span>
             <textarea name="description" rows="2" maxlength="600" placeholder="e.g. Drop donations at the concession stand by 7:30 AM Saturday."></textarea></label>
+          <h3 class="wz-h3">Type &amp; look</h3>${boardTypeField(null)}
+          <p class="q-label">Picture <span class="fine-inline">(optional)</span></p>${imagePicker(null)}
+          <h3 class="wz-h3">Organizer <span class="opt">(optional; add more later in Board details)</span></h3>
           <div class="field-row">
-            <label class="field-l"><span>Organizer <span class="opt">(optional)</span></span><input name="contact_name" maxlength="60" placeholder="e.g. Jane Smith"></label>
+            <label class="field-l"><span>Organizer</span><input name="contact_name" maxlength="60" placeholder="e.g. Jane Smith"></label>
             <label class="field-l"><span>Organizer email or phone</span><input name="contact_info" maxlength="80" placeholder="e.g. jane@example.com"></label>
           </div>
-          <p class="q-label">Board type</p>${boardTypeField(null)}
-          <p class="q-label">Picture <span class="fine-inline">(optional)</span></p>${imagePicker(null)}
         </div>
 
         <div class="wz-step" data-step="2" hidden>
-          <h2>Structure</h2>
           <p class="muted tight">How is it organized? Pick one. The last level is what people claim.</p>
           <p class="alert" id="wz-pick-err" hidden>Pick a structure to continue.</p>
           <div class="choice-grid">${CHOICES.map(([k, icon, title, depth, use, ex]) => `<label class="choice struct">
@@ -845,7 +844,6 @@ function newSchedulePage({ user, flash }) {
         </div>
 
         <div class="wz-step" data-step="3" hidden>
-          <h2>Settings</h2>
           <p class="muted tight">Filled in for the structure you picked. Change any of them.</p>
           <fieldset class="q"><legend>Who can claim?</legend><div class="choice-row three">
             ${opt("claim", "public", "Anyone with the link", claimHelp().public, "claim.public")}
@@ -915,7 +913,9 @@ function newSchedulePage({ user, flash }) {
       function show(n) {
         step = n;
         form.querySelectorAll(".wz-step").forEach(function (el) { el.hidden = +el.dataset.step !== n; });
-        document.querySelectorAll(".wz-progress li").forEach(function (li) { li.classList.toggle("on", +li.dataset.step <= n); li.classList.toggle("now", +li.dataset.step === n); });
+        document.querySelectorAll(".wz-progress li").forEach(function (li) { var k = +li.dataset.step; li.classList.toggle("on", k <= n); li.classList.toggle("now", k === n); li.classList.toggle("done", k < n);
+          li.querySelector("button").disabled = k > n; if (k === n) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); });
+        document.getElementById("wz-meta").textContent = "Step " + n + " of 3 · " + ["Details", "Structure", "Settings"][n - 1] + ". You can change everything later.";
         document.getElementById("wz-back").disabled = n === 1;
         document.getElementById("wz-next").hidden = n === 3;
         document.getElementById("wz-create").hidden = n !== 3;
@@ -929,6 +929,7 @@ function newSchedulePage({ user, flash }) {
         show(step + 1);
       });
       document.getElementById("wz-back").addEventListener("click", function () { show(step - 1); });
+      document.querySelectorAll(".wz-progress [data-go]").forEach(function (b) { b.addEventListener("click", function () { var k = +b.dataset.go; if (k < step) show(k); }); });
       form.name.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); document.getElementById("wz-next").click(); } });
       form.querySelectorAll('input[name="preset"]').forEach(function (r) { r.addEventListener("change", defaults); });
       ["claim", "restrict", "dated", "pick"].forEach(function (n) { form.querySelectorAll('input[name="' + n + '"]').forEach(function (r) { r.addEventListener("change", function () { touched[n] = true; refresh(); }); }); });
