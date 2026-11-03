@@ -749,3 +749,7 @@ limits, Welcome step. A striped banner stays on top: who you are, emails held, E
 - **People → Clean up**: everyone with a sign-in unused for a year (or set up over a year ago and never used), except
   admins. Keep (hidden for a year, users.cleanup_kept_at) or Delete (removes the sign-in; the person is deleted too, or
   archived if they have past claims so Reports keeps their history). Warns when someone is a child's only parent/guardian.
+
+**v0.29.5 cleanup:** removed 33 functions nothing called anymore, mostly the old pre-rebuild Board Setup screen and its
+helpers in views/setup.js (1,088 → 471 lines; the live screen is views/setup2.js), plus strays in views/board.js,
+views/claim.js, views/people.js, views/home.js and routes/members.js.
