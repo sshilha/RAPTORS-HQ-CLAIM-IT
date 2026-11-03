@@ -211,6 +211,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.31.1** People table: six columns (Person with kind and team · Contact · Family · Lists & boards · Status), fixed
+  widths, chips wrap inside their column, cards on phones; adults with linked kids are tagged Parent/guardian.
 - **v0.31** Consistency pass: headers in two spots (with / without a back button), back buttons always above the header,
   form buttons right-aligned Cancel · Save 16px below the last field with one lime main button, red Delete/Decline, nothing
   wider than a phone (27 pages were); My Account Change rows and Requests Decline match every other form.

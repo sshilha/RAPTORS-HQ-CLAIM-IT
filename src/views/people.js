@@ -6,7 +6,8 @@ const PP = require("../people");
 const ROLE = { parent: "Parent/guardian", coach: "Coach", volunteer: "Volunteer / outside" };
 const chips = (list, cls = "chip-s") => (list || []).filter(Boolean).map((x) => `<span class="${cls}">${esc(x)}</span>`).join("");
 const kindTag = (p) => p.kind === "adult"
-  ? ((p.roles || []).length ? (p.roles || []).map((r) => `<span class="role-pill r-${r}">${ROLE[r] || r}</span>`).join("") : `<span class="role-pill">Adult</span>`)
+  ? (() => { const rs = [...new Set([...((p.kids || []).length ? ["parent"] : []), ...(p.roles || [])])];
+      return rs.length ? rs.map((r) => `<span class="role-pill r-${r}">${ROLE[r] || r}</span>`).join("") : `<span class="role-pill">Adult</span>`; })()
   : `<span class="role-pill r-athlete">Athlete</span>`;
 
 function fields(p, kind) {
@@ -92,14 +93,20 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
       ${listBar}
       ${cur ? "" : `<h3 class="ilist-head">${people.length === total ? "Everyone" : "Matching"} <span class="fine-inline">(${people.length})</span></h3>`}
       ${people.length ? bulk : ""}
-      ${people.length ? `<div class="table-wrap"><table class="dir-table"><thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Name</th><th>Kind</th><th>Current team</th><th>Lists</th><th>Contact</th><th>Family</th><th>Boards</th><th>Status</th></tr></thead><tbody>
-        ${people.map((p) => `<tr><td><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td><td><a href="/admin/people/${p.id}"><b>${esc(PP.display(p))}</b></a>${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}</td>
-          <td>${kindTag(p)}</td><td>${esc(p.team || "")}</td>
-          <td>${(() => { const ns = (p.list_ids || []).map((id) => (lists.find((l) => l.id === id) || {}).name).filter(Boolean); return ns.length ? chips(ns.slice(0, 3), "chip-s list") + (ns.length > 3 ? `<span class="fine"> +${ns.length - 3} more</span>` : "") : ""; })()}</td>
-          <td><span class="fine">${[p.email, p.phone].filter(Boolean).map(esc).join("<br>")}</span></td>
-          <td><span class="fine">${p.kind === "athlete" ? (p.parents.length ? `Parents/guardians: ${esc(p.parents.join(", "))}` : "") : (p.kids.length ? `Kids: ${esc(p.kids.join(", "))}` : "")}</span></td>
-          <td>${chips(p.boards)}${p.coaching.length ? chips(p.coaching.map((c) => `Coach: ${c}`), "chip-s coach") : ""}</td>
-          <td class="st-cell">${statusPill(p)}</td></tr>`).join("")}
+      ${people.length ? `<div class="table-wrap"><table class="dir-table dir2"><colgroup><col class="c-chk"><col class="c-person"><col class="c-contact"><col class="c-family"><col class="c-lists"><col class="c-status"></colgroup>
+        <thead><tr><th><input type="checkbox" class="check-all" aria-label="Check all shown" title="Check all shown"></th><th>Person</th><th>Contact</th><th>Family</th><th>Lists &amp; boards</th><th>Status</th></tr></thead><tbody>
+        ${people.map((p) => { const ls = (p.list_ids || []).map((id) => (lists.find((l) => l.id === id) || {}).name).filter(Boolean);
+          const bs = [...(p.boards || []), ...(p.coaching || []).map((c) => `Coach: ${c}`)];
+          const more = (all) => (all.length > 3 ? `<span class="fine dir-more" title="${esc(all.slice(3).join(", "))}">+${all.length - 3} more</span>` : "");
+          return `<tr>
+          <td data-l=""><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td>
+          <td data-l="Person"><a class="dir-name" href="/admin/people/${p.id}">${esc(PP.display(p))}</a>${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}
+            <div class="dir-sub">${kindTag(p)}${p.team ? `<span class="dir-team">${esc(p.team)}</span>` : ""}</div></td>
+          <td data-l="Contact" class="dir-contact">${[p.email, p.phone].filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join("") || `<span class="fine">—</span>`}</td>
+          <td data-l="Family" class="dir-family">${p.kind === "athlete" ? (p.parents.length ? `<span class="dir-lbl">Parents/guardians</span>${esc(p.parents.join(", "))}` : `<span class="fine">—</span>`) : (p.kids.length ? `<span class="dir-lbl">Kids</span>${esc(p.kids.join(", "))}` : `<span class="fine">—</span>`)}</td>
+          <td data-l="Lists &amp; boards" class="dir-lists">${ls.length ? `<div class="dir-chips">${ls.slice(0, 3).map((n) => `<span class="dir-chip list" title="List">${esc(n)}</span>`).join("")}${more(ls)}</div>` : ""}
+            ${bs.length ? `<div class="dir-chips">${bs.slice(0, 3).map((n) => `<span class="dir-chip board" title="Board">${esc(n)}</span>`).join("")}${more(bs)}</div>` : ""}${!ls.length && !bs.length ? `<span class="fine">—</span>` : ""}</td>
+          <td data-l="Status" class="st-cell">${statusPill(p)}</td></tr>`; }).join("")}
       </tbody></table></div>` : `<p class="muted">No one matches.</p>`}
     </section>
     <script>
