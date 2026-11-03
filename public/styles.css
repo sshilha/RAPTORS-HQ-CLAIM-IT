@@ -3117,3 +3117,6 @@ html.b-fixed body, html.b-fixed main, html.b-fixed .page, html.b-fixed .app, htm
 .sh-ob-acts { display: flex; gap: 8px; margin-top: 10px; } .sh-ob-acts form, .sh-ob-all { margin: 0; } .sh-ob-all { margin: 8px 0; }
 .sh-ob-m summary .st-pill { margin-left: 8px; } .sh-ob-ok, .sh-ob-err { padding: 8px 12px; border-radius: 8px; } .sh-ob-ok { background: #E4F5D2; color: #2f6d0c; } .sh-ob-err { background: #FDE8E8; color: #b91c1c; }
 .sh-ob h1 { text-transform: none; letter-spacing: 0; font: 800 24px Inter, sans-serif; color: #0B1930; margin: 0; }
+.sh-vlist { max-height: 300px; margin-bottom: 6px; } .sh-links { padding-left: 18px; } .sh-links li { margin: 4px 0; } .sh-links-a { margin-left: auto; }
+.sh-links-a + .sh-held { margin-left: 0; }
+.sh-ob h3 { text-transform: none; letter-spacing: 0; font: 800 16px Inter, sans-serif; color: #0B1930; margin: 18px 0 6px; }

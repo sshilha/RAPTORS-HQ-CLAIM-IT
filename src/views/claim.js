@@ -404,17 +404,17 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       </form></dialog>
       <p class="fine b-acct">Have a Claim It account? <a href="/">Sign in</a> to see this on My Claims.</p>` : ""}`}
     </div>
-    <script>
+    ${(() => { const c = require("../shadow").current(); return guest && c.visitor ? `<script>window.SHADOW_GUEST = ${JSON.stringify({ first_name: c.visitor.first_name, last_name: c.visitor.last_name, email: c.visitor.email }).replace(/</g, "\\u003c")};</script>` : ""; })()}<script>
     (function () {
       var gd = document.getElementById("guest-claim");
       if (gd) {
-        var gf = gd.querySelector("form"), saved = {}; try { saved = JSON.parse(localStorage.getItem("ci-guest") || "{}"); } catch (e) {}
+        var gf = gd.querySelector("form"), saved = {}; try { saved = window.SHADOW_GUEST || JSON.parse(localStorage.getItem("ci-guest") || "{}"); } catch (e) {}
         ["first_name", "last_name", "email"].forEach(function (k) { if (saved[k]) gf[k].value = saved[k]; });
         document.addEventListener("click", function (e) { var b = e.target.closest("[data-guest]"); if (!b) return;
           document.querySelectorAll("dialog[open]").forEach(function (d) { if (d !== gd) d.close(); });
           gf.item.value = b.dataset.guest; gd.querySelector(".gc-what").textContent = b.dataset.what; gd.showModal(); (gf.first_name.value ? gf.querySelector("[name=note]") || gf.email : gf.first_name).focus(); });
         gd.querySelector(".gc-x").addEventListener("click", function () { gd.close(); });
-        gf.addEventListener("submit", function () { try { localStorage.setItem("ci-guest", JSON.stringify({ first_name: gf.first_name.value, last_name: gf.last_name.value, email: gf.email.value })); } catch (e) {} });
+        gf.addEventListener("submit", function () { if (window.SHADOW_GUEST) return; try { localStorage.setItem("ci-guest", JSON.stringify({ first_name: gf.first_name.value, last_name: gf.last_name.value, email: gf.email.value })); } catch (e) {} });
       }
       document.querySelectorAll("[data-dlg]").forEach(function (b) { b.addEventListener("click", function () { var d = document.getElementById(b.dataset.dlg); if (d) d.showModal(); }); });
       document.querySelectorAll(".b-dlg").forEach(function (d) { d.querySelector(".dlg-x").addEventListener("click", function () { d.close(); });

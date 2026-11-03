@@ -148,10 +148,11 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
 // Shadow mode banner (an admin using the app as someone else)
 function shadowBar() {
   const c = require("../shadow").current(); if (!c.shadow) return "";
-  const who = c.target ? `<b>${esc(c.target.name)}</b>${c.target.name !== c.target.email ? ` <span>(${esc(c.target.email)})</span>` : ""}` : c.pending ? `signing in as <b>${esc(c.pending.name)}</b>` : "<b>a visitor</b> (not signed in)";
+  const who = c.target ? `<b>${esc(c.target.name)}</b>${c.target.name !== c.target.email ? ` <span>(${esc(c.target.email)})</span>` : ""}` : c.pending ? `signing in as <b>${esc(c.pending.name)}</b>`
+    : c.visitor ? `<b>${esc(c.visitor.name)}</b> <span>(public-link visitor${c.visitor.email && c.visitor.email !== c.visitor.name ? `, ${esc(c.visitor.email)}` : ""})</span>` : "<b>a visitor</b> (not signed in)";
   return `<div class="sh-bar" role="status"><span class="sh-tag">Shadow mode</span><span class="sh-who">You're using Claim It as ${who}.</span>
     <span class="sh-note">Changes are real. Emails are held, not sent.</span>
-    <a class="sh-held" href="/shadow/outbox">${c.held} email${c.held === 1 ? "" : "s"} held</a>
+    ${c.visitor ? `<a class="sh-links-a" href="/shadow/links">Their links</a>` : ""}<a class="sh-held" href="/shadow/outbox">${c.held} email${c.held === 1 ? "" : "s"} held</a>
     <a class="sh-exit" href="/shadow/exit">Exit shadow mode</a></div>`;
 }
 function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, tab, pub, dash }) {

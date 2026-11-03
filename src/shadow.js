@@ -18,6 +18,7 @@ async function ensure() {
     target_user_id INT, pending_user_id INT, started_at TIMESTAMPTZ NOT NULL DEFAULT now(), ended_at TIMESTAMPTZ, expires_at TIMESTAMPTZ NOT NULL)`);
   await query(`CREATE TABLE IF NOT EXISTS shadow_outbox (id SERIAL PRIMARY KEY, shadow_id INT NOT NULL, to_addr TEXT, subject TEXT, html TEXT, text TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await query(`ALTER TABLE shadow_outbox ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE shadow_sessions ADD COLUMN IF NOT EXISTS visitor_person_id INT`);   // a public-link visitor (in People, no sign-in)
   await query(`ALTER TABLE shadow_outbox ADD COLUMN IF NOT EXISTS sent_to TEXT`);
   ready = true;
 }
@@ -43,20 +44,37 @@ async function middleware(req, res, next) {
     req.user = s.target_user_id ? (await query(`SELECT * FROM users WHERE id=$1`, [s.target_user_id])).rows[0] || null : null;
     req.shadow = s;
     const held = (await query(`SELECT count(*)::int AS n FROM shadow_outbox WHERE shadow_id=$1 AND sent_at IS NULL`, [s.id])).rows[0].n;
-    const store = { shadow: s, admin: req.realUser, target: await labelOf(s.target_user_id), pending: s.target_user_id ? null : await labelOf(s.pending_user_id), held };
+    const store = { shadow: s, admin: req.realUser, target: await labelOf(s.target_user_id), pending: s.target_user_id ? null : await labelOf(s.pending_user_id), held,
+      visitor: !s.target_user_id && s.visitor_person_id ? await visitorOf(s.visitor_person_id) : null };
     return als.run(store, next);
   } catch (e) { console.error("shadow:", e.message); return als.run({}, next); }
 }
 const current = () => als.getStore() || {};
 
-async function start(req, res, pendingUserId = null) {
+// a public-link visitor: their name, email, and the spots they claimed (with the private cancel links from their emails)
+async function visitorOf(personId) {
+  const p = (await query(`SELECT id, first_name, last_name, email FROM athletes WHERE id=$1`, [personId])).rows[0]; if (!p) return null;
+  return { id: p.id, first_name: p.first_name || "", last_name: p.last_name || "", email: p.email || "", name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email };
+}
+async function visitorClaims(personId) {
+  return (await query(`SELECT c.id, c.status, c.cancel_token, c.created_at, i.title, i.starts_at, i.ends_at, sc.name AS board_name, sc.share_code, n.name AS level
+    FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id LEFT JOIN board_nodes n ON n.id=i.node_id
+    WHERE c.athlete_id=$1 AND c.cancel_token IS NOT NULL AND sc.share_code IS NOT NULL ORDER BY i.starts_at NULLS LAST, c.id`, [personId])).rows;
+}
+// people who signed up through a public link and have no sign-in
+async function publicVisitors() {
+  return (await query(`SELECT a.id, a.first_name, a.last_name, a.email, count(c.id)::int AS spots, string_agg(DISTINCT sc.name, ', ') AS boards, max(c.created_at) AS last
+    FROM athletes a JOIN board_claims c ON c.athlete_id=a.id AND c.cancel_token IS NOT NULL JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id
+    WHERE a.self_user_id IS NULL AND a.archived_at IS NULL GROUP BY a.id ORDER BY max(c.created_at) DESC LIMIT 200`)).rows;
+}
+async function start(req, res, pendingUserId = null, visitorPersonId = null) {
   await ensure();
   const t = crypto.randomBytes(24).toString("base64url");
-  const s = (await query(`INSERT INTO shadow_sessions (token_hash, admin_user_id, pending_user_id, expires_at) VALUES ($1,$2,$3, now() + interval '${HOURS} hours') RETURNING *`,
-    [hash(t), req.user.id, pendingUserId || null])).rows[0];
+  const s = (await query(`INSERT INTO shadow_sessions (token_hash, admin_user_id, pending_user_id, visitor_person_id, expires_at) VALUES ($1,$2,$3,$4, now() + interval '${HOURS} hours') RETURNING *`,
+    [hash(t), req.user.id, pendingUserId || null, visitorPersonId || null])).rows[0];
   res.cookie(COOKIE, t, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production" || /^https:/.test(process.env.APP_URL || ""), maxAge: HOURS * 3600e3 });
-  const who = await labelOf(pendingUserId);
-  await require("./accounts").logEvent(req, { userId: req.user.id, identity: req.user.email, method: who ? `shadow start (as ${who.email})` : "shadow start (as a visitor)", ok: true });
+  const who = await labelOf(pendingUserId), vis = visitorPersonId ? await visitorOf(visitorPersonId) : null;
+  await require("./accounts").logEvent(req, { userId: req.user.id, identity: req.user.email, method: who ? `shadow start (as ${who.email})` : vis ? `shadow start (as public-link visitor ${vis.email || vis.name})` : "shadow start (as a visitor)", ok: true });
   return s;
 }
 // inside shadow mode: become this person (sign-in) / nobody (sign-out)
@@ -99,4 +117,4 @@ async function sendHeld(req, id, toMe) {
   await require("./accounts").logEvent(req, { userId: req.realUser.id, identity: req.realUser.email, method: `shadow sent held email "${m.subject}" to ${to.join(", ")}`, ok: true });
   return to;
 }
-module.exports = { sendHeld, COOKIE, middleware, current, start, setTarget, signOut, exit, hold, outbox, recent, labelOf };
+module.exports = { visitorOf, visitorClaims, publicVisitors, sendHeld, COOKIE, middleware, current, start, setTarget, signOut, exit, hold, outbox, recent, labelOf };

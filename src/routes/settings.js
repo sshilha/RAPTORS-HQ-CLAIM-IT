@@ -149,7 +149,7 @@ router.get("/app", wrap(async (req, res, next) => {
   const people = (await require("../db").query(`SELECT u.id, u.email, u.last_login_at, a.first_name, a.last_name, a.kind, a.roles
     FROM users u LEFT JOIN LATERAL (SELECT * FROM athletes x WHERE x.self_user_id=u.id AND x.archived_at IS NULL ORDER BY (x.kind='athlete') DESC LIMIT 1) a ON true
     WHERE u.id <> $1 ORDER BY lower(coalesce(nullif(a.last_name,''), u.email)), lower(a.first_name)`, [req.user.id])).rows;
-  const recent = await require("../shadow").recent(req.user.id);
+  const recent = await require("../shadow").recent(req.user.id), visitors = await require("../shadow").publicVisitors();
   const head = await require("../views/apphead").head({ active: "shadow" });
   const esc = require("../views/layout").esc, when = (d) => new Date(d).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   const isAdm = (p) => require("../auth").isAdmin({ email: p.email });
@@ -163,7 +163,14 @@ router.get("/app", wrap(async (req, res, next) => {
           return `<form method="post" action="/admin/shadow/start" class="sh-row" data-k="${esc((n + " " + p.email).toLowerCase())}"><input type="hidden" name="user_id" value="${p.id}">
             <span class="sh-p"><b>${esc(n || p.email)}</b><span class="fine">${n ? esc(p.email) + " · " : ""}${p.kind === "athlete" ? "Athlete" : (p.roles || []).length ? esc(p.roles.join(", ")) : "Adult"}${isAdm(p) ? " · admin" : ""} · ${p.last_login_at ? `last in ${esc(when(p.last_login_at))}` : "never signed in"}</span></span>
             <button class="sb-btn" type="submit">Sign in as</button></form>`; }).join("") || `<p class="muted">No one else has a sign-in yet.</p>`}</div></section>
-      <section class="panel"><h3>Someone not in the app</h3>
+      <section class="panel"><h3>Someone who signed up through a public link</h3>
+        <p class="fine">They're in People but have no sign-in. You'll see the public board with their name and email filled in, plus <b>Their links</b>: each spot they claimed, with the private cancel link from their email.</p>
+        ${visitors.length ? `<input type="search" class="sh-find" placeholder="Search name or email…" oninput="var v=this.value.toLowerCase(); document.querySelectorAll('.sh-vrow').forEach(function(r){ r.hidden = v && r.dataset.k.indexOf(v) < 0; })">
+        <div class="sh-list sh-vlist">${visitors.map((v) => { const n = [v.first_name, v.last_name].filter(Boolean).join(" ");
+          return `<form method="post" action="/admin/shadow/start" class="sh-row sh-vrow" data-k="${esc((n + " " + (v.email || "")).toLowerCase())}"><input type="hidden" name="visitor_person" value="${v.id}">
+            <span class="sh-p"><b>${esc(n || v.email)}</b><span class="fine">${v.email && n ? esc(v.email) + " · " : ""}${esc(v.boards)} · ${v.spots} spot${v.spots === 1 ? "" : "s"}</span></span>
+            <button class="sb-btn" type="submit">Shadow</button></form>`; }).join("")}</div>` : `<p class="muted">No one has signed up through a public link yet.</p>`}
+        <h3 class="sh-rh">Someone not in the app</h3>
         <p class="fine">Start signed out, like a brand-new visitor: try an unknown email, Request an account, or a public link. Sign-in links they'd get are held in the banner, so you can follow them.</p>
         <form method="post" action="/admin/shadow/start"><input type="hidden" name="user_id" value="visitor"><button class="sb-btn primary" type="submit">Start as a visitor</button></form>
         ${recent.length ? `<h3 class="sh-rh">Recent</h3><ul class="sh-recent">${recent.map((r) => `<li>${esc(when(r.started_at))} · ${esc(r.who || "a visitor")} · ${r.held} email${r.held === 1 ? "" : "s"} held${r.ended_at ? "" : " · <b>still on</b>"}</li>`).join("")}</ul>` : ""}</section>

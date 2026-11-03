@@ -719,5 +719,8 @@ limits, Welcome step. A striped banner stays on top: who you are, emails held, E
 - Emails are never sent in shadow mode: sendEmail holds them (shadow_outbox); "N emails held" shows them, links work.
   Each held email: Send to me (to the admin, "[Shadow test]") or Send to them (the real recipients, after a confirm);
   "Send all N to them" when two or more are unsent. Each send is logged in Sign-in activity.
+- Public-link visitors (in People, no sign-in): "Someone who signed up through a public link" on Sign in as. Opens their
+  public board with their name/email filled in (without touching the admin's own remembered name), and "Their links" in the
+  banner lists their spots with the private cancel link from each confirmation email.
 - Changes are real (a claim is their claim). Their last sign-in time is not touched.
 - Logged in Sign-in activity: shadow start / sign-in as / end.
