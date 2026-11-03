@@ -615,9 +615,10 @@ scrolling. The description shows as one line in the header (tap to expand); filt
 
 
 ## My Account layout
-Navy header (My Account, name · email) · two tabs with folder sub-tabs: Account → Profile (name, organization,
-phone) · Email · Password · Access; Family → Family members · Sharing (athletes who sign in) · Add a family member ·
-Change details · My requests (count). Old ?tab=profile/signin/access/requests links land on the matching sub-tab. ?tab=&sub= in the address; saves return to
+Navy header (My Account, name · email) · two tabs with folder sub-tabs: Account → Profile · Access, where Profile
+is one page of rows (Name, Phone, Sign-in email, Password), each showing the current value with Change, which opens
+that row's existing form (email: new address + confirmation link; password: current + new, or set) with Cancel; Family → Family members (+ Add a family member opens the add form; each person
+has Change, a request about that person) · Sharing (athletes who sign in) · My requests (count). Old ?tab=profile/signin/access/requests links land on the matching sub-tab. ?tab=&sub= in the address; saves return to
 their spot, and sending a request lands on My requests.
 
 **Fix:** a one-time cleanup ("people who sign in are adults") was running on every start, which would have turned

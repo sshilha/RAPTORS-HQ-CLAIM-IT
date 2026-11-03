@@ -2933,3 +2933,26 @@ html.b-fixed .b-sheet { margin-bottom: 0; }
 .a-sheet #requests .a-tabs { display: none; } .a-sheet #requests [data-p] { display: none; }
 .a-sheet[data-sub="add"] #requests [data-p="add"], .a-sheet[data-sub="chg"] #requests [data-p="chg"], .a-sheet[data-sub="list"] #requests [data-p="list"] { display: block; }
 .a-sheet[data-sub="profile"] #phone { border-top: 1px solid #EEF1F5; padding-top: 16px; }
+/* My Account → Profile: rows with the current value and Change */
+.a-sheet[data-sub="profile"] .a-cols { display: flex; flex-direction: column; }
+.a-sheet[data-sub="profile"] #profile { order: 1; } .a-sheet[data-sub="profile"] #phone { order: 2; } .a-sheet[data-sub="profile"] #email { order: 3; } .a-sheet[data-sub="profile"] #password { order: 4; }
+.a-sheet[data-sub="profile"] #email, .a-sheet[data-sub="profile"] #password { display: block; }
+.a-sheet[data-sub="profile"] .a-rowcard { border-top: 1px solid #EEF1F5 !important; padding: 14px 0 !important; margin: 0 !important; }
+.a-sheet[data-sub="profile"] .a-rowcard:first-child, .a-sheet[data-sub="profile"] #profile { border-top: 0 !important; padding-top: 0 !important; }
+.a-rowcard .a-h { margin-bottom: 2px; } .a-rowcard .a-h h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #5B6B82; }
+.a-sum { display: flex; align-items: center; gap: 12px; } .a-sum-v { flex: 1; font-size: 15px; color: #0B1930; } .a-chg { padding: 5px 14px; }
+.a-edit { display: none; margin-top: 10px; padding: 12px 14px; background: #F6F8FB; border: 1px solid #E3E8F0; border-radius: 10px; }
+.a-rowcard.editing .a-edit { display: block; } .a-rowcard.editing .a-chg { display: none; }
+.a-edit .a-cur { display: none; } .a-edit-sub { margin: 0 0 8px; } .a-cancel { margin-top: 8px; font-size: 13px; }
+.a-sheet[data-sub="profile"] .a-cols { align-items: stretch; } .a-sheet[data-sub="profile"] .a-rowcard { width: 100%; box-sizing: border-box; }
+/* My Account → Family members: Add button, and Change on each person */
+.fam-top { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin-bottom: 10px; }
+.fam-add { padding: 12px 14px; background: #F6F8FB; border: 1px solid #E3E8F0; border-radius: 10px; margin-bottom: 12px; } .fam-add[hidden] { display: none; }
+.fam-add .a-h3 { margin-top: 0; }
+.fam-row { display: flex; align-items: flex-start; gap: 12px; } .fam-who { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fam-chgform { margin-top: 8px; padding: 10px 12px; background: #F6F8FB; border: 1px solid #E3E8F0; border-radius: 10px; } .fam-chgform[hidden] { display: none; }
+.fam-chgform .a-act { display: flex; justify-content: flex-end; gap: 12px; align-items: center; }
+.a-sheet[data-sub="members"] #family .a-loc { display: none; }
+.fam-list li { display: block; padding: 10px 14px; } .fam-list .fam-row { width: 100%; } .fam-list .fam-who { align-items: flex-start; text-align: left; }
+.fam-list .fam-chg { margin-left: auto; flex: none; }
+.a-sheet #family .a-lock { display: none; }
