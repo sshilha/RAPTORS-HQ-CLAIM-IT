@@ -94,7 +94,6 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
   } else {
     const own = B.levelChanges(t.node);
     right = `<div class="st-h">${IC.gear}<h3>${esc(word(lvl).one)} settings</h3></div>
-      <form method="post" action="/admin/b/${sc.id}/nodes/${t.node.id}" class="st-name"><label>${esc(word(lvl).one)} name<span class="st-name-row"><input name="name" value="${esc(t.node.name)}" maxlength="60" required${locked ? " disabled" : ""}>${locked ? "" : `<button class="sb-btn" type="submit">Save</button>`}</span></label></form>
       <p class="st-sub">What applies to <b>${esc(t.node.name)}</b></p>
       ${inlineSettings(sc, t, locked)}
       <p class="st-legend"><span class="src-tag here">Set here</span> changed on this ${esc(word(lvl).one.toLowerCase())} · <span class="src-tag board">From board</span> board default · <span class="src-tag from">From …</span> a level above</p>`;

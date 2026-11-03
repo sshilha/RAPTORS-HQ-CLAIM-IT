@@ -673,3 +673,21 @@ location · organizers), then "Cancel your spot?" with the person and time, Keep
 **Cleanup:** the 17 old-system files listed under v0.24.0 are now actually removed (the earlier delete didn't run), plus
 never-shown leftovers: the old "Who's signing up?" page, the old board import screens and their routes, the old
 Duplicate screen (boards made before the rebuild now explain they can't be duplicated), and the old Archived page.
+
+
+## People import (v0.26.0)
+src/peopleImport.js (logic), src/views/peopleImport.js (screens), public/import-review.js (the review pop-up).
+1. **The file:** who's in it (Athletes / Adults / Mixed with a Type column) · CSV or Excel (.xlsx converted in the browser by
+   SheetJS) or pasted rows, drag-and-drop.
+2. **Match the columns:** the person (name, own email, phone), details (birth year or date of birth, jersey, team, list
+   column, roles, notes), up to 3 parents (first, last or one name, email, phone) and other email columns. Guessed from
+   the headings (SportsEngine-style), or matched the same way as the last file with the same columns (import_maps).
+3. **Review pop-up** (opens by itself): every row with include ✓, status (New · Update · Up to date · Possible match ·
+   Problem), details, and what happens (changes like "Team: 12U → 14U · Adds parent Tom Lee", problems like "Missing last
+   name", warnings like a bad email or the same person twice). Possible matches need a choice (that person / someone new).
+   Edit any row (all fields and parents), Re-check runs the matching again. Filters: All · New · Updates · Needs attention ·
+   Left out. Optional "put everyone on a list". Nothing is saved until Import. Problem rows are left out until fixed.
+   Matching: email first; then name + birth year, with a shared parent email deciding ties; a nickname with the same last
+   name, birth year and a parent email is offered as a possible match.
+4. **After:** summary · View the people imported (People ?batch=) · Invite the new adults with emails · Undo for 24 hours
+   (removes people it added unless used since, restores changed details, removes added parent links / list entries).

@@ -28,10 +28,11 @@ async function directory() {
 
 router.get("/", wrap(async (req, res) => {
   const all = await directory();
-  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), status: str(req.query.status), list: int(req.query.list) || 0 };
+  const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), status: str(req.query.status), batch: int(req.query.batch) || 0, list: int(req.query.list) || 0 };
+  const batchRow = f.batch ? await IM().batch(f.batch) : null, batchIds = batchRow ? new Set(batchRow.people) : null;
   const shown = all.filter((p) => (!f.q || `${p.first_name} ${p.last_name} ${p.email || ""} ${p.phone || ""}`.toLowerCase().includes(f.q))
     && (!f.list || (p.list_ids || []).includes(f.list))
-    && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.status || PP.statusOf(p) === f.status));
+    && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.status || PP.statusOf(p) === f.status) && (!batchIds || batchIds.has(p.id)));
   const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [];
   const waiting = (await query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
   res.send(v.directoryPage({ waiting, head: await AHead(), user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
@@ -135,41 +136,52 @@ router.post("/:id/lists", wrap(async (req, res) => {
 // ---------- import into the directory (no board) ----------
 const CSV = require("../csv");
 const H = () => require("./members").importHelpers;
-async function dirPlan(rows, map) {
-  const people = H().readRows(rows, map);
-  for (const p of people) {
-    if (!p.first || !p.last) { p.status = "skip"; continue; }
-    const hit = (await query(`SELECT id FROM athletes WHERE lower(first_name)=lower($1) AND lower(last_name)=lower($2) AND archived_at IS NULL ORDER BY id LIMIT 1`, [p.first, p.last])).rows[0];
-    p.athleteId = hit ? hit.id : null; p.status = hit ? "existing" : "new";
-  }
-  return people;
-}
-router.get("/import", wrap(async (req, res) => res.send(v.importPage({ user: req.user, flash: flashFrom(req), head: await AHead() }))));
+// ---------- import: 1 the file · 2 match the columns + review pop-up · 3 the result ----------
+const IM = () => require("../peopleImport"), IV = () => require("../views/peopleImport");
+const KINDS = ["athlete", "adult", "mixed"];
+router.get("/import", wrap(async (req, res) => res.send(IV().step1Page({ user: req.user, flash: flashFrom(req), head: await AHead() }))));
 router.post("/import/preview", wrap(async (req, res) => {
-  const rows = CSV.parse(req.body.data);
+  const rows = CSV.parse(req.body.data || "");
   if (rows.length < 2) return go(res, "/admin/people/import", { err: "That file has no rows under its headings. Make sure the first row is the column names." });
-  const map = H().mapFrom(req.body, rows[0]);
-  if (req.body.col_cteam === undefined && map.cteam < 0 && map.group >= 0) map.cteam = map.group; // a "Team" column is their current team here
-  res.send(v.importPreview({ head: await AHead(), user: req.user, flash: flashFrom(req), headers: rows[0], map, data: req.body.data, people: await dirPlan(rows.slice(1), map), lists: await PP.lists() }));
+  const kind = KINDS.includes(req.body.kind) ? req.body.kind : "athlete", headers = rows[0];
+  // the columns: what was just chosen, else how this kind of file was matched last time, else a guess
+  let map, remembered = false;
+  if (req.body.mapped) map = IM().mapFrom(req.body, headers);
+  else { const saved = await IM().savedMap(headers); if (saved) { map = saved.map; remembered = true; } else map = IM().guess(headers); }
+  const people = await IM().analyze(IM().toRows(rows.slice(1), map, kind));
+  res.send(IV().mapPage({ user: req.user, flash: flashFrom(req), head: await AHead(), headers, map, kind, data: req.body.data, rows: people, counts: IM().counts(people),
+    lists: await PP.lists(), remembered, openReview: !req.body.mapped }));
+}));
+// the review pop-up's Re-check
+router.post("/import/check", wrap(async (req, res) => {
+  let rows = []; try { rows = JSON.parse(req.body.rows || "[]"); } catch (e) { return res.status(400).json({ ok: false }); }
+  rows = await IM().analyze(rows);
+  res.json({ ok: true, rows, counts: IM().counts(rows) });
 }));
 router.post("/import/commit", wrap(async (req, res) => {
-  const rows = CSV.parse(req.body.data);
-  const map = H().mapFrom(req.body, rows[0] || []);
-  const people = await dirPlan(rows.slice(1), map);
-  let added = 0, updated = 0, skipped = 0, emails = 0; const madeLists = new Set();
-  for (const p of people) {
-    if (p.status === "skip") { skipped++; continue; }
-    let id = p.athleteId;
-    if (!id) { id = (await query(`INSERT INTO athletes (first_name, last_name, team) VALUES ($1,$2,$3) RETURNING id`, [p.first, p.last, p.cteam || null])).rows[0].id; added++; }
-    else { await query(`UPDATE athletes SET team=COALESCE(NULLIF($2,''), team) WHERE id=$1`, [id, p.cteam]); updated++; }
-    if (p.se) { const l = await PP.listNamed(p.se); if (l) { await PP.addToList(l.id, [id]); madeLists.add(l.name); } }   // "Make lists from this column"
-    for (const e of p.emails) { await PP.linkParent(id, e); emails++; }
-    p.savedId = id;
-  }
-  const list = req.body.to_list === "new" ? await PP.listNamed(req.body.new_list) : int(req.body.to_list) ? (await query(`SELECT * FROM people_lists WHERE id=$1`, [int(req.body.to_list)])).rows[0] : null;
-  if (list) await PP.addToList(list.id, people.filter((p) => p.savedId).map((p) => p.savedId));
-  go(res, list ? `/admin/people?list=${list.id}` : "/admin/people", { ok: [`Imported ${added + updated} people into People${list ? `, on the list ${list.name}` : ""}`, madeLists.size ? `sorted into ${madeLists.size} list${madeLists.size === 1 ? "" : "s"} (${[...madeLists].slice(0, 5).join(", ")}${madeLists.size > 5 ? ", …" : ""})` : "", added ? `${added} new` : "", updated ? `${updated} already here, updated` : "",
-    skipped ? `${skipped} rows skipped (no name)` : "", emails ? `${emails} parent emails linked` : ""].filter(Boolean).join(" · ") + ". They're not on any board yet: add them from a board's From People." });
+  let rows = [], headers = [], map = null;
+  try { rows = JSON.parse(req.body.rows || "[]"); headers = JSON.parse(req.body.headers || "[]"); map = JSON.parse(req.body.map || "null"); } catch (e) { return go(res, "/admin/people/import", { err: "Something went wrong reading the review. Start the import again." }); }
+  try {
+    const toList = req.body.to_list && req.body.to_list !== "new" ? req.body.to_list : null;
+    const out = await IM().commit(rows, { toList, newList: req.body.to_list === "new" ? str(req.body.new_list) : "", by: req.user.email });
+    if (map && headers.length) await IM().saveMap(headers, map, KINDS.includes(req.body.kind) ? req.body.kind : "athlete");   // next time a file like this lines up by itself
+    go(res, `/admin/people/import/${out.batch}`, { ok: `Imported ${out.summary.imported} ${out.summary.imported === 1 ? "person" : "people"}.` });
+  } catch (e) { go(res, "/admin/people/import", { err: e.message }); }
+}));
+router.get("/import/:batch(\\d+)", wrap(async (req, res) => {
+  const b = await IM().batch(int(req.params.batch)); if (!b) return go(res, "/admin/people", { err: "Not found." });
+  res.send(IV().resultPage({ user: req.user, flash: flashFrom(req), head: await AHead(), b, invite: b.undone_at ? 0 : (await IM().invitable(b)).length, undoable: IM().canUndo(b) }));
+}));
+router.post("/import/:batch(\\d+)/invite", wrap(async (req, res) => {
+  const b = await IM().batch(int(req.params.batch)); if (!b) return go(res, "/admin/people", {});
+  const list = await IM().invitable(b);
+  for (const x of list) await require("../accounts").sendInvite(req, x.user_id);
+  go(res, `/admin/people/import/${b.id}`, { ok: `Invited ${list.length} ${list.length === 1 ? "person" : "people"}. Their links work for 7 days.` });
+}));
+router.post("/import/:batch(\\d+)/undo", wrap(async (req, res) => {
+  try { const r = await IM().undoBatch(int(req.params.batch));
+    go(res, `/admin/people/import/${req.params.batch}`, { ok: `Undone. Removed ${r.removed} ${r.removed === 1 ? "person" : "people"} it added${r.kept ? `; kept ${r.kept} who were put on a board or linked since` : ""}, and put changed details back.` });
+  } catch (e) { go(res, `/admin/people/import/${req.params.batch}`, { err: e.message }); }
 }));
 
 router.get("/:id", wrap(async (req, res) => {

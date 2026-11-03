@@ -73,6 +73,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
     ${dl}
     ${waiting ? `<div class="req-note"><b>${waiting} request${waiting === 1 ? "" : "s"} waiting</b> <span>New accounts, family members to add, or changes people asked for.</span><a class="sb-btn primary" href="/admin/requests">Review</a></div>` : ""}
     <section class="panel">
+      ${f.batch ? `<div class="req-note imp-note"><b>People from an import</b> <span>Showing the people touched by import #${f.batch}.</span><a class="sb-btn" href="/admin/people">Show everyone</a></div>` : ""}
       <div class="pp-toolbar">
         <div class="pp-acts"><button type="button" class="sb-btn primary" onclick="var d=document.querySelector('.add-wrap'); d.open=!d.open; if (d.open) d.querySelector('input:not([type=hidden])').focus()">+ Add person</button>
           <a class="sb-btn" href="/admin/people/import">⇪ Import</a>
@@ -211,50 +212,6 @@ const WHERE_NOTE = `<div class="where-note"><b>Everyone lives here</b>
   <span>People holds each person's details, family, and contact info, and is the only place to import a roster.</span>
   <span>Boards add people <b>from here</b> (a board's <b>Access &amp; people</b> tab → Add from People), or quick-add someone new, who's saved here too.</span></div>`;
 
-function importPage({ user, flash, head = null }) {
-  return page({ title: "Import people", tab: "people", user, flash, xwide: true,
-    body: `${head ? head({ active: "people" }) : ""}<div class="sub-top"><a class="back-btn" href="/admin/people">← People</a><h2>Import people</h2></div>
-    <section class="panel"><h2>Step 1: Your spreadsheet</h2>
-      <p class="fine">Use a <b>CSV file</b> (like a SportsEngine roster export) or paste rows from Excel or Google Sheets. The first row should be the column names.
-        This adds people to the directory only. Add them to a board afterward from that board's <b>From People</b>.</p>
-      <form method="post" action="/admin/people/import/preview" class="stack" id="imp-form">
-        <label class="field-l">Choose a CSV file<input type="file" accept=".csv,text/csv,.txt" id="imp-file"></label>
-        <label class="field-l"><span>…or paste the rows here</span><textarea name="data" id="imp-data" rows="10" required
-          placeholder="First Name,Last Name,Team,Program,Parent 1 Email,Parent 2 Email&#10;Ava,Smith,12U Shilha,2026 Travel,jane@example.com,tom@example.com"></textarea></label>
-        <div class="q-actions"><button class="btn-small" type="submit">Preview</button></div></form>
-      <p class="ex">e.g. columns we recognize: First Name, Last Name (or one Name column), Team / Current Team, a Program or SportsEngine Group / Program, and any column with "email" in it (several parents are fine).</p>
-    </section>
-    <script>document.getElementById("imp-file").addEventListener("change", function () { var f = this.files && this.files[0]; if (!f) return;
-      var r = new FileReader(); r.onload = function () { document.getElementById("imp-data").value = r.result; }; r.readAsText(f); });</script>` });
-}
 
-function importPreview({ user, flash, headers, map, data, people, lists = [], head = null }) {
-  const col = (k, label) => `<label class="field-l"><span>${label}</span><select name="col_${k}" onchange="this.form.submit()"><option value="-1">— Not in my file —</option>
-      ${headers.map((h, i) => `<option value="${i}"${map[k] === i ? " selected" : ""}>${esc(h || `Column ${i + 1}`)}</option>`).join("")}</select></label>`;
-  const count = (st) => people.filter((p) => p.status === st).length;
-  const hidden = `<input type="hidden" name="data" value="${esc(data)}"><input type="hidden" name="mapped" value="1">`;
-  return page({ title: "Import people", tab: "people", user, flash, xwide: true,
-    body: `${head ? head({ active: "people" }) : ""}<div class="sub-top"><a class="back-btn" href="/admin/people/import">← Start over</a><h2>Import people <span class="h-sub">Check and confirm</span></h2></div>
-    <form method="post" action="/admin/people/import/preview" class="panel imp-map">${hidden}
-      <h2>Step 2: Match the columns</h2><p class="fine">Guessed from your column names. Change any that are wrong, and the preview updates.</p>
-      <div class="imp-grid">${col("first", "First name")}${col("last", "Last name")}${col("name", "Or one full-name column")}
-        ${col("cteam", "Current team")}${col("se", "Make lists from this column <span class=\"opt\">(optional: one list per value, e.g. a SportsEngine program)</span>")}
-        <fieldset class="field-l imp-emails"><span>Parent / contact emails <span class="opt">(check all that apply)</span></span>
-          ${headers.map((h, i) => `<label class="radio-row"><input type="checkbox" name="col_emails" value="${i}"${map.emails.includes(i) ? " checked" : ""} onchange="this.form.submit()"> ${esc(h || `Column ${i + 1}`)}</label>`).join("")}
-          <input type="hidden" name="col_emails" value="-1"></fieldset></div></form>
-    <form method="post" action="/admin/people/import/commit" class="panel">${hidden}
-      ${["first", "last", "name", "cteam", "se"].map((k) => `<input type="hidden" name="col_${k}" value="${map[k]}">`).join("")}${map.emails.map((i) => `<input type="hidden" name="col_emails" value="${i}">`).join("")}
-      <h2>Step 3: Check and import</h2>
-      <p class="imp-sum"><b>${people.length}</b> rows · <b>${count("new")}</b> new · <b>${count("existing")}</b> already in People (updated, not duplicated) · <b>${count("skip")}</b> skipped</p>
-      <div class="table-wrap"><table class="imp-table"><thead><tr><th></th><th>Name</th><th>Current team</th>${map.se >= 0 ? "<th>List</th>" : ""}<th>Parent emails</th></tr></thead><tbody>
-        ${people.map((p) => `<tr class="st-${p.status}"><td><span class="pill ${{ new: "ok", existing: "info", skip: "warn" }[p.status]}">${{ new: "New", existing: "Already in People", skip: "Skipped: no name" }[p.status]}</span></td>
-          <td>${esc(`${p.first} ${p.last}`.trim()) || "<span class='fine'>(blank)</span>"}</td><td>${esc(p.cteam || "") || "—"}</td>${map.se >= 0 ? `<td>${esc(p.se || "") || "—"}</td>` : ""}
-          <td class="fine">${esc(p.emails.join(", ")) || "—"}</td></tr>`).join("")}</tbody></table></div>
-      <div class="imp-list"><label class="field-l"><span>Put everyone in this file on a list <span class="opt">(optional)</span></span>
-        <select name="to_list" onchange="this.form.new_list.hidden = this.value !== 'new'"><option value="">No list</option>${lists.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}<option value="new">＋ New list…</option></select></label>
-        <input name="new_list" maxlength="60" placeholder="e.g. 2026 Season Athletes" hidden></div>
-      <div class="q-actions"><button class="btn-small" type="submit"${count("new") + count("existing") ? "" : " disabled"}>Import ${count("new") + count("existing")} people</button>
-        <a class="btn-ghost" href="/admin/people">Cancel</a></div></form>` });
-}
 
-module.exports = { directoryPage, personPage, importPage, importPreview, WHERE_NOTE };
+module.exports = { directoryPage, personPage, WHERE_NOTE };
