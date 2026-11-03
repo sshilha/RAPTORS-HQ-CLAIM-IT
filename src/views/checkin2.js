@@ -7,14 +7,25 @@ const where = (x) => x.location || x.event_location || "";
 const leaf = (p) => (p || "").split(" › ").pop();
 const crumb = (p) => (p || "").split(" › ").slice(0, -1).join(" • ");
 
-function dayPage({ user, flash, admin, day, sessions, isToday, prev, next }) {
+const CK_IC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg>`;
+function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, isToday, prev, next }) {
+  // boards with sessions this day become sub-tabs (only when there's more than one)
+  const boards = [...new Map(allSessions.map((x) => [x.board_id, x.board_name])).entries()];
+  const sessions = board && boards.some(([id]) => id === board) ? allSessions.filter((x) => x.board_id === board) : allSessions;
+  const tot = sessions.reduce((t, x) => ({ c: t.c + x.claimed, h: t.h + x.here }), { c: 0, h: 0 });
+  const bq = board ? `&b=${board}` : "";
   return layout({ title: "Check-in", user, flash, admin, tab: "checkin", dash: true,
     body: `<div class="d-wrap ck-wrap">
-    <div class="ck-top"><h1>Check-in</h1>
-      <nav class="ck-days">${prev ? `<a href="/checkin?d=${prev}" aria-label="Previous day with sessions">${L}</a>` : `<span class="off">${L}</span>`}
+    <section class="bh2 ck-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${CK_IC}</span>
+      <div><div class="bh2-t"><h1>Check-in</h1></div><span class="bh2-meta">${esc(dayLabel(day))}${isToday ? " (today)" : ""} · ${sessions.length} session${sessions.length === 1 ? "" : "s"} · ${tot.c} claimed · ${tot.h} checked in</span></div></div></section>
+    <nav class="bh2-tabs dash-tabs ck-gbar">
+      <span class="ck-days">${prev ? `<a href="/checkin?d=${prev}${bq}" aria-label="Previous day with sessions">${L}</a>` : `<span class="off">${L}</span>`}
         <b>${isToday ? "Today · " : ""}${esc(dayLabel(day))}</b>
-        ${next ? `<a href="/checkin?d=${next}" aria-label="Next day with sessions">${R}</a>` : `<span class="off">${R}</span>`}
-        ${isToday ? "" : `<a class="ck-today" href="/checkin">Today</a>`}</nav></div>
+        ${next ? `<a href="/checkin?d=${next}${bq}" aria-label="Next day with sessions">${R}</a>` : `<span class="off">${R}</span>`}</span>
+      ${isToday ? "" : `<a class="sb-btn ck-today" href="/checkin${board ? `?b=${board}` : ""}">Today</a>`}
+    </nav>
+    ${boards.length > 1 ? `<nav class="sub-tabs ck-subs"><a href="/checkin?d=${day}"${!board ? ' aria-current="page"' : ""}>All boards</a>${boards.map(([id, n]) => `<a href="/checkin?d=${day}&b=${id}"${board === id ? ' aria-current="page"' : ""}>${esc(n)}</a>`).join("")}</nav>` : ""}
+    <div class="sub-body ck-sheet${boards.length > 1 ? "" : " no-subs"}">
     ${sessions.length ? `<div class="ck-list">${sessions.map((s) => {
       const done = s.here + s.noshow, pct = s.claimed ? Math.round((done / s.claimed) * 100) : 0;
       return `<a class="ck-card" href="/checkin/i/${s.id}">
@@ -25,10 +36,10 @@ function dayPage({ user, flash, admin, day, sessions, isToday, prev, next }) {
           <span class="ck-bar"><i style="width:${pct}%"></i></span></span>
         <span class="ck-go">${R}</span></a>`; }).join("")}</div>`
       : `<div class="d-empty"><b>No sessions to check in ${isToday ? "today" : "this day"}.</b><span>${next ? `<a href="/checkin?d=${next}">Next: ${esc(dayLabel(next))}</a>` : prev ? `<a href="/checkin?d=${prev}">Last: ${esc(dayLabel(prev))}</a>` : "Sessions show here once a board you check in has them."}</span></div>`}
-    </div>` });
+    </div></div>` });
 }
 
-function rosterPage({ user, flash, admin, it, people, board, others }) {
+function rosterPage({ user, flash, admin, it, people, board, others, sub = "roster" }) {
   const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
   const q = it.question || {};
   const day = new Date(it.starts_at || Date.now()).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -42,15 +53,24 @@ function rosterPage({ user, flash, admin, it, people, board, others }) {
   const here = conf.filter((p) => p.attended === true).length, no = conf.filter((p) => p.attended === false).length;
   return layout({ title: `Check-in · ${it.board_name}`, user, flash, admin, tab: "checkin", dash: true,
     body: `<div class="d-wrap ck-wrap">
-    <a class="b-back" href="/checkin?d=${day}">${L}Back to ${esc(dayLabel(day))}</a>
-    <div class="ck-head"><div><h1>${esc(leaf(it.path) || it.title || "Session")}</h1>
-      <span>${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))}</span>
-      <span>${it.starts_at ? esc(timeRange(it.starts_at, it.ends_at)) : ""}${where(it) ? ` · ${esc(where(it))}` : ""}</span></div>
-      <div class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> claimed</div></div>
-    ${conf.length ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf"><button class="b-cancelf-btn" type="submit">Mark everyone else here</button></form>` : ""}
-    <section class="d-card ck-card-list">${conf.length ? `<ul class="ck-roster">${conf.map(row).join("")}</ul>` : `<div class="d-empty"><b>No one has claimed this session.</b><span>Add walk-ins below.</span></div>`}</section>
-    ${wl.length ? `<h3 class="ck-h3">Waitlist</h3><section class="d-card ck-card-list"><ul class="ck-roster">${wl.map(row).join("")}</ul></section>` : ""}
-    <section class="d-card ck-walk" id="walkin"><h3>+ Walk-in</h3><p class="fine">Someone here who didn't claim? Add them. Walk-ins don't use a spot or count toward limits.</p>
+    <nav class="back-row"><a class="back-btn" href="/checkin?d=${day}">${L}${esc(dayLabel(day))}</a></nav>
+    <section class="bh2 ck-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${CK_IC}</span>
+      <div><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
+        <span class="bh2-meta">${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))}${it.starts_at ? ` · ${esc(timeRange(it.starts_at, it.ends_at))}` : ""}${where(it) ? ` · ${esc(where(it))}` : ""}</span></div></div></section>
+    <nav class="bh2-tabs dash-tabs ck-gbar">
+      <span class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> claimed
+        <span class="ck-bar-p"><i id="ck-pct" style="width:${conf.length ? Math.round(((here + no) / conf.length) * 100) : 0}%"></i></span></span>
+      ${conf.length ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf"><button class="sb-btn primary" type="submit">Mark everyone else here</button></form>` : ""}
+    </nav>
+    <nav class="sub-tabs ck-subs">
+      <a href="/checkin/i/${it.id}"${sub === "roster" ? ' aria-current="page"' : ""}>Roster <i class="sub-n">${conf.length}</i></a>
+      ${wl.length ? `<a href="/checkin/i/${it.id}?sub=waitlist"${sub === "waitlist" ? ' aria-current="page"' : ""}>Waitlist <i class="sub-n">${wl.length}</i></a>` : ""}
+      <a href="/checkin/i/${it.id}?sub=walkin"${sub === "walkin" ? ' aria-current="page"' : ""}>+ Walk-in</a></nav>
+    <div class="sub-body ck-sheet" data-sub="${sub}">
+    <div class="ck-scroll" id="ck-scroll">
+    <section class="d-card ck-card-list ck-p-roster">${conf.length ? `<ul class="ck-roster">${conf.map(row).join("")}</ul>` : `<div class="d-empty"><b>No one has claimed this session.</b><span>Add walk-ins under <a href="/checkin/i/${it.id}?sub=walkin">+ Walk-in</a>.</span></div>`}</section>
+    ${wl.length ? `<section class="d-card ck-card-list ck-p-waitlist"><ul class="ck-roster">${wl.map(row).join("")}</ul></section>` : ""}
+    <section class="d-card ck-walk ck-p-walkin" id="walkin"><h3>Add a walk-in</h3><p class="fine">Someone here who didn't claim? Add them. Walk-ins don't use a spot or count toward limits.</p>
       <form method="post" action="/checkin/i/${it.id}/walkin" class="a-form">
         <label>Pick someone<select name="athlete_id"><option value="">Choose…</option>
           ${board.length ? `<optgroup label="On this board">${board.map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.group_name ? ` (${esc(p.group_name)})` : ""}</option>`).join("")}</optgroup>` : ""}
@@ -58,7 +78,15 @@ function rosterPage({ user, flash, admin, it, people, board, others }) {
         <p class="fine">Not listed? Type their name:</p>
         <div class="a-row"><label>First name<input name="first_name" maxlength="40"></label><label>Last name<input name="last_name" maxlength="40"></label></div>
         <div class="a-act"><button class="b-claim" type="submit">Add walk-in</button></div></form></section>
+    </div></div>
     </div>
+    <script>(function () {
+      var box = document.getElementById("ck-scroll"), root = document.documentElement;
+      function fit() { root.classList.remove("b-fixed"); box.style.height = "";
+        root.classList.add("b-measure"); var after = Math.max(0, document.body.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom); root.classList.remove("b-measure");
+        var h = window.innerHeight - (box.getBoundingClientRect().top + window.scrollY) - after - 10; if (h < 240) return; root.classList.add("b-fixed"); box.style.height = h + "px"; }
+      fit(); window.addEventListener("resize", fit);
+    })();</script>
     <script>
     (function () {
       document.querySelectorAll(".ck-btns").forEach(function (f) {
@@ -68,7 +96,8 @@ function rosterPage({ user, flash, admin, it, people, board, others }) {
           var body = new URLSearchParams({ claim: f.claim.value, state: want });
           fetch(f.action, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body: body })
             .then(function (r) { return r.json(); }).then(function (c) { if (!c.ok) throw 0;
-              document.getElementById("ck-here").textContent = c.here; document.getElementById("ck-no").textContent = c.noshow; })
+              document.getElementById("ck-here").textContent = c.here; document.getElementById("ck-no").textContent = c.noshow;
+              var tot = +document.getElementById("ck-claimed").textContent || 0; document.getElementById("ck-pct").style.width = (tot ? Math.round(((c.here + c.noshow) / tot) * 100) : 0) + "%"; })
             .catch(function () { li.dataset.state = cur; alert("That didn't save. Check your connection and try again."); });
         });
       });

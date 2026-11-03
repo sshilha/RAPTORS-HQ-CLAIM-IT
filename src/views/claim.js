@@ -390,7 +390,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       function fit() {
         root.classList.remove("b-fixed"); box.style.height = "";
         root.classList.add("b-measure");   // hide the footer while measuring; keep anything else below the list (like Sign in)
-        var after = document.documentElement.scrollHeight - (box.getBoundingClientRect().bottom + window.scrollY);
+        var after = Math.max(0, document.body.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom);
         root.classList.remove("b-measure");
         var h = window.innerHeight - (box.getBoundingClientRect().top + window.scrollY) - after - 10;
         if (h < 260) return;

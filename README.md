@@ -624,3 +624,12 @@ their spot, and sending a request lands on My requests.
 **Fix:** a one-time cleanup ("people who sign in are adults") was running on every start, which would have turned
 athletes who sign in themselves into adults. It now runs once (app_flags kind_adult_fix_v1) and never touches
 anyone with linked parents or a birth year.
+
+
+## Check-in layout
+Day list: navy header (Check-in, day · sessions · claimed · checked in) · gray bar with ‹ day › and Today · folder
+sub-tabs per board when more than one board has sessions that day (All boards · …; ?b=) · session cards on the sheet.
+Roster: ← the day · header (session, board • path · time · place) · gray bar with live counts and progress (left) and
+Mark everyone else here (right) · sub-tabs Roster (count) · Waitlist (when any) · + Walk-in (?sub=) · only the list
+scrolls (same as the sign-up page). Fix: list-only scrolling now measures against the page's content, so short lists
+work too.

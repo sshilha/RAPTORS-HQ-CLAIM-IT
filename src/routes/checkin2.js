@@ -33,7 +33,7 @@ async function itemFor(req, id) {
 // ---------- the day ----------
 router.get("/", wrap(async (req, res) => {
   const day = isDate(req.query.d) ? req.query.d : localDate(new Date());
-  const all = (await query(`SELECT i.id, i.node_id, i.title, i.starts_at, i.ends_at, i.capacity, i.location, sc.name AS board_name, sc.event_location,
+  const all = (await query(`SELECT i.id, i.node_id, i.title, i.starts_at, i.ends_at, i.capacity, i.location, i.schedule_id AS board_id, sc.name AS board_name, sc.event_location,
       count(c.*) FILTER (WHERE c.status='confirmed')::int AS claimed,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended)::int AS here,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended = false)::int AS noshow
@@ -45,7 +45,7 @@ router.get("/", wrap(async (req, res) => {
   for (const s of all) if (await tracked(s.id)) { s.path = await pathOf(s.node_id); sessions.push(s); }
   const days = (await query(`SELECT DISTINCT to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') AS d FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
     WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL AND i.starts_at IS NOT NULL AND sc.archived_at IS NULL ORDER BY d`, [req.boards])).rows.map((r) => r.d);
-  res.send(v.dayPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, isToday: day === localDate(new Date()),
+  res.send(v.dayPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
     prev: days.filter((d) => d < day).pop() || null, next: days.find((d) => d > day) || null }));
 }));
 
@@ -66,7 +66,7 @@ router.get("/i/:id", wrap(async (req, res) => {
     WHERE m.schedule_id=$1 AND a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name)`, [it.schedule_id])).rows.filter((p) => !onIds.has(p.id));
   const others = (await query(`SELECT id, first_name, last_name, kind FROM athletes WHERE archived_at IS NULL AND id <> ALL($1) ORDER BY lower(last_name), lower(first_name) LIMIT 800`,
     [[...onIds, ...board.map((p) => p.id)]])).rows;
-  res.send(v.rosterPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people, board, others }));
+  res.send(v.rosterPage({ sub: ["roster", "waitlist", "walkin"].includes(req.query.sub) ? req.query.sub : "roster", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people, board, others }));
 }));
 
 // Here / No-show / clear (instant from the page; plain form as a fallback)

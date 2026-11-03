@@ -2956,3 +2956,22 @@ html.b-fixed .b-sheet { margin-bottom: 0; }
 .fam-list li { display: block; padding: 10px 14px; } .fam-list .fam-row { width: 100%; } .fam-list .fam-who { align-items: flex-start; text-align: left; }
 .fam-list .fam-chg { margin-left: auto; flex: none; }
 .a-sheet #family .a-lock { display: none; }
+/* ===== Check-in: header, gray bar, sub-tabs, sheet ===== */
+.ck-gbar { align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 14px; padding-top: 4px; padding-bottom: 4px; }
+.ck-gbar .ck-days { display: inline-flex; align-items: center; gap: 10px; } .ck-gbar .ck-days a, .ck-gbar .ck-days .off { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: #0B1930; }
+.ck-gbar .ck-days a:hover { background: #fff; } .ck-gbar .ck-days .off { opacity: .35; } .ck-gbar .ck-days b { font: 700 15px Inter, sans-serif; } .ck-gbar .ck-days svg { width: 18px; height: 18px; }
+.ck-gbar .ck-sum { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #0B1930; padding-left: 6px; }
+.ck-bar-p { display: inline-block; width: 120px; height: 6px; background: #dfe5ee; border-radius: 99px; overflow: hidden; margin-left: 8px; } .ck-bar-p i { display: block; height: 100%; background: #8DDC32; }
+.ck-gbar .ck-allf { margin: 0; }
+.ck-sheet .ck-list { margin: 0; }
+.ck-sheet .d-card { border: 0; box-shadow: none; padding: 0; background: transparent; margin: 0; }
+.ck-sheet[data-sub] .ck-p-roster, .ck-sheet[data-sub] .ck-p-waitlist, .ck-sheet[data-sub] .ck-p-walkin { display: none; }
+.ck-sheet[data-sub="roster"] .ck-p-roster, .ck-sheet[data-sub="waitlist"] .ck-p-waitlist, .ck-sheet[data-sub="walkin"] .ck-p-walkin { display: block; }
+.ck-scroll { overflow-y: auto; overscroll-behavior: contain; }
+.ck-walk h3 { margin-top: 0; }
+@media (max-width: 760px) { .ck-bar-p { width: 70px; } .ck-gbar .ck-allf { width: 100%; } .ck-gbar .ck-allf .sb-btn { width: 100%; justify-content: center; } }
+/* list-only scrolling: ignore "fill the window" minimum heights while measuring and while fixed */
+html.b-measure body, html.b-measure main, html.b-measure .page, html.b-measure .app, html.b-measure .shell,
+html.b-fixed body, html.b-fixed main, html.b-fixed .page, html.b-fixed .app, html.b-fixed .shell { min-height: 0 !important; }
+
+.ck-wrap { max-width: none; padding-top: 0; }
