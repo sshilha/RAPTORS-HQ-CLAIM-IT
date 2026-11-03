@@ -680,7 +680,7 @@ src/peopleImport.js (logic), src/views/peopleImport.js (screens), public/import-
 1. **The file:** who's in it (Athletes / Adults / Mixed with a Type column) · CSV or Excel (.xlsx converted in the browser by
    SheetJS) or pasted rows, drag-and-drop.
 2. **Match the columns:** the person (name, own email, phone), details (birth year or date of birth, jersey, team, list
-   column, roles, notes), up to 3 parents (first, last or one name, email, phone) and other email columns. Guessed from
+   column, roles, notes), up to 4 parents/guardians (first, last or one name, email, phone) and other email columns. Guessed from
    the headings (SportsEngine-style), or matched the same way as the last file with the same columns (import_maps).
 3. **Review pop-up** (opens by itself): every row with include ✓, status (New · Update · Up to date · Possible match ·
    Problem), details, and what happens (changes like "Team: 12U → 14U · Adds parent Tom Lee", problems like "Missing last

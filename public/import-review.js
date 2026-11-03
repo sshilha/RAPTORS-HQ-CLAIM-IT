@@ -33,7 +33,7 @@
         return "<div class='imp-ed-p'><b>Parent/guardian " + (n + 1) + "</b>" + ["first", "last", "email", "phone"].map(function (k) {
           return "<input data-pf='" + k + "' data-pn='" + n + "' data-r='" + r.i + "' value='" + esc(p[k]) + "' placeholder='" + { first: "First", last: "Last", email: "Email", phone: "Phone" }[k] + "'>"; }).join("") +
           "<button type='button' class='x' data-prm='" + n + "' data-r='" + r.i + "' aria-label='Remove parent/guardian'>×</button></div>"; }).join("") +
-        ((r.parents || []).length < 3 ? "<button type='button' class='link-dark' data-padd='" + r.i + "'>+ Add a parent/guardian</button>" : "") + "</div>";
+        ((r.parents || []).length < 4 ? "<button type='button' class='link-dark' data-padd='" + r.i + "'>+ Add a parent/guardian</button>" : "") + "</div>";
     }
     return h;
   }

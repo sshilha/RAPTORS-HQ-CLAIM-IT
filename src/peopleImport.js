@@ -4,7 +4,7 @@ const { query } = require("./db");
 const PP = require("./people");
 const auth = require("./auth");
 
-const PARENTS = 3;                       // up to three parents per row
+const PARENTS = 4;                       // up to four parents/guardians per row (SportsEngine allows 4)
 const ROLE_WORDS = { coach: "coach", volunteer: "volunteer", parent: "parent", admin: "admin", staff: "volunteer" };
 const norm = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
 const low = (s) => norm(s).toLowerCase();

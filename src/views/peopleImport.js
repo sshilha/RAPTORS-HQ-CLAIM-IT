@@ -55,7 +55,7 @@ function mapPage({ user, flash, head, headers, map, kind, data, rows, counts, li
         ${kind === "mixed" ? sel("kind", "Type (athlete or adult)", map.kind) : ""}${sel("email", kind === "athlete" ? "Athlete's own email (optional)" : "Email", map.email)}${sel("phone", "Phone", map.phone)}</div></div>
       <div class="imp-sect"><h3>Details</h3><div class="imp-grid">${sel("birth", "Birth year or date of birth", map.birth)}${sel("jersey", "Jersey #", map.jersey)}${sel("team", "Current team", map.team)}
         ${sel("lists", "Make lists from this column <span class=\"opt\">(e.g. a program; several per person: separate with ;)</span>", map.lists)}${kind !== "athlete" ? sel("roles", "Roles (coach, volunteer…)", map.roles) : ""}${sel("notes", "Notes", map.notes)}</div></div>
-      ${kind !== "adult" ? `<div class="imp-sect"><h3>Parents/guardians</h3><div class="imp-pars">${P(1)}${P(2)}${P(3)}</div>
+      ${kind !== "adult" ? `<div class="imp-sect"><h3>Parents/guardians</h3><div class="imp-pars">${[1, 2, 3, 4].map(P).join("")}</div>
         <fieldset class="field-l imp-emails"><span>Other email columns, used as parent/guardian emails <span class="opt">(check any)</span></span>
           ${headers.map((h, i) => /e-?mail/i.test(h) ? `<label class="radio-row"><input type="checkbox" name="col_emails" value="${i}"${map.emails.includes(i) ? " checked" : ""} onchange="this.form.submit()"> ${esc(h)}</label>` : "").join("") || `<span class="fine">None</span>`}
           <input type="hidden" name="col_emails" value="-1"></fieldset></div>` : ""}
