@@ -31,7 +31,16 @@ async function migrate() {
     -- Report access for non-admins: { mode: "none" | "coached" | "boards", boards: [ids], teams: [names] }
     ALTER TABLE athletes ADD COLUMN IF NOT EXISTS report_access JSONB;
     -- adults who signed up for themselves are adults
-    UPDATE athletes SET kind='adult' WHERE self_user_id IS NOT NULL AND kind <> 'adult';
+    -- one-time (v0.x) cleanup: people who signed in before "kind" existed were adults. Runs once, never again,
+    -- because athletes can now sign in themselves (they must stay athletes).
+    CREATE TABLE IF NOT EXISTS app_flags (name TEXT PRIMARY KEY);
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM app_flags WHERE name='kind_adult_fix_v1') THEN
+        UPDATE athletes SET kind='adult' WHERE self_user_id IS NOT NULL AND kind <> 'adult'
+          AND NOT EXISTS (SELECT 1 FROM parent_athletes pa WHERE pa.athlete_id = athletes.id) AND birth_year IS NULL;
+        INSERT INTO app_flags (name) VALUES ('kind_adult_fix_v1');
+      END IF;
+    END $$;
     -- SportsEngine group is retired: any values become lists of the same name (once), then the column is dropped
     DO $$ BEGIN
       IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='athletes' AND column_name='se_group' AND table_schema=current_schema()) THEN

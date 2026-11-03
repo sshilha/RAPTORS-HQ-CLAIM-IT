@@ -612,3 +612,14 @@ there's no board-wide limit and some of what they can see isn't under any limit.
 it stays put, so you can switch person or view at any time. The scroll spot is remembered across claiming, cancelling,
 and switching person (per board and view). Windows too short for this (under ~260px of room) fall back to normal page
 scrolling. The description shows as one line in the header (tap to expand); filters carry their label in the first choice.
+
+
+## My Account layout
+Navy header (My Account, name · email) · two tabs with folder sub-tabs: Account → Profile (name, organization,
+phone) · Email · Password · Access; Family → Family members · Sharing (athletes who sign in) · Add a family member ·
+Change details · My requests (count). Old ?tab=profile/signin/access/requests links land on the matching sub-tab. ?tab=&sub= in the address; saves return to
+their spot, and sending a request lands on My requests.
+
+**Fix:** a one-time cleanup ("people who sign in are adults") was running on every start, which would have turned
+athletes who sign in themselves into adults. It now runs once (app_flags kind_adult_fix_v1) and never touches
+anyone with linked parents or a birth year.

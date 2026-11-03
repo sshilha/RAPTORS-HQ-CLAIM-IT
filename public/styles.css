@@ -2921,3 +2921,15 @@ html.b-fixed .b-sheet { margin-bottom: 0; }
   .b-sheet .b-f select { max-width: 120px; padding: 5px 6px; font-size: 12px; } .b-group a { padding: 6px 9px; font-size: 12px; }
   .back-row { margin-bottom: 6px; }
 }
+/* My Account: header, tabs, sub-tabs; one part shown at a time */
+.a-tabs-main { margin-bottom: 14px; } .a-tabs-main a { display: inline-flex; align-items: center; padding: 8px 16px; border-radius: 8px; color: #0B1930; font: 600 14px Inter, sans-serif; text-decoration: none; }
+.a-tabs-main a[aria-current] { background: #8DDC32; } .a-tabs-main a:not([aria-current]):hover { background: #fff; }
+.a-sheet .a-cols { display: block; } .a-sheet .a-col { display: contents; }
+.a-sheet .a-card { border: 0; box-shadow: none; padding: 0; margin: 0 0 18px; background: transparent; } .a-sheet .a-card:last-child { margin-bottom: 0; }
+.a-sheet .a-card { display: none; }
+.a-sheet[data-sub="profile"] #profile, .a-sheet[data-sub="profile"] #phone, .a-sheet[data-sub="email"] #email, .a-sheet[data-sub="password"] #password,
+.a-sheet[data-sub="access"] #access, .a-sheet[data-sub="members"] #family, .a-sheet[data-sub="sharing"] #sharing,
+.a-sheet[data-sub="add"] #requests, .a-sheet[data-sub="chg"] #requests, .a-sheet[data-sub="list"] #requests { display: block; }
+.a-sheet #requests .a-tabs { display: none; } .a-sheet #requests [data-p] { display: none; }
+.a-sheet[data-sub="add"] #requests [data-p="add"], .a-sheet[data-sub="chg"] #requests [data-p="chg"], .a-sheet[data-sub="list"] #requests [data-p="list"] { display: block; }
+.a-sheet[data-sub="profile"] #phone { border-top: 1px solid #EEF1F5; padding-top: 16px; }

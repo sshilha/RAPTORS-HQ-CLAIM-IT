@@ -14,7 +14,10 @@ const { wrap, flashFrom, go, int, str } = require("./util");
 const router = express.Router();
 router.use(auth.requireUser);
 const clean = (x, n) => str(x).replace(/\s+/g, " ").slice(0, n);
-const back = (anchor) => `/account${anchor ? `#${anchor}` : ""}`;
+// where each save lands: the tab and sub-tab its section is on
+const SPOT = { profile: "account&sub=profile", phone: "account&sub=profile", email: "account&sub=email", password: "account&sub=password", access: "account&sub=access",
+  family: "family&sub=members", sharing: "family&sub=sharing", requests: "family&sub=list" };
+const back = (anchor) => `/account${anchor && SPOT[anchor] ? `?tab=${SPOT[anchor]}` : ""}`;
 const me = async (user) => (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND archived_at IS NULL ORDER BY (kind='athlete') DESC, id LIMIT 1`, [user.id])).rows[0] || null;
 
 router.get("/", wrap(async (req, res) => {
@@ -33,7 +36,7 @@ router.get("/", wrap(async (req, res) => {
       LEFT JOIN athletes p ON p.self_user_id=u.id WHERE pa.athlete_id=$1 ORDER BY 1`, [person.id])).rows.map((r) => r.name) : [];
   req.user.can_reports = !!scope;
   res.send(v.accountPage({ user: req.user, flash: flashFrom(req), u, person, kids, coaching, scope, reportBoards, requests, admin: auth.isAdmin(req.user),
-    myFamily, canShare: PP.isAdultAge(person), sms: SMS.enabled(), pendingPhone: req.query.phone || null, devCode: req.query.dc || null }));
+    myFamily, canShare: PP.isAdultAge(person), sms: SMS.enabled(), tab: String(req.query.tab || ""), sub: String(req.query.sub || ""), pendingPhone: req.query.phone || null, devCode: req.query.dc || null }));
 }));
 
 // profile: their own name, organization (saved right away)

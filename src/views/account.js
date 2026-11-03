@@ -6,12 +6,26 @@ const ROLE = { parent: "Parent", coach: "Coach", volunteer: "Volunteer / outside
 const card = (id, title, sub, body, lock = false) => `<section class="d-card a-card" id="${id}"><div class="a-h"><h2>${title}</h2>${lock ? `<span class="a-lock" title="Only admins can change this">🔒 View only</span>` : ""}</div>${sub ? `<p class="a-sub">${sub}</p>` : ""}${body}</section>`;
 const status = { waiting: ["Waiting", "wl"], approved: ["Approved", "ok"], declined: ["Declined", "no"], done: ["Done", "ok"] };
 
-function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoards, requests, admin, sms, pendingPhone, devCode, myFamily = [], canShare = false }) {
+function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoards, requests, admin, sms, pendingPhone, devCode, myFamily = [], canShare = false, tab = "", sub = "" }) {
   const p = person || {};
   const roles = (p.roles || []).map((r) => ROLE[r] || r);
   return layout({ title: "My Account", user, flash, admin, tab: "account", dash: true,
     body: `<div class="d-wrap a-wrap">
-    <div class="a-top"><h1>My Account</h1><span class="a-who">${esc(u.email)}</span></div>
+    ${(() => {
+      const isAth = p && p.kind === "athlete";
+      const TABS = [["account", "Account"], ["family", "Family"]];
+      const SUBS = { account: [["profile", "Profile"], ["email", "Email"], ["password", "Password"], ["access", "Access"]],
+        family: [["members", "Family members"], ...(isAth ? [["sharing", "Sharing"]] : []), ["add", "Add a family member"], ["chg", "Change details"], ["list", `My requests${requests.length ? ` <i class="sub-n">${requests.length}</i>` : ""}`]] };
+      // old links (?tab=profile, signin, access, requests) land on the matching sub-tab
+      const OLD = { profile: ["account", "profile"], signin: ["account", sub || "email"], access: ["account", "access"], requests: ["family", sub || "add"] };
+      if (OLD[tab]) { sub = OLD[tab][1]; tab = OLD[tab][0]; }
+      const t = TABS.some((x) => x[0] === tab) ? tab : "account", subs = SUBS[t] || [], st = subs.some((x) => x[0] === sub) ? sub : subs[0][0];
+      const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+      return `<section class="bh2 a-hd"><div class="bh2-l"><span class="bh2-tile dash-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-6.5 8-6.5s7.2 2.5 8 6.5"/></svg></span>
+        <div><div class="bh2-t"><h1>My Account</h1></div><span class="bh2-meta">${esc([name, u.email].filter(Boolean).join(" · "))}</span></div></div></section>
+      <nav class="bh2-tabs dash-tabs a-tabs-main">${TABS.map(([k, l]) => `<a href="/account?tab=${k}"${k === t ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
+      ${subs.length > 1 ? `<nav class="sub-tabs a-subs">${subs.map(([k, l]) => `<a href="/account?tab=${t}&sub=${k}"${k === st ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>` : ""}
+      <div class="sub-body a-sheet${subs.length > 1 ? "" : " no-subs"}" data-tab="${t}" data-sub="${st}">`; })()}
     <div class="a-cols"><div class="a-col">
       ${card("profile", "My profile", "Your own details. Changes save right away.", `
         <form method="post" action="/account/profile" class="a-form">
@@ -72,14 +86,14 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
           <label><span>Relationship <span class="opt">(optional)</span></span><input name="relationship" maxlength="40" placeholder="e.g. Daughter, Son, Spouse"></label>
           <label><span>Anything else? <span class="opt">(optional)</span></span><textarea name="note" rows="2" maxlength="600"></textarea></label>
           <div class="a-act"><button class="b-claim" type="submit">Send request</button></div></form>
-        <form method="post" action="/account/request" class="a-form" data-p="chg" hidden><input type="hidden" name="kind" value="change">
+        <form method="post" action="/account/request" class="a-form" data-p="chg"><input type="hidden" name="kind" value="change">
           <label>Who is it about?<select name="about"><option value="">${esc([p.first_name, p.last_name].filter(Boolean).join(" ") || u.email)}</option>${kids.map((k) => `<option>${esc(k.first_name)} ${esc(k.last_name)}</option>`).join("")}</select></label>
           <label>What should change?<textarea name="message" rows="3" required maxlength="1000" placeholder="e.g. Ava moved to the 14U team."></textarea></label>
           <div class="a-act"><button class="b-claim" type="submit">Send request</button></div></form>
-        ${requests.length ? `<h3 class="a-h3">My requests</h3><ul class="a-reqs">${requests.map((r) => `<li><span class="d-pill ${status[r.status][1]}">${status[r.status][0]}</span>
+        <div data-p="list">${requests.length ? `<ul class="a-reqs">${requests.map((r) => `<li><span class="d-pill ${status[r.status][1]}">${status[r.status][0]}</span>
             <span>${r.kind === "add_family" ? `Add <b>${esc(r.data.first_name)} ${esc(r.data.last_name)}</b>` : `Change ${esc(r.data.about || "my info")}: ${esc((r.data.message || "").slice(0, 80))}`}</span>
-            <span class="fine">${esc(fmtDateTime(r.created_at))}${r.admin_note ? ` · “${esc(r.admin_note)}”` : ""}</span></li>`).join("")}</ul>` : ""}`)}
-    </div></div></div>
+            <span class="fine">${esc(fmtDateTime(r.created_at))}${r.admin_note ? ` · “${esc(r.admin_note)}”` : ""}</span></li>`).join("")}</ul>` : `<p class="muted">No requests yet.</p>`}</div>`)}
+    </div></div></div></div>
     <script>document.querySelectorAll(".a-tabs button").forEach(function (b) { b.addEventListener("click", function () {
       document.querySelectorAll(".a-tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
       document.querySelectorAll("#requests form[data-p]").forEach(function (f) { f.hidden = f.dataset.p !== b.dataset.t; }); }); });</script>` });
