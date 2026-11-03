@@ -659,3 +659,7 @@ the session line · "In this spot (n of capacity)" with + Add someone (opens the
 **Create Board:** ← All Boards · navy header (Create Board, "Step n of 3 · …") · the three steps as tabs in the gray bar
 (current lime; finished ✓ and clickable to go back; later ones unlock as you go) · the step on the white sheet with
 Back / Continue / Create board. Details uses the Board details section names: General · Type & look · Organizer.
+
+**Duplicate board:** ← All Boards · navy header (source board's picture or code, "Duplicate <board>", starts unpublished /
+claims never come along) · gray bar with what the board has (levels · sessions · people · coaches) · the form on the sheet
+(name, what comes along, new first day) with Cancel / Create the duplicate.

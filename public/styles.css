@@ -3032,3 +3032,7 @@ html.b-fixed body, html.b-fixed main, html.b-fixed .page, html.b-fixed .app, htm
 .wizard .wz-nav #wz-next, .wizard .wz-nav #wz-create { background: #8DDC32; border-color: #8DDC32; color: #0B1930; border-radius: 9px; }
 .wizard .wz-nav #wz-next:hover, .wizard .wz-nav #wz-create:hover { background: #7fcd27; }
 .wizard .wz-nav #wz-back { border-radius: 9px; }
+/* Duplicate board */
+.cp-gbar { padding: 10px 14px; margin-bottom: 14px; } .cp-has { font-size: 14px; color: #0B1930; } .cp-has b { font-weight: 700; }
+.cp-sheet .copy-form { max-width: 860px; } .cp-acts { display: flex; justify-content: flex-end; gap: 12px; align-items: center; border-top: 1px solid #EEF1F5; padding-top: 14px; margin-top: 6px; }
+.cp-acts { flex-direction: row !important; justify-content: flex-end !important; }

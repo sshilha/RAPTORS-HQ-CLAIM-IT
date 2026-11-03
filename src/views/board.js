@@ -328,9 +328,15 @@ function copyPage({ user, flash, sc, counts: c }) {
   const next = (() => { const m = /(\d{4})(?!.*\d{4})/.exec(sc.name); return m ? sc.name.replace(m[1], String(+m[1] + 1)) : `${sc.name} (copy)`; })();
   const suggest = c.first ? new Date(Date.parse(c.first + "T12:00:00Z") + 364 * 864e5).toISOString().slice(0, 10) : "";   // same weekday, a year later
   const firstLbl = c.first ? new Date(c.first + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" }) : "";
-  return page({ title: `Duplicate ${sc.name}`, tab: "home", user, flash, wide: true,
-    body: `<div class="page-top"><h1 class="page-title">Duplicate ${esc(sc.name)}</h1><a class="btn-ghost" href="/admin/settings">← All Boards</a></div>
-    <section class="panel"><form method="post" action="/admin/setup/schedules/${sc.id}/copy" class="stack copy-form">
+  const S2 = require("./setup"), tile = sc.image ? `<span class="bh2-tile b-hd-tile"><img src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt=""></span>` : `<span class="bh2-tile b-hd-tile code"><b>${esc(S2.codeOf(sc))}</b></span>`;
+  const has = [c.nodes ? `${c.nodes} level${c.nodes === 1 ? "" : "s"}` : "", c.items ? `${c.items} ${esc((c.items === 1 ? L.slot.one : L.slot.many).toLowerCase())}` : "",
+    c.members ? `${c.members} ${esc((c.members === 1 ? L.participant.one : L.participant.many).toLowerCase())}` : "", c.coaches ? `${c.coaches} coach${c.coaches === 1 ? "" : "es"}` : ""].filter(Boolean);
+  return page({ title: `Duplicate ${sc.name}`, tab: "home", user, flash, wide: true, noBack: true,
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All Boards</a></nav>
+    <section class="bh2 cp-hd"><div class="bh2-l">${tile}
+      <div><div class="bh2-t"><h1>Duplicate ${esc(sc.name)}</h1></div><span class="bh2-meta">Copies its setup into a new board. It starts unpublished, and claims never come along.</span></div></div></section>
+    <nav class="bh2-tabs dash-tabs cp-gbar"><span class="cp-has"><b>${esc(sc.name)} has:</b> ${has.length ? has.join(" · ") : "nothing yet"}</span></nav>
+    <section class="sub-body no-subs cp-sheet"><form method="post" action="/admin/setup/schedules/${sc.id}/copy" class="stack copy-form">
       <label>Name of the new board<input name="name" required maxlength="60" value="${esc(next)}"></label>
       <p class="q-label">What comes along</p>
       <label class="mode-opt on"><input type="checkbox" checked disabled><span><b>Setup and levels</b><span class="fine">${c.nodes} level${c.nodes === 1 ? "" : "s"} (like ${esc(L.middle.many)} › ${esc(L.activity.many)}) with all their settings: limits, who can claim, timing, attendance. Plus the question, wording, ${esc(L.group.many.toLowerCase())}, picture, type, location and organizer.</span></span></label>
@@ -339,7 +345,7 @@ function copyPage({ user, flash, sc, counts: c }) {
       <label class="mode-opt"><input type="checkbox" name="members" value="1"${c.members ? "" : " disabled"}><span><b>People on the board</b><span class="fine">${c.members} ${esc((c.members === 1 ? L.participant.one : L.participant.many).toLowerCase())}, with their ${esc(L.group.many.toLowerCase())} and tags.</span></span></label>
       <label class="mode-opt"><input type="checkbox" name="coaches" value="1"${c.coaches ? "" : " disabled"}><span><b>Coaches</b><span class="fine">${c.coaches} coach${c.coaches === 1 ? " who takes" : "es who take"} attendance.</span></span></label>
       <p class="fine">Claims never come along. The duplicate starts unpublished, so you can check it before families see it.</p>
-      <div class="q-actions"><a class="btn-ghost" href="/admin/settings">Cancel</a><button class="btn-small" type="submit">Create the duplicate</button></div>
+      <div class="q-actions cp-acts"><a class="btn-ghost" href="/admin/settings">Cancel</a><button class="sb-btn primary" type="submit">Create the duplicate</button></div>
     </form></section>
     <script>(function () { var b = document.getElementById("cp-items"), s = document.getElementById("cp-start"); if (b && s) { b.addEventListener("change", function () { s.hidden = !b.checked; }); } })();</script>` });
 }
