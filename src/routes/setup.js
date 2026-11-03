@@ -290,20 +290,22 @@ router.post("/schedules/:id/copy", wrap(async (req, res) => {
 router.post("/schedules/:id/attendance", wrap(async (req, res) => {
   const id = int(req.params.id);
   await query(`UPDATE schedules SET track_attendance=$2 WHERE id=$1`, [id, req.body.track === "on"]);
-  go(res, `/admin/setup/schedule?s=${id}#attendance`, { ok: req.body.track === "on" ? "Attendance is tracked by default." : "Attendance isn't tracked by default." });
+  if (req.body.checkin_lock !== undefined && ["0", "1", "2", "7", "-1"].includes(String(req.body.checkin_lock)))
+    await query(`UPDATE schedules SET settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('checkin_lock', $2::int) WHERE id=$1`, [id, Number(req.body.checkin_lock)]);
+  go(res, `/admin/setup/schedule?s=${id}&card=attendance#attendance`, { ok: req.body.track === "on" ? "Attendance is tracked by default." : "Attendance isn't tracked by default." });
 }));
 router.post("/schedules/:id/coaches", wrap(async (req, res) => {
   const id = int(req.params.id);
   const email = require("../auth").normalizeEmail(req.body.email);
-  if (!require("../auth").isValidEmail(email)) return go(res, `/admin/setup/schedule?s=${id}#attendance`, { err: "Enter a valid email." });
+  if (!require("../auth").isValidEmail(email)) return go(res, `/admin/setup/schedule?s=${id}&card=attendance#attendance`, { err: "Enter a valid email." });
   await query(`INSERT INTO schedule_coaches (schedule_id, email) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [id, email]);
   await require("../auth").findOrCreateUser(email);
-  go(res, `/admin/setup/schedule?s=${id}#attendance`, { ok: `${email} can now take attendance on this board.` });
+  go(res, `/admin/setup/schedule?s=${id}&card=attendance#attendance`, { ok: `${email} can now take attendance on this board.` });
 }));
 router.post("/schedules/:id/coaches/remove", wrap(async (req, res) => {
   const id = int(req.params.id);
   await query(`DELETE FROM schedule_coaches WHERE schedule_id=$1 AND email=$2`, [id, str(req.body.email)]);
-  go(res, `/admin/setup/schedule?s=${id}#attendance`, { ok: "Coach removed." });
+  go(res, `/admin/setup/schedule?s=${id}&card=attendance#attendance`, { ok: "Coach removed." });
 }));
 
 router.post("/schedules/:id/archive", wrap(async (req, res) => {

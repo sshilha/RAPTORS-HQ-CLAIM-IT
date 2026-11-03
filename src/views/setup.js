@@ -629,6 +629,9 @@ function eventDates(sc) {
   return `${f(sc.event_date, { month: "short", day: "numeric" })} – ${f(sc.event_end, { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
+// when a session's check-in locks for coaches: days after the session's day (-1 = never)
+const LOCKS = { "0": "At the end of the session's day", "1": "At the end of the next day", "2": "2 days after", "7": "1 week after", "-1": "Never" };
+const lockDays = (sc) => { const v = sc && sc.settings && sc.settings.checkin_lock; return v == null || !(String(v) in LOCKS) ? 1 : Number(v); };
 function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", main = null, overrides = [], head = "", sub = "who" }) {
   const L = SC.labels(sc);
   const I = require("./icons");
@@ -714,7 +717,8 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
 
       ${require("./board").boardDefaultsSections(sc)}
       ${sec("attendance", I.check(), "Attendance", "Whether attendance is taken, and the coaches who can take it.",
-        rows([["Track attendance", sc.track_attendance ? "Yes, by default" : "No, not by default"], ["Coaches", (counts.coaches || []).length ? esc(counts.coaches.join(", ")) : "None"]]),
+        rows([["Track attendance", sc.track_attendance ? "Yes, by default" : "No, not by default"], ["Coaches", (counts.coaches || []).length ? esc(counts.coaches.join(", ")) : "None"],
+          ["Check-in locks", LOCKS[String(lockDays(sc))] || LOCKS["1"]]]),
         `<div class="opt-row">
           ${radio("track", "off", sc.track_attendance ? "on" : "off", "No, not by default", "Turn it on for just the ones that need it.", "")}
           ${radio("track", "on", sc.track_attendance ? "on" : "off", "Yes, by default", "", EX.attendance)}
@@ -723,7 +727,9 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
         <label class="field-l"><span>Coaches who can take attendance <span class="opt">(one email per line)</span></span>
           <textarea name="coaches" rows="${Math.max(2, (counts.coaches || []).length + 1)}" placeholder="e.g. coach@example.com, one per line">${esc((counts.coaches || []).join("\n"))}</textarea></label>
         <p class="fine">They sign in with their email and only see Check-in. Admins can always take attendance.</p>
-        <p class="ex">e.g. ${esc(EX.coaches)}</p>`)}
+        <p class="ex">e.g. ${esc(EX.coaches)}</p>
+        <label class="field-l"><span>Lock check-in for coaches</span><select name="checkin_lock">${Object.entries(LOCKS).map(([k, l]) => `<option value="${k}"${String(lockDays(sc)) === k ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+        <p class="fine">After this, coaches see a session's check-in but can't change it. Admins can always change it.</p>`)}
     </section>
 
 
@@ -1076,4 +1082,4 @@ function setupPage({ user, flash, schedule: sc, rounds, standalone, counts = {} 
   });
 }
 
-module.exports = { setupPage, scheduleSettingsPage, newSchedulePage, eventDates, levelsTable, imagePicker, IMAGE_JS, boardTypeField, boardTypeOf, initials, codeOf };
+module.exports = { LOCKS, lockDays, setupPage, scheduleSettingsPage, newSchedulePage, eventDates, levelsTable, imagePicker, IMAGE_JS, boardTypeField, boardTypeOf, initials, codeOf };

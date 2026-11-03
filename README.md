@@ -630,6 +630,17 @@ anyone with linked parents or a birth year.
 Day list: navy header (Check-in, day · sessions · claimed · checked in) · gray bar with ‹ day › and Today · folder
 sub-tabs per board when more than one board has sessions that day (All boards · …; ?b=) · session cards on the sheet.
 Roster: ← the day · header (session, board • path · time · place) · gray bar with live counts and progress (left) and
-Mark everyone else here (right) · sub-tabs Roster (count) · Waitlist (when any) · + Walk-in (?sub=) · only the list
-scrolls (same as the sign-up page). Fix: list-only scrolling now measures against the page's content, so short lists
+Mark the rest here (right; asks first, marks only people not yet marked) · one list "Signed up (count)" with
++ Add walk-in on top (opens the fields; the walk-in joins the list marked here) and the Waitlist underneath · only the
+list scrolls · big ✓ / ✗ buttons on phones. Check-in and Reports use the same 1440px page width as other pages. Fix: list-only scrolling now measures against the page's content, so short lists
 work too.
+
+**Reports layout:** navy header (Reports, board · team · people · claims · attended) · gray bar with the Board picker (and
+Team when there's more than one) on the left and Download CSV on the right · folder sub-tabs By person · All claims
+(with counts) · notes and the table on the sheet.
+
+**Check-in lock:** Board defaults → Question & attendance → Attendance → "Lock check-in for coaches": at the end of the
+session's day · at the end of the next day (default) · 2 days after · 1 week after · never (schedules.settings.checkin_lock
+= days, -1 = never). After it, coaches see the session read-only ("Check-in closed Sat, Oct 31"; marking, Mark the rest
+here, and walk-ins are refused on the server too). Before it: "Open until …". Admins can always change it ("Closed for
+coaches …. You can still change it."). The roster's back button reads "Back to Check-in".

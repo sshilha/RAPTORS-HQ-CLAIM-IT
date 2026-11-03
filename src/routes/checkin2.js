@@ -24,11 +24,23 @@ const pathOf = async (nodeId) => (await query(`WITH RECURSIVE up AS (SELECT id, 
 
 // one session, if this person may check in for it
 async function itemFor(req, id) {
-  const it = (await query(`SELECT i.*, sc.name AS board_name, sc.question, sc.event_location FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
+  const it = (await query(`SELECT i.*, sc.name AS board_name, sc.question, sc.event_location, sc.settings AS board_settings FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
     WHERE i.id=$1 AND i.schedule_id = ANY($2) AND i.canceled_at IS NULL`, [id, req.boards])).rows[0];
-  if (it) it.path = await pathOf(it.node_id);
+  if (it) { it.path = await pathOf(it.node_id); it.lock = lockOf(it); }
   return it || null;
 }
+// When a session's check-in locks for coaches (Board defaults → Attendance): the end of the session's day plus N days.
+// Admins can always change it.
+function lockOf(it) {
+  const days = require("../views/setup").lockDays({ settings: it.board_settings });
+  if (days < 0 || !it.starts_at) return { locked: false, until: null };
+  const d = new Date(localDate(new Date(it.starts_at)) + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + days);
+  const until = d.toISOString().slice(0, 10);          // the last day it can be changed (local)
+  return { locked: localDate(new Date()) > until, until };
+}
+const dayLabel = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+const closedFor = (req, it) => it.lock.locked && !auth.isAdmin(req.user);
+const closedMsg = (it) => `Check-in for this session closed ${dayLabel(it.lock.until)}. An admin can still change it.`;
 
 // ---------- the day ----------
 router.get("/", wrap(async (req, res) => {
@@ -70,7 +82,11 @@ router.get("/i/:id", wrap(async (req, res) => {
 }));
 
 // Here / No-show / clear (instant from the page; plain form as a fallback)
-router.post("/i/:id/mark", wrap(async (req, res) => {
+router.post("/i/:id/mark", wrap(async (req, res, next) => {
+  const it0 = await itemFor(req, int(req.params.id));
+  if (it0 && closedFor(req, it0)) return req.accepts("json") && /json/.test(req.get("accept") || "") ? res.status(403).json({ ok: false, locked: true, message: closedMsg(it0) }) : go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0) });
+  next();
+}), wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id));
   const json = (req.get("accept") || "").includes("json");
   if (!it) return json ? res.status(403).json({ ok: false }) : go(res, "/checkin", { err: "Not allowed." });
@@ -83,13 +99,21 @@ router.post("/i/:id/mark", wrap(async (req, res) => {
     FROM board_claims WHERE item_id=$1 AND status<>'canceled'`, [it.id])).rows[0];
   json ? res.json({ ok: true, ...c }) : go(res, `/checkin/i/${it.id}`, {});
 }));
-router.post("/i/:id/all", wrap(async (req, res) => {
+router.post("/i/:id/all", wrap(async (req, res, next) => {
+  const it0 = await itemFor(req, int(req.params.id));
+  if (it0 && closedFor(req, it0)) return go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0) });
+  next();
+}), wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id)); if (!it) return go(res, "/checkin", { err: "Not allowed." });
   const r = await query(`UPDATE board_claims SET attended=true, attended_at=now(), attended_by=$2 WHERE item_id=$1 AND status='confirmed' AND attended IS NULL`, [it.id, req.user.id]);
   go(res, `/checkin/i/${it.id}`, { ok: `Marked ${r.rowCount} here.` });
 }));
 // Walk-in: someone who showed up without claiming (doesn't use a spot or count toward limits)
-router.post("/i/:id/walkin", wrap(async (req, res) => {
+router.post("/i/:id/walkin", wrap(async (req, res, next) => {
+  const it0 = await itemFor(req, int(req.params.id));
+  if (it0 && closedFor(req, it0)) return go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0) });
+  next();
+}), wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id)); if (!it) return go(res, "/checkin", { err: "Not allowed." });
   let aid = int(req.body.athlete_id);
   const first = str(req.body.first_name).slice(0, 40), last = str(req.body.last_name).slice(0, 40);

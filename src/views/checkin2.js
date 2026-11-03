@@ -40,6 +40,8 @@ function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, is
 }
 
 function rosterPage({ user, flash, admin, it, people, board, others, sub = "roster" }) {
+  const lock = it.lock || { locked: false, until: null }, ro = lock.locked && !admin;   // read-only for coaches once it's closed
+  const short = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
   const q = it.question || {};
   const day = new Date(it.starts_at || Date.now()).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -48,36 +50,36 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
         <small>${[p.group_name, p.walk_in ? "Walk-in" : "", p.counts === false && !p.walk_in ? "Extra spot" : "", p.status === "waitlisted" ? "Waitlist" : ""].filter(Boolean).map(esc).join(" · ")}</small>
         ${q.label && p.note ? `<small class="ck-ans">${esc(q.label)}: ${esc(p.note)}</small>` : ""}</span>
       <form method="post" action="/checkin/i/${it.id}/mark" class="ck-btns"><input type="hidden" name="claim" value="${p.id}">
-        <button name="state" value="here" class="ck-here" type="submit" aria-label="Here">✓ Here</button>
-        <button name="state" value="noshow" class="ck-no" type="submit" aria-label="No-show">✗ No-show</button></form></li>`;
+        <button name="state" value="here" class="ck-here" type="submit" aria-label="Here"${ro ? " disabled" : ""}>✓ Here</button>
+        <button name="state" value="noshow" class="ck-no" type="submit" aria-label="No-show"${ro ? " disabled" : ""}>✗ No-show</button></form></li>`;
   const here = conf.filter((p) => p.attended === true).length, no = conf.filter((p) => p.attended === false).length;
   return layout({ title: `Check-in · ${it.board_name}`, user, flash, admin, tab: "checkin", dash: true,
     body: `<div class="d-wrap ck-wrap">
-    <nav class="back-row"><a class="back-btn" href="/checkin?d=${day}">${L}${esc(dayLabel(day))}</a></nav>
+    <nav class="back-row"><a class="back-btn" href="/checkin?d=${day}">${L}Back to Check-in</a></nav>
     <section class="bh2 ck-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${CK_IC}</span>
       <div><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
         <span class="bh2-meta">${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))}${it.starts_at ? ` · ${esc(timeRange(it.starts_at, it.ends_at))}` : ""}${where(it) ? ` · ${esc(where(it))}` : ""}</span></div></div></section>
     <nav class="bh2-tabs dash-tabs ck-gbar">
       <span class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> claimed
         <span class="ck-bar-p"><i id="ck-pct" style="width:${conf.length ? Math.round(((here + no) / conf.length) * 100) : 0}%"></i></span></span>
-      ${conf.length ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf"><button class="sb-btn primary" type="submit">Mark everyone else here</button></form>` : ""}
+      ${lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
+      ${conf.length && !ro ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
     </nav>
-    <nav class="sub-tabs ck-subs">
-      <a href="/checkin/i/${it.id}"${sub === "roster" ? ' aria-current="page"' : ""}>Roster <i class="sub-n">${conf.length}</i></a>
-      ${wl.length ? `<a href="/checkin/i/${it.id}?sub=waitlist"${sub === "waitlist" ? ' aria-current="page"' : ""}>Waitlist <i class="sub-n">${wl.length}</i></a>` : ""}
-      <a href="/checkin/i/${it.id}?sub=walkin"${sub === "walkin" ? ' aria-current="page"' : ""}>+ Walk-in</a></nav>
-    <div class="sub-body ck-sheet" data-sub="${sub}">
-    <div class="ck-scroll" id="ck-scroll">
-    <section class="d-card ck-card-list ck-p-roster">${conf.length ? `<ul class="ck-roster">${conf.map(row).join("")}</ul>` : `<div class="d-empty"><b>No one has claimed this session.</b><span>Add walk-ins under <a href="/checkin/i/${it.id}?sub=walkin">+ Walk-in</a>.</span></div>`}</section>
-    ${wl.length ? `<section class="d-card ck-card-list ck-p-waitlist"><ul class="ck-roster">${wl.map(row).join("")}</ul></section>` : ""}
-    <section class="d-card ck-walk ck-p-walkin" id="walkin"><h3>Add a walk-in</h3><p class="fine">Someone here who didn't claim? Add them. Walk-ins don't use a spot or count toward limits.</p>
+    <div class="sub-body ck-sheet no-subs">
+    <div class="ck-listbar"><h3>Signed up <i class="sub-n">${conf.length}</i></h3>
+      ${ro ? "" : `<button type="button" class="sb-btn ck-addwalk" onclick="var w=document.getElementById('walkin'); w.hidden=!w.hidden; window.dispatchEvent(new Event('resize')); if (!w.hidden) { w.querySelector('select, input').focus(); }">+ Add walk-in</button>`}</div>
+        <section class="d-card ck-walk" id="walkin" hidden><h3>Add a walk-in</h3><p class="fine">Someone here who didn't claim? Add them. They're added to the list as here, and don't use a spot or count toward limits.</p>
       <form method="post" action="/checkin/i/${it.id}/walkin" class="a-form">
         <label>Pick someone<select name="athlete_id"><option value="">Choose…</option>
           ${board.length ? `<optgroup label="On this board">${board.map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.group_name ? ` (${esc(p.group_name)})` : ""}</option>`).join("")}</optgroup>` : ""}
           ${others.length ? `<optgroup label="Everyone else in People">${others.map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}</option>`).join("")}</optgroup>` : ""}</select></label>
         <p class="fine">Not listed? Type their name:</p>
         <div class="a-row"><label>First name<input name="first_name" maxlength="40"></label><label>Last name<input name="last_name" maxlength="40"></label></div>
-        <div class="a-act"><button class="b-claim" type="submit">Add walk-in</button></div></form></section>
+        <div class="a-act"><button type="button" class="link-dark" onclick="var w=document.getElementById('walkin'); w.hidden=true; w.querySelector('form').reset(); window.dispatchEvent(new Event('resize'));">Cancel</button><button class="b-claim" type="submit">Add as here</button></div></form></section>
+    <div class="ck-scroll" id="ck-scroll">
+    <section class="d-card ck-card-list ck-p-roster">${conf.length ? `<ul class="ck-roster">${conf.map(row).join("")}</ul>` : `<div class="d-empty"><b>No one has claimed this session.</b><span>Use <b>+ Add walk-in</b> above for anyone who shows up.</span></div>`}</section>
+    ${wl.length ? `<h3 class="ck-wlh">Waitlist <i class="sub-n">${wl.length}</i></h3><section class="d-card ck-card-list ck-p-waitlist"><ul class="ck-roster">${wl.map(row).join("")}</ul></section>` : ""}
+
     </div></div>
     </div>
     <script>(function () {
@@ -98,7 +100,7 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
             .then(function (r) { return r.json(); }).then(function (c) { if (!c.ok) throw 0;
               document.getElementById("ck-here").textContent = c.here; document.getElementById("ck-no").textContent = c.noshow;
               var tot = +document.getElementById("ck-claimed").textContent || 0; document.getElementById("ck-pct").style.width = (tot ? Math.round(((c.here + c.noshow) / tot) * 100) : 0) + "%"; })
-            .catch(function () { li.dataset.state = cur; alert("That didn't save. Check your connection and try again."); });
+            .catch(function () { li.dataset.state = cur; alert("That didn't save. Check-in may be closed, or check your connection and try again."); });
         });
       });
     })();

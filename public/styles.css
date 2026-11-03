@@ -2975,3 +2975,38 @@ html.b-measure body, html.b-measure main, html.b-measure .page, html.b-measure .
 html.b-fixed body, html.b-fixed main, html.b-fixed .page, html.b-fixed .app, html.b-fixed .shell { min-height: 0 !important; }
 
 .ck-wrap { max-width: none; padding-top: 0; }
+/* Reports: header, gray bar (board/team + CSV), sub-tabs, sheet */
+.r-wrap { max-width: none; padding-top: 0; }
+.r-gbar { align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 14px; padding-top: 4px; padding-bottom: 4px; }
+.r-gbar .r-pick { display: flex; align-items: center; gap: 8px; margin: 0; flex-wrap: wrap; } .r-pick-l { font: 600 13px Inter, sans-serif; color: #475569; margin-left: 4px; }
+.r-gbar .r-pick select { padding: 6px 10px; border-radius: 8px; font: 600 13px Inter, sans-serif; width: auto; min-width: 220px; }
+.r-gbar .sb-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.r-sheet .r-card { border: 0; box-shadow: none; padding: 0; margin: 0; background: transparent; }
+.r-sheet .r-note, .r-sheet .r-lim { margin: 0 0 10px; }
+@media (max-width: 760px) { .r-gbar .r-pick select { min-width: 0; max-width: 100%; } }
+/* Check-in: normal page width (like everything else); one list with + Add walk-in */
+.ck-wrap, .r-wrap { max-width: 1440px; }
+.ck-listbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; } .ck-listbar h3, .ck-wlh { margin: 0; font: 700 15px Inter, sans-serif; color: #0B1930; }
+.ck-wlh { margin: 16px 0 8px; }
+.ck-sheet .ck-walk { background: #F6F8FB !important; border: 1px solid #E3E8F0 !important; border-radius: 12px; padding: 12px 14px !important; margin: 0 0 12px !important; } .ck-walk[hidden] { display: none; }
+.ck-walk .a-act { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+.ck-sheet .ck-p-roster, .ck-sheet .ck-p-waitlist { display: block !important; }
+/* phones: big tap targets, tidy bars */
+@media (max-width: 760px) {
+  .ck-hd h1 { font-size: 20px; } .ck-hd .bh2-meta { white-space: normal; }
+  .ck-gbar .ck-days b { font-size: 14px; } .ck-gbar .ck-sum { font-size: 13px; }
+  .ck-p { flex-wrap: wrap; gap: 8px; } .ck-p .ck-name { flex: 1 1 100%; }
+  .ck-p .ck-btns { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .ck-p .ck-btns button { min-height: 46px; font-size: 16px; }
+  .ck-card { grid-template-columns: 1fr auto; } .ck-card .ck-time { grid-column: 1 / -1; }
+  .ck-walk .a-row { flex-direction: column; }
+}
+/* Check-in: lock note; centered day arrows */
+.ck-lock { font: 600 12px Inter, sans-serif; color: #2f6d0c; background: #E4F5D2; border-radius: 999px; padding: 3px 10px; margin-left: auto; margin-right: 4px; }
+.ck-lock.on { color: #92400e; background: #FEF3C7; }
+.ck-btns button:disabled { opacity: .45; cursor: not-allowed; }
+.ck-gbar .ck-days a, .ck-gbar .ck-days .off { display: inline-flex !important; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0 !important;
+  line-height: 0; border: 1px solid #c9d1de; border-radius: 8px; background: #fff; box-sizing: border-box; }
+.ck-gbar .ck-days .off { background: transparent; border-color: #dfe5ee; }
+.ck-gbar .ck-days a svg, .ck-gbar .ck-days .off svg { display: block; width: 16px; height: 16px; margin: 0; }
+.ck-gbar .ck-days a:hover { border-color: #0B1930; }
+@media (max-width: 760px) { .ck-lock { margin-left: 0; } }
