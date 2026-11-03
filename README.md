@@ -644,3 +644,14 @@ session's day · at the end of the next day (default) · 2 days after · 1 week 
 = days, -1 = never). After it, coaches see the session read-only ("Check-in closed Sat, Oct 31"; marking, Mark the rest
 here, and walk-ins are refused on the server too). Before it: "Open until …". Admins can always change it ("Closed for
 coaches …. You can still change it."). The roster's back button reads "Back to Check-in".
+
+
+## Old system removed (v0.24.0)
+Removed the pre-rebuild pages and routes: routes/{import,rounds,seasons,roster,reports,admin,public,checkin,parent}.js and
+views/{rounds,seasons,roster,parent,checkin,reports,public,import}.js. Shared helpers moved to views/dates.js. Old
+addresses redirect: /admin, /admin/rounds|seasons|programs|sessions|day|import → All Boards; /admin/athletes → People;
+/admin/reports → Reports; /athletes/… and /request-change → My Claims; /admin/settings/archived → the dashboard's
+Archived tab. Old data in the database is left as is.
+
+**A session's People page** (Board setup → a session → People): ← Back to Setup · the board header (Board setup lit) ·
+the session line · "In this spot (n of capacity)" with + Add someone (opens the add form above the list) · Waitlist.
