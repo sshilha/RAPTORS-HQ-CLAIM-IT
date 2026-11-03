@@ -7,22 +7,22 @@ const devCode = (code) => (code ? `<div class="devbox"><p>Testing mode: the text
 const shadowContinue = () => { const c = require("../shadow").current(); if (!c.shadow || !c.pending) return "";
   return `<form method="post" action="/shadow/continue" class="sh-cont"><b>Shadow mode</b><span>Continue as <b>${esc(c.pending.name)}</b>${c.pending.name !== c.pending.email ? ` (${esc(c.pending.email)})` : ""}, the way they'd sign in, without their password.</span>
     <button class="btn" type="submit">Continue as ${esc(c.pending.name)} (admin, no password)</button><span class="fine">Or sign in below with their email or password, the way they would.</span></form>`; };
-const loginPage = ({ error = "", email = "", notice = "" } = {}) => { const _c = require("../shadow").current(); if (!email && _c.pending) email = _c.pending.email; return loginPage0({ error, email, notice }); };
-const loginPage0 = ({ error = "", email = "", notice = "" } = {}) => gate("Sign in", `${shadowContinue()}
+const loginPage = ({ error = "", email = "", notice = "", pwOnly = false } = {}) => { const _c = require("../shadow").current(); if (!email && _c.pending) email = _c.pending.email; return loginPage0({ error, email, notice, pwOnly }); };
+const loginPage0 = ({ error = "", email = "", notice = "", pwOnly = false } = {}) => { const req = require("../accounts").settings().passwords === "required"; return gate("Sign in", `${shadowContinue()}
   <form method="post" action="/login" class="stack signin">
     <label for="who">Email</label>
     <input id="who" name="email" type="email" autocomplete="username" required value="${esc(email)}" placeholder="you@example.com">
     <div class="pw-row"><label for="pw">Password</label><a class="forgot" href="/forgot">Forgot password?</a></div>
-    <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="If you've set one">
+    <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="${req ? "Your password" : "If you've set one"}"${pwOnly ? " autofocus" : ""}>
     <button class="btn" type="submit" name="method" value="password">Sign in</button>
-    <div class="or"><span>or</span></div>
-    <button class="btn btn-alt" type="submit" name="method" value="link">Email me a sign-in link</button>
+    ${pwOnly ? "" : `<div class="or"><span>or</span></div>
+    <button class="btn btn-alt" type="submit" name="method" value="link">${req ? "First time here? Email me a sign-in link" : "Email me a sign-in link"}</button>`}
   </form>
-  <p class="muted gate-help">No password yet? Use a sign-in link. You can set a password later under <b>My Account</b>.<br>
+  <p class="muted gate-help">${req ? "First time? Use the sign-in link to confirm your email and set a password. After that, sign in with your password. Forgot it? Use <b>Forgot password?</b>" : "No password yet? Use a sign-in link. You can set a password later under <b>My Account</b>."}<br>
     Have a code from an admin? <a href="/login/code">Enter it here</a>.</p>
   <script>document.querySelector(".signin").addEventListener("submit", function (e) {
     var b = e.submitter; if (b && b.value === "password" && !document.getElementById("pw").value) { e.preventDefault(); var p = document.getElementById("pw"); p.focus(); p.placeholder = "Enter your password, or use a link below"; }
-  });</script>`, { err: error, ok: notice });
+  });</script>`, { err: error, ok: notice }); };
 
 const checkEmailPage = ({ email, devLink }) => gate("Check your email", `
   <div class="gate-card">

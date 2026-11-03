@@ -183,7 +183,7 @@ function appPage({ user, flash, c, admins, envAdmins, places = [], used = {}, ma
         </fieldset>
         <fieldset><legend>Passwords</legend>
           <label class="radio-row"><input type="radio" name="password_policy" value="optional"${c.password_policy !== "required" ? " checked" : ""}> <span><b>Optional</b> <span class="fine">The Welcome step offers a password, with "Skip for now". People can always use emailed links.</span></span></label>
-          <label class="radio-row"><input type="radio" name="password_policy" value="required"${c.password_policy === "required" ? " checked" : ""}> <span><b>Required</b> <span class="fine">Everyone without a password is taken to the Welcome step until they set one.</span></span></label>
+          <label class="radio-row"><input type="radio" name="password_policy" value="required"${c.password_policy === "required" ? " checked" : ""}> <span><b>Required</b> <span class="fine">Everyone sets a password the first time they sign in (with an emailed link). After that they sign in with it, and email is only used for Forgot password. Fewer emails, and nothing waits on email.</span></span></label>
         </fieldset>
         <p class="fine">To require setup for just one person, open them in People → Sign-in &amp; setup.</p>
         <div class="q-actions"><button class="btn-small" type="submit">Save</button></div>

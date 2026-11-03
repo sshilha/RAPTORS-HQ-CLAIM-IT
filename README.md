@@ -76,8 +76,11 @@ The database sets itself up on every start (tables and columns are added as need
   **adults** (parents/guardians, coaches, volunteers). Adults with an email sign in with it. One record per person.
 - **Access & people** (per board): who's on the board, their group (e.g. 10U) and tags (e.g. Catcher). Levels and
   sessions can be limited to groups or tags.
-- **Sign-in**: an emailed link, a password (optional or required), or a one-time code from an admin. The first sign-in
-  goes through a short Welcome step (name, password, phone), filled in from People when known.
+- **Sign-in**: an emailed link, a password, or a one-time code from an admin. The first sign-in goes through a short
+  Welcome step (name, password, phone), filled in from People when known. **Passwords: Optional** (App Settings →
+  Accounts & sign-in): links or passwords, either way. **Passwords: Required**: everyone sets a password on their first
+  sign-in (which uses a link); after that a link request is refused ("Your account uses a password") and email is only
+  for Forgot password. Admins too.
 
 ---
 
@@ -195,6 +198,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.30.1** Passwords: Required now means password sign-in after the first time (email only for Forgot password).
 - **v0.30** Cleanup: old-data tool; app independent of the old tables; dead code and unused styles removed (visually
   identical, checked with before/after screenshots); fixes found along the way (new 1–2-level boards couldn't be
   duplicated; renaming a group or tag didn't update level limits; Locations counted old data only); phone board tabs

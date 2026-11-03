@@ -53,6 +53,12 @@ router.post("/login", wrap(async (req, res) => {
     catch (e) { console.error(e.message); return res.status(502).send(v.loginPage({ error: "We couldn't send the text. Try a sign-in link instead.", email: who })); }
     return res.send(v.codePage({ email: who, sentTo: A.prettyPhone(u.phone), devCodeShown: SMS.dev() ? code : "" }));
   }
+  // Passwords required: once someone has a password, they sign in with it; email is only for Forgot password
+  // (the first sign-in still uses a link, to confirm the email and set a password)
+  if (A.settings().passwords === "required" && found.user && found.user.password_hash && !req.shadow) {
+    await A.logEvent(req, { userId: found.user.id, identity: who, method: "email link", ok: false, reason: "uses a password" });
+    return res.send(v.loginPage({ error: "Your account uses a password. Sign in with it below, or choose Forgot password? to get an email to reset it.", email: who, pwOnly: true }));
+  }
   // emailed link: an email signs in (or creates) that account; a phone sends the link to the account's email
   if (found.email) {
     if (!found.user && A.settings().newAccounts === "approval" && !(await A.knownEmail(found.email))) {
