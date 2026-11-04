@@ -236,6 +236,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.34.2** Messages ("Saved", errors) float bottom right (along the bottom on phones) instead of pushing the page down;
+  success fades after 6 seconds (hover keeps it), errors stay until closed. Sign-in screens keep theirs in place.
 - **v0.34.1** Board Setup: the tree's ⋯ menu floats above the page (it was cut off inside the tree box).
 - **v0.34** Add session: split into time slots, pick dates on a calendar; Copy a day onto other days.
 - **v0.33.3** What stays on screen while scrolling, chosen screen by screen.
