@@ -90,8 +90,10 @@ The database sets itself up on every start (tables and columns are added as need
 - **All Boards** (dashboard): tabs All · Published · Draft · Archived; search, sort; each card shows the next date and
   claims. **+ Create Board** is a three-step wizard (Details · Structure · Settings). **Duplicate** copies a board's
   setup (optionally sessions moved to a new first day, people, coaches; never claims).
-- A board's tabs: **Board setup** (the tree of levels and sessions: add, rename, duplicate, delete; **Repeat weekly**
-  for sessions; each session's **People** page to add or remove someone directly) · **Board details** · **Access &
+- A board's tabs: **Board setup** (the tree of levels and sessions: add, rename, duplicate, delete). **Add session** can
+  **Split into time slots** (e.g. 3:00 to 7:00, a slot every 30 minutes, the same spots each) and make them on **Just this
+  date**, **Repeat weekly**, or **Pick dates on a calendar** (200 sessions at most at once). **Copy a day** copies every
+  session on one day (this level or the whole board) onto days picked on a calendar, skipping any already there; each session's **People** page to add or remove someone directly) · **Board details** · **Access &
   people** · **Board defaults** · **Notifications**.
 - **Preview** shows the sign-up page as any person on the board. **Publish** opens it to families.
 - **Archive**, then **Delete permanently** (type the board's name) when it's truly done.
@@ -234,6 +236,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.34.1** Board Setup: the tree's ⋯ menu floats above the page (it was cut off inside the tree box).
+- **v0.34** Add session: split into time slots, pick dates on a calendar; Copy a day onto other days.
 - **v0.33.3** What stays on screen while scrolling, chosen screen by screen.
 - **v0.33.2** Only the title band stays put while scrolling; the logo tucks into the top bar once scrolled.
 - **v0.33.1** Sticky title band, tabs, filters, Apply bar and column headings while scrolling; ↑ Top.

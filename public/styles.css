@@ -2768,3 +2768,15 @@ thead th.stuck { background: #fff; box-shadow: inset 0 -1px 0 #E3E8F0, 0 -6px 0 
 @media (min-width: 761px) { .table-wrap.head-stuck { overflow: visible !important; } }
 /* cards keep their rounded corners but let sticky pieces inside them stick */
 .d-card:has(.stuck) { overflow: clip; }
+/* Add session: split into slots, which days, and the pick-days calendar (also used by Copy a day) */
+.sd-split { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; } .sd-split select { width: auto; }
+.sd-when { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 4px 0 6px; } .sd-when .radio-row { margin: 0; }
+.cal-pick { max-width: 320px; border: 1px solid #E3E8F0; border-radius: 12px; padding: 10px; background: #fff; }
+.cal-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; } .cal-h b { font: 700 14px Inter, sans-serif; color: #0B1930; }
+.cal-nav { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #c9d1de; background: #fff; font-size: 16px; line-height: 1; cursor: pointer; } .cal-nav:hover { border-color: #0B1930; }
+.cal-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; } .cal-w { text-align: center; font: 700 11px Inter, sans-serif; color: #5B6B82; padding: 2px 0; }
+.cal-d { height: 34px; border-radius: 8px; border: 1px solid transparent; background: #F6F8FB; color: #0B1930; font: 600 13px Inter, sans-serif; cursor: pointer; }
+.cal-d:hover { border-color: #8DDC32; } .cal-d.on { background: #8DDC32; color: #0B1930; font-weight: 800; } .cal-d.today { box-shadow: inset 0 0 0 1px #0B1930; } .cal-d.past:not(.on) { color: #9aa6b8; }
+.cal-n { margin: 6px 0 0; } .cd-count { font-weight: 600; color: #0B1930; }
+/* the tree's ⋯ menu floats above the page (the tree box scrolls and would cut it off) */
+.tn-menu.tn-float { position: fixed !important; right: auto !important; bottom: auto !important; z-index: 200; }

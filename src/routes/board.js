@@ -178,25 +178,84 @@ function repeatDates(first, until, days) {
   for (let t = start; t <= end && out.length < 200; t += 864e5) { const d = new Date(t); if (days.includes(d.getUTCDay())) out.push(d.toISOString().slice(0, 10)); }
   return out;
 }
+// the start/end times a session (or a split range) makes: one, or a slot every N minutes from start to end
+function slotTimes(start, end, every) {
+  const m = (t) => { const [h, mi] = t.split(":").map(Number); return h * 60 + mi; }, hm = (x) => `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
+  const a = m(start), b = m(end); if (!(every > 0)) return [[start, end]];
+  const out = []; for (let t = a; t + every <= b && out.length < 200; t += every) out.push([hm(t), hm(t + every)]);
+  return out;
+}
+const MAX_AT_ONCE = 200;
 router.post("/:sid/items", wrap(async (req, res) => {
-  const sc = await board(req); const nodeId = int(req.body.node_id) || null;
-  const v = await readItem(req.body); if (v.err) return go(res, at(sc.id, nodeId), { err: v.err });
-  // Repeat weekly: one session per chosen weekday, from the date through "until", same times and spots
-  if (req.body.repeat === "1" && v.startsAt) {
-    const days = [].concat(req.body.days || []).map((x) => int(x)).filter((x) => x >= 0 && x <= 6);
-    const until = str(req.body.until);
-    if (!days.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)) return go(res, at(sc.id, nodeId), { err: "For a repeat, pick the days and an end date." });
-    const dates = repeatDates(str(req.body.date), until, days);
-    if (!dates.length) return go(res, at(sc.id, nodeId), { err: "No dates match those days between the start and end dates." });
-    try {
-      for (const d of dates) await E.addItem({ boardId: sc.id, nodeId, title: v.title, capacity: v.capacity, location: v.location,
-        startsAt: await ts(d, str(req.body.start_time)), endsAt: await ts(d, str(req.body.end_time)) });
-    } catch (e) { return fail(res, at(sc.id, nodeId), e); }
-    return go(res, at(sc.id, nodeId), { ok: `Added ${dates.length} session${dates.length === 1 ? "" : "s"}, ${dates[0]} through ${dates[dates.length - 1]}${dates.length === 200 ? " (200 is the most at once)" : ""}.` });
+  const sc = await board(req); const nodeId = int(req.body.node_id) || null, b = req.body;
+  const mode = b.when_mode || (b.repeat === "1" ? "weekly" : "once");
+  // the dates: one, a weekly repeat, or days picked on the calendar
+  let dates = null;
+  if (mode === "dates") {
+    dates = [...new Set(String(b.dates || "").split(",").map((x) => x.trim()).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x)))].sort();
+    if (!dates.length) return go(res, at(sc.id, nodeId), { err: "Pick at least one date on the calendar." });
+    b.date = dates[0];
   }
-  try { await E.addItem({ boardId: sc.id, nodeId, ...v }); } catch (e) { return fail(res, at(sc.id, nodeId), e); }
-  if (sc.board_type === "rsvp") return go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}".` });
-  go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}" with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}.` });
+  const v = await readItem(b); if (v.err) return go(res, at(sc.id, nodeId), { err: v.err });
+  if (mode === "weekly" && v.startsAt) {
+    const days = [].concat(b.days || []).map((x) => int(x)).filter((x) => x >= 0 && x <= 6), until = str(b.until);
+    if (!days.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)) return go(res, at(sc.id, nodeId), { err: "For a repeat, pick the days and an end date." });
+    dates = repeatDates(str(b.date), until, days);
+    if (!dates.length) return go(res, at(sc.id, nodeId), { err: "No dates match those days between the start and end dates." });
+  }
+  if (!dates && v.startsAt) dates = [str(b.date)];
+  // the times: one session, or split into slots
+  const every = v.startsAt && b.split === "1" ? int(b.every) : 0;
+  if (every && ![5, 10, 15, 20, 30, 45, 60, 90, 120].includes(every)) return go(res, at(sc.id, nodeId), { err: "Pick how long each slot is." });
+  const times = v.startsAt ? slotTimes(str(b.start_time), str(b.end_time), every) : [];
+  if (every && !times.length) return go(res, at(sc.id, nodeId), { err: "The time range is shorter than one slot." });
+  if (!v.startsAt) { try { await E.addItem({ boardId: sc.id, nodeId, ...v }); } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+    return go(res, at(sc.id, nodeId), { ok: `Added "${v.title}".` }); }
+  const total = dates.length * times.length;
+  if (total > MAX_AT_ONCE) return go(res, at(sc.id, nodeId), { err: `That would make ${total} sessions; ${MAX_AT_ONCE} is the most at once. Pick fewer dates or longer slots.` });
+  try {
+    for (const d of dates) for (const [st, en] of times)
+      await E.addItem({ boardId: sc.id, nodeId, title: v.title, capacity: v.capacity, location: v.location, startsAt: await ts(d, st), endsAt: await ts(d, en) });
+  } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+  const nice = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  if (total === 1) return go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}"${sc.board_type === "rsvp" ? "" : ` with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}`}.` });
+  go(res, at(sc.id, nodeId), { ok: `Added ${total} sessions${times.length > 1 ? ` (${times.length} slots a day)` : ""}${dates.length > 1 ? ` on ${dates.length} days, ${nice(dates[0])} through ${nice(dates[dates.length - 1])}` : ` on ${nice(dates[0])}`}.` });
+}));
+// ---------- Copy a day: every session on one day (this level, or the whole board) onto other days ----------
+const LOCAL = (col) => `to_char(${col} AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD')`;
+async function scopeNodes(sc, nodeId, scope) {
+  if (scope === "board" || !nodeId) return null;   // null = the whole board
+  return (await query(`WITH RECURSIVE t AS (SELECT id FROM board_nodes WHERE id=$1 UNION ALL SELECT n.id FROM board_nodes n JOIN t ON n.parent_id=t.id) SELECT id FROM t`, [nodeId])).rows.map((r) => r.id);
+}
+router.get("/:sid/days", wrap(async (req, res) => {
+  const sc = await board(req); const nodes = await scopeNodes(sc, int(req.query.node), req.query.scope);
+  const rows = (await query(`SELECT ${LOCAL("starts_at")} AS day, count(*)::int AS n FROM board_items WHERE schedule_id=$1 AND starts_at IS NOT NULL AND canceled_at IS NULL
+    ${nodes ? "AND node_id = ANY($2)" : ""} GROUP BY 1 ORDER BY 1`, nodes ? [sc.id, nodes] : [sc.id])).rows;
+  res.json({ ok: true, days: rows });
+}));
+router.post("/:sid/copy-day", wrap(async (req, res) => {
+  const sc = await board(req); const nodeId = int(req.body.node_id) || null, from = str(req.body.from);
+  const nodes = await scopeNodes(sc, nodeId, req.body.scope);
+  const to = [...new Set(String(req.body.to || "").split(",").map((x) => x.trim()).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x) && x !== from))].sort();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return go(res, at(sc.id, nodeId), { err: "Pick the day to copy." });
+  if (!to.length) return go(res, at(sc.id, nodeId), { err: "Pick at least one day to copy it to." });
+  const src = (await query(`SELECT *, to_char(starts_at AT TIME ZONE 'America/Chicago', 'HH24:MI') AS st, to_char(ends_at AT TIME ZONE 'America/Chicago', 'HH24:MI') AS en
+    FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL AND ${LOCAL("starts_at")}=$2 ${nodes ? "AND node_id = ANY($3)" : ""} ORDER BY starts_at, id`,
+    nodes ? [sc.id, from, nodes] : [sc.id, from])).rows;
+  if (!src.length) return go(res, at(sc.id, nodeId), { err: "That day has no sessions to copy." });
+  if (src.length * to.length > MAX_AT_ONCE) return go(res, at(sc.id, nodeId), { err: `That would make ${src.length * to.length} sessions; ${MAX_AT_ONCE} is the most at once. Pick fewer days.` });
+  let made = 0, skipped = 0;
+  try {
+    for (const d of to) for (const it of src) {
+      const startsAt = await ts(d, it.st), endsAt = it.ends_at ? await ts(d, it.en) : null;
+      const dup = (await query(`SELECT 1 FROM board_items WHERE schedule_id=$1 AND node_id IS NOT DISTINCT FROM $2 AND starts_at=$3 AND coalesce(title,'')=coalesce($4,'') AND canceled_at IS NULL`, [sc.id, it.node_id, startsAt, it.title])).rowCount;
+      if (dup) { skipped++; continue; }
+      await E.addItem({ boardId: sc.id, nodeId: it.node_id, title: it.title, capacity: it.capacity, location: it.location, startsAt, endsAt, settings: it.settings || {} });
+      made++;
+    }
+  } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+  const nice = (x) => new Date(x + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  go(res, at(sc.id, nodeId), { ok: `Copied ${nice(from)} onto ${to.length} day${to.length === 1 ? "" : "s"}: ${made} session${made === 1 ? "" : "s"} added${skipped ? `, ${skipped} already there (skipped)` : ""}.` });
 }));
 router.post("/:sid/items/:iid", wrap(async (req, res) => {
   const sc = await board(req);
