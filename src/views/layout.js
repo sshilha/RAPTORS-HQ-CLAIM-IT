@@ -8,6 +8,9 @@ function toastHtml(flash = {}) {
   if (!flash.ok && !flash.err) return "";
   return `<div class="toasts" aria-live="polite">${flash.ok ? `<p class="notice toast" role="status">${esc(flash.ok)}</p>` : ""}${flash.err ? `<p class="alert toast" role="alert">${esc(flash.err)}</p>` : ""}</div>`;
 }
+// a copy of the app that isn't the live one (Railway: ENV_LABEL=STAGING): says so on every page
+const ENV_LABEL = String(process.env.ENV_LABEL || "").trim().slice(0, 24);
+const envBar = () => ENV_LABEL ? `<div class="env-bar" role="note"><b>${esc(ENV_LABEL)}</b> · test copy · not the live app</div><div class="env-mark" aria-hidden="true">${esc(ENV_LABEL)}</div>` : "";
 function flashHtml(flash = {}) {
   return (flash.ok ? `<p class="notice" role="status">${esc(flash.ok)}</p>` : "") +
          (flash.err ? `<p class="alert" role="alert">${esc(flash.err)}</p>` : "");
@@ -23,7 +26,7 @@ function head(title) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0c192e">
-<title>${esc(title)} | ${esc(LABELS.app_name)}</title>
+<title>${ENV_LABEL ? `[${esc(ENV_LABEL)}] ` : ""}${esc(title)} | ${esc(LABELS.app_name)}</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -62,7 +65,7 @@ const foot = () => `<footer class="foot">© ${new Date().getFullYear()} ${esc(LA
 // Signed-out pages use the dark sign-in gate, like the tryout app's admin login
 function gateLayout({ title, body, flash }) {
   return `${head(title)}
-<body class="gate">${shadowBar()}
+<body class="gate">${envBar()}${shadowBar()}
 <main class="gate-box">
   <h1 class="gate-brand"><img class="gate-logo" src="/claim-it-logo.png" width="900" height="450" alt="${esc(LABELS.app_name)}"></h1>
   ${LABELS.org_name ? `<p class="gate-sub">${esc(LABELS.org_name)}</p>` : ""}
@@ -77,7 +80,7 @@ ${FLASH_JS}
 
 function publicLayout({ title, body, flash }) {
   return `${head(title)}
-<body>${shadowBar()}
+<body>${envBar()}${shadowBar()}
 <header class="appbar"><div class="appbar-inner">
   <span class="brand"><img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></span>
   <span class="spacer"></span><a class="link-btn" href="/">Sign in</a>
@@ -151,7 +154,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
   if (dash) return `${head(title)}
-<body class="member-area dash">${shadowBar()}
+<body class="member-area dash">${envBar()}${shadowBar()}
 ${user ? dashHeader(user, admin, coach, tab) : `<header class="dh"><div class="dh-in"><a class="dh-logo" href="/"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
   <div class="dh-right dh-guest"><a class="dh-signin" href="/">Sign in</a></div></div></header>`}
 ${toastHtml(flash)}<main class="dash-page">${body}</main>
@@ -161,7 +164,7 @@ ${FLASH_JS}
 </body>
 </html>`;
   return `${head(title)}
-<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">${shadowBar()}
+<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">${envBar()}${shadowBar()}
 ${dashHeader(user, admin, coach, tab, false)}
 ${toastHtml(flash)}<main class="page${w}${ro}">${body}</main>
 ${foot(user, tab)}

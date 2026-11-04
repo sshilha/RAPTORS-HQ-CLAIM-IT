@@ -175,7 +175,8 @@ async function render(key, own = {}, override = null) {
 // send one: the template, filled in, branded
 async function send(key, to, own = {}) {
   const r = await render(key, own);
-  return require("./email").sendEmail({ to, subject: r.subject, html: r.html, text: r.text, replyTo: r.replyTo, fromName: r.fromName });
+  const env = String(process.env.ENV_LABEL || "").trim();   // a staging copy says so in every subject
+  return require("./email").sendEmail({ to, subject: env ? `[${env}] ${r.subject}` : r.subject, html: r.html, text: r.text, replyTo: r.replyTo, fromName: r.fromName });
 }
 // sample values for the preview and test emails
 const SAMPLE = { person_first: "Ava", person_name: "Ava Smith", first_name: "Jane", board_name: "Winter Training 2027", session: "Hitting · Tue, Nov 10, 5:00 PM–6:00 PM",

@@ -74,7 +74,7 @@
     var e = [].slice.call(document.querySelectorAll(sel)).filter(function (x) { return x.offsetParent && x !== bandEl; })[0]; return e ? [e] : [];
   }
   function stick() {
-    var header = document.querySelector("header.dh"), top = header && getComputedStyle(header).position === "sticky" ? header.offsetHeight : 0;
+    var header = document.querySelector("header.dh"), top = header && getComputedStyle(header).position === "sticky" ? header.offsetHeight + (parseFloat(getComputedStyle(header).top) || 0) : 0;   // below the top bar (and a staging stripe above it)
     var phone = window.innerWidth <= 760;
     document.querySelectorAll(".stuck").forEach(function (e) { e.classList.remove("stuck"); e.style.top = ""; e.style.zIndex = ""; });
     document.querySelectorAll(".table-wrap.head-stuck").forEach(function (w) { w.classList.remove("head-stuck"); });

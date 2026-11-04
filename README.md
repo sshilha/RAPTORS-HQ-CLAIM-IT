@@ -23,6 +23,7 @@ the server; `public/` holds the stylesheet, images and two small browser scripts
 | `DEV_SHOW_LINK` | **Must be `false` (or unset) in production.** When `true`, sign-in links are shown on screen (local testing only). |
 | `GOOGLE_MAPS_API_KEY` | Optional: address suggestions when adding Locations (Places API New). |
 | `NO_REMINDERS` | Optional: `1` turns off the reminder checker (local testing). |
+| `ENV_LABEL` | **Staging only**, e.g. `STAGING`: a striped bar on every page, a faint watermark, `[STAGING]` in the tab title and in every email subject. Leave it unset in production. |
 
 The database sets itself up on every start (tables and columns are added as needed). Railway runs `npm start`.
 
@@ -236,6 +237,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.34.3** `ENV_LABEL` marks a staging copy on every page, tab title and email subject.
 - **v0.34.2** Messages ("Saved", errors) float bottom right (along the bottom on phones) instead of pushing the page down;
   success fades after 6 seconds (hover keeps it), errors stay until closed. Sign-in screens keep theirs in place.
 - **v0.34.1** Board Setup: the tree's ⋯ menu floats above the page (it was cut off inside the tree box).
