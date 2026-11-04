@@ -201,9 +201,14 @@ test/check.js             page health check (npm run check)
 - **Tables:** every table heading sorts on click (▲/▼, remembered per table for the session) via `public/app-ui.js`.
   Editing grids where row order is saved opt out: `levels`, `limits`, the import review, or add `data-nosort`. Put a
   `data-sort="…"` on a cell to sort it by a different value than its text.
-- **While scrolling:** only the page's title band (the first navy band: App Settings, a board's header, My Claims…) stays
-  put under the top bar; everything else scrolls behind it. Once scrolled, the logo shrinks to fit inside the top bar,
-  and on phones the band shrinks to just its title. "↑ Top" appears far down a long page. (app-ui.js, `.page-band`)
+- **While scrolling:** what stays on screen is chosen per screen in `public/app-ui.js` (`SCREENS`: a path pattern and the
+  pieces that stick, top to bottom; "band" = the navy title band, "head" = the tables' column headings). Everything else
+  scrolls behind them. Phones keep only the band (shrunk to its title) plus Check-in's bars. The logo tucks into the top bar
+  once scrolled; "↑ Top" appears far down a long page. Current choices: All Boards band+tabs · Board setup band+board tabs ·
+  other board screens band+board tabs+sub-tabs · People band+main tabs+filters · other App Settings band+main tabs+sub-tabs+
+  headings · Reports band+bar+sub-tabs+headings · Check-in day band+day bar · session check-in band+counts+Signed up ·
+  My Claims band+Who/When · My Account band+tabs+sub-tabs · Create Board band+steps · Duplicate band+bar · sign-up page
+  unchanged (only the sessions scroll).
 - **After a change** (any POST form), the page returns to the same scroll spot (and scrolling lists), unless it redirects
   to an anchor that exists on the page.
 - **Phones:** nothing wider than the screen; tab bars scroll sideways; long text and toolbars wrap.
@@ -229,6 +234,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.33.3** What stays on screen while scrolling, chosen screen by screen.
 - **v0.33.2** Only the title band stays put while scrolling; the logo tucks into the top bar once scrolled.
 - **v0.33.1** Sticky title band, tabs, filters, Apply bar and column headings while scrolling; ↑ Top.
 - **v0.33** Sortable table headings everywhere; pages keep their scroll position after a change.

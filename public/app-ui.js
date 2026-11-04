@@ -45,11 +45,46 @@
     });
     try { var saved = JSON.parse(sessionStorage.getItem("sort:" + KEY + ":" + table.dataset.sortId) || "null"); if (saved) sortTable(table, saved[0], saved[1], false); } catch (e) {}
   });
-  // ---------- 1b. the page's title band stays put under the top bar; everything else scrolls behind it ----------
+  // ---------- 1b. what stays on screen while you scroll, screen by screen ----------
+  // Each screen lists what sticks, top to bottom (each right under the one above). Everything else scrolls behind.
+  // "band" = the page's navy title band. "head" = the column headings of the page's table. Phones keep less.
+  var qs = new URLSearchParams(location.search), path = location.pathname;
+  var SCREENS = [
+    [/^\/admin\/settings\/?$/, ["band", ".bh2-tabs.dash-tabs"]],                                   // All Boards
+    [/^\/admin\/people\/?$/, ["band", ".app-tabs", ".dir-filters-bar"]],                            // People
+    [/^\/admin\/setup\/new/, ["band", ".wz-tabs"]],                                                 // Create Board
+    [/^\/admin\/setup\/schedules\/\d+\/copy/, ["band", ".cp-gbar"]],                              // Duplicate
+    [/^\/admin\/(setup\/?$|setup\/schedule(\?|$)|setup\/notifications|members|b\/)/, ["band", ".board-tabs", ".sub-tabs"]],   // a board's screens
+    [/^\/(admin\/(people|requests|signins|settings\/app)|shadow)/, ["band", ".app-tabs", ".sub-tabs", "head"]],   // other App Settings
+    [/^\/reports/, ["band", ".r-gbar", ".sub-tabs", "head"]],                                        // Reports
+    [/^\/checkin\/i\//, ["band", ".ck-gbar", ".ck-listbar"]],                                       // a session's check-in
+    [/^\/checkin/, ["band", ".ck-gbar"]],                                                          // Check-in day
+    [/^\/dashboard/, ["band", ".d-filt"]],                                                         // My Claims
+    [/^\/account/, ["band", ".a-tabs-main", ".a-subs"]],                                           // My Account
+    [/^\//, ["band"]]                                                                              // anything else
+  ];
+  var PHONE_KEEP = { band: 1, ".ck-gbar": 1, ".ck-listbar": 1 };
+  var plan = (SCREENS.filter(function (r) { return r[0].test(path); })[0] || [0, ["band"]])[1];
   var bandEl = [].slice.call(document.querySelectorAll(".bh2")).filter(function (e) { return !e.closest("header, dialog"); })[0];
+  if (bandEl) bandEl.classList.add("page-band");
+  if (plan.indexOf(".dir-filters-bar") >= 0) document.documentElement.classList.add("stick-filters");   // People: its toolbar lets the filters row through
+  function pieces(sel) {
+    if (sel === "band") return bandEl ? [bandEl] : [];
+    if (sel === "head") return [].concat.apply([], [].slice.call(document.querySelectorAll("table.sortable")).filter(function (t) { return t.tHead && t.offsetParent; }).map(function (t) { return [].slice.call(t.tHead.rows[0].cells); }));
+    var e = [].slice.call(document.querySelectorAll(sel)).filter(function (x) { return x.offsetParent && x !== bandEl; })[0]; return e ? [e] : [];
+  }
   function stick() {
     var header = document.querySelector("header.dh"), top = header && getComputedStyle(header).position === "sticky" ? header.offsetHeight : 0;
-    if (bandEl) { bandEl.classList.add("page-band"); bandEl.style.top = top + "px"; }
+    var phone = window.innerWidth <= 760;
+    document.querySelectorAll(".stuck").forEach(function (e) { e.classList.remove("stuck"); e.style.top = ""; e.style.zIndex = ""; });
+    document.querySelectorAll(".table-wrap.head-stuck").forEach(function (w) { w.classList.remove("head-stuck"); });
+    plan.forEach(function (sel, i) {
+      if (phone && !PHONE_KEEP[sel]) return;
+      var els = pieces(sel); if (!els.length) return;
+      if (sel === "head") els.forEach(function (th) { var w = th.closest(".table-wrap"); if (w) w.classList.add("head-stuck"); });
+      els.forEach(function (e) { e.classList.add("stuck"); e.style.top = top + "px"; e.style.zIndex = String(40 - i); });
+      if (sel !== "head") top += els[0].offsetHeight;
+    });
   }
   stick(); window.addEventListener("resize", stick); window.addEventListener("load", stick);
   // once you scroll, the logo tucks inside the top bar (so it never covers the page)
