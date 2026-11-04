@@ -201,9 +201,9 @@ test/check.js             page health check (npm run check)
 - **Tables:** every table heading sorts on click (▲/▼, remembered per table for the session) via `public/app-ui.js`.
   Editing grids where row order is saved opt out: `levels`, `limits`, the import review, or add `data-nosort`. Put a
   `data-sort="…"` on a cell to sort it by a different value than its text.
-- **Staying on screen while scrolling** (desktop): the App Settings title band and its main tabs, a board's tabs, and on
-  lists the filters row, the checked/Apply bar and the column headings stick under the site header (positions measured
-  in app-ui.js `STICK`). Phones: only the main tab bar. "↑ Top" appears far down a long page.
+- **While scrolling:** only the page's title band (the first navy band: App Settings, a board's header, My Claims…) stays
+  put under the top bar; everything else scrolls behind it. Once scrolled, the logo shrinks to fit inside the top bar,
+  and on phones the band shrinks to just its title. "↑ Top" appears far down a long page. (app-ui.js, `.page-band`)
 - **After a change** (any POST form), the page returns to the same scroll spot (and scrolling lists), unless it redirects
   to an anchor that exists on the page.
 - **Phones:** nothing wider than the screen; tab bars scroll sideways; long text and toolbars wrap.
@@ -229,6 +229,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.33.2** Only the title band stays put while scrolling; the logo tucks into the top bar once scrolled.
 - **v0.33.1** Sticky title band, tabs, filters, Apply bar and column headings while scrolling; ↑ Top.
 - **v0.33** Sortable table headings everywhere; pages keep their scroll position after a change.
 - **v0.32.3** People table: long family (and contact) text wraps inside its column.
