@@ -45,6 +45,30 @@
     });
     try { var saved = JSON.parse(sessionStorage.getItem("sort:" + KEY + ":" + table.dataset.sortId) || "null"); if (saved) sortTable(table, saved[0], saved[1], false); } catch (e) {}
   });
+  // ---------- 1b. what stays on screen while you scroll ----------
+  // In order from the top: the main tab bar (App Settings / a board), then on lists the filters, the checked bar,
+  // and the table's column headings. Each sticks right under the ones above it (measured, so wrapping is fine).
+  var STICK = [".app-band", ".app-tabs", ".board-tabs", ".dir-filters-bar", ".bulk-bar", ".dir2 thead th, table.sortable:not(.dir2) thead th"];
+  var band = document.querySelector(".app-tabs"); band = band && band.previousElementSibling;   // App Settings' title band stays too
+  if (band && band.classList.contains("bh2")) band.classList.add("app-band");
+  function stick() {
+    var header = document.querySelector("header.dh"), top = header && getComputedStyle(header).position === "sticky" ? header.offsetHeight : 0;
+    var phone = window.innerWidth <= 760;
+    STICK.forEach(function (sel, i) {
+      var els = [].slice.call(document.querySelectorAll(sel)).filter(function (e) { return e.offsetParent; }); if (!els.length) return;
+      var isHead = /thead/.test(sel);
+      if (phone && (i === 0 || i > 2)) { els.forEach(function (e) { e.classList.remove("stuck"); e.style.top = ""; }); return; }   // phones: only the main tabs stick
+      var h = 0;
+      els.forEach(function (e) { e.classList.add("stuck"); e.style.top = top + "px"; e.style.zIndex = String(40 - i); if (!isHead) h = Math.max(h, e.offsetHeight); else h = Math.max(h, e.offsetHeight); });
+      if (!isHead) top += h;
+    });
+  }
+  stick(); window.addEventListener("resize", stick); window.addEventListener("load", stick);
+  // a "↑ Top" button once you're far down a long page
+  var up = document.createElement("button"); up.type = "button"; up.className = "to-top"; up.textContent = "↑ Top"; up.setAttribute("aria-label", "Back to the top");
+  up.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+  document.body.appendChild(up);
+  window.addEventListener("scroll", function () { up.classList.toggle("on", window.scrollY > window.innerHeight * 1.5); }, { passive: true });
   // ---------- 2. keep your place after a change ----------
   function scrollers() { return [].slice.call(document.querySelectorAll(".table-wrap, .sh-list, .imp-dlg-body, .ck-scroll, .rv-cols, [data-keep-scroll]")); }
   var PLACE = "place:" + location.pathname;   // the page you come back to after a change may have a different ?query
