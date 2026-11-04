@@ -43,7 +43,7 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
   // --- center ---
   const head = `<div class="sp-head"><span class="sp-ico">${t ? LEVEL_IC[lvl % LEVEL_IC.length] : IC.board}</span>
       <div class="sp-title"><h2>${esc(t ? t.node.name : sc.name)}</h2>
-        <span>${t ? `${esc(word(lvl).one)} · ` : ""}${plural(c.items, L.slot)} · ${c.spots} total spots · ${c.claimed} claimed</span></div>
+        <span>${t ? `${esc(word(lvl).one)} · ` : ""}${plural(c.items, L.slot)} · ${(sc && sc.board_type === "rsvp") ? `${c.claimed} going` : `${c.spots} total spots · ${c.claimed} claimed`}</span></div>
       ${t && !locked ? `<div class="sp-acts"><button type="button" class="sb-btn" data-rename="${t.node.id}" data-name="${esc(t.node.name)}">${IC.edit}Rename</button>
         <button type="button" class="sb-btn" data-dup-node="${t.node.id}" data-name="${esc(t.node.name)}">${IC.copy}Duplicate</button>
         <button type="button" class="sb-btn danger" data-delete="${t.node.id}" data-name="${esc(t.node.name)}">${IC.trash}Delete</button></div>` : ""}</div>`;
@@ -61,14 +61,14 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
           ${(() => { const loc = it.location || (t && t.eff.location) || sc.event_location; if (!loc) return "";
             const src = it.location ? "" : t && t.eff.location ? (t.eff.from.location && t.eff.from.location !== sc.name ? `from ${t.eff.from.location}` : "board") : "board";
             return `<span>${IC.pin}${esc(loc)}${src ? ` <i class="fine">(${esc(src)})</i>` : ""}</span>`; })()}</span>
-        <span class="ss-fill"><b>${it.claimed} / ${it.capacity}</b> claimed${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}
-          <span class="ss-bar"><i style="width:${Math.min(100, pct)}%"></i></span><small>${it.capacity - it.claimed > 0 ? `${it.capacity - it.claimed} open` : "Full"} · ${pct}%</small></span>
+        ${(sc && sc.board_type === "rsvp") ? `<span class="ss-fill"><b>${it.claimed}</b> going</span>` : `<span class="ss-fill"><b>${it.claimed} / ${it.capacity}</b> claimed${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}
+          <span class="ss-bar"><i style="width:${Math.min(100, pct)}%"></i></span><small>${it.capacity - it.claimed > 0 ? `${it.capacity - it.claimed} open` : "Full"} · ${pct}%</small></span>`}
         <span class="ss-acts"><a class="sb-btn sm ic" href="/admin/b/${sc.id}/items/${it.id}/people" title="People: see, add, or remove" aria-label="People">${IC.people}</a>
           ${locked ? "" : `<button type="button" class="sb-btn sm ic" title="Edit" aria-label="Edit" data-item='${esc(JSON.stringify({ id: it.id, node: it.node_id || "", title: it.title, capacity: it.capacity, location: it.location || "", date: st ? st.date : "", start: st ? st.time : "", end: en ? en.time : "" }))}'>${IC.edit}</button>
           <button type="button" class="sb-btn sm ic" title="Duplicate, then change what's different" aria-label="Duplicate" data-dup='${esc(JSON.stringify({ node: it.node_id || "", title: it.title, capacity: it.capacity, location: it.location || "", date: st ? st.date : "", start: st ? st.time : "", end: en ? en.time : "" }))}'>${IC.copy}</button>
           <button type="button" class="sb-btn sm ic danger" title="Delete" data-del-item="${it.id}" data-name="${esc(slotName(it))}" data-claims="${it.claimed + it.waitlisted}" aria-label="Delete">${IC.trash}</button>`}</span></li>`;
     };
-    body = `<section class="sp-card"><div class="sp-card-h">${IC.clock}<b>${esc(L.slot.many)}</b><span class="fine">(spots to claim)</span>
+    body = `<section class="sp-card"><div class="sp-card-h">${IC.clock}<b>${esc(L.slot.many)}</b><span class="fine">${(sc && sc.board_type === "rsvp") ? "(events to RSVP)" : "(spots to claim)"}</span>
         ${locked ? "" : `<button type="button" class="sb-btn primary" data-add-item="${t ? t.node.id : ""}">${IC.plus}Add ${esc(L.slot.one.toLowerCase())}</button>`}</div>
       ${items.length ? `<ul class="ss-list">${items.map(row).join("")}</ul>` : `<div class="sp-empty">${IC.clock}<b>No ${esc(L.slot.many.toLowerCase())} yet.</b><span>Add one, and people can start claiming it once the board is published.</span></div>`}</section>`;
   } else {
@@ -141,7 +141,7 @@ function detailsCards(sc) {
     [/<h3>The basics<\/h3>/, sec("basics", "Name & dates", `<b>${esc(sc.name)}</b><br>${esc(dates)}`, IC.board)],
     [/<label class="field-l"><span>Main location/, sec("location", "Location", esc(sc.event_location || "None"), IC.pin) + '<label class="field-l"><span>Main location'],
     [/<label class="field-l"><span>Description/, sec("description", "Description", sc.description ? esc(sc.description.slice(0, 90)) + (sc.description.length > 90 ? "…" : "") : "None", IC.edit) + '<label class="field-l"><span>Description'],
-    [/<h3>Board type<\/h3>/, sec("type", "Board type", require("./setup").boardTypeOf(sc) === "volunteer" ? "Volunteer" : "Program", IC.people)],
+    [/<h3>Board type<\/h3>/, sec("type", "Board type", ({ volunteer: "Volunteer", rsvp: "RSVP" }[require("./setup").boardTypeOf(sc)] || "Program"), IC.people)],
     [/<h3>Picture<\/h3>/, sec("picture", "Picture & short code", sc.image ? `<img class="ch-img" src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt="">` : `<span class="ch-code">${esc(require("./setup").codeOf(sc))}</span>`, IC.eye)],
     [/<h3>Organizers?( <span class="opt">\(optional\)<\/span>)?<\/h3>/, sec("organizer", "Organizer", esc([sc.contact_name, sc.contact_info].filter(Boolean).join(" · ") || "None"), IC.people)],
     [/<h3>Structure<\/h3>/, sec("structure", "Structure & names", esc(keys.map((k) => L[k].many).join(" › ")), IC.tree)],
@@ -174,7 +174,7 @@ function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }
   return `<section class="bh2">
     <div class="bh2-l">${sc.image ? `<span class="d-thumb photo bh2-tile"><img src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code bh2-tile"><b>${esc(require("./setup").codeOf(sc))}</b></span>`}
       <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
-        <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
+        <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${(sc && sc.board_type === "rsvp") ? `${totals.claimed} going` : `${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)`}${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
     <div class="bh2-acts">
       <a class="sb-btn" href="/b/${sc.id}?preview=1" target="_blank" rel="noopener" title="See the board as a family would, even before it's published">${IC.eye}Preview</a>
       ${published && SC.claimMode(sc) === "public" && shareUrl ? `<details class="share-pop"><summary class="sb-btn">Share</summary><div class="share-panel">
@@ -211,7 +211,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
       <div class="tn-row${t.node.id === sel ? " on" : ""}">
         ${t.kids.length ? `<button type="button" class="tn-tog" aria-label="Open or close ${esc(t.node.name)}">${IC.chev}</button>` : `<span class="tn-tog none"></span>`}
         <a class="tn-link" href="/admin/setup?s=${sc.id}&n=${t.node.id}" data-nav="${t.node.id}">${LEVEL_IC[lvl % LEVEL_IC.length]}<span class="tn-name">${esc(t.node.name)}</span>
-          <span class="tn-c" title="${t.count.claimed} claimed of ${t.count.spots} spots">${t.count.spots ? `${t.count.claimed}/${t.count.spots}` : ""}</span></a>
+          <span class="tn-c" title="${t.count.claimed} claimed of ${t.count.spots} spots">${t.count.spots ? ((sc && sc.board_type === "rsvp") ? `${t.count.claimed}` : `${t.count.claimed}/${t.count.spots}`) : ""}</span></a>
         ${locked ? "" : `<span class="tn-more"><button type="button" class="tn-dots" aria-label="More for ${esc(t.node.name)}">⋯</button>
           <span class="tn-menu" hidden>
             ${holds ? `<button type="button" data-add-item="${t.node.id}">${IC.plus}Add ${esc(L.slot.one.toLowerCase())}</button>` : `<button type="button" data-add-node="${t.node.id}" data-word="${esc(childW.one)}">${IC.plus}Add ${esc(childW.one.toLowerCase())}</button>`}
@@ -271,7 +271,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
       <div class="dlg-head"><h2></h2><button type="button" class="dlg-x" data-close>×</button></div>
       ${SC.usesCalendar(sc) ? `<div class="sd-row"><label>Date<input type="date" name="date"></label><label>Start<input type="time" name="start_time"></label><label>End<input type="time" name="end_time"></label></div>` : ""}
       <label><span>Name ${SC.usesCalendar(sc) ? `<span class="opt">(optional when it has a date)</span>` : ""}</span><input name="title" maxlength="80" placeholder="e.g. Lower field"></label>
-      <div class="sd-row"><label>Spots<input type="number" name="capacity" min="1" max="500" required></label><label><span>Location <span class="opt">(optional)</span></span><input name="location" list="app-locations" maxlength="80"></label></div>
+      <div class="sd-row">${(sc && sc.board_type === "rsvp") ? `<input type="hidden" name="capacity" value="500">` : `<label>Spots<input type="number" name="capacity" min="1" max="500" required></label>`}<label><span>Location <span class="opt">(optional)</span></span><input name="location" list="app-locations" maxlength="80"></label></div>
       ${SC.usesCalendar(sc) ? `<fieldset class="sd-rep"><label class="radio-row"><input type="checkbox" name="repeat" value="1"> <b>Repeat weekly</b></label>
         <div class="sd-rep-b" hidden><div class="sd-days">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => `<label><input type="checkbox" name="days" value="${i}"><span>${d}</span></label>`).join("")}</div>
           <label>Until<input type="date" name="until"></label><p class="sd-count fine"></p></div></fieldset>` : ""}

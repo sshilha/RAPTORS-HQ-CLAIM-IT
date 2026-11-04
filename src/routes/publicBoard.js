@@ -16,7 +16,7 @@ const clean = (x, n) => str(x).replace(/\s+/g, " ").slice(0, n);
 router.get("/:code", wrap(async (req, res, next) => {
   const board = await boardFor(req.params.code);
   if (!board) return next();                              // not a new board: the old public page handles it
-  if (board.claim_mode !== "public" || !board.published_at) return res.status(404).send(require("../views/auth").invalidLinkPage("Board links"));
+  if ((board.claim_mode !== "public" || board.board_type === "rsvp") || !board.published_at) return res.status(404).send(require("../views/auth").invalidLinkPage("Board links"));
   if (req.user) return res.redirect(`/b/${board.id}`);      // signed in: the regular sign-up page
   const view = await E.personView(board.id, { athleteId: 0, userId: null, member: null });
   const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [board.id])).rows[0];
@@ -29,7 +29,7 @@ router.get("/:code", wrap(async (req, res, next) => {
 
 router.post("/:code/claim", wrap(async (req, res, next) => {
   const board = await boardFor(req.params.code);
-  if (!board || board.claim_mode !== "public") return next();
+  if (!board || (board.claim_mode !== "public" || board.board_type === "rsvp")) return next();
   const b = req.body, auth = require("../auth");
   const back = str(b.back).startsWith(`/s/${req.params.code}`) ? str(b.back) : `/s/${req.params.code}`;
   const first = clean(b.first_name, 40), last = clean(b.last_name, 40), email = auth.normalizeEmail(b.email);

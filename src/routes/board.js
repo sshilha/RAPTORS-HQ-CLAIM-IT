@@ -195,6 +195,7 @@ router.post("/:sid/items", wrap(async (req, res) => {
     return go(res, at(sc.id, nodeId), { ok: `Added ${dates.length} session${dates.length === 1 ? "" : "s"}, ${dates[0]} through ${dates[dates.length - 1]}${dates.length === 200 ? " (200 is the most at once)" : ""}.` });
   }
   try { await E.addItem({ boardId: sc.id, nodeId, ...v }); } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+  if (sc.board_type === "rsvp") return go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}".` });
   go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}" with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}.` });
 }));
 router.post("/:sid/items/:iid", wrap(async (req, res) => {
@@ -214,6 +215,12 @@ async function spot(req) {
   const it = sc && (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];
   return { sc, it };
 }
+// RSVP: email the families of everyone who hasn't answered this event
+router.post("/:sid/items/:iid/rsvp-remind", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const n = await require("../rsvp").remind(it.id);
+  go(res, `/admin/b/${sc.id}/items/${it.id}/people`, { ok: n ? `Reminded ${n} ${n === 1 ? "family" : "families"} who hadn't answered.` : "Everyone has answered (or the ones left have no email)." });
+}));
 router.get("/:sid/items/:iid/people", wrap(async (req, res) => {
   const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
   const chain = await E.chainFor(it.id);
@@ -227,7 +234,8 @@ router.get("/:sid/items/:iid/people", wrap(async (req, res) => {
   const everyone = (await query(`SELECT id, first_name, last_name, kind FROM athletes WHERE archived_at IS NULL AND id <> ALL($1) ORDER BY lower(last_name), lower(first_name) LIMIT 1000`,
     [[...inIds, ...onBoard.map((p) => p.id)]])).rows;
   const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "setup" });
-  res.send(require("../views/board").spotPeoplePage({ head, user: req.user, flash: flashFrom(req), sc, it, path: chain ? chain.nodes.map((n) => n.name) : [], people, onBoard, everyone }));
+  const rsvp = sc.board_type === "rsvp" ? await require("../rsvp").summary(it.id) : null;
+  res.send(require("../views/board").spotPeoplePage({ rsvp, head, user: req.user, flash: flashFrom(req), sc, it, path: chain ? chain.nodes.map((n) => n.name) : [], people, onBoard, everyone }));
 }));
 router.post("/:sid/items/:iid/people/add", wrap(async (req, res) => {
   const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });

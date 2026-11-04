@@ -7,6 +7,44 @@ const devCode = (code) => (code ? `<div class="devbox"><p>Testing mode: the text
 const shadowContinue = () => { const c = require("../shadow").current(); if (!c.shadow || !c.pending) return "";
   return `<form method="post" action="/shadow/continue" class="sh-cont"><b>Shadow mode</b><span>Continue as <b>${esc(c.pending.name)}</b>${c.pending.name !== c.pending.email ? ` (${esc(c.pending.email)})` : ""}, the way they'd sign in, without their password.</span>
     <button class="btn" type="submit">Continue as ${esc(c.pending.name)} (admin, no password)</button><span class="fine">Or sign in below with their email or password, the way they would.</span></form>`; };
+// ---- plain-language help for people signing in (wording follows the password setting) ----
+const helpEmail = () => require("../catalog").current().change_email || "info@chippewavalleyraptors.com";
+const required = () => require("../accounts").settings().passwords === "required";
+const needHelp = () => `<p class="gh-need">Need help? Email <a href="mailto:${esc(helpEmail())}">${esc(helpEmail())}</a> and we'll get you in.</p>`;
+const firstSteps = () => required()
+  ? [["Type your email", "Use the email you registered with (the one the club has on file)."],
+     ["Tap <b>First time here? Email me a sign-in link</b>", "We'll send you an email right away."],
+     ["Open the email from <b>" + esc(require("../config").LABELS.app_name) + "</b> and tap <b>Sign in</b>", "Not there in a few minutes? Check your spam or junk folder. The link works once, for 15 minutes."],
+     ["Make a password", "At least 8 characters. Write it down somewhere safe."],
+     ["Next time, it's just your email and password", "Forgot it? Tap <b>Forgot password?</b> and we'll email you a link to make a new one."]]
+  : [["Type your email", "Use the email you registered with (the one the club has on file)."],
+     ["Tap <b>Email me a sign-in link</b>", "We'll send you an email right away."],
+     ["Open the email from <b>" + esc(require("../config").LABELS.app_name) + "</b> and tap <b>Sign in</b>", "Not there in a few minutes? Check your spam or junk folder. The link works once, for 15 minutes."],
+     ["That's it, you're in", "You can make a password on the next screen if you'd like, so you don't need an email each time."]];
+const helpBox = () => `<details class="gh-box" open><summary>First time here? Here's what to do</summary>
+  <ol class="gh-steps">${firstSteps().map(([t, d]) => `<li><b class="gh-t">${t}</b><span>${d}</span></li>`).join("")}</ol>
+  <p class="gh-more"><a href="/help">More help, step by step</a></p>${needHelp()}</details>`;
+// the printable help page (/help): the same steps, and answers to common questions
+const helpPage = () => gate("How to sign in", `
+  <div class="gate-card gh-page">
+    <h1>How to sign in</h1>
+    <p class="muted">${esc(require("../config").LABELS.app_name)} is where you sign up for training, events and volunteer shifts with the ${esc(require("../config").LABELS.org_name || "club")}.</p>
+    <h2>The first time</h2>
+    <ol class="gh-steps">${firstSteps().map(([t, d]) => `<li><b class="gh-t">${t}</b><span>${d}</span></li>`).join("")}</ol>
+    <h2>Common questions</h2>
+    <dl class="gh-faq">
+      <dt>Which email do I use?</dt><dd>The one you gave the club when you registered (for example in SportsEngine). If you're not sure, try the email you get club messages at.</dd>
+      <dt>It says "Request an account."</dt><dd>That email isn't on file. Try the other email you might have used, or send the request and the club will set you up.</dd>
+      <dt>I didn't get the email.</dt><dd>Wait a few minutes and check your spam or junk folder. Then go back and try again. Still nothing? Email us (below).</dd>
+      <dt>The link says it expired.</dt><dd>Links work once, for 15 minutes. Go back to the sign-in page and ask for a new one.</dd>
+      ${required() ? `<dt>It says "Your account uses a password."</dt><dd>You've already made a password. Type it in, or tap <b>Forgot password?</b> to make a new one.</dd>` : ""}
+      <dt>I forgot my password.</dt><dd>On the sign-in page, tap <b>Forgot password?</b>. We'll email you a link to make a new one.</dd>
+      <dt>Where are my kids?</dt><dd>After you sign in, your athletes are already there (the club linked them to your email). Missing one? Open <b>My Account → Family</b> and use <b>Add a family member</b>.</dd>
+      <dt>Can I use my phone?</dt><dd>Yes. It works on any phone, tablet or computer. Open the email on the same phone you'll use, and tap the link there.</dd>
+    </dl>
+    ${needHelp()}
+    <p class="gh-back"><a class="btn" href="/">Go to sign in</a></p>
+  </div>`);
 const loginPage = ({ error = "", email = "", notice = "", pwOnly = false } = {}) => { const _c = require("../shadow").current(); if (!email && _c.pending) email = _c.pending.email; return loginPage0({ error, email, notice, pwOnly }); };
 const loginPage0 = ({ error = "", email = "", notice = "", pwOnly = false } = {}) => { const req = require("../accounts").settings().passwords === "required"; return gate("Sign in", `${shadowContinue()}
   <form method="post" action="/login" class="stack signin">
@@ -18,17 +56,21 @@ const loginPage0 = ({ error = "", email = "", notice = "", pwOnly = false } = {}
     ${pwOnly ? "" : `<div class="or"><span>or</span></div>
     <button class="btn btn-alt" type="submit" name="method" value="link">${req ? "First time here? Email me a sign-in link" : "Email me a sign-in link"}</button>`}
   </form>
-  <p class="muted gate-help">${req ? "First time? Use the sign-in link to confirm your email and set a password. After that, sign in with your password. Forgot it? Use <b>Forgot password?</b>" : "No password yet? Use a sign-in link. You can set a password later under <b>My Account</b>."}<br>
+  <p class="muted gate-help">
     Have a code from an admin? <a href="/login/code">Enter it here</a>.</p>
   <script>document.querySelector(".signin").addEventListener("submit", function (e) {
     var b = e.submitter; if (b && b.value === "password" && !document.getElementById("pw").value) { e.preventDefault(); var p = document.getElementById("pw"); p.focus(); p.placeholder = "Enter your password, or use a link below"; }
-  });</script>`, { err: error, ok: notice }); };
+  });</script>
+  ${helpBox()}`, { err: error, ok: notice }); };
 
 const checkEmailPage = ({ email, devLink }) => gate("Check your email", `
   <div class="gate-card">
     <h1>Check your email</h1>
-    <p>If <strong>${esc(email)}</strong> can sign in, a link is on its way. It works once and expires in 15 minutes.</p>
-    <p class="muted">Not seeing it? Check spam or promotions, or <a href="/">try again</a>.</p>
+    <p>We sent a sign-in link to <strong>${esc(email)}</strong>.</p>
+    <ol class="gh-steps gh-tight"><li><b class="gh-t">Open your email</b><span>Look for one from <b>${esc(require("../config").LABELS.app_name)}</b> called <b>"Your ${esc(require("../config").LABELS.app_name)} sign-in link"</b>.</span></li>
+      <li><b class="gh-t">Tap the green <b>Sign in</b> button</b><span>It works once, for 15 minutes.</span></li></ol>
+    <p class="muted">Not there after a few minutes? Check your <b>spam or junk</b> folder (and Promotions, in Gmail), or <a href="/">try again</a>. Make sure it's the email the club has on file.</p>
+    ${needHelp()}
     ${devLink ? `<div class="devbox"><p>Testing mode: the link is shown here instead of being emailed.</p><a href="${esc(devLink)}">Open sign-in link</a></div>` : ""}
   </div>`);
 
@@ -57,6 +99,7 @@ const forgotPage = ({ error = "", email = "" } = {}) => gate("Forgot password", 
       <button class="btn" type="submit" name="method" value="link">Email me a reset link</button>
     </form>
     <p class="muted"><a href="/">Back to sign in</a></p>
+    ${needHelp()}
   </div>`, { err: error });
 
 const pwFields = () => `<label for="pw1">New password</label><input id="pw1" name="password" type="password" autocomplete="new-password" minlength="8" required>
@@ -136,6 +179,7 @@ const welcomePage = ({ user, p = {}, required, hasPassword, err = "" }) => gate(
   <div class="gate-card welcome">
     <h1>Welcome! Let's set up your account.</h1>
     <p class="muted">Signed in as <strong>${esc(user.email)}</strong>.</p>
+    ${hasPassword && !required ? "" : `<p class="gh-note">${required ? "Make a password (at least 8 characters). <b>Next time, you'll sign in with your email and this password</b>, so write it down somewhere safe." : "A password is optional. With one, you sign in with your email and password, without waiting for an email each time."}</p>`}
     <form method="post" action="/welcome" class="stack">
       <div class="gate-row"><span><label for="wf">First name</label><input id="wf" name="first_name" required maxlength="40" value="${esc(p.first_name || "")}" autocomplete="given-name"></span>
         <span><label for="wl">Last name</label><input id="wl" name="last_name" required maxlength="40" value="${esc(p.last_name || "")}" autocomplete="family-name"></span></div>
@@ -150,4 +194,4 @@ const welcomePage = ({ user, p = {}, required, hasPassword, err = "" }) => gate(
     <form method="post" action="/logout"><button class="link-btn skip" type="submit">Sign out</button></form>
   </div>`, { err });
 
-module.exports = { noAccountPage, requestAccountPage, requestSentPage, inviteConfirmPage, welcomePage, loginPage, checkEmailPage, codePage, forgotPage, resetPage, sentResetPage, confirmPage, invalidLinkPage };
+module.exports = { helpPage, noAccountPage, requestAccountPage, requestSentPage, inviteConfirmPage, welcomePage, loginPage, checkEmailPage, codePage, forgotPage, resetPage, sentResetPage, confirmPage, invalidLinkPage };

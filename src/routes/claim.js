@@ -118,7 +118,8 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
     const view = await E.personView(sid, { athleteId: m ? m.id : 0, userId: null, member: m ? { group_name: m.group_name, tags: m.tags } : null }, new Date(), { preview: true });
     const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [sid])).rows[0];
     req.user.can_reports = true;
-    return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board, person, who: [], view, span, admin: true,
+    const rsvp = require("../rsvp").isRsvp(board) ? { answers: m ? await require("../rsvp").answersFor(sid, m.id) : new Map(), counts: await require("../rsvp").countsFor(sid) } : null;
+    return res.send(v.boardPage({ rsvp, user: req.user, flash: flashFrom(req), board, person, who: [], view, span, admin: true,
       mode: ["list", "cal"].includes(req.query.v) ? req.query.v : "list", group: req.query.g === "day" ? "day" : "activity",
       filters: { act: str(req.query.act), grp: str(req.query.grp), show: req.query.show === "open" ? "open" : "" },
       month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: null,
@@ -155,7 +156,8 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   // Group by activity (default) or day; remembered like List/Calendar
   const group = ["activity", "day"].includes(req.query.g) ? req.query.g : req.cookies && req.cookies.ci_group === "day" ? "day" : "activity";
   if (req.query.g) res.cookie("ci_group", group, { maxAge: 365 * 864e5, sameSite: "lax" });
-  res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, group, admin: auth.isAdmin(req.user),
+  const rsvp = require("../rsvp").isRsvp(entry.board) ? { answers: await require("../rsvp").answersFor(sid, person.id), counts: await require("../rsvp").countsFor(sid) } : null;
+  res.send(v.boardPage({ rsvp, user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, group, admin: auth.isAdmin(req.user),
     month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: /^\d{4}-\d{2}-\d{2}$/.test(str(req.query.d)) ? str(req.query.d) : null }));
 }));
 
@@ -172,6 +174,20 @@ router.post("/b/:sid/claim", wrap(async (req, res) => {
     const label = require("../time").slotName(it);
     await require("../engine/notify").claimed(c, req.user);
     go(res, back, { ok: c.status === "waitlisted" ? `${nameOf(who)} is on the waitlist for ${label}. We'll email you if a spot opens.` : `Claimed ${label} for ${nameOf(who)}. A confirmation email is on its way.` });
+  } catch (e) { if (e instanceof E.ClaimError) return go(res, back, { err: e.message }); throw e; }
+}));
+
+// RSVP boards: Going / Can't make it, with an optional note (can be changed until the event starts)
+router.post("/b/:sid/rsvp", wrap(async (req, res) => {
+  const sid = int(req.params.sid), pid = int(req.body.p), itemId = int(req.body.item);
+  const back = str(req.body.back).startsWith(`/b/${sid}`) ? str(req.body.back) : `/b/${sid}?p=${pid}`;
+  const people = await myPeople(req.user);
+  if (![...people.kids.map((k) => k.id), ...(people.me ? [people.me.id] : [])].includes(pid)) return go(res, back, { err: "You can only answer for yourself or your own family." });
+  try {
+    const going = req.body.answer === "yes";
+    await require("../rsvp").answer({ itemId, athleteId: pid, userId: req.user.id, going, note: req.body.note });
+    const it = (await query(`SELECT * FROM board_items WHERE id=$1`, [itemId])).rows[0], who = people.kids.find((k) => k.id === pid) || people.me;
+    go(res, back + `#i${itemId}`, { ok: `${going ? "Going" : "Can't make it"}: ${nameOf(who)}, ${require("../time").slotName(it)}.` });
   } catch (e) { if (e instanceof E.ClaimError) return go(res, back, { err: e.message }); throw e; }
 }));
 

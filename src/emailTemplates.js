@@ -24,7 +24,7 @@ const TEMPLATES = [
     button: { label: "Set a new password", link: "reset_link" }, vars: [V("reset_link", "The reset link")] },
   { key: "invite", group: "Sign-in & accounts", name: "Invitation", when: "An admin sends an invite (from People, or after an import)", to: "The person invited",
     subject: "You're invited to {{app_name}}", heading: "Welcome to {{app_name}}",
-    body: "{{org_name}} uses {{app_name}} for training sign-ups and volunteer shifts. Click below to set your password and get started. This link works for 7 days.",
+    body: "{{org_name}} uses {{app_name}} for training sign-ups and volunteer shifts. Click below to set your password and get started. This link works for 7 days.\n\nNew to this? [Here's how to sign in, step by step]({{app_link}}help).",
     button: { label: "Set up my account", link: "invite_link" }, vars: [V("first_name", "Their first name, when known"), V("invite_link", "The invitation link")] },
   { key: "email_confirm", group: "Sign-in & accounts", name: "Confirm a new email", when: "Someone changes their sign-in email in My Account", to: "The new email address",
     subject: "Confirm your new {{app_name}} email", heading: "Confirm your new email",
@@ -62,6 +62,11 @@ const TEMPLATES = [
     subject: "Reminder: {{person_first}}, {{session}}", heading: "See you soon, {{person_first}}!",
     body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\n" + CAL + "\n\nCan't make it? Cancel so someone else can have the spot.",
     button: { label: "View or cancel my spot", link: "manage_link" }, vars: CLAIM_VARS },
+  // RSVP
+  { key: "rsvp_reminder", group: "RSVP", name: "Please RSVP", when: "An admin clicks Remind on an RSVP event (to those who haven't answered)", to: "The athlete, and their parents/guardians if family emails are on",
+    subject: "Please RSVP: {{person_first}}, {{session}}", heading: "Is {{person_first}} coming?",
+    body: "{{session}}\n{{board_name}}\nLocation: {{location}}\nQuestions? {{organizers}}\n\nLet us know if {{person_first}} is going or can't make it.",
+    button: { label: "Answer now", link: "answer_link" }, vars: [...CLAIM_VARS.filter(([k]) => !/calendar|manage|my_claims/.test(k)), V("answer_link", "Link to answer for this event")] },
   // Requests (answers to the person who asked)
   { key: "family_approved", group: "Requests", name: "Family member added", when: "An admin approves adding a family member", to: "The person who asked",
     subject: "Your request was approved", heading: "Your request was approved",
@@ -175,7 +180,7 @@ async function send(key, to, own = {}) {
 // sample values for the preview and test emails
 const SAMPLE = { person_first: "Ava", person_name: "Ava Smith", first_name: "Jane", board_name: "Winter Training 2027", session: "Hitting · Tue, Nov 10, 5:00 PM–6:00 PM",
   location: "Turn Two Athletics", organizers: "Scott (scott@example.com)", my_claims_link: "https://example.com/dashboard", manage_link: "https://example.com/dashboard",
-  calendar_link: "https://example.com/cal/sample.ics", google_calendar_link: "https://calendar.google.com/calendar/render?action=TEMPLATE", cancel_link: "https://example.com/s/abc/cancel/xyz",
+  calendar_link: "https://example.com/cal/sample.ics", google_calendar_link: "https://calendar.google.com/calendar/render?action=TEMPLATE", cancel_link: "https://example.com/s/abc/cancel/xyz", answer_link: "https://example.com/b/1?p=2",
   sign_in_link: "https://example.com/auth/verify?token=sample", minutes: "15", reset_link: "https://example.com/reset?token=sample", invite_link: "https://example.com/invite?token=sample",
   new_email: "jane.new@example.com", confirm_link: "https://example.com/account/email/confirm?token=sample", added_by: "scott@example.com", family_member: "Max Smith",
   about: "Ava moved to 14U", note: "", what: "to add Max Smith", account_link: "https://example.com/account", requester_name: "Jane Smith", requester_email: "jane@example.com",

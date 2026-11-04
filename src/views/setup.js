@@ -26,14 +26,14 @@ const LEVEL_INFO = {
 
 // Board type: training or volunteer (decides the My Claims tab). Guessed from the wording until set.
 function boardTypeOf(sc) {
-  if (sc && ["training", "volunteer"].includes(sc.board_type)) return sc.board_type;
+  if (sc && ["training", "volunteer", "rsvp"].includes(sc.board_type)) return sc.board_type;
   const L = SC.labels(sc || {});
   return /volunteer|helper|worker/i.test(L.participant.one) || /shift/i.test(L.slot.one) ? "volunteer" : "training";
 }
 function boardTypeField(sc) {
   const cur = sc ? boardTypeOf(sc) : "training";
   const r = (v, t, d) => `<label class="mode-opt"><input type="radio" name="board_type" value="${v}"${cur === v ? " checked" : ""}><span><b>${t}</b><span class="fine">${d}</span></span></label>`;
-  return `<div class="opt-row">${r("training", "Program", "Sessions or events people sign up to take part in, like training, clinics, or camps.")}${r("volunteer", "Volunteer", "Shifts and jobs people help with.")}</div>`;
+  return `<div class="opt-row">${r("training", "Program", "Sessions or events people sign up to take part in, like training, clinics, or camps.")}${r("rsvp", "RSVP", "Events your athletes answer Going or Can't make it, like team events, meetings or games. No spots to claim.")}${r("volunteer", "Volunteer", "Shifts and jobs people help with.")}</div>`;
 }
 // Board picture: shown on My Claims and the board's sign-up page instead of the logo.
 // The browser shrinks it (max 640px) before it's sent.

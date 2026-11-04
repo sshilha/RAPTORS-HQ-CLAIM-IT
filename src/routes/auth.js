@@ -84,6 +84,7 @@ router.post("/login/code", wrap(async (req, res) => {
 
 // forgot password: reset by emailed link or texted code
 router.get("/forgot", (req, res) => res.send(v.forgotPage()));
+router.get("/help", (req, res) => res.send(v.helpPage()));   // how to sign in, for people new to it (printable, shareable)
 router.post("/forgot", wrap(async (req, res) => {
   const who = String(req.body.email || "").trim();
   const found = await A.findUser(who);

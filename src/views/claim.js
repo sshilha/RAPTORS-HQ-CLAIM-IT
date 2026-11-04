@@ -111,7 +111,7 @@ function homePage({ top = null, user, flash, claims, boards, extra, admin, coach
   const boardCards = list.length ? list.slice(0, allBoards ? 999 : SHOW).map(({ board: b, span }) => {
     const range = rangeOf(b, span), vol = isVolunteer(b);
     return `<div class="d-board">${thumb("", b)}
-      <div class="d-board-b"><span class="d-type ${vol ? "vol" : "train"}">${vol ? `${IC.people}Volunteer opportunity` : `${IC.cal}Program`}</span><b>${esc(b.name)}</b>
+      <div class="d-board-b"><span class="d-type ${vol ? "vol" : "train"}">${vol ? `${IC.people}Volunteer opportunity` : b.board_type === "rsvp" ? `${IC.cal}RSVP` : `${IC.cal}Program`}</span><b>${esc(b.name)}</b>
         ${range || b.event_location ? `<span class="d-board-l1">${esc([range, b.event_location].filter(Boolean).join("  ·  "))}</span>` : ""}
         <span class="d-board-meta"><span>${IC.people}${esc(audience(b))}</span>${b.event_location ? `<span>${IC.pin}${esc(b.event_location)}</span>` : ""}</span>
         ${b.description ? `<span class="d-board-desc">${esc(b.description.split(/\n/)[0].slice(0, 120))}</span>` : ""}
@@ -160,7 +160,7 @@ const ACT_IC = [SVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path 
   SVG('<path d="M12 2.5 15 9l7 .6-5.3 4.6L18.4 21 12 17.3 5.6 21l1.7-6.8L2 9.6 9 9z"/>')];
 
 const SC_LABELS = (b) => require("../schedules").labels(b).participant.many.toLowerCase();
-function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null, preview = null }) {
+function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null, preview = null, rsvp = null }) {
   // guest = { code }: the public link ("Anyone with the link"), no account; claims ask for name + email
   const basePath = guest ? `/s/${guest.code}` : `/b/${board.id}`;
   if (guest) { person = { id: 0, first_name: "", guest: true }; people = []; }
@@ -182,7 +182,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   let shown = rows;
   if (filters.act) shown = shown.filter((r) => (leafOf(r) || {}).name === filters.act);
   if (filters.grp) shown = shown.filter((r) => groupName(r) === filters.grp);
-  if (filters.show === "open") shown = shown.filter((r) => r.canClaim);
+  if (filters.show === "open") shown = shown.filter((r) => (rsvp ? !rsvp.answers.has(r.item.id) && r.ok : r.canClaim));
   if (filters.show === "mine") shown = shown.filter((r) => r.mine);
   const q = board.question || {};
   const Name = guest ? "Per person" : preview && !preview.as ? "Someone" : nm(person);
@@ -197,12 +197,23 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       <input type="hidden" name="back" value="${esc(back)}"><button type="submit">Cancel</button></form>`;
   const canCancel = (r) => !r.cancelBy || new Date() < new Date(r.cancelBy);
   const action = (r, big = false) => {
+    if (rsvp) return rsvpAct(r);
     if (r.mine) return `<span class="b-claimed">${IC_CHECK}${r.mine.status === "waitlisted" ? "Waitlisted" : "Claimed"}</span>${preview ? "" : canCancel(r) ? cancelForm(r) : `<span class="b-late">Too late to cancel</span>`}`;
     if (r.canClaim) return claimForm(r, big);
     if (r.blockedBy) return `<span class="b-state">Limit reached${r.blockedBy.kind === "board" ? "" : ` in ${esc(r.blockedBy.name)}`}</span>`;
     return `<span class="b-state">${esc(r.full ? "Full" : r.reason || "Not available")}</span>`;
   };
-  const avail = (r) => r.full ? "Full" : `${r.open} of ${r.item.capacity} open`;
+  const rc = (r) => (rsvp && rsvp.counts.get(r.item.id)) || { going: 0, no: 0 };
+  const rvCount = (rs) => { const left = rs.filter((r) => !rsvp.answers.has(r.item.id)).length; return left ? `${left} to answer` : "All answered"; };
+  const avail = (r) => rsvp ? `${rc(r).going} going${rc(r).no ? ` · ${rc(r).no} can't make it` : ""}` : r.full ? "Full" : `${r.open} of ${r.item.capacity} open`;
+  const rsvpAct = (r) => {
+    const a = rsvp.answers.get(r.item.id), started = r.item.starts_at && new Date(r.item.starts_at) <= new Date();
+    const now = a ? `<span class="rv-now ${a.going ? "yes" : "no"}">${a.going ? `${IC_CHECK}Going` : "Can't make it"}</span>${a.note ? `<span class="rv-note">“${esc(a.note)}”</span>` : ""}` : `<span class="rv-now none">No answer yet</span>`;
+    if (started || !r.ok || preview) return `<div class="rv">${now}${!r.ok && !started ? `<span class="b-state">${esc(r.reason || "Not available")}</span>` : ""}</div>`;
+    return `<form method="post" action="/b/${board.id}/rsvp" class="rv rv-form"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="back" value="${esc(back)}">
+      ${now}<input name="note" maxlength="200" value="${esc((a && a.note) || "")}" placeholder="Note (optional), e.g. arriving late" aria-label="Note">
+      <span class="rv-btns"><button class="rv-b yes${a && a.going ? " on" : ""}" name="answer" value="yes" type="submit">Going</button><button class="rv-b no${a && !a.going ? " on" : ""}" name="answer" value="no" type="submit">Can't make it</button></span></form>`;
+  };
   const rowHtml2 = (r, o = {}) => `<div class="b-row${o.noDate ? " nod" : ""}${r.mine ? " mine" : ""}${r.leftover && !r.mine ? " lo" : ""}" id="i${r.item.id}">
       ${o.noDate ? "" : dayBlock(r.item.starts_at)}
       <div class="b-row-main">${o.act ? `<span class="b-act" style="--c:${color((leafOf(r) || {}).id)}"><i></i>${esc((leafOf(r) || {}).name || "")}${r.chain.length > 1 ? `<small>${esc(r.chain.slice(0, -1).map((n) => n.name).join(" • "))}</small>` : ""}${limFor((leafOf(r) || {}).id)}</span>` : ""}<b class="b-time">${r.item.starts_at ? esc(timeRange(r.item.starts_at, r.item.ends_at)) : esc(r.item.title || "Anytime")}</b>${r.item.starts_at && r.item.title ? `<span class="b-title">${esc(r.item.title)}</span>` : ""}</div>
@@ -228,7 +239,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     return weeks.map(([w, rs], n) => { const open = rs.filter((r) => r.canClaim).length, mine = rs.filter((r) => r.mine).length;
       return `<details class="b-sec b-week" data-id="w${w}"${n === (firstOpen < 0 ? 0 : firstOpen) || w > thisWeek && n <= (firstOpen < 0 ? 0 : firstOpen) + 1 ? " open" : ""}><summary>
           <span class="b-ic wk">${IC.cal}</span><b>Week of ${esc(new Date(w + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }))}</b>
-          <span class="b-count">${[open ? `${open} open` : "", mine ? `${mine} claimed` : ""].filter(Boolean).join(" · ") || "Nothing open"}</span><span class="b-chev" aria-hidden="true"></span></summary>
+          <span class="b-count">${rsvp ? rvCount(rs) : [open ? `${open} open` : "", mine ? `${mine} claimed` : ""].filter(Boolean).join(" · ") || "Nothing open"}</span><span class="b-chev" aria-hidden="true"></span></summary>
         <div class="b-rows">${dayGroups(rs).map(([k, ds], i) => `<div class="b-dayg${i % 2 ? " alt" : ""}">${dayBlock(ds[0].item.starts_at)}<div class="b-dayg-rows">${ds.map((r) => rowHtml2(r, { noDate: true, act: true })).join("")}</div></div>`).join("")}</div></details>`; }).join("")
       + (undated.length ? `<details class="b-sec" data-id="wany" open><summary><span class="b-ic wk">${IC.clip}</span><b>Any time</b><span class="b-count">${undated.length}</span><span class="b-chev" aria-hidden="true"></span></summary>
           <div class="b-rows">${undated.map((r) => rowHtml2(r, { act: true })).join("")}</div></details>` : "");
@@ -244,7 +255,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
         <span class="b-ic" style="background:${c}">${ACT_IC[(leaf ? acts.findIndex((a) => a.id === leaf.id) : 0) % ACT_IC.length]}</span>
         <b>${esc(leaf ? leaf.name : board.name)}</b>${crumb.length ? `<span class="b-crumb">(${esc(crumb.join(" • "))})</span>` : ""}
         ${L ? `<span class="b-lim${L.left ? "" : " none"}">${L.left ? `${L.left} of ${L.limit} left` : `all ${L.limit} used`}</span>` : ""}
-        <span class="b-count">${[open ? `${open} open` : "", mine ? `${mine} claimed` : ""].filter(Boolean).join(" · ") || "Nothing open"}</span><span class="b-chev" aria-hidden="true"></span></summary>
+        <span class="b-count">${rsvp ? rvCount(rs) : [open ? `${open} open` : "", mine ? `${mine} claimed` : ""].filter(Boolean).join(" · ") || "Nothing open"}</span><span class="b-chev" aria-hidden="true"></span></summary>
       <div class="b-rows">${dayGroups(rs).map(([k, ds], n) => k === "any" ? ds.map((r) => rowHtml2(r)).join("")
         : `<div class="b-dayg${n % 2 ? " alt" : ""}">${dayBlock(ds[0].item.starts_at)}<div class="b-dayg-rows">${ds.map((r) => rowHtml2(r, { noDate: true })).join("")}</div></div>`).join("")}</div></details>`;
   }).join("") : `<div class="d-empty"><b>Nothing matches.</b><span>${filters.act || filters.grp || filters.show ? `<a href="${link({ act: "", grp: "", show: "" })}">Clear the filters</a>` : "Nothing is open for this person right now."}</span></div>`;
@@ -304,7 +315,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     ${preview ? `<nav class="back-row"><a class="back-btn" href="/admin/setup?s=${board.id}">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}Back to Setup</a></nav>` : guest ? "" : `<nav class="back-row"><a class="back-btn" href="/dashboard">${SVG('<path d="M19 12H5M11 18l-6-6 6-6"/>')}My Claims</a></nav>`}
     <section class="bh2 b-hd">
       <div class="bh2-l">${board.image ? `<span class="bh2-tile b-hd-tile"><img src="/img/board/${board.id}?v=${board.image_at ? new Date(board.image_at).getTime() : 0}" alt=""></span>` : `<span class="bh2-tile b-hd-tile code"><b>${esc(require("./setup").codeOf(board))}</b></span>`}
-        <div><div class="bh2-t"><h1>${esc(board.name)}</h1><span class="b-hd-type">${require("./setup").boardTypeOf(board) === "volunteer" ? "Volunteer" : "Program"}</span></div>
+        <div><div class="bh2-t"><h1>${esc(board.name)}</h1><span class="b-hd-type">${({ volunteer: "Volunteer", rsvp: "RSVP" }[require("./setup").boardTypeOf(board)] || "Program")}</span></div>
           <span class="bh2-meta">${[range ? esc(range) : "", board.event_location ? P.link(board.event_location) : "", board.contact_name || board.contact_info ? `Questions? ${esc([board.contact_name, board.contact_info].filter(Boolean).join(", "))}` : ""].filter(Boolean).join(" · ")}</span>
           ${board.description ? `<button type="button" class="b-hd-desc" title="${esc(board.description)}" onclick="this.classList.toggle('open')">${esc(board.description)}</button>` : ""}</div></div>
     </section>
@@ -314,9 +325,9 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
           <select name="as" onchange="this.form.submit()" aria-label="Preview as">${preview.members.map((m) => `<option value="${m.id}"${m.id === preview.as ? " selected" : ""}>${esc([m.first_name, m.last_name].filter(Boolean).join(" ") || m.email || "(no name)")}${m.group_name ? ` (${esc(m.group_name)})` : ""}</option>`).join("")}
             <option value="0"${!preview.as ? " selected" : ""}>Someone not on the board's list</option></select></form></span>`
       : guest ? `<span class="b-who b-who-guest">${IC.people}<span><b>No account needed.</b> Pick a spot, then enter your name and email.</span></span>`
-      : `<span class="b-who"><span class="b-who-l">Signing up for</span>${people.map((p) => { const on = person && ((p.self_user_id && person.self_user_id) || p.id === person.id);
+      : `<span class="b-who"><span class="b-who-l">${rsvp ? "Answering for" : "Signing up for"}</span>${people.map((p) => { const on = person && ((p.self_user_id && person.self_user_id) || p.id === person.id);
           return `<a href="/b/${board.id}?p=${p.self_user_id ? "me" : p.id}&v=${mode === "cal" ? "cal" : "list"}"${on ? ' aria-current="page"' : ""}>${esc(nm(p))}</a>`; }).join("")}</span>`}
-      ${person && !guest ? `<span class="b-left">${limitBits.length ? `${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}${(() => {
+      ${person && !guest && !rsvp ? `<span class="b-left">${limitBits.length ? `${IC.people}<span><b>${esc(Name)}:</b> ${limitBits.join(" · ")}${(() => {
         // say so when some of what they can see isn't under any limit
         const ids = new Set(view.limits.filter((x) => x.kind === "node").map((x) => x.id));
         return !view.limits.some((x) => x.kind === "board") && view.items.some((r) => !r.chain.some((n) => ids.has(n.id))) ? ` · <span class="fine-w">no limit on anything else</span>` : ""; })()}</span>` : `<span class="fine-w">No claim limits for ${esc(nm(person))}</span>`}${extra.length ? `<span class="b-left-x">${IC.mega}${extra.length} extra spot${extra.length === 1 ? "" : "s"} open</span>` : ""}</span>` : ""}
@@ -337,7 +348,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       ${mode === "cal" && dated ? `<div class="c-nav"><a href="${link({ m: calHtml.prev })}" aria-label="Previous month">${SVG('<path d="m15 18-6-6 6-6"/>')}</a><b>${esc(calHtml.label)}</b><a href="${link({ m: calHtml.next })}" aria-label="Next month">${IC.right}</a></div>
         <div class="c-legend">${acts.filter((a) => !filters.act || a.name === filters.act).map((a) => `<span style="--c:${color(a.id)}"><i></i>${esc(a.name)}${limFor(a.id)}</span>`).join("")}<span class="full"><i></i>Full</span></div>` : ""}
       <form method="get" action="${basePath}" class="b-filters">${hidden({ preview: preview ? "1" : "", as: preview ? String(preview.as) : "", p: pid, v: mode === "cal" ? "cal" : "list", g: group === "day" ? "day" : "", m: month || "" })}
-        ${sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', guest ? "" : `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
+        ${rsvp ? `<label class="b-sel"><span>Show</span><select name="show" onchange="this.form.submit()"><option value="">All events</option><option value="open"${filters.show === "open" ? " selected" : ""}>Not answered yet</option></select></label>` : sel("show", "Show", ["open", "mine"].map((x) => x), filters.show, "All sessions").replace('<option>open</option>', `<option value="open"${filters.show === "open" ? " selected" : ""}>Open to claim</option>`).replace('<option>mine</option>', guest ? "" : `<option value="mine"${filters.show === "mine" ? " selected" : ""}>${esc(Name)}'s claims</option>`)}
         ${actNames.length > 1 ? sel("act", require("../schedules").labels(board).activity.one, actNames, filters.act, "All") : ""}
         ${groups.length > 1 ? sel("grp", "Group", groups, filters.grp, "All") : ""}
       </form>
@@ -405,7 +416,7 @@ function guestCancelPage({ c, code, token, tooLate, board }) {
   return layout({ title: "Cancel your spot", user: null, tab: "home", dash: true,
     body: `<div class="d-wrap b-wrap">
     <section class="bh2 b-hd"><div class="bh2-l">${tile}
-      <div><div class="bh2-t"><h1>${esc(board.name || c.board_name)}</h1><span class="b-hd-type">${S.boardTypeOf(board) === "volunteer" ? "Volunteer" : "Program"}</span></div>
+      <div><div class="bh2-t"><h1>${esc(board.name || c.board_name)}</h1><span class="b-hd-type">${({ volunteer: "Volunteer", rsvp: "RSVP" }[S.boardTypeOf(board)] || "Program")}</span></div>
         <span class="bh2-meta">${[board.event_location ? esc(board.event_location) : "", contact ? `Questions? ${contact}` : ""].filter(Boolean).join(" · ")}</span></div></div></section>
     <div class="mc-underline"></div>
     <section class="sub-body no-subs gc-sheet">

@@ -188,7 +188,7 @@ function copyPage({ user, flash, sc, counts: c }) {
     <script>(function () { var b = document.getElementById("cp-items"), s = document.getElementById("cp-start"); if (b && s) { b.addEventListener("change", function () { s.hidden = !b.checked; }); } })();</script>` });
 }
 
-function spotPeoplePage({ head = "", user, flash, sc, it, path, people, onBoard, everyone }) {
+function spotPeoplePage({ rsvp = null, head = "", user, flash, sc, it, path, people, onBoard, everyone }) {
   const q = sc.question || {};
   const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
   const tags = (p) => [p.group_name, p.added_by_admin ? "Added by admin" : "", p.override ? "Override" : "", p.counts === false && !p.walk_in ? "Extra spot" : "", p.walk_in ? "Walk-in" : ""].filter(Boolean);
@@ -204,6 +204,13 @@ function spotPeoplePage({ head = "", user, flash, sc, it, path, people, onBoard,
     <div class="sub-body no-subs sp-sheet">
     <div class="sp-session"><b>${esc(it.title && !it.starts_at ? it.title : path[path.length - 1] || it.title || "Spot")}</b>
       <span>${esc([...path.slice(0, -1)].join(" • "))}${path.length > 1 ? " · " : ""}${esc(slotName(it))}${it.location ? ` · ${esc(it.location)}` : ""}</span></div>
+    ${rsvp ? (() => { const nm = (p) => `${esc(p.first_name)} ${esc(p.last_name || "")}`;
+      const list = (rows, empty) => rows.length ? `<ul class="rv-list">${rows.map((p) => `<li><a href="/admin/people/${p.id}"><b>${nm(p)}</b></a>${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}${p.note ? `<span class="rv-note">“${esc(p.note)}”</span>` : ""}</li>`).join("")}</ul>` : `<p class="fine">${empty}</p>`;
+      return `<div class="rv-sum"><span class="rv-c yes"><b>${rsvp.going.length}</b> going</span><span class="rv-c no"><b>${rsvp.no.length}</b> can't make it</span><span class="rv-c none"><b>${rsvp.none.length}</b> no answer yet</span></div>
+      <div class="rv-cols"><section><h3>Going <i class="sub-n">${rsvp.going.length}</i></h3>${list(rsvp.going, "No one yet.")}</section>
+        <section><h3>Can't make it <i class="sub-n">${rsvp.no.length}</i></h3>${list(rsvp.no, "No one.")}</section>
+        <section><div class="rv-h"><h3>No answer yet <i class="sub-n">${rsvp.none.length}</i></h3>${rsvp.none.length ? `<form method="post" action="/admin/b/${sc.id}/items/${it.id}/rsvp-remind" onsubmit="return confirm('Email the ${rsvp.none.length} ${rsvp.none.length === 1 ? "family" : "families"} who haven\\'t answered?')"><button class="sb-btn" type="submit">Remind them</button></form>` : ""}</div>${list(rsvp.none, "Everyone has answered.")}</section></div>
+      <p class="fine rv-foot">Answers can be changed until the event starts. Going counts for check-in, reminders and reports.</p>`; })() : `
     <div class="ck-listbar"><h3>In this spot <i class="sub-n">${conf.length} of ${it.capacity}</i></h3>
       <button type="button" class="sb-btn primary" onclick="var a=document.getElementById('add'); a.hidden=!a.hidden; if (!a.hidden) a.querySelector('select').focus();">+ Add someone</button></div>
         <section class="sp-addbox" id="add" hidden><h3>Add someone to this spot</h3>
@@ -219,7 +226,7 @@ function spotPeoplePage({ head = "", user, flash, sc, it, path, people, onBoard,
     <section class="sp-in">
       ${conf.length ? `<ul class="sp-list">${conf.map(row).join("")}</ul>` : `<p class="muted">No one yet.</p>`}
       ${wl.length ? `<h3 class="ck-wlh">Waitlist <i class="sub-n">${wl.length}</i></h3><ul class="sp-list">${wl.map(row).join("")}</ul>` : ""}</section>
-    </div>` });
+    `}</div>` });
 }
 
 module.exports = { levelOverrides, spotPeoplePage, copyPage, boardDefaultsSections, settingsForm, settingRows, levelChanges };

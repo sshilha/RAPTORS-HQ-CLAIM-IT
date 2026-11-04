@@ -96,6 +96,15 @@ The database sets itself up on every start (tables and columns are added as need
 - **Preview** shows the sign-up page as any person on the board. **Publish** opens it to families.
 - **Archive**, then **Delete permanently** (type the board's name) when it's truly done.
 
+### 4.1a RSVP boards
+Create Board → type **RSVP** (or Board details → Type & look). For events where athletes just say whether they're coming
+(team events, meetings, games). Only people on the board answer (set on creation), and what they answer for is called an
+Event. Families see each event with **Going / Can't make it** and an optional note, changeable until it starts; no spots.
+Board Setup shows "N going"; an event's People page shows Going · Can't make it · No answer yet (with notes) and
+**Remind them** (emails only those who haven't answered: "Please RSVP" in Communication). Going is a regular claim, so My
+Claims, day-before reminders, check-in and reports include it; Can't make it is stored as a canceled claim marked
+`rsvp='no'` (src/rsvp.js). RSVP boards have no public link.
+
 ### 4.2 Notifications (per board)
 Reminder timing (off · 2 h · 12 h · 1 day · 2 days · 3 days before; default 1 day) and switches for the claim emails
 (claimed, waitlisted, canceled, moved off the waitlist). Public-link confirmations always send (they carry the cancel
@@ -123,7 +132,7 @@ link). Reminders are checked every 15 minutes and sent once per claim.
 - **Requests**: new-account, add-a-family-member and change requests from My Account.
 
 ### 4.5 Communication (App Settings → People)
-All 19 emails the app sends, grouped (Sign-in & accounts · Claims · Requests · Notices to admins). **Edit**: subject,
+All 20 emails the app sends, grouped (Sign-in & accounts · Claims · Requests · Notices to admins). **Edit**: subject,
 heading, message (blank line = paragraph, `**bold**`, `[text](link)`), button label, with clickable **variables** and a
 live preview; **Reset to default**. **Test** beside each sends it (as saved, with sample details) to any address.
 **Branding**: your logo (+ the Claim It logo), colors, sender name, reply-to, footer, and your own variables
@@ -211,6 +220,10 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.32.1** Sign-in help for people new to it: a "First time here?" box with numbered steps on the sign-in page (follows the
+  password setting), plainer Check your email and Welcome pages, a "Need help?" contact (the Requests email) on each, and a
+  printable /help page (also linked from the Invitation email).
+- **v0.32** RSVP board type (Going / Can't make it with a note, no-answer list with Remind).
 - **v0.31.1** People table: six columns (Person with kind and team · Contact · Family · Lists & boards · Status), fixed
   widths, chips wrap inside their column, cards on phones; adults with linked kids are tagged Parent/guardian.
 - **v0.31** Consistency pass: headers in two spots (with / without a back button), back buttons always above the header,

@@ -126,7 +126,7 @@ router.post("/schedules", wrap(async (req, res) => {
      clean(b0.contact_name, 60) || null, clean(b0.contact_info, 80) || null]);
   if (clean(b0.contact_name, 60) || clean(b0.contact_info, 80)) await query(`UPDATE schedules SET organizers=$2 WHERE id=$1`,
     [rows[0].id, JSON.stringify([{ name: clean(b0.contact_name, 60) || "", info: clean(b0.contact_info, 80) || "" }])]);
-  if (["training", "volunteer"].includes(b0.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [rows[0].id, b0.board_type]);
+  if (["training", "volunteer", "rsvp"].includes(b0.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [rows[0].id, b0.board_type]);
   { const code = String(b0.short_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
     await query(`UPDATE schedules SET short_code=$2 WHERE id=$1`, [rows[0].id, code.length >= 2 ? code : require("../views/setup").initials(name)]); }
   if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(b0.image_data || "")) && String(b0.image_data).length < 1500000)
@@ -134,6 +134,9 @@ router.post("/schedules", wrap(async (req, res) => {
   await SC.refreshGroups();
   const L = SC.labels({ labels });
   const first = SC.levelKeys({ depth })[0];
+  // RSVP boards: only the athletes on the board answer, and what they answer for is an Event
+  if (b0.board_type === "rsvp") await query(`UPDATE schedules SET claim_mode='roster',
+    labels = coalesce(labels, '{}'::jsonb) || jsonb_build_object('slot', jsonb_build_array('Event', 'Events'), 'participant', jsonb_build_array('Athlete', 'Athletes')) WHERE id=$1`, [rows[0].id]);
   go(res, `/admin/setup?s=${rows[0].id}`, { ok: depth === 1
     ? `Created ${name}. Add its ${L.slot.many.toLowerCase()} below.`
     : `Created ${name}. Add its first ${L[first].one.toLowerCase()} below, then open it to keep going.` });
@@ -173,7 +176,7 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     if (img === "remove") await query(`UPDATE schedules SET image=NULL, image_at=now() WHERE id=$1`, [id]);
     else if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img) && img.length < 1500000) await query(`UPDATE schedules SET image=$2, image_at=now() WHERE id=$1`, [id, img]);
   }
-  if (["training", "volunteer"].includes(b.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [id, b.board_type]);
+  if (["training", "volunteer", "rsvp"].includes(b.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [id, b.board_type]);
   if (b.short_code !== undefined) {
     const code = String(b.short_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
     const pic = (await query(`SELECT image IS NOT NULL AS has FROM schedules WHERE id=$1`, [id])).rows[0];
