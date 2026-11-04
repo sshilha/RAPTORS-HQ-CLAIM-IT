@@ -150,7 +150,7 @@ router.post("/import/preview", wrap(async (req, res) => {
   else { const saved = await IM().savedMap(headers); if (saved) { map = saved.map; remembered = true; } else map = IM().guess(headers); }
   const people = await IM().analyze(IM().toRows(rows.slice(1), map, kind));
   res.send(IV().mapPage({ user: req.user, flash: flashFrom(req), head: await AHead(), headers, map, kind, data: req.body.data, rows: people, counts: IM().counts(people),
-    lists: await PP.lists(), remembered, openReview: !req.body.mapped }));
+    lists: await PP.lists(), remembered, openReview: false }));
 }));
 // the review pop-up's Re-check
 router.post("/import/check", wrap(async (req, res) => {

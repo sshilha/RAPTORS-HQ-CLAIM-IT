@@ -62,7 +62,7 @@ function mapPage({ user, flash, head, headers, map, kind, data, rows, counts, li
     </form>
     <section class="panel imp-ready">
       <p class="imp-sum"><b>${counts.all}</b> rows · <b>${counts.new}</b> new · <b>${counts.update}</b> updates · <b>${counts.same}</b> already up to date · ${counts.match ? `<b class="warn">${counts.match}</b> possible match${counts.match === 1 ? "" : "es"} · ` : ""}${counts.problem ? `<b class="bad">${counts.problem}</b> with problems` : "no problems"}</p>
-      <button type="button" class="sb-btn primary" id="imp-open">Review &amp; import</button>
+      <span class="imp-next"><span class="fine">Check the columns above, then</span><button type="button" class="sb-btn primary" id="imp-open">Next: Review &amp; import</button></span>
     </section>
 
     <dialog class="imp-dlg" id="imp-dlg">

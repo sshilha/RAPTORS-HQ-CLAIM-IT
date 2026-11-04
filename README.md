@@ -220,6 +220,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.32.2** Import: choosing a file goes to Match the columns first; the review opens with Next: Review & import.
 - **v0.32.1** Sign-in help for people new to it: a "First time here?" box with numbered steps on the sign-in page (follows the
   password setting), plainer Check your email and Welcome pages, a "Need help?" contact (the Requests email) on each, and a
   printable /help page (also linked from the Invitation email).

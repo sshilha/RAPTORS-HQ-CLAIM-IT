@@ -2712,3 +2712,4 @@ textarea { display: block; vertical-align: top; }
 .gh-back { margin-top: 18px; text-align: center; }
 @media print { body.gate { background: #fff !important; } .gh-page, .gh-page * { color: #000 !important; background: none !important; } .gh-steps li::before { border: 1px solid #000; } .gh-back { display: none; } }
 .gh-back .btn { display: inline-flex; align-items: center; justify-content: center; min-width: 220px; color: #0B1930 !important; text-decoration: none; font-weight: 800; }
+.imp-next { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
