@@ -62,6 +62,7 @@ function gateLayout({ title, body, flash }) {
   ${foot()}
 </main>
 ${FLASH_JS}
+<script src="/app-ui.js" defer></script>
 </body>
 </html>`;
 }
@@ -76,6 +77,7 @@ function publicLayout({ title, body, flash }) {
 <main class="page">${flashHtml(flash)}${body}</main>
 ${foot()}
 ${FLASH_JS}
+<script src="/app-ui.js" defer></script>
 </body>
 </html>`;
 }
@@ -147,6 +149,7 @@ ${user ? dashHeader(user, admin, coach, tab) : `<header class="dh"><div class="d
 <main class="dash-page">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}
 ${FLASH_JS}
+<script src="/app-ui.js" defer></script>
 </body>
 </html>`;
   return `${head(title)}
@@ -155,6 +158,7 @@ ${dashHeader(user, admin, coach, tab, false)}
 <main class="page${w}${ro}">${flashHtml(flash)}${body}</main>
 ${foot(user, tab)}
 ${FLASH_JS}
+<script src="/app-ui.js" defer></script>
 </body>
 </html>`;
 }

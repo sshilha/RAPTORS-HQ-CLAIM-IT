@@ -183,6 +183,7 @@ src/views/                the pages (layout.js = shell; admin.js = admin page wr
                           header and tabs; setup2.js = Board Setup + the board header; one file per area otherwise)
 public/styles.css         all styles (one rule per line, in the order they apply)
 public/import-review.js   the import review pop-up
+public/app-ui.js          sortable table headings, and keeping your place after a change (loaded on every page)
 test/engine.test.js       engine tests (npm test)
 test/check.js             page health check (npm run check)
 ```
@@ -197,6 +198,11 @@ test/check.js             page health check (npm run check)
   (`btn-ghost` / `link-dark`); Delete / Remove / Decline is a red outline (`btn-ghost danger`). All buttons in a row are
   the same height and line up.
 - **One-line rows** (add, rename, filter, bulk actions) keep their button beside the field (`inline-add`, `inline-edit`).
+- **Tables:** every table heading sorts on click (▲/▼, remembered per table for the session) via `public/app-ui.js`.
+  Editing grids where row order is saved opt out: `levels`, `limits`, the import review, or add `data-nosort`. Put a
+  `data-sort="…"` on a cell to sort it by a different value than its text.
+- **After a change** (any POST form), the page returns to the same scroll spot (and scrolling lists), unless it redirects
+  to an anchor that exists on the page.
 - **Phones:** nothing wider than the screen; tab bars scroll sideways; long text and toolbars wrap.
 - The rules live at the end of `public/styles.css` ("CONSISTENCY STANDARD"), so most pages follow them without extra work.
 
@@ -220,6 +226,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.33** Sortable table headings everywhere; pages keep their scroll position after a change.
+- **v0.32.3** People table: long family (and contact) text wraps inside its column.
 - **v0.32.2** Import: choosing a file goes to Match the columns first; the review opens with Next: Review & import.
 - **v0.32.1** Sign-in help for people new to it: a "First time here?" box with numbered steps on the sign-in page (follows the
   password setting), plainer Check your email and Welcome pages, a "Need help?" contact (the Requests email) on each, and a
