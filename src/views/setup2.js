@@ -73,7 +73,7 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
       ${items.length ? `<ul class="ss-list">${items.map(row).join("")}</ul>` : `<div class="sp-empty">${IC.clock}<b>No ${esc(L.slot.many.toLowerCase())} yet.</b><span>Add one, and people can start claiming it once the board is published.</span></div>`}</section>`;
   } else {
     body = `<section class="sp-card"><div class="sp-card-h">${LEVEL_IC[(lvl + 1) % LEVEL_IC.length]}<b>${esc(childW.many)}</b><span class="fine">in ${esc(t ? t.node.name : "this board")}</span>
-        ${locked ? "" : `<button type="button" class="sb-btn primary" data-add-node="${t ? t.node.id : ""}" data-word="${esc(childW.one)}">${IC.plus}Add ${esc(childW.one.toLowerCase())}</button>`}</div>
+        ${locked ? "" : `<a class="sb-btn" href="/admin/b/${sc.id}/import-level?parent=${t ? t.node.id : ""}" title="Add a level exported from another copy of Claim It">Import a level</a><button type="button" class="sb-btn primary" data-add-node="${t ? t.node.id : ""}" data-word="${esc(childW.one)}">${IC.plus}Add ${esc(childW.one.toLowerCase())}</button>`}</div>
       ${kids.length ? `<div class="kid-grid">${kids.map((k) => `<a class="kid" href="/admin/setup?s=${sc.id}&n=${k.node.id}" data-nav="${k.node.id}">
           <span class="kid-ico">${LEVEL_IC[(lvl + 1) % LEVEL_IC.length]}</span><b>${esc(k.node.name)}</b>
           <span class="fine">${k.kids.length ? `${plural(k.kids.length, lvl + 2 <= depth - 2 ? word(lvl + 2) : L.slot)} · ` : ""}${plural(k.count.items, L.slot)} · ${k.count.spots} spots · ${k.count.claimed} claimed</span>
@@ -176,6 +176,11 @@ function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }
       <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
         <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${(sc && sc.board_type === "rsvp") ? `${totals.claimed} going` : `${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)`}${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
     <div class="bh2-acts">
+      <details class="tx-exp"><summary class="sb-btn" title="Download this board to import into another copy (e.g. staging → production)">Export</summary>
+        <form class="tx-pop" method="get" action="/admin/setup/schedules/${sc.id}/export" onsubmit="this.people.value=this.p.checked?'1':'0';this.coaches.value=this.c.checked?'1':'0';setTimeout(()=>this.closest('details').open=false,300);">
+          <b>Export this board</b><span class="fine">Setup, levels and sessions. Never claims.</span>
+          <label class="radio-row"><input type="checkbox" name="p" checked> People on the board</label><label class="radio-row"><input type="checkbox" name="c" checked> Coaches</label>
+          <input type="hidden" name="people"><input type="hidden" name="coaches"><button class="btn-small" type="submit">Download the file</button></form></details>
       <a class="sb-btn" href="/b/${sc.id}?preview=1" target="_blank" rel="noopener" title="See the board as a family would, even before it's published">${IC.eye}Preview</a>
       ${published && SC.claimMode(sc) === "public" && shareUrl ? `<details class="share-pop"><summary class="sb-btn">Share</summary><div class="share-panel">
           <p class="fine">Anyone with this link can sign up, no account needed.</p>
@@ -218,6 +223,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
             <button type="button" data-rename="${t.node.id}" data-name="${esc(t.node.name)}">${IC.edit}Rename</button>
             <button type="button" data-dup-node="${t.node.id}" data-name="${esc(t.node.name)}">${IC.copy}Duplicate</button>
             <button type="button" data-settings="${t.node.id}">${IC.gear}Settings</button>
+            <a href="/admin/b/${sc.id}/nodes/${t.node.id}/export" download title="Download this level, with everything inside it, to import into another copy">${IC.copy}Export</a>
             <button type="button" class="danger" data-delete="${t.node.id}" data-name="${esc(t.node.name)}">${IC.trash}Delete</button></span></span>`}</div>
       ${t.kids.length ? `<ul>${t.kids.map((k) => node(k, lvl + 1)).join("")}</ul>` : ""}</li>`;
   };

@@ -133,6 +133,11 @@ router.post("/:id/lists", wrap(async (req, res) => {
   go(res, `/admin/people/${id}#lists`, { ok: "Saved." });
 }));
 
+// ---------- People → Export: a spreadsheet the People import reads as is (e.g. into production) ----------
+router.get("/export.csv", wrap(async (req, res) => {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="people-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send("\ufeff" + await require("../transfer").peopleCsv());
+}));
 // ---------- import into the directory (no board) ----------
 const CSV = require("../csv");
 const H = () => require("./members").importHelpers;

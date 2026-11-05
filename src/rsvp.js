@@ -41,9 +41,9 @@ async function answer({ itemId, athleteId, userId = null, going, note }) {
 // one athlete's answers on a board: item id → { going, note }
 async function answersFor(boardId, athleteId) {
   await ensure();
-  const rows = (await query(`SELECT c.item_id, c.status, c.rsvp, c.note FROM board_claims c JOIN board_items i ON i.id=c.item_id
+  const rows = (await query(`SELECT c.id, c.item_id, c.status, c.rsvp, c.note FROM board_claims c JOIN board_items i ON i.id=c.item_id
     WHERE i.schedule_id=$1 AND c.athlete_id=$2 AND (c.status='confirmed' OR (c.status='canceled' AND c.rsvp='no')) ORDER BY c.id`, [boardId, athleteId])).rows;
-  const out = new Map(); for (const r of rows) out.set(r.item_id, { going: r.status === "confirmed", note: r.note });
+  const out = new Map(); for (const r of rows) out.set(r.item_id, { id: r.id, going: r.status === "confirmed", note: r.note });
   return out;
 }
 // per-event counts for a board: item id → { going, no }

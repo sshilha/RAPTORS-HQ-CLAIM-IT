@@ -90,7 +90,7 @@ function homePage({ top = null, user, flash, claims, boards, extra, admin, coach
       ${rows.map((c) => `<div class="d-claim${c.past ? " past" : ""}${c.status === "waitlisted" ? " wl" : ""}">${dayBlock(c.starts_at)}
         <div class="d-claim-b"><div class="d-claim-t"><b>${c.starts_at ? esc(timeRange(c.starts_at, c.ends_at)) : esc(c.title || "Anytime")}</b>${c.status === "waitlisted" ? `<span class="d-pill wl">Waitlist</span>` : ""}${c.past ? `<span class="d-pill">Done</span>` : ""}</div>
           <span>${esc([nm(c), ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}${c.location && c.location !== c.board_location ? ` · ${P.link(c.location)}` : ""}</span></div>
-        <div class="d-acts">${details(c)}
+        <div class="d-acts">${details(c)}${!c.past && c.starts_at && c.status === "confirmed" ? calMenu(c.id) : ""}
         ${c.past ? "" : c.cancelable ? `<form method="post" action="/claims/${c.id}/cancel" class="d-cancel" onsubmit="return confirm('Cancel this spot for ${esc((c.self_user_id ? "yourself" : c.first_name).replace(/'/g, ""))}? It will open for someone else.')">
             <input type="hidden" name="back" value="/dashboard"><button type="submit">${IC.trash}<span>Cancel</span></button></form>`
           : `<span class="d-late">Too late to cancel</span>`}</div>
@@ -160,6 +160,12 @@ const ACT_IC = [SVG('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path 
   SVG('<path d="M12 2.5 15 9l7 .6-5.3 4.6L18.4 21 12 17.3 5.6 21l1.7-6.8L2 9.6 9 9z"/>')];
 
 const SC_LABELS = (b) => require("../schedules").labels(b).participant.many.toLowerCase();
+// Add to calendar (a claimed, dated session): Apple Calendar / desktop Outlook (a file), Google, Outlook on the web
+const calMenu = (claimId) => `<details class="cal-add"><summary title="Add to calendar">${IC.cal}<span>Add to calendar</span></summary><div class="cal-menu" role="menu">
+  <a role="menuitem" href="/claims/${claimId}/calendar?to=ics"><b>Apple Calendar or Outlook</b><span>The app on this computer (downloads a calendar file)</span></a>
+  <a role="menuitem" href="/claims/${claimId}/calendar?to=google" target="_blank" rel="noopener"><b>Google Calendar</b><span>Opens Google with it filled in</span></a>
+  <a role="menuitem" href="/claims/${claimId}/calendar?to=outlook" target="_blank" rel="noopener"><b>Outlook.com</b><span>Personal Outlook, Hotmail or Live</span></a>
+  <a role="menuitem" href="/claims/${claimId}/calendar?to=office" target="_blank" rel="noopener"><b>Microsoft 365</b><span>Work or school Outlook</span></a></div></details>`;
 function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null, preview = null, rsvp = null }) {
   // guest = { code }: the public link ("Anyone with the link"), no account; claims ask for name + email
   const basePath = guest ? `/s/${guest.code}` : `/b/${board.id}`;
@@ -198,7 +204,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const canCancel = (r) => !r.cancelBy || new Date() < new Date(r.cancelBy);
   const action = (r, big = false) => {
     if (rsvp) return rsvpAct(r);
-    if (r.mine) return `<span class="b-claimed">${IC_CHECK}${r.mine.status === "waitlisted" ? "Waitlisted" : "Claimed"}</span>${preview ? "" : canCancel(r) ? cancelForm(r) : `<span class="b-late">Too late to cancel</span>`}`;
+    if (r.mine) return `<span class="b-claimed">${IC_CHECK}${r.mine.status === "waitlisted" ? "Waitlisted" : "Claimed"}</span>${!preview && r.mine.status === "confirmed" && r.item.starts_at ? calMenu(r.mine.id) : ""}${preview ? "" : canCancel(r) ? cancelForm(r) : `<span class="b-late">Too late to cancel</span>`}`;
     if (r.canClaim) return claimForm(r, big);
     if (r.blockedBy) return `<span class="b-state">Limit reached${r.blockedBy.kind === "board" ? "" : ` in ${esc(r.blockedBy.name)}`}</span>`;
     return `<span class="b-state">${esc(r.full ? "Full" : r.reason || "Not available")}</span>`;
@@ -209,9 +215,10 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
   const rsvpAct = (r) => {
     const a = rsvp.answers.get(r.item.id), started = r.item.starts_at && new Date(r.item.starts_at) <= new Date();
     const now = a ? `<span class="rv-now ${a.going ? "yes" : "no"}">${a.going ? `${IC_CHECK}Going` : "Can't make it"}</span>${a.note ? `<span class="rv-note">“${esc(a.note)}”</span>` : ""}` : `<span class="rv-now none">No answer yet</span>`;
-    if (started || !r.ok || preview) return `<div class="rv">${now}${!r.ok && !started ? `<span class="b-state">${esc(r.reason || "Not available")}</span>` : ""}</div>`;
+    const calA = a && a.going && a.id && r.item.starts_at && !started && !preview ? calMenu(a.id) : "";
+    if (started || !r.ok || preview) return `<div class="rv">${now}${calA}${!r.ok && !started ? `<span class="b-state">${esc(r.reason || "Not available")}</span>` : ""}</div>`;
     return `<form method="post" action="/b/${board.id}/rsvp" class="rv rv-form"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="back" value="${esc(back)}">
-      ${now}<input name="note" maxlength="200" value="${esc((a && a.note) || "")}" placeholder="Note (optional), e.g. arriving late" aria-label="Note">
+      ${now}${calA}<input name="note" maxlength="200" value="${esc((a && a.note) || "")}" placeholder="Note (optional), e.g. arriving late" aria-label="Note">
       <span class="rv-btns"><button class="rv-b yes${a && a.going ? " on" : ""}" name="answer" value="yes" type="submit">Going</button><button class="rv-b no${a && !a.going ? " on" : ""}" name="answer" value="no" type="submit">Can't make it</button></span></form>`;
   };
   const rowHtml2 = (r, o = {}) => `<div class="b-row${o.noDate ? " nod" : ""}${r.mine ? " mine" : ""}${r.leftover && !r.mine ? " lo" : ""}" id="i${r.item.id}">

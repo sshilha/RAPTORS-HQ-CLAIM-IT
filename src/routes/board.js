@@ -221,6 +221,34 @@ router.post("/:sid/items", wrap(async (req, res) => {
   if (total === 1) return go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}"${sc.board_type === "rsvp" ? "" : ` with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}`}.` });
   go(res, at(sc.id, nodeId), { ok: `Added ${total} sessions${times.length > 1 ? ` (${times.length} slots a day)` : ""}${dates.length > 1 ? ` on ${dates.length} days, ${nice(dates[0])} through ${nice(dates[dates.length - 1])}` : ` on ${nice(dates[0])}`}.` });
 }));
+const fileName = (s) => String(s || "export").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "export";
+// ---------- export a level / import a level into a board ----------
+router.get("/:sid/nodes/:nid/export", wrap(async (req, res) => {
+  const sc = await board(req); const n = (await query(`SELECT * FROM board_nodes WHERE id=$1 AND schedule_id=$2`, [int(req.params.nid), sc.id])).rows[0];
+  if (!n) return go(res, at(sc.id), { err: "Not found." });
+  const d = await require("../transfer").exportLevel(n.id);
+  res.setHeader("Content-Type", "application/json"); res.setHeader("Content-Disposition", `attachment; filename="${fileName(sc.name + "-" + n.name)}.claimit.json"`);
+  res.send(JSON.stringify(d, null, 1));
+}));
+async function levelTarget(sc, parentId) {
+  const p = parentId ? (await query(`SELECT * FROM board_nodes WHERE id=$1 AND schedule_id=$2`, [parentId, sc.id])).rows[0] : null;
+  return { sc, parentId: p ? p.id : null, parentName: p ? p.name : null };
+}
+router.get("/:sid/import-level", wrap(async (req, res) => { const sc = await board(req); res.send(require("../views/transfer").importPage({ user: req.user, flash: flashFrom(req), level: await levelTarget(sc, int(req.query.parent)) })); }));
+router.post("/:sid/import-level/preview", wrap(async (req, res) => {
+  const sc = await board(req), level = await levelTarget(sc, int(req.body.parent)), r = require("../transfer").read(String(req.body.data || ""));
+  if (r.err) return go(res, `/admin/b/${sc.id}/import-level?parent=${level.parentId || ""}`, { err: r.err });
+  if (r.data.kind !== "level") return go(res, `/admin/b/${sc.id}/import-level?parent=${level.parentId || ""}`, { err: "That file is a whole board. Import it from All Boards → Import a board." });
+  res.send(require("../views/transfer").previewPage({ user: req.user, flash: flashFrom(req), p: await require("../transfer").preview(r.data, { boardId: sc.id, parentId: level.parentId }), data: String(req.body.data), level }));
+}));
+router.post("/:sid/import-level", wrap(async (req, res) => {
+  const sc = await board(req), level = await levelTarget(sc, int(req.body.parent)), r = require("../transfer").read(String(req.body.data || ""));
+  if (r.err || r.data.kind !== "level") return go(res, at(sc.id, level.parentId), { err: r.err || "That file isn't a level." });
+  const out = await require("../transfer").importLevel(r.data, sc.id, level.parentId);
+  if (out.err) return go(res, at(sc.id, level.parentId), { err: out.err });
+  go(res, at(sc.id, level.parentId), { ok: `Imported "${out.name}": ${out.levels} level${out.levels === 1 ? "" : "s"} and ${out.sessions} session${out.sessions === 1 ? "" : "s"}.` });
+}));
+
 // ---------- Copy a day: every session on one day (this level, or the whole board) onto other days ----------
 const LOCAL = (col) => `to_char(${col} AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD')`;
 async function scopeNodes(sc, nodeId, scope) {

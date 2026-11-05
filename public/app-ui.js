@@ -95,6 +95,20 @@
   up.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
   document.body.appendChild(up);
   window.addEventListener("scroll", function () { up.classList.toggle("on", window.scrollY > window.innerHeight * 1.5); }, { passive: true });
+  // ---------- 1c. Add to calendar menus float above the page (lists that scroll in their own box, and cards, would cut them off) ----------
+  function menuOf(d) { if (!d._menu) { d._menu = d.querySelector(".cal-menu"); d._menu.hidden = true; document.body.appendChild(d._menu); } return d._menu; }   // on the page itself
+  function closeCal(except) { document.querySelectorAll("details.cal-add[open]").forEach(function (d) { if (d !== except) { d.open = false; menuOf(d).hidden = true; } }); }
+  document.addEventListener("toggle", function (e) {
+    var d = e.target; if (!d.matches || !d.matches("details.cal-add")) return;
+    var m = menuOf(d); if (!d.open) { m.hidden = true; return; }
+    closeCal(d); m.hidden = false; var r = d.querySelector("summary").getBoundingClientRect();
+    m.style.left = "0px"; m.style.top = "0px"; var w = m.offsetWidth, h = m.offsetHeight, x = r.right - w, y = r.bottom + 6;
+    if (x < 8) x = Math.min(r.left, window.innerWidth - w - 8); if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 6);
+    m.style.left = Math.round(x) + "px"; m.style.top = Math.round(y) + "px";
+  }, true);
+  document.addEventListener("click", function (e) { if (!e.target.closest("details.cal-add, .cal-menu")) closeCal(); if (e.target.closest(".cal-menu a")) setTimeout(closeCal, 50); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeCal(); });
+  document.addEventListener("scroll", function (e) { if (!(e.target.closest && e.target.closest(".cal-menu"))) closeCal(); }, true); window.addEventListener("resize", function () { closeCal(); });
   // ---------- 2. keep your place after a change ----------
   function scrollers() { return [].slice.call(document.querySelectorAll(".table-wrap, .sh-list, .imp-dlg-body, .ck-scroll, .rv-cols, [data-keep-scroll]")); }
   var PLACE = "place:" + location.pathname;   // the page you come back to after a change may have a different ?query

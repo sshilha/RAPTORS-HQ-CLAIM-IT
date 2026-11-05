@@ -252,6 +252,26 @@ router.post("/schedules/:id/family", wrap(async (req, res) => {
   go(res, `/admin/setup/schedule?s=${id}#family`, { ok: { full: "People now see full names of who's going.", initial: "People now see first names and last initials of who's going.", off: "People no longer see who's going." }[mode] });
 }));
 
+const fileName = (s) => String(s || "export").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "export";
+// ---------- export a board / import a board (moving setup between copies, e.g. staging → production) ----------
+router.get("/schedules/:id/export", wrap(async (req, res) => {
+  const sc = await SC.get(int(req.params.id)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
+  const d = await require("../transfer").exportBoard(sc.id, { people: req.query.people !== "0", coaches: req.query.coaches !== "0" });
+  res.setHeader("Content-Type", "application/json"); res.setHeader("Content-Disposition", `attachment; filename="${fileName(sc.name)}.claimit.json"`);
+  res.send(JSON.stringify(d, null, 1));
+}));
+router.get("/import", wrap(async (req, res) => res.send(require("../views/transfer").importPage({ user: req.user, flash: flashFrom(req) }))));
+router.post("/import/preview", wrap(async (req, res) => {
+  const r = require("../transfer").read(String(req.body.data || "")); if (r.err) return go(res, "/admin/setup/import", { err: r.err });
+  if (r.data.kind !== "board") return go(res, "/admin/setup/import", { err: "That file is a level, not a board. Import it from Board setup, where it should go." });
+  res.send(require("../views/transfer").previewPage({ user: req.user, flash: flashFrom(req), p: await require("../transfer").preview(r.data), data: String(req.body.data) }));
+}));
+router.post("/import", wrap(async (req, res) => {
+  const r = require("../transfer").read(String(req.body.data || "")); if (r.err || r.data.kind !== "board") return go(res, "/admin/setup/import", { err: r.err || "That file isn't a board." });
+  const out = await require("../transfer").importBoard(r.data, { name: str(req.body.name), people: req.body.people === "1", coaches: req.body.coaches === "1" });
+  go(res, `/admin/setup?s=${out.board.id}`, { ok: `Imported "${out.board.name}": ${out.levels} levels, ${out.sessions} sessions${out.people ? `, ${out.people} people` : ""}${out.coaches ? `, ${out.coaches} coach${out.coaches === 1 ? "" : "es"}` : ""}. It's unpublished.${out.missing.length ? ` ${out.missing.length} people weren't found in People here.` : ""}` });
+}));
+
 // ---------- copy a whole board ----------
 // boards built on the new engine (levels + sessions) copy with engine/copy.js
 const isEngineBoard = async (id) => !(await require("../db").hasOldData()) || !(await query(`SELECT 1 FROM training_sessions s JOIN programs p ON p.id=s.program_id

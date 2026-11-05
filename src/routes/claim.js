@@ -191,6 +191,17 @@ router.post("/b/:sid/rsvp", wrap(async (req, res) => {
   } catch (e) { if (e instanceof E.ClaimError) return go(res, back, { err: e.message }); throw e; }
 }));
 
+// Add to calendar from the app: the calendar file (Apple Calendar, desktop Outlook), or Google / Outlook on the web
+router.get("/claims/:id/calendar", wrap(async (req, res) => {
+  const CAL = require("../calendar"), d = await CAL.eventOf(int(req.params.id));
+  const people = await myPeople(req.user), mine = d && ([...people.kids.map((k) => k.id), ...(people.me ? [people.me.id] : [])].includes(d.athlete_id) || auth.isAdmin(req.user));
+  if (!d || !mine || !d.starts_at) return go(res, "/dashboard", { err: "That session can't be added to a calendar." });
+  if (req.query.to === "google") return res.redirect((await CAL.links(d.id, d)).google_calendar_link);
+  if (req.query.to === "outlook" || req.query.to === "office") return res.redirect(CAL.outlookLink(d, req.query.to === "office"));
+  const file = await CAL.ics(d.id); const nm = String(`${d.title || d.level || "session"} ${new Date(d.starts_at).toISOString().slice(0, 10)}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="${nm || "session"}.ics"`); res.send(file);
+}));
+
 router.post("/claims/:id/cancel", wrap(async (req, res) => {
   const id = int(req.params.id);
   const back = str(req.body.back).startsWith("/") ? str(req.body.back) : "/dashboard";

@@ -99,6 +99,18 @@ The database sets itself up on every start (tables and columns are added as need
 - **Preview** shows the sign-up page as any person on the board. **Publish** opens it to families.
 - **Archive**, then **Delete permanently** (type the board's name) when it's truly done.
 
+### 4.1b Moving setup between copies (staging → production)
+- **A board:** its header → **Export** (tick People on the board / Coaches) downloads a `.claimit.json` file with its
+  setup, look, wording, Board defaults, Notifications, every level with its settings, and every session. Never claims or
+  check-ins. In the other copy: All Boards → **Import a board** → the file → a summary → **Create the board** (always a
+  new, unpublished board; same name gets "(imported)").
+- **A level:** its ⋯ menu in Board setup → **Export** (the level with everything inside it). In the other copy, open the
+  level it belongs inside (or the board itself, for a top level) → **Import a level**. It has to go where the same kind
+  of level goes on a board with the same number of levels; otherwise the summary says where it goes.
+- **People:** People → **Export** downloads everyone as a spreadsheet the People **Import** reads as is.
+- People on an imported board are found here by email, or name + birth year (a parent's email breaks ties); anyone not
+  found is listed in the summary (import People first, then add them). Coaches travel by email. (src/transfer.js)
+
 ### 4.1a RSVP boards
 Create Board → type **RSVP** (or Board details → Type & look). For events where athletes just say whether they're coming
 (team events, meetings, games). Only people on the board answer (set on creation), and what they answer for is called an
@@ -145,6 +157,9 @@ live preview; **Reset to default**. **Test** beside each sends it (as saved, wit
 - **My Claims**: upcoming claims (filter by person and time) and boards open to sign up. **My Account**: Account
   (Profile rows with Change; Access) and Family (members with Change, + Add a family member; Sharing for athletes who sign
   in; My requests).
+- **Add to calendar**: on each upcoming claim in My Claims and on claimed sessions on the sign-up page (and RSVP Going):
+  Apple Calendar or desktop Outlook (a calendar file), Google Calendar, Outlook.com, Microsoft 365. `/claims/<id>/calendar`
+  (only your own or your family's claims).
 - **Sign-up page**: who's signing up (picked automatically when there's only one person), list or calendar, claim and
   cancel, remaining spots.
 - **Public link** (`/s/<code>`): claim with a name and email, no account; the confirmation has a private cancel link.
@@ -237,6 +252,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.35.1** Add to calendar in the app (My Claims, sign-up page, RSVP).
+- **v0.35** Export / import a board or a level (e.g. staging → production); People → Export.
 - **v0.34.3** `ENV_LABEL` marks a staging copy on every page, tab title and email subject.
 - **v0.34.2** Messages ("Saved", errors) float bottom right (along the bottom on phones) instead of pushing the page down;
   success fades after 6 seconds (hover keeps it), errors stay until closed. Sign-in screens keep theirs in place.

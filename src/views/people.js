@@ -71,7 +71,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
       ${f.batch ? `<div class="req-note imp-note"><b>People from an import</b> <span>Showing the people touched by import #${f.batch}.</span><a class="sb-btn" href="/admin/people">Show everyone</a></div>` : ""}
       <div class="pp-toolbar">
         <div class="pp-acts"><button type="button" class="sb-btn primary" onclick="var d=document.querySelector('.add-wrap'); d.open=!d.open; if (d.open) d.querySelector('input:not([type=hidden])').focus()">+ Add person</button>
-          <a class="sb-btn" href="/admin/people/import">⇪ Import</a>
+          <a class="sb-btn" href="/admin/people/import">⇪ Import</a><a class="sb-btn" href="/admin/people/export.csv" title="Everyone in People, as a spreadsheet Import reads as is">⇩ Export</a>
           <a class="sb-btn" href="/admin/people/cleanup">Clean up</a>
           <details class="new-list"><summary class="sb-btn">+ New list</summary>
             <form method="post" action="/admin/people/lists" class="inline-add nl-pop"><input name="name" required maxlength="60" placeholder="e.g. 2026 Season Athletes" aria-label="List name"><button class="btn-small" type="submit">Make list</button></form></details></div>
