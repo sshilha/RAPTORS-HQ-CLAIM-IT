@@ -55,7 +55,7 @@
     [/^\/admin\/setup\/new/, ["band", ".wz-tabs"]],                                                 // Create Board
     [/^\/admin\/setup\/schedules\/\d+\/copy/, ["band", ".cp-gbar"]],                              // Duplicate
     [/^\/admin\/(setup\/?$|setup\/schedule(\?|$)|setup\/notifications|members|b\/)/, ["band", ".board-tabs", ".sub-tabs"]],   // a board's screens
-    [/^\/(admin\/(people|requests|signins|settings\/app)|shadow)/, ["band", ".app-tabs", ".sub-tabs", "head"]],   // other App Settings
+    [/^\/(admin\/(people|requests|signins|activity|email-log|online|settings\/app)|shadow)/, ["band", ".app-tabs", ".sub-tabs", "head"]],   // other App Settings
     [/^\/reports/, ["band", ".r-gbar", ".sub-tabs", "head"]],                                        // Reports
     [/^\/checkin\/i\//, ["band", ".ck-gbar", ".ck-listbar"]],                                       // a session's check-in
     [/^\/checkin/, ["band", ".ck-gbar"]],                                                          // Check-in day

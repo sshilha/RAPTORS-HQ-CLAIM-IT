@@ -13,11 +13,11 @@ const IC = {
 };
 const TABS = [["people", "/admin/people", IC.people, "People"], ["accounts", "/admin/settings/app?part=accounts", IC.key, "Accounts &amp; sign-in"],
   ["org", "/admin/settings/app?part=places", IC.org, "Organization"]];
-const ALIAS = { olddata: "org", shadow: "accounts", communication: "people", requests: "people", admins: "accounts", signins: "accounts", overview: "people", locations: "org", wording: "org", pictures: "org" };   // sub-pages light their area
+const ALIAS = { olddata: "org", shadow: "accounts", communication: "people", requests: "people", admins: "accounts", signins: "accounts", activity: "accounts", online: "accounts", emaillog: "people", overview: "people", locations: "org", wording: "org", pictures: "org" };   // sub-pages light their area
 // areas with more than one page get a second row of tabs
 const SUBS = {
-  people: [["people", "/admin/people", "People"], ["requests", "/admin/requests", "Requests"], ["communication", "/admin/people/communication", "Communication"]],
-  accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["signins", "/admin/signins", "Sign-in activity"], ["shadow", "/admin/settings/app?part=shadow", "Sign in as"]],
+  people: [["people", "/admin/people", "People"], ["requests", "/admin/requests", "Requests"], ["communication", "/admin/people/communication", "Communication"], ["emaillog", "/admin/email-log", "Email log"]],
+  accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["online", "/admin/online", "On now"], ["activity", "/admin/activity", "Activity"], ["signins", "/admin/signins", "Sign-in activity"], ["shadow", "/admin/settings/app?part=shadow", "Sign in as"]],
   org: [["locations", "/admin/settings/app?part=places", "Locations"], ["wording", "/admin/settings/app?part=labels", "Wording"], ["pictures", "/admin/settings/app?part=pictures", "Pictures"], ["olddata", "/admin/settings/app?part=olddata", "Old data"]],
 };
 

@@ -23,6 +23,7 @@ async function run() {
         try { await require("./engine/notify").reminder(r.id); n++; } catch (e) { console.error("reminder:", e.message); }
       }
       if (n) console.log(`[reminders] sent ${n}`);
+      try { const k = await require("./rsvp").nudge(); if (k) console.log(`[reminders] reminded ${k} to RSVP`); n += k; } catch (e) { console.error("rsvp reminders:", e.message); }
       return n;
     } finally { await c.query(`SELECT pg_advisory_unlock(724311)`); }
   } catch (e) { console.error("reminders:", e.message); return 0; } finally { c.release(); }

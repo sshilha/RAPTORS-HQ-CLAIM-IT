@@ -34,6 +34,10 @@ router.get("/", wrap(async (req, res) => {
      WHERE a.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM schedule_members m WHERE m.schedule_id=$1 AND m.athlete_id=a.id)
      ORDER BY lower(a.last_name), lower(a.first_name)`, [sc.id])).rows;
   const total = (await query(`SELECT count(*)::int AS n FROM schedule_members WHERE schedule_id=$1`, [sc.id])).rows[0].n;
+  const eng = await require("../presence").engagement(sc.id);   // did they (or a parent/guardian) sign in, open this board, claim?
+  for (const m of members) m.eng = eng.get(m.id) || { stage: "noaccount" };
+  const stageF = ["claimed", "opened", "signedin", "never", "noaccount"].includes(req.query.e) ? req.query.e : "";
+  const engCounts = { total: eng.size, signedin: 0, opened: 0, claimed: 0 }; for (const e of eng.values()) { if (e.signed_in_at) engCounts.signedin++; if (e.opened_at) engCounts.opened++; if (e.claims) engCounts.claimed++; }
   // Teams & tags live on the same page, above the people
   const G = require("../groups"), SCx = require("../schedules");
   const usage = {};
@@ -44,7 +48,7 @@ router.get("/", wrap(async (req, res) => {
   const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "access" });
   const card = String(req.query.card || "");
   const sub = ["people", "groups", "shortcuts"].includes(req.query.sub) ? req.query.sub : ({ groups: "groups", tags: "groups", copy: "groups", presets: "shortcuts" }[card] || "people");
-  res.send(v.membersPage({ head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams, sub, addOpen: card === "add" || req.query.add === "1" || (!total && sub === "people") }));
+  res.send(v.membersPage({ eng: engCounts, stageF,  head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams, sub, addOpen: card === "add" || req.query.add === "1" || (!total && sub === "people") }));
 }));
 
 // A brand-new person, added to this schedule

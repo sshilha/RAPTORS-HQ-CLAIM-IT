@@ -115,6 +115,9 @@ The database sets itself up on every start (tables and columns are added as need
 Create Board → type **RSVP** (or Board details → Type & look). For events where athletes just say whether they're coming
 (team events, meetings, games). Only people on the board answer (set on creation), and what they answer for is called an
 Event. Families see each event with **Going / Can't make it** and an optional note, changeable until it starts; no spots.
+Who can answer is always only the people on the board: Create Board doesn't ask, Board defaults shows it fixed, and the
+server enforces it (also when a board's type is switched to RSVP). Board → Notifications → **Remind those who haven't
+answered, 2 days before** (on by default): the reminder checker emails Please RSVP once per person per event (rsvp_nudges).
 Board Setup shows "N going"; an event's People page shows Going · Can't make it · No answer yet (with notes) and
 **Remind them** (emails only those who haven't answered: "Please RSVP" in Communication). Going is a regular claim, so My
 Claims, day-before reminders, check-in and reports include it; Can't make it is stored as a canceled claim marked
@@ -167,6 +170,25 @@ live preview; **Reset to default**. **Test** beside each sends it (as saved, wit
 ### 4.7 Athletes who sign in themselves
 On the athlete's People page: their own email, Send invite, and two switches: family can see/manage claims, family gets
 the emails (both on by default). Athletes 18+ can change these in My Account → Family → Sharing.
+
+### 4.7a Activity (App Settings → Accounts & sign-in → Activity)
+Who did what, for whom, where and when: claims, cancels, waitlist moves, RSVP answers, check-in taps, board and People
+changes, requests, account and family changes, settings, imports, and sign-ins, each with how (App, Admin, Public link,
+Sign in as, a sign-in method). Errors people ran into show as **Problem** (Only problems filter). Filters: search, board,
+kind, dates; Download CSV. Kept a year. How it works: every change ends in a confirmation or error message, and
+src/activity.js records each one (plus check-in taps, which have no message) with the board, person and session it was
+about; claims and cancels from before it existed are filled in once at startup.
+
+### 4.7b Email log, On now, and who's engaged on a board
+- **Email log** (App Settings → People → Email log): every email the app tried to send: to whom, which email, the subject,
+  and the result: Sent, Failed (with Resend's reason in plain words), Held (Sign in as), or Not sent (no email service).
+  **Check delivery** (one, or all shown) asks Resend what happened next: Delivered, Bounced, Marked as spam, Delayed.
+  Filters, Download CSV. Kept a year. (src/emailLog.js; email.js logs every outcome.)
+- **On now** (App Settings → Accounts & sign-in → On now): who's used the app in the last 15 minutes, their role, the page
+  they're on, and their device; updates itself every 30 seconds. Sign in as sessions aren't counted.
+- **Engagement** (a board's Access & people): for each athlete, whether they or any parent/guardian Claimed, Opened the
+  board, Signed in but hasn't opened it, Never signed in, or has No account; totals and a filter for each. "Opened" counts
+  from v0.37. (src/presence.js: users.last_seen_*, board_views.)
 
 ### 4.8 Sign in as (shadow mode)
 App Settings → Accounts & sign-in → **Sign in as** (or a person's page). Use the app exactly as someone else: a person
@@ -252,6 +274,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.38** RSVP: always only people on the board (not asked, not changeable); automatic Please RSVP 2 days before.
+- **v0.37.1** My Claims: Sign Up for Something buttons read Claim (programs, volunteer) or RSVP (RSVP boards).
+- **v0.37** Email log with delivery checks; On now; engagement per athlete on a board's Access & people.
+  Fix: the Activity log now starts on a database that never used RSVP or app settings (v0.36.0 recorded nothing there).
+- **v0.36** Activity log (App Settings → Accounts & sign-in → Activity).
 - **v0.35.1** Add to calendar in the app (My Claims, sign-up page, RSVP).
 - **v0.35** Export / import a board or a level (e.g. staging → production); People → Export.
 - **v0.34.3** `ENV_LABEL` marks a staging copy on every page, tab title and email subject.

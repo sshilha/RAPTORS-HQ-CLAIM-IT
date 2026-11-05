@@ -97,6 +97,9 @@ router.post("/i/:id/mark", wrap(async (req, res, next) => {
     WHERE id=$1 AND item_id=$2`, [int(req.body.claim), it.id, state, req.user.id]);
   const c = (await query(`SELECT count(*) FILTER (WHERE status='confirmed')::int AS claimed, count(*) FILTER (WHERE attended)::int AS here, count(*) FILTER (WHERE attended = false)::int AS noshow
     FROM board_claims WHERE item_id=$1 AND status<>'canceled'`, [it.id])).rows[0];
+  const who = (await query(`SELECT a.id, a.first_name, a.last_name FROM board_claims bc JOIN athletes a ON a.id=bc.athlete_id WHERE bc.id=$1`, [int(req.body.claim)])).rows[0];
+  if (who) require("../activity").record(req, { kind: "checkin", summary: `${{ true: "Marked here", false: "Marked no-show", null: "Cleared check-in for" }[String(state)]}: ${who.first_name} ${who.last_name || ""} · ${require("../time").slotName(it)}`,
+    boardId: it.schedule_id, athleteId: who.id, itemId: it.id });
   json ? res.json({ ok: true, ...c }) : go(res, `/checkin/i/${it.id}`, {});
 }));
 router.post("/i/:id/all", wrap(async (req, res, next) => {

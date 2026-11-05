@@ -116,7 +116,7 @@ function homePage({ top = null, user, flash, claims, boards, extra, admin, coach
         <span class="d-board-meta"><span>${IC.people}${esc(audience(b))}</span>${b.event_location ? `<span>${IC.pin}${esc(b.event_location)}</span>` : ""}</span>
         ${b.description ? `<span class="d-board-desc">${esc(b.description.split(/\n/)[0].slice(0, 120))}</span>` : ""}
       </div>
-      <a class="d-signup" href="/b/${b.id}">Sign Up ${IC.right}</a></div>`;
+      <a class="d-signup" href="/b/${b.id}">${b.board_type === "rsvp" ? "RSVP" : "Claim"} ${IC.right}</a></div>`;
   }).join("") + (!allBoards && list.length > SHOW ? `<a class="d-more" href="${q({ boards: "all" })}#signup">Show all ${list.length}</a>` : "")
     : `<div class="d-empty">${volOnly ? IC.people : IC.clip}<b>${volOnly ? "No volunteer opportunities open right now." : "Nothing open to sign up for right now."}</b><span>${volOnly && boards.length ? `<a href="${q({ tab: "" })}#signup">See everything that's open</a>` : "Check back soon."}</span></div>`;
   return layout({ title: "My Claims", user, flash, admin, tab: "home", dash: true,

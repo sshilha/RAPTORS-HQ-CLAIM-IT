@@ -78,8 +78,9 @@ async function summary(itemId) {
   return { chain, ...out };
 }
 // email the families of everyone who hasn't answered
-async function remind(itemId) {
+async function remind(itemId, only = null) {
   const s = await summary(itemId); if (!s) return 0;
+  if (only) s.none = s.none.filter((p) => only(p.id));
   const { slotName } = require("./time"), base = process.env.APP_URL || "";
   const b = s.chain.board, it = s.chain.item; let n = 0;
   for (const p of s.none) {
@@ -93,4 +94,24 @@ async function remind(itemId) {
   }
   return n;
 }
-module.exports = { isRsvp, answer, answersFor, countsFor, summary, remind, ensure };
+// automatic: 2 days before each event, everyone on the list who hasn't answered gets "Please RSVP", once
+// (Board → Notifications → "Remind those who haven't answered", on by default). Run by the reminder checker.
+async function nudge() {
+  await ensure();
+  await query(`CREATE TABLE IF NOT EXISTS rsvp_nudges (item_id INT NOT NULL, athlete_id INT NOT NULL, sent_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (item_id, athlete_id))`);
+  const items = (await query(`SELECT i.id FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
+    WHERE sc.board_type='rsvp' AND sc.published_at IS NOT NULL AND sc.archived_at IS NULL AND i.canceled_at IS NULL
+      AND i.starts_at > now() AND i.starts_at <= now() + interval '2 days' AND coalesce((sc.settings->'notify'->>'rsvp_nudge')::boolean, true)
+    ORDER BY i.starts_at LIMIT 200`)).rows;
+  let n = 0;
+  for (const it of items) {
+    const done = new Set((await query(`SELECT athlete_id FROM rsvp_nudges WHERE item_id=$1`, [it.id])).rows.map((r) => r.athlete_id));
+    const s = await summary(it.id); if (!s) continue;
+    const todo = s.none.filter((p) => !done.has(p.id)); if (!todo.length) continue;
+    for (const p of todo) await query(`INSERT INTO rsvp_nudges (item_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [it.id, p.id]);   // mark first, so a failure never repeats it
+    const ids = new Set(todo.map((p) => p.id));
+    try { n += await remind(it.id, (id) => ids.has(id)); } catch (e) { console.error("rsvp nudge:", e.message); }
+  }
+  return n;
+}
+module.exports = { isRsvp, answer, answersFor, countsFor, summary, remind, nudge, ensure };

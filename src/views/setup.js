@@ -217,11 +217,11 @@ function scheduleSettingsPage({ user, flash, sc, counts, part = "structure", mai
 
       ${sec("who", I.users(), "Who can claim", "Who can see this board and claim from it, and whether some things are limited.",
         rows([["Who can claim", `${CLAIM[claim]}<div class="fine">${{ public: "No account needed; anyone with the link. People with an account also see it on My Claims.", family: "Only people with an approved account.", roster: `Only the ${esc(L.participant.many.toLowerCase())} assigned to this board, or family linked to them.` }[claim]}</div>`], claim === "public" ? null : [`Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())}`, sc.restricted ? `Yes, by ${esc(L.group.one.toLowerCase())} or tag` : "No"]]),
-        `<div class="opt-row three">
+        `${sc && sc.board_type === "rsvp" ? `<input type="hidden" name="claim" value="roster"><p class="rv-fixed"><b>Only people on the board.</b> RSVP boards are always just for the people on the board (Access &amp; people).</p>` : `<div class="opt-row three">
           ${radio("claim", "public", claim, "Anyone with the link", claimHelp(L).public, EX.claim.public)}
           ${radio("claim", "family", claim, "Anyone with an account", claimHelp(L).family, EX.claim.family)}
           ${radio("claim", "roster", claim, "Only people assigned to the board", claimHelp(L).roster, EX.claim.roster)}
-        </div>
+        </div>`}
         <div class="sub-q" data-restrict${claim === "public" ? " hidden" : ""}>
           <p class="q-label">Limit some ${esc((depth > 1 ? L.activity.many : L.slot.many).toLowerCase())} to certain people?</p>
           <div class="opt-row">
@@ -371,13 +371,14 @@ function newSchedulePage({ user, flash }) {
 
         <div class="wz-step" data-step="3" hidden>
           <p class="muted tight">Filled in for the structure you picked. Change any of them.</p>
-          <fieldset class="q"><legend>Who can claim?</legend><div class="choice-row three">
+          <fieldset class="q" id="wz-claim-q"><legend>Who can claim?</legend><div class="choice-row three">
             ${opt("claim", "public", "Anyone with the link", claimHelp().public, "claim.public")}
             ${opt("claim", "family", "Anyone with an account", claimHelp().family, "claim.family")}
             ${opt("claim", "roster", "Only people assigned to the board", claimHelp().roster.replace("this board's list", "the list you make"), "claim.roster")}</div></fieldset>
           <fieldset class="q"><legend>Limit some things to certain people?</legend><div class="choice-row">
             ${opt("restrict", "no", "No", "Anyone who can claim can claim anything.")}
             ${opt("restrict", "yes", "Yes", "By team or tag.", "restrict")}</div></fieldset>
+          <p class="rv-fixed" id="wz-rsvp-note" hidden><b>Who can answer:</b> only the people on the board. You'll add them on Access &amp; people after creating it.</p>
           <div class="wz-summary" aria-live="polite"><span class="label-like">Summary</span><p id="wz-sum"></p></div>
         </div>
 
@@ -431,7 +432,9 @@ function newSchedulePage({ user, flash }) {
         examples();
         document.getElementById("wz-views").hidden = val("dated") !== "yes";
         var rq = document.querySelector('input[name="restrict"]').closest("fieldset"); rq.hidden = val("claim") === "public";
-        var who = { public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" }[val("claim")] || "";
+        var rsvp = val("board_type") === "rsvp", cq = document.getElementById("wz-claim-q");   // RSVP: always only people on the board, so not asked
+        if (cq) { cq.hidden = rsvp; document.getElementById("wz-rsvp-note").hidden = !rsvp; if (rsvp) { var ro = form.querySelector('input[name="claim"][value="roster"]'); if (ro && !ro.checked) { ro.checked = true; ro.dispatchEvent(new Event("change", { bubbles: true })); } } }
+        var who = { public: "Anyone with the link", family: "Anyone with an account", roster: rsvp ? "Only people on the board" : "Only people assigned to the board" }[val("claim")] || "";
         var when = val("dated") === "yes" ? ({ both: "dates, list & calendar", list: "dates, list view" }[val("pick")] || "dates, calendar") : "no dates (a list)";
         document.getElementById("wz-sum").innerHTML = "<b>" + (form.name.value.trim() || "Untitled").replace(/[<>&]/g, "") + "</b> · " + (NAMES[val("preset")] || "") +
           " · " + who + (val("claim") === "public" ? "" : " · " + (val("restrict") === "yes" ? "limited by group or tag" : "anyone can claim anything")) + " · " + when;
