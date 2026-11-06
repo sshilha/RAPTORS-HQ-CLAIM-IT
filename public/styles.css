@@ -2843,3 +2843,8 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .roll.on { background: #E4F5D2; color: #2f6d0c; }
 /* the show-next note gets its own line under the time, never cut off */
 .roll-line { grid-column: 1 / -1; display: block; } .roll-line:empty { display: none; } .roll { margin-top: 2px; white-space: normal; }
+/* check-in: each board is its own section; the board shows clearly on a session */
+.ck-bsec + .ck-bsec { margin-top: 18px; }
+.ck-bhd { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 0 2px; } .ck-bhd b { display: block; font: 800 16px Inter, sans-serif; color: #0B1930; }
+.ck-btile { flex: none; width: 36px; height: 36px; border-radius: 9px; background: #0B1930; color: #8DDC32; display: grid; place-items: center; font: 900 13px Inter, sans-serif; letter-spacing: .02em; }
+.ck-board { display: inline-block; font: 800 11px Inter, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #0B1930; background: #8DDC32; padding: 2px 8px; border-radius: 6px; margin-bottom: 4px; }

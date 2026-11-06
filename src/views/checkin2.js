@@ -24,17 +24,20 @@ function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, is
         ${next ? `<a href="/checkin?d=${next}${bq}" aria-label="Next day with sessions">${R}</a>` : `<span class="off">${R}</span>`}</span>
       ${isToday ? "" : `<a class="sb-btn ck-today" href="/checkin${board ? `?b=${board}` : ""}">Today</a>`}
     </nav>
-    ${boards.length > 1 ? `<nav class="sub-tabs ck-subs"><a href="/checkin?d=${day}"${!board ? ' aria-current="page"' : ""}>All boards</a>${boards.map(([id, n]) => `<a href="/checkin?d=${day}&b=${id}"${board === id ? ' aria-current="page"' : ""}>${esc(n)}</a>`).join("")}</nav>` : ""}
+    ${boards.length > 1 ? `<nav class="sub-tabs ck-subs"><a href="/checkin?d=${day}&b=0"${!board ? ' aria-current="page"' : ""}>All boards</a>${boards.map(([id, n]) => `<a href="/checkin?d=${day}&b=${id}"${board === id ? ' aria-current="page"' : ""}>${esc(n)}</a>`).join("")}</nav>` : ""}
     <div class="sub-body ck-sheet${boards.length > 1 ? "" : " no-subs"}">
-    ${sessions.length ? `<div class="ck-list">${sessions.map((s) => {
+    ${sessions.length ? [...new Map(sessions.map((x) => [x.board_id, x.board_name])).entries()].map(([bid, bname]) => { const mine = sessions.filter((x) => x.board_id === bid), t2 = mine.reduce((t, x) => ({ c: t.c + x.claimed, h: t.h + x.here }), { c: 0, h: 0 });
+      const ini = String(bname || "?").split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
+      return `<section class="ck-bsec"><div class="ck-bhd"><span class="ck-btile">${esc(ini)}</span><div><b>${esc(bname)}</b><span class="fine">${mine.length} session${mine.length === 1 ? "" : "s"} · ${t2.c} claimed · ${t2.h} here</span></div></div>
+      <div class="ck-list">${mine.map((s) => {
       const done = s.here + s.noshow, pct = s.claimed ? Math.round((done / s.claimed) * 100) : 0;
       return `<a class="ck-card" href="/checkin/i/${s.id}">
         <span class="ck-time">${esc(timeRange(s.starts_at, s.ends_at))}</span>
-        <span class="ck-what"><b>${esc(leaf(s.path) || s.title || "Session")}</b><small>${esc([s.board_name, crumb(s.path), s.title && s.path ? s.title : ""].filter(Boolean).join(" • "))}</small>
+        <span class="ck-what"><b>${esc(leaf(s.path) || s.title || "Session")}</b><small>${esc([board || boards.length > 0 ? "" : s.board_name, crumb(s.path), s.title && s.path ? s.title : ""].filter(Boolean).join(" • "))}</small>
           ${where(s) ? `<small>${esc(where(s))}</small>` : ""}</span>
         <span class="ck-nums"><b>${s.here}</b> here · ${s.noshow ? `<b>${s.noshow}</b> no-show · ` : ""}${s.claimed} claimed
           <span class="ck-bar"><i style="width:${pct}%"></i></span></span>
-        <span class="ck-go">${R}</span></a>`; }).join("")}</div>`
+        <span class="ck-go">${R}</span></a>`; }).join("")}</div></section>`; }).join("")
       : `<div class="d-empty"><b>No sessions to check in ${isToday ? "today" : "this day"}.</b><span>${next ? `<a href="/checkin?d=${next}">Next: ${esc(dayLabel(next))}</a>` : prev ? `<a href="/checkin?d=${prev}">Last: ${esc(dayLabel(prev))}</a>` : "Sessions show here once a board you check in has them."}</span></div>`}
     </div></div>` });
 }
@@ -57,8 +60,8 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
     body: `<div class="d-wrap ck-wrap">
     <nav class="back-row"><a class="back-btn" href="/checkin?d=${day}">${L}Back to Check-in</a></nav>
     <section class="bh2 ck-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${CK_IC}</span>
-      <div><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
-        <span class="bh2-meta">${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))}${it.starts_at ? ` · ${esc(timeRange(it.starts_at, it.ends_at))}` : ""}${where(it) ? ` · ${esc(where(it))}` : ""}</span></div></div></section>
+      <div><span class="ck-board">${esc(it.board_name)}</span><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
+        <span class="bh2-meta">${esc([crumb(it.path)].filter(Boolean).join(" • "))}${it.starts_at ? ` · ${esc(timeRange(it.starts_at, it.ends_at))}` : ""}${where(it) ? ` · ${esc(where(it))}` : ""}</span></div></div></section>
     <nav class="bh2-tabs dash-tabs ck-gbar">
       <span class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> claimed
         <span class="ck-bar-p"><i id="ck-pct" style="width:${conf.length ? Math.round(((here + no) / conf.length) * 100) : 0}%"></i></span></span>

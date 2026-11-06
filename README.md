@@ -282,6 +282,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.39.1** Check-in: sessions grouped under a header per board; the board tab a coach picks is remembered; the board
+  shows as a label on a session's check-in.
 - **v0.39** Show families only the next one (or next 2 / 3) per level; RSVP level settings show only what applies.
 - **v0.38** RSVP: always only people on the board (not asked, not changeable); automatic Please RSVP 2 days before.
 - **v0.37.1** My Claims: Sign Up for Something buttons read Claim (programs, volunteer) or RSVP (RSVP boards).

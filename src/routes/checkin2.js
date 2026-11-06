@@ -45,6 +45,8 @@ const closedMsg = (it) => `Check-in for this session closed ${dayLabel(it.lock.u
 // ---------- the day ----------
 router.get("/", wrap(async (req, res) => {
   const day = isDate(req.query.d) ? req.query.d : localDate(new Date());
+  if (req.query.b !== undefined) { const b = Number(req.query.b) || 0; b ? res.cookie("ck_board", String(b), { maxAge: 30 * 864e5, sameSite: "lax", httpOnly: true }) : res.clearCookie("ck_board"); }
+  else if (req.cookies && req.cookies.ck_board) req.query.b = req.cookies.ck_board;   // the board they picked last time
   const all = (await query(`SELECT i.id, i.node_id, i.title, i.starts_at, i.ends_at, i.capacity, i.location, i.schedule_id AS board_id, sc.name AS board_name, sc.event_location,
       count(c.*) FILTER (WHERE c.status='confirmed')::int AS claimed,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended)::int AS here,
