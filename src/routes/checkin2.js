@@ -24,7 +24,7 @@ const pathOf = async (nodeId) => (await query(`WITH RECURSIVE up AS (SELECT id, 
 
 // one session, if this person may check in for it
 async function itemFor(req, id) {
-  const it = (await query(`SELECT i.*, sc.name AS board_name, sc.question, sc.event_location, sc.settings AS board_settings FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
+  const it = (await query(`SELECT i.*, sc.name AS board_name, sc.board_type, sc.question, sc.event_location, sc.settings AS board_settings FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
     WHERE i.id=$1 AND i.schedule_id = ANY($2) AND i.canceled_at IS NULL`, [id, req.boards])).rows[0];
   if (it) { it.path = await pathOf(it.node_id); it.lock = lockOf(it); }
   return it || null;
@@ -47,16 +47,17 @@ router.get("/", wrap(async (req, res) => {
   const day = isDate(req.query.d) ? req.query.d : localDate(new Date());
   if (req.query.b !== undefined) { const b = Number(req.query.b) || 0; b ? res.cookie("ck_board", String(b), { maxAge: 30 * 864e5, sameSite: "lax", httpOnly: true }) : res.clearCookie("ck_board"); }
   else if (req.cookies && req.cookies.ck_board) req.query.b = req.cookies.ck_board;   // the board they picked last time
-  const all = (await query(`SELECT i.id, i.node_id, i.title, i.starts_at, i.ends_at, i.capacity, i.location, i.schedule_id AS board_id, sc.name AS board_name, sc.event_location,
+  const all = (await query(`SELECT i.id, i.node_id, i.title, i.starts_at, i.ends_at, i.capacity, i.location, i.schedule_id AS board_id, sc.name AS board_name, sc.board_type, sc.event_location,
       count(c.*) FILTER (WHERE c.status='confirmed')::int AS claimed,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended)::int AS here,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended = false)::int AS noshow
     FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id LEFT JOIN board_claims c ON c.item_id=i.id
     WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL AND i.starts_at IS NOT NULL AND sc.archived_at IS NULL
       AND to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') = $2
-    GROUP BY i.id, sc.name, sc.event_location ORDER BY i.starts_at, i.id`, [req.boards, day])).rows;
+    GROUP BY i.id, sc.name, sc.board_type, sc.event_location ORDER BY i.starts_at, i.id`, [req.boards, day])).rows;
+  for (const s of all) if (s.board_type === "rsvp") { const r = await require("../rsvp").summary(s.id); if (r) s.rsvp = { going: r.going.length, no: r.no.length, none: r.none.length }; }
   const sessions = [];
-  for (const s of all) if (await tracked(s.id)) { s.path = await pathOf(s.node_id); sessions.push(s); }
+  for (const s of all) if (s.board_type === "rsvp" || await tracked(s.id)) { s.path = await pathOf(s.node_id); sessions.push(s); }   // RSVP events always: coaches see who's coming
   const days = (await query(`SELECT DISTINCT to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') AS d FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
     WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL AND i.starts_at IS NOT NULL AND sc.archived_at IS NULL ORDER BY d`, [req.boards])).rows.map((r) => r.d);
   res.send(v.dayPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
@@ -80,7 +81,8 @@ router.get("/i/:id", wrap(async (req, res) => {
     WHERE m.schedule_id=$1 AND a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name)`, [it.schedule_id])).rows.filter((p) => !onIds.has(p.id));
   const others = (await query(`SELECT id, first_name, last_name, kind FROM athletes WHERE archived_at IS NULL AND id <> ALL($1) ORDER BY lower(last_name), lower(first_name) LIMIT 800`,
     [[...onIds, ...board.map((p) => p.id)]])).rows;
-  res.send(v.rosterPage({ sub: ["roster", "waitlist", "walkin"].includes(req.query.sub) ? req.query.sub : "roster", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people, board, others }));
+  const rsvp = it.board_type === "rsvp" ? await require("../rsvp").summary(it.id) : null;   // RSVP: who's going, who can't, who hasn't answered
+  res.send(v.rosterPage({ rsvp, sub: ["roster", "waitlist", "walkin"].includes(req.query.sub) ? req.query.sub : "roster", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people, board, others }));
 }));
 
 // Here / No-show / clear (instant from the page; plain form as a fallback)

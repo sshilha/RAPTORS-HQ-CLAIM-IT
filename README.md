@@ -285,6 +285,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.39.4** Check-in for RSVP boards (always included, attendance tracked or not): day cards show going / can't make it
+  / no answer; an event shows Going (with notes, to check in), Can't make it (with notes) and No answer yet.
 - **v0.39.3** RSVP event People page (admin): Change anyone's answer (Going / Can't make it / Clear, with note), even
   after it starts; + Add someone (adds them to the board if needed); Remove from board. No emails; logged in Activity.
 - **v0.39.2** Phones: tab rows become a "Section ▾" dropdown.

@@ -35,14 +35,14 @@ function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, is
         <span class="ck-time">${esc(timeRange(s.starts_at, s.ends_at))}</span>
         <span class="ck-what"><b>${esc(leaf(s.path) || s.title || "Session")}</b><small>${esc([board || boards.length > 0 ? "" : s.board_name, crumb(s.path), s.title && s.path ? s.title : ""].filter(Boolean).join(" • "))}</small>
           ${where(s) ? `<small>${esc(where(s))}</small>` : ""}</span>
-        <span class="ck-nums"><b>${s.here}</b> here · ${s.noshow ? `<b>${s.noshow}</b> no-show · ` : ""}${s.claimed} claimed
+        <span class="ck-nums">${s.rsvp ? `<b>${s.rsvp.going}</b> going · ${s.rsvp.no} can't make it · ${s.rsvp.none} no answer${s.here ? ` · <b>${s.here}</b> here` : ""}` : `<b>${s.here}</b> here · ${s.noshow ? `<b>${s.noshow}</b> no-show · ` : ""}${s.claimed} claimed`}
           <span class="ck-bar"><i style="width:${pct}%"></i></span></span>
         <span class="ck-go">${R}</span></a>`; }).join("")}</div></section>`; }).join("")
       : `<div class="d-empty"><b>No sessions to check in ${isToday ? "today" : "this day"}.</b><span>${next ? `<a href="/checkin?d=${next}">Next: ${esc(dayLabel(next))}</a>` : prev ? `<a href="/checkin?d=${prev}">Last: ${esc(dayLabel(prev))}</a>` : "Sessions show here once a board you check in has them."}</span></div>`}
     </div></div>` });
 }
 
-function rosterPage({ user, flash, admin, it, people, board, others, sub = "roster" }) {
+function rosterPage({ user, flash, admin, it, people, board, others, sub = "roster", rsvp = null }) {
   const lock = it.lock || { locked: false, until: null }, ro = lock.locked && !admin;   // read-only for coaches once it's closed
   const short = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
@@ -50,8 +50,8 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
   const day = new Date(it.starts_at || Date.now()).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
   const row = (p) => `<li class="ck-p" data-claim="${p.id}" data-state="${p.attended === true ? "here" : p.attended === false ? "noshow" : ""}">
       <span class="ck-name"><b>${esc(p.first_name)} ${esc(p.last_name)}</b>
-        <small>${[p.group_name, p.walk_in ? "Walk-in" : "", p.counts === false && !p.walk_in ? "Extra spot" : "", p.status === "waitlisted" ? "Waitlist" : ""].filter(Boolean).map(esc).join(" · ")}</small>
-        ${q.label && p.note ? `<small class="ck-ans">${esc(q.label)}: ${esc(p.note)}</small>` : ""}</span>
+        <small>${[p.group_name, p.walk_in ? "Walk-in" : "", p.counts === false && !p.walk_in && !rsvp ? "Extra spot" : "", p.status === "waitlisted" ? "Waitlist" : ""].filter(Boolean).map(esc).join(" · ")}</small>
+        ${q.label && p.note ? `<small class="ck-ans">${esc(q.label)}: ${esc(p.note)}</small>` : rsvp && p.note ? `<small class="ck-ans">“${esc(p.note)}”</small>` : ""}</span>
       <form method="post" action="/checkin/i/${it.id}/mark" class="ck-btns"><input type="hidden" name="claim" value="${p.id}">
         <button name="state" value="here" class="ck-here" type="submit" aria-label="Here"${ro ? " disabled" : ""}>✓ Here</button>
         <button name="state" value="noshow" class="ck-no" type="submit" aria-label="No-show"${ro ? " disabled" : ""}>✗ No-show</button></form></li>`;
@@ -61,15 +61,15 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
     <nav class="back-row"><a class="back-btn" href="/checkin?d=${day}">${L}Back to Check-in</a></nav>
     <section class="bh2 ck-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${CK_IC}</span>
       <div><span class="ck-board">${esc(it.board_name)}</span><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
-        <span class="bh2-meta">${esc([crumb(it.path)].filter(Boolean).join(" • "))}${it.starts_at ? ` · ${esc(timeRange(it.starts_at, it.ends_at))}` : ""}${where(it) ? ` · ${esc(where(it))}` : ""}</span></div></div></section>
+        <span class="bh2-meta">${esc([crumb(it.path), it.starts_at ? timeRange(it.starts_at, it.ends_at) : "", where(it)].filter(Boolean).join(" · "))}</span></div></div></section>
     <nav class="bh2-tabs dash-tabs ck-gbar">
-      <span class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> claimed
+      <span class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> ${rsvp ? "going" : "claimed"}
         <span class="ck-bar-p"><i id="ck-pct" style="width:${conf.length ? Math.round(((here + no) / conf.length) * 100) : 0}%"></i></span></span>
       ${lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
       ${conf.length && !ro ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
     </nav>
     <div class="sub-body ck-sheet no-subs">
-    <div class="ck-listbar"><h3>Signed up <i class="sub-n">${conf.length}</i></h3>
+    <div class="ck-listbar"><h3>${rsvp ? "Going" : "Signed up"} <i class="sub-n">${conf.length}</i></h3>
       ${ro ? "" : `<button type="button" class="sb-btn ck-addwalk" onclick="var w=document.getElementById('walkin'); w.hidden=!w.hidden; window.dispatchEvent(new Event('resize')); if (!w.hidden) { w.querySelector('select, input').focus(); }">+ Add walk-in</button>`}</div>
         <section class="d-card ck-walk" id="walkin" hidden><h3>Add a walk-in</h3><p class="fine">Someone here who didn't claim? Add them. They're added to the list as here, and don't use a spot or count toward limits.</p>
       <form method="post" action="/checkin/i/${it.id}/walkin" class="a-form">
@@ -81,6 +81,9 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
         <div class="a-act"><button type="button" class="link-dark" onclick="var w=document.getElementById('walkin'); w.hidden=true; w.querySelector('form').reset(); window.dispatchEvent(new Event('resize'));">Cancel</button><button class="b-claim" type="submit">Add as here</button></div></form></section>
     <div class="ck-scroll" id="ck-scroll">
     <section class="d-card ck-card-list ck-p-roster">${conf.length ? `<ul class="ck-roster">${conf.map(row).join("")}</ul>` : `<div class="d-empty"><b>No one has claimed this session.</b><span>Use <b>+ Add walk-in</b> above for anyone who shows up.</span></div>`}</section>
+    ${rsvp ? (() => { const nm = (p) => `<li class="ck-rv"><b>${esc(p.first_name)} ${esc(p.last_name || "")}</b>${p.team ? ` <small>${esc(p.team)}</small>` : ""}${p.note ? `<small class="ck-ans">“${esc(p.note)}”</small>` : ""}</li>`;
+      return `<h3 class="ck-wlh">Can't make it <i class="sub-n">${rsvp.no.length}</i></h3><section class="d-card ck-card-list"><ul class="ck-rvl">${rsvp.no.length ? rsvp.no.map(nm).join("") : `<li class="fine">No one.</li>`}</ul></section>
+        <h3 class="ck-wlh">No answer yet <i class="sub-n">${rsvp.none.length}</i></h3><section class="d-card ck-card-list"><ul class="ck-rvl">${rsvp.none.length ? rsvp.none.map(nm).join("") : `<li class="fine">Everyone has answered.</li>`}</ul></section>`; })() : ""}
     ${wl.length ? `<h3 class="ck-wlh">Waitlist <i class="sub-n">${wl.length}</i></h3><section class="d-card ck-card-list ck-p-waitlist"><ul class="ck-roster">${wl.map(row).join("")}</ul></section>` : ""}
 
     </div></div>
