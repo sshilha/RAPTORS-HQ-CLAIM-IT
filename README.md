@@ -259,6 +259,9 @@ test/check.js             page health check (npm run check)
   unchanged (only the sessions scroll).
 - **After a change** (any POST form), the page returns to the same scroll spot (and scrolling lists), unless it redirects
   to an anchor that exists on the page.
+- **Phones:** every tab row (board tabs, App Settings tabs and folder tabs, My Account, Board details and Access &
+  people sub-tabs, Check-in boards) becomes one "Section ▾" button with the list of sections, when it has 3+ tabs or
+  wouldn't fit (app-ui.js `TABROWS`). Each item clicks the original tab. Day bars, pickers and wizard steps stay as they are.
 - **Phones:** nothing wider than the screen; tab bars scroll sideways; long text and toolbars wrap.
 - The rules live at the end of `public/styles.css` ("CONSISTENCY STANDARD"), so most pages follow them without extra work.
 
@@ -282,6 +285,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.39.2** Phones: tab rows become a "Section ▾" dropdown.
 - **v0.39.1** Check-in: sessions grouped under a header per board; the board tab a coach picks is remembered; the board
   shows as a label on a session's check-in.
 - **v0.39** Show families only the next one (or next 2 / 3) per level; RSVP level settings show only what applies.

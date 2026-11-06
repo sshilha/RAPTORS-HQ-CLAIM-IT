@@ -109,6 +109,36 @@
   document.addEventListener("click", function (e) { if (!e.target.closest("details.cal-add, .cal-menu")) closeCal(); if (e.target.closest(".cal-menu a")) setTimeout(closeCal, 50); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeCal(); });
   document.addEventListener("scroll", function (e) { if (!(e.target.closest && e.target.closest(".cal-menu"))) closeCal(); }, true); window.addEventListener("resize", function () { closeCal(); });
+  // ---------- 1d. phones: a tab row becomes one button ("Board setup ▾") that opens the list of sections ----------
+  // Each item clicks the original tab, so links and same-page tabs work exactly as before. Rows that aren't tabs
+  // (Check-in's day bar, Reports' and Duplicate's bars, the Create Board steps, Signing up for) are left alone.
+  var TABROWS = "nav.board-tabs, nav.app-tabs, nav.a-tabs-main, nav.sub-tabs, nav.bh2-tabs.dash-tabs:not(.ck-gbar):not(.cp-gbar):not(.r-gbar):not(.wz-tabs):not(.b-whobar)";
+  function tabItems(nav) { return [].slice.call(nav.querySelectorAll(":scope > a, :scope > button, :scope > span > a")).filter(function (x) { return x.textContent.trim(); }); }
+  function isCurrent(x) { return x.getAttribute("aria-current") === "page" || x.classList.contains("on") || x.classList.contains("active") || x.classList.contains("now"); }
+  function tabMenus() {
+    var phone = window.innerWidth <= 760;
+    [].forEach.call(document.querySelectorAll(TABROWS), function (nav) {
+      var items = tabItems(nav), dd = nav.previousElementSibling && nav.previousElementSibling.classList.contains("tab-dd") ? nav.previousElementSibling : null;
+      var want = phone && items.length >= 2 && (items.length >= 3 || nav.scrollWidth > nav.clientWidth + 2);
+      if (!want) { if (dd) dd.remove(); nav.classList.remove("tab-dd-hidden"); return; }
+      var cur = items.filter(isCurrent)[0] || items[0];
+      if (!dd) { dd = document.createElement("details"); dd.className = "tab-dd"; nav.parentNode.insertBefore(dd, nav); }
+      dd.className = "tab-dd" + (nav.classList.contains("sub-tabs") ? " tab-dd-sub" : "");
+      dd.innerHTML = "<summary></summary><div class=\"tab-dd-menu\" role=\"menu\"></div>";
+      dd.querySelector("summary").innerHTML = "<span class=\"tab-dd-cur\"></span><span class=\"tab-dd-n\">" + items.length + " sections</span><span class=\"tab-dd-car\" aria-hidden=\"true\">▾</span>";
+      dd.querySelector(".tab-dd-cur").innerHTML = cur.innerHTML;
+      var menu = dd.querySelector(".tab-dd-menu");
+      items.forEach(function (x) {
+        var b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "menuitem"); b.innerHTML = x.innerHTML;
+        if (x === cur) { b.className = "on"; b.setAttribute("aria-current", "page"); }
+        b.addEventListener("click", function () { dd.open = false; if (x !== cur || x.dataset.sub) x.click(); setTimeout(tabMenus, 60); });
+        menu.appendChild(b);
+      });
+      nav.classList.add("tab-dd-hidden");
+    });
+  }
+  tabMenus(); window.addEventListener("resize", tabMenus);
+  document.addEventListener("click", function (e) { if (!e.target.closest(".tab-dd")) [].forEach.call(document.querySelectorAll(".tab-dd[open]"), function (d) { d.open = false; }); });
   // ---------- 2. keep your place after a change ----------
   function scrollers() { return [].slice.call(document.querySelectorAll(".table-wrap, .sh-list, .imp-dlg-body, .ck-scroll, .rv-cols, [data-keep-scroll]")); }
   var PLACE = "place:" + location.pathname;   // the page you come back to after a change may have a different ?query
