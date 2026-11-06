@@ -60,13 +60,16 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
           ${d ? `<span>${IC.clock}${esc(slotName({ starts_at: it.starts_at, ends_at: it.ends_at }).replace(/^[^,]+, [^,]+, /, ""))}</span>` : ""}
           ${(() => { const loc = it.location || (t && t.eff.location) || sc.event_location; if (!loc) return "";
             const src = it.location ? "" : t && t.eff.location ? (t.eff.from.location && t.eff.from.location !== sc.name ? `from ${t.eff.from.location}` : "board") : "board";
-            return `<span>${IC.pin}${esc(loc)}${src ? ` <i class="fine">(${esc(src)})</i>` : ""}</span>`; })()}</span>
+            return `<span>${IC.pin}${esc(loc)}${src ? ` <i class="fine">(${esc(src)})</i>` : ""}</span>`; })()}
+</span>
         ${(sc && sc.board_type === "rsvp") ? `<span class="ss-fill"><b>${it.claimed}</b> going</span>` : `<span class="ss-fill"><b>${it.claimed} / ${it.capacity}</b> claimed${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}
           <span class="ss-bar"><i style="width:${Math.min(100, pct)}%"></i></span><small>${it.capacity - it.claimed > 0 ? `${it.capacity - it.claimed} open` : "Full"} · ${pct}%</small></span>`}
         <span class="ss-acts"><a class="sb-btn sm ic" href="/admin/b/${sc.id}/items/${it.id}/people" title="People: see, add, or remove" aria-label="People">${IC.people}</a>
           ${locked ? "" : `<button type="button" class="sb-btn sm ic" title="Edit" aria-label="Edit" data-item='${esc(JSON.stringify({ id: it.id, node: it.node_id || "", title: it.title, capacity: it.capacity, location: it.location || "", date: st ? st.date : "", start: st ? st.time : "", end: en ? en.time : "" }))}'>${IC.edit}</button>
           <button type="button" class="sb-btn sm ic" title="Duplicate, then change what's different" aria-label="Duplicate" data-dup='${esc(JSON.stringify({ node: it.node_id || "", title: it.title, capacity: it.capacity, location: it.location || "", date: st ? st.date : "", start: st ? st.time : "", end: en ? en.time : "" }))}'>${IC.copy}</button>
-          <button type="button" class="sb-btn sm ic danger" title="Delete" data-del-item="${it.id}" data-name="${esc(slotName(it))}" data-claims="${it.claimed + it.waitlisted}" aria-label="Delete">${IC.trash}</button>`}</span></li>`;
+          <button type="button" class="sb-btn sm ic danger" title="Delete" data-del-item="${it.id}" data-name="${esc(slotName(it))}" data-claims="${it.claimed + it.waitlisted}" aria-label="Delete">${IC.trash}</button>`}</span><span class="roll-line">${(() => { const r = sc._roll && sc._roll.get(it.id); if (!r) return "";
+            return r.visible ? `<span class="roll on" title="${esc(r.scope)} shows families ${r.n === 1 ? "only the next one" : `the next ${r.n}`}">Showing to families now</span>`
+              : `<span class="roll" title="${esc(r.scope)} shows families ${r.n === 1 ? "only the next one" : `the next ${r.n}`}">Families see this after ${esc(require("../time").fmtDateTime(r.showsAt))}</span>`; })()}</span></li>`;
     };
     body = `<section class="sp-card"><div class="sp-card-h">${IC.clock}<b>${esc(L.slot.many)}</b><span class="fine">${(sc && sc.board_type === "rsvp") ? "(events to RSVP)" : "(spots to claim)"}</span>
         ${locked ? "" : `${SC.usesCalendar(sc) ? `<button type="button" class="sb-btn" data-copy-day="${t ? t.node.id : ""}">Copy a day</button>` : ""}<button type="button" class="sb-btn primary" data-add-item="${t ? t.node.id : ""}">${IC.plus}Add ${esc(L.slot.one.toLowerCase())}</button>`}</div>
@@ -102,14 +105,15 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
 }
 
 // each setting as a row with Edit; Edit shows that setting's own part of the settings form, saved alone (?only=)
-const KEY_OF = { "Who can claim here": "who", "Per-person limit here": "limit", "Claiming opens": "opens", "Cancel deadline": "cancel", "Open leftover spots": "leftover",
+const KEY_OF = { "Who can claim here": "who", "Per-person limit here": "limit", "Claiming opens": "opens", "Show families": "show", "Cancel deadline": "cancel", "Open leftover spots": "leftover",
   "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
-const ROW_KEY = { "Who can claim here": "who", "Per-person limit": "limit", "Claiming opens": "opens", "Cancel deadline": "cancel", "Open leftover spots": "leftover", "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
+const ROW_KEY = { "Who can claim here": "who", "Per-person limit": "limit", "Claiming opens": "opens", "Show families": "show", "Cancel deadline": "cancel", "Open leftover spots": "leftover", "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
 function inlineSettings(sc, t, locked) {
   const n = t.node;
   const form = B.settingsForm(sc, n, t.inherited);
   const parts = {}; form.replace(/<fieldset><legend>([^<]+)<\/legend>([\s\S]*?)<\/fieldset>/g, (m, legend, inner) => { const k = KEY_OF[legend.trim()]; if (k) parts[k] = m; return m; });
-  const rows = B.settingRows(sc, t.eff, n.settings || {}, "node");
+  let rows = B.settingRows(sc, t.eff, n.settings || {}, "node");
+  if (sc.board_type === "rsvp") rows = rows.filter(([k]) => !["Per-person limit", "Per-person limit here", "Cancel deadline", "Open leftover spots", "Waitlist"].includes(k));   // no spots on an RSVP board
   rows.push(["Visible from", n.visible_from ? `Hidden until ${require("../time").fmtDateTime(n.visible_from)}` : "Always", n.visible_from ? "Set here" : "Board default"]);
   const tag = (src) => { const m = /^Narrowed above \((.*)\)$/.exec(src || "");
     return src === "Set here" ? `<span class="src-tag here">Set here</span>` : m ? `<span class="src-tag from">From ${esc(m[1])}</span>` : /^From /.test(src) ? `<span class="src-tag from">${esc(src)}</span>`

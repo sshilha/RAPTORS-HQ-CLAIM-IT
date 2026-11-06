@@ -108,7 +108,7 @@ router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
   const sc = await board(req); const n = await node(req, sc);
   if (!n) return go(res, at(sc.id), { err: "Not found." });
   const b = req.body;
-  const ONLY = { who: "who", limit: "limit", opens: "opens_at", cancel: "cancel_hours", leftover: "leftover_hours", waitlist: "waitlist", attendance: "attendance", location: "location", visible: null };
+  const ONLY = { who: "who", limit: "limit", opens: "opens_at", show: "show_next", cancel: "cancel_hours", leftover: "leftover_hours", waitlist: "waitlist", attendance: "attendance", location: "location", visible: null };
   const only = Object.prototype.hasOwnProperty.call(ONLY, b.only) ? b.only : null;
   const s = only ? { ...(n.settings || {}) } : {};
   if (only && ONLY[only]) delete s[ONLY[only]];
@@ -123,6 +123,7 @@ router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
   if (want("limit") && b.limit_mode === "n") s.limit = Math.max(1, Math.min(int(b.limit_n) || 1, 99));
   if (want("opens") && b.opens === "now") s.opens_at = null;
   if (want("opens") && b.opens === "at") { const t = await ts(b.opens_at); if (!t) return go(res, at(sc.id, n.id), { err: "Pick when claiming opens." }); s.opens_at = new Date(t).toISOString(); }
+  if (want("show") && ["0", "1", "2", "3"].includes(String(b.show))) s.show_next = Number(b.show);
   if (want("cancel") && b.cancel === "n") s.cancel_hours = Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
   if (want("leftover") && b.leftover === "never") s.leftover_hours = null;
   if (want("leftover") && b.leftover === "n") { const k = Math.max(1, Math.min(int(b.leftover_n) || 1, 1440)); s.leftover_hours = b.leftover_unit === "hours" ? k : k * 24; }
@@ -132,7 +133,7 @@ router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
   const vf = only && only !== "visible" ? n.visible_from : b.visible === "at" ? await ts(b.visible_from) : null;
   if (want("visible") && b.visible === "at" && !vf) return go(res, at(sc.id, n.id), { err: "Pick the date and time it becomes visible." });
   await query(`UPDATE board_nodes SET settings=$2, visible_from=$3 WHERE id=$1`, [n.id, JSON.stringify(s), vf]);
-  go(res, at(sc.id, n.id), { ok: only ? `Saved ${{ who: "who can claim", limit: "the limit", opens: "when claiming opens", cancel: "the cancel deadline", leftover: "open leftover spots", waitlist: "the waitlist", attendance: "attendance", location: "the location", visible: "when it's visible" }[only]} for ${n.name}.` : `Saved settings for ${n.name}.` });
+  go(res, at(sc.id, n.id), { ok: only ? `Saved ${{ who: "who can claim", limit: "the limit", opens: "when claiming opens", show: "what families see", cancel: "the cancel deadline", leftover: "open leftover spots", waitlist: "the waitlist", attendance: "attendance", location: "the location", visible: "when it's visible" }[only]} for ${n.name}.` : `Saved settings for ${n.name}.` });
 }));
 
 // ---------- board-wide defaults (Settings page) ----------
@@ -149,6 +150,7 @@ router.post("/:sid/defaults", wrap(async (req, res) => {
   if (b.q === "timing") {
     if (b.opens === "at") { const t = await ts(b.opens_at); if (!t) return go(res, back, { err: "Pick when claiming opens." }); s.opens_at = new Date(t).toISOString(); } else s.opens_at = null;
     if (b.cancel_hours !== undefined) s.cancel_hours = Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
+    if (b.show_next !== undefined) s.show_next = [0, 1, 2, 3].includes(int(b.show_next)) ? int(b.show_next) : 0;
   }
   if (b.q === "question") {
     const label = str(b.label).replace(/\s+/g, " ").slice(0, 80);

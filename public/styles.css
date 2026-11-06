@@ -2838,3 +2838,8 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .eng-sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; background: #F6F8FB; border: 1px solid #E3E8F0; font-size: 14px; }
 .eng-sum a { color: #0B1930; } .eng-sum a.on { font-weight: 800; text-decoration: none; background: #8DDC32; padding: 0 6px; border-radius: 6px; } .eng-f { color: #5B6B82; } .eng-sum .fine { flex-basis: 100%; }
 .rv-fixed { margin: 4px 0 10px; padding: 10px 12px; border-radius: 10px; background: #F6F8FB; border: 1px solid #E3E8F0; font-size: 14px; }
+/* "only the next one": a session's note in Board Setup */
+.roll { display: inline-flex; align-items: center; gap: 4px; font: 600 11px Inter, sans-serif; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; }
+.roll.on { background: #E4F5D2; color: #2f6d0c; }
+/* the show-next note gets its own line under the time, never cut off */
+.roll-line { grid-column: 1 / -1; display: block; } .roll-line:empty { display: none; } .roll { margin-top: 2px; white-space: normal; }

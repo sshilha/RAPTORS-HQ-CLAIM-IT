@@ -13,8 +13,29 @@
 const { query, pool } = require("../db");
 
 class ClaimError extends Error {}
-const INHERITED = ["attendance", "opens_at", "cancel_hours", "leftover_hours", "waitlist", "location"];
-const BOARD_DEFAULTS = { attendance: false, opens_at: null, cancel_hours: 24, leftover_hours: null, waitlist: false, location: null };
+const INHERITED = ["attendance", "opens_at", "cancel_hours", "leftover_hours", "waitlist", "location", "show_next"];
+const BOARD_DEFAULTS = { attendance: false, opens_at: null, cancel_hours: 24, leftover_hours: null, waitlist: false, location: null, show_next: 0 };
+
+// ---------- "Show families only the next one" (show_next on a level or the board) ----------
+// In a level (or board) with show_next = N, families see only the next N events that haven't ended; each later one
+// appears when the one N before it ends. Returns item id → { visible, showsAt, n, scope } for every dated item under
+// such a setting (items not in the map have no restriction). The nearest level that sets it wins; 0 = show all.
+async function rollingMap(boardId, db = { query }) {
+  const board = (await db.query(`SELECT settings FROM schedules WHERE id=$1`, [boardId])).rows[0]; if (!board) return new Map();
+  const nodes = new Map((await db.query(`SELECT id, parent_id, name, settings FROM board_nodes WHERE schedule_id=$1`, [boardId])).rows.map((n) => [n.id, n]));
+  const items = (await db.query(`SELECT id, node_id, starts_at, ends_at FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL ORDER BY starts_at, id`, [boardId])).rows;
+  const own = (s) => (s && Object.prototype.hasOwnProperty.call(s, "show_next") ? Number(s.show_next) || 0 : undefined);
+  const scopeOf = (nodeId) => { for (let n = nodes.get(nodeId); n; n = nodes.get(n.parent_id)) { const v = own(n.settings); if (v !== undefined) return v > 0 ? { key: `n${n.id}`, n: v, name: n.name } : null; }
+    const v = own(board.settings); return v > 0 ? { key: "b", n: v, name: "this board" } : null; };
+  const groups = new Map();
+  for (const it of items) { const sc = scopeOf(it.node_id); if (!sc) continue; if (!groups.has(sc.key)) groups.set(sc.key, { ...sc, items: [] }); groups.get(sc.key).items.push(it); }
+  const out = new Map(), now = Date.now(), end = (i) => new Date(i.ends_at || i.starts_at).getTime();
+  for (const g of groups.values()) {
+    const upcoming = g.items.filter((i) => end(i) > now);
+    upcoming.forEach((it, k) => out.set(it.id, k < g.n ? { visible: true, n: g.n, scope: g.name } : { visible: false, showsAt: new Date(end(upcoming[k - g.n])), n: g.n, scope: g.name }));
+  }
+  return out;
+}
 const has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined;
 
 // ---------- building boards ----------
@@ -132,6 +153,7 @@ async function claim({ itemId, athleteId, userId = null, note = null, member = u
     const person = { athleteId, userId, member };
     const ok = check(chain, eff, person, now);
     if (!ok.ok) throw new ClaimError(ok.reason);
+    { const r = (await rollingMap(chain.board.id, db)).get(itemId); if (r && !r.visible) throw new ClaimError(`That one isn't open yet. It opens after ${require("../time").fmtDateTime(r.showsAt)}.`); }
     if ((await db.query(`SELECT 1 FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status<>'canceled'`, [itemId, athleteId])).rowCount)
       throw new ClaimError("Already claimed.");
     const q = chain.board.question;
@@ -244,6 +266,7 @@ async function personView(boardId, person, now = new Date(), { preview = false }
   const board = (await query(`SELECT * FROM schedules WHERE id=$1`, [boardId])).rows[0];
   if (!board) return null;
   if (preview && !board.published_at) board.published_at = now;   // admin preview: show it as families will once it's published
+  const roll = await rollingMap(boardId);                          // "only the next one": what's showing right now
   const nodes = (await query(`SELECT * FROM board_nodes WHERE schedule_id=$1 ORDER BY sort, id`, [boardId])).rows;
   const items = (await query(`SELECT i.*,
       (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') AS taken,
@@ -263,6 +286,7 @@ async function personView(boardId, person, now = new Date(), { preview = false }
     const eff = effective(chain);
     const chk = check(chain, eff, person, now);
     if (chk.hidden) continue;                                  // not for this person: don't show it
+    if (roll.has(it.id) && !roll.get(it.id).visible) continue;  // "only the next one": not showing yet
     const my = mine.find((c) => c.item_id === it.id) || null;
     let blockedBy = null;
     if (chk.ok && !my) for (const L of eff.limits) { const n = counting(L); if (n >= L.limit) { blockedBy = { ...L, used: n }; break; } }
@@ -323,4 +347,4 @@ async function createBoard({ name, depth = 1, claimMode = "family", settings = {
 }
 
 // Depth of a container: 1 = directly under the board
-module.exports = { createBoard, recountClaims, personView, effectiveAt, children, items, boardTotals, ClaimError, addNode, addItem, chainFor, effective, check, claim, cancel, cancelDeadline, setCapacity, nodeDepth, whoPasses };
+module.exports = { rollingMap, createBoard, recountClaims, personView, effectiveAt, children, items, boardTotals, ClaimError, addNode, addItem, chainFor, effective, check, claim, cancel, cancelDeadline, setCapacity, nodeDepth, whoPasses };

@@ -20,6 +20,7 @@ async function answer({ itemId, athleteId, userId = null, going, note }) {
     const member = (await db.query(`SELECT group_name, tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [chain.board.id, athleteId])).rows[0] || null;
     const ok = E.check(chain, E.effective(chain), { athleteId, userId, member });
     if (!ok.ok) throw new E.ClaimError(ok.reason || "That isn't open to them.");
+    { const r = (await E.rollingMap(chain.board.id, db)).get(itemId); if (r && !r.visible) throw new E.ClaimError(`That one isn't open yet. It opens after ${require("./time").fmtDateTime(r.showsAt)}.`); }
     const n = cleanNote(note);
     const active = (await db.query(`SELECT * FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status<>'canceled' ORDER BY id DESC LIMIT 1`, [itemId, athleteId])).rows[0];
     const declined = (await db.query(`SELECT * FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status='canceled' AND rsvp='no' ORDER BY id DESC LIMIT 1`, [itemId, athleteId])).rows[0];
@@ -107,6 +108,7 @@ async function nudge() {
   for (const it of items) {
     const done = new Set((await query(`SELECT athlete_id FROM rsvp_nudges WHERE item_id=$1`, [it.id])).rows.map((r) => r.athlete_id));
     const s = await summary(it.id); if (!s) continue;
+    { const r = (await E.rollingMap(s.chain.board.id)).get(it.id); if (r && !r.visible) continue; }   // not showing to families yet
     const todo = s.none.filter((p) => !done.has(p.id)); if (!todo.length) continue;
     for (const p of todo) await query(`INSERT INTO rsvp_nudges (item_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [it.id, p.id]);   // mark first, so a failure never repeats it
     const ids = new Set(todo.map((p) => p.id));

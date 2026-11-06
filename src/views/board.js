@@ -36,7 +36,7 @@ function settingRows(sc, eff, own, at) {
       ? ["Who can claim", { public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" }[SC.claimMode(sc)], "The board's front door"]
       : ["Who can claim here", whoText(own && own.who), own && own.who ? "Set here" : eff.who.length ? `Narrowed above (${eff.who.map((w) => w.name).join(", ")})` : "Same as the board"],
     ["Per-person limit", at === "board" ? (own && own.limit != null ? `${own.limit} per person on the board` : "Unlimited") : mine, at === "board" ? "Board" : `All limits that apply: ${all}`],
-    ...(dated ? [["Claiming opens", when(eff.opens_at), src("opens_at")], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time", src("cancel_hours")],
+    ...(dated ? [["Claiming opens", when(eff.opens_at), src("opens_at")], ["Show families", ((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(eff.show_next), src("show_next")], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time", src("cancel_hours")],
       ["Open leftover spots", eff.leftover_hours == null ? "Never" : `${hrs(eff.leftover_hours)} before`, src("leftover_hours")]] : [["Claiming opens", when(eff.opens_at), src("opens_at")]]),
     ["Waitlist", eff.waitlist ? "On" : "Off", src("waitlist")],
     ["Attendance", eff.attendance ? "Tracked" : "Not tracked", src("attendance")],
@@ -77,6 +77,13 @@ function settingsFormRaw(sc, node, eff) {
       ${opt("opens", "now", set("opens_at") ? (own.opens_at ? "at" : "now") : "", "Right away")}
       <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At <input type="datetime-local" name="opens_at" value="${at ? `${at.date}T${at.time}` : ""}" onfocus="this.form.opens[2].checked=true"></label>
     </fieldset>
+    ${dated ? `<fieldset><legend>Show families</legend>
+      ${opt("show", "", set("show_next") ? String(own.show_next || 0) : "", `Same as above ${inh("", ((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(eff.show_next).toLowerCase())}`)}
+      ${opt("show", "0", set("show_next") ? String(own.show_next || 0) : "", "All upcoming")}
+      ${opt("show", "1", set("show_next") ? String(own.show_next || 0) : "", "Only the next one (when it's over, the next appears)")}
+      ${opt("show", "2", set("show_next") ? String(own.show_next || 0) : "", "The next 2")}
+      ${opt("show", "3", set("show_next") ? String(own.show_next || 0) : "", "The next 3")}
+    </fieldset>` : ""}
     ${dated ? `<fieldset><legend>Cancel deadline</legend>
       ${opt("cancel", "", set("cancel_hours") ? "n" : "", `Same as above ${inh("", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "any time")}`)}
       <label class="radio-row"><input type="radio" name="cancel" value="n"${set("cancel_hours") ? " checked" : ""}> <input type="number" name="cancel_hours" min="0" max="336" value="${own.cancel_hours ?? 24}" class="spots-in" onfocus="this.form.cancel[1].checked=true"> hours before it starts</label>
@@ -146,9 +153,11 @@ function boardDefaultsSectionsRaw(sc) {
           <select name="leftover_unit"><option value="days"${lh == null || lh % 24 === 0 ? " selected" : ""}>days</option><option value="hours"${lh != null && lh % 24 ? " selected" : ""}>hours</option></select> before it starts</label></fieldset>` : ""}
       <fieldset><legend>Waitlist</legend>${radio("waitlist", "off", eff.waitlist ? "on" : "off", "Off: full means full")}${radio("waitlist", "on", eff.waitlist ? "on" : "off", "On: people can line up when something fills")}</fieldset>`)
     + sec("timing", I.calendar(), "Timing", "Board-wide. Any level can change these for what's inside it.",
-      rows([["Claiming opens", when(eff.opens_at)], ...(dated ? [["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time"]] : [])]),
+      rows([["Claiming opens", when(eff.opens_at)], ...(dated ? [["Show families", ((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(eff.show_next)], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time"]] : [])]),
       `<fieldset><legend>Claiming opens</legend>${radio("opens", "now", at ? "at" : "now", "Right away (once published)")}
         <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At <input type="datetime-local" name="opens_at" value="${at ? `${at.date}T${at.time}` : ""}" onfocus="this.form.opens[1].checked=true"></label></fieldset>
+      ${dated ? `<fieldset><legend>Show families</legend><select name="show_next">${[0, 1, 2, 3].map((v) => `<option value="${v}"${(Number(eff.show_next) || 0) === v ? " selected" : ""}>${((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(v)}</option>`).join("")}</select>
+        <p class="fine">"Only the next one" shows each one after the one before it is over. Any level can change this for what's inside it.</p></fieldset>` : ""}
       ${dated ? `<fieldset><legend>Cancel deadline</legend><label class="radio-row"><input type="number" name="cancel_hours" min="0" max="336" value="${eff.cancel_hours ?? 24}" class="spots-in"> hours before it starts (0 = any time)</label>
         <p class="fine">People can cancel their spot in the app until then. You can always remove someone yourself.</p></fieldset>` : ""}`)
     + sec("question", I.check(), "Question", "Asked when people claim anything on this board.",

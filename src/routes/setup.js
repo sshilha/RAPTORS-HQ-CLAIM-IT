@@ -38,6 +38,7 @@ router.get("/", wrap(async (req, res) => {
   if (sc.published_at && sc.claim_mode === "public" && !sc.share_code) sc.share_code = await require("./board").shareCode(sc);
   // three panels: the selected level (?n=) shows in the center and right; clicking in the tree asks for just those (partial=1)
   const sel = focus && nodes.some((n) => n.id === focus) ? focus : null;
+  sc._roll = await E.rollingMap(sc.id);   // "only the next one": which sessions families see right now
   const V = require("../views/setup2"), args = { sc, tree, topItems, totals, eff: E.effectiveAt(sc, []), sel };
   if (req.query.partial) return res.json(V.panels(args));
   res.send(V.setupPage({ user: req.user, flash: flashFrom(req), ...args }));

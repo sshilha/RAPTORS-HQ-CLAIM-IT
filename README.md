@@ -123,6 +123,14 @@ Board Setup shows "N going"; an event's People page shows Going · Can't make it
 Claims, day-before reminders, check-in and reports include it; Can't make it is stored as a canceled claim marked
 `rsvp='no'` (src/rsvp.js). RSVP boards have no public link.
 
+### 4.1c Show families only the next one
+A level's settings (or Board defaults → Timing) → **Show families**: All upcoming (default) · Only the next one · The next
+2 · The next 3. Families then see only the next N sessions/events in that level that haven't ended; each later one appears
+when the one N before it ends (e.g. 16 Monday nights, one at a time). Board Setup still lists everything, each with
+"Showing to families now" or "Families see this after …". Claiming or answering one that isn't showing is refused; the
+automatic RSVP reminder only goes for ones that are showing. (engine rollingMap; settings key show_next.)
+On RSVP boards the level settings panel hides what doesn't apply (limits, cancel deadline, leftover spots, waitlist).
+
 ### 4.2 Notifications (per board)
 Reminder timing (off · 2 h · 12 h · 1 day · 2 days · 3 days before; default 1 day) and switches for the claim emails
 (claimed, waitlisted, canceled, moved off the waitlist). Public-link confirmations always send (they carry the cancel
@@ -274,6 +282,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.39** Show families only the next one (or next 2 / 3) per level; RSVP level settings show only what applies.
 - **v0.38** RSVP: always only people on the board (not asked, not changeable); automatic Please RSVP 2 days before.
 - **v0.37.1** My Claims: Sign Up for Something buttons read Claim (programs, volunteer) or RSVP (RSVP boards).
 - **v0.37** Email log with delivery checks; On now; engagement per athlete on a board's Access & people.
