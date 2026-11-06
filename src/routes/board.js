@@ -304,6 +304,26 @@ async function spot(req) {
   const it = sc && (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];
   return { sc, it };
 }
+// RSVP (admin): set someone's answer (Going / Can't make it / clear), add someone, or take someone off the board. No emails.
+router.post("/:sid/items/:iid/rsvp-set", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const back = `/admin/b/${sc.id}/items/${it.id}/people`, aid = int(req.body.athlete_id || req.body.athlete), R = require("../rsvp");
+  const p = (await query(`SELECT first_name, last_name FROM athletes WHERE id=$1`, [aid])).rows[0]; if (!p) return go(res, back, { err: "Pick someone." });
+  const name = `${p.first_name} ${p.last_name || ""}`.trim();
+  if (req.body.add === "1" && !(await query(`SELECT 1 FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, aid])).rowCount)
+    await query(`INSERT INTO schedule_members (schedule_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [sc.id, aid]);
+  if (req.body.answer === "clear") { await R.clear(it.id, aid); return go(res, back, { ok: `Cleared ${name}'s answer.` }); }
+  if (!["yes", "no"].includes(req.body.answer)) return go(res, back, { err: "Pick Going or Can't make it." });
+  try { await R.answer({ itemId: it.id, athleteId: aid, userId: req.user.id, going: req.body.answer === "yes", note: req.body.note, admin: true }); }
+  catch (e) { return fail(res, back, e); }
+  go(res, back, { ok: `${name}: ${req.body.answer === "yes" ? "Going" : "Can't make it"}${req.body.add === "1" ? " (added to the board)" : ""}.` });
+}));
+router.post("/:sid/items/:iid/rsvp-remove", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const aid = int(req.body.athlete_id), p = (await query(`SELECT first_name, last_name FROM athletes WHERE id=$1`, [aid])).rows[0];
+  await query(`DELETE FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, aid]);
+  go(res, `/admin/b/${sc.id}/items/${it.id}/people`, { ok: `Removed ${p ? `${p.first_name} ${p.last_name || ""}`.trim() : "them"} from ${sc.name}. They stay in People, and answers they already gave are kept.` });
+}));
 // RSVP: email the families of everyone who hasn't answered this event
 router.post("/:sid/items/:iid/rsvp-remind", wrap(async (req, res) => {
   const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });

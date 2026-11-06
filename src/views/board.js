@@ -214,12 +214,28 @@ function spotPeoplePage({ rsvp = null, head = "", user, flash, sc, it, path, peo
     <div class="sp-session"><b>${esc(it.title && !it.starts_at ? it.title : path[path.length - 1] || it.title || "Spot")}</b>
       <span>${esc([...path.slice(0, -1)].join(" • "))}${path.length > 1 ? " · " : ""}${esc(slotName(it))}${it.location ? ` · ${esc(it.location)}` : ""}</span></div>
     ${rsvp ? (() => { const nm = (p) => `${esc(p.first_name)} ${esc(p.last_name || "")}`;
-      const list = (rows, empty) => rows.length ? `<ul class="rv-list">${rows.map((p) => `<li><a href="/admin/people/${p.id}"><b>${nm(p)}</b></a>${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}${p.note ? `<span class="rv-note">“${esc(p.note)}”</span>` : ""}</li>`).join("")}</ul>` : `<p class="fine">${empty}</p>`;
-      return `<div class="rv-sum"><span class="rv-c yes"><b>${rsvp.going.length}</b> going</span><span class="rv-c no"><b>${rsvp.no.length}</b> can't make it</span><span class="rv-c none"><b>${rsvp.none.length}</b> no answer yet</span></div>
-      <div class="rv-cols"><section><h3>Going <i class="sub-n">${rsvp.going.length}</i></h3>${list(rsvp.going, "No one yet.")}</section>
-        <section><h3>Can't make it <i class="sub-n">${rsvp.no.length}</i></h3>${list(rsvp.no, "No one.")}</section>
-        <section><div class="rv-h"><h3>No answer yet <i class="sub-n">${rsvp.none.length}</i></h3>${rsvp.none.length ? `<form method="post" action="/admin/b/${sc.id}/items/${it.id}/rsvp-remind" onsubmit="return confirm('Email the ${rsvp.none.length} ${rsvp.none.length === 1 ? "family" : "families"} who haven\\'t answered?')"><button class="sb-btn" type="submit">Remind them</button></form>` : ""}</div>${list(rsvp.none, "Everyone has answered.")}</section></div>
-      <p class="fine rv-foot">Answers can be changed until the event starts. Going counts for check-in, reminders and reports.</p>`; })() : `
+      const act = `/admin/b/${sc.id}/items/${it.id}`;
+      const edit = (p, cur) => `<details class="rv-edit"><summary>Change</summary>
+        <form method="post" action="${act}/rsvp-set" class="rv-ef"><input type="hidden" name="athlete_id" value="${p.id}">
+          <input name="note" maxlength="200" value="${esc(p.note || "")}" placeholder="Note (optional)" aria-label="Note">
+          <span class="rv-btns"><button class="rv-b yes${cur === "yes" ? " on" : ""}" name="answer" value="yes">Going</button><button class="rv-b no${cur === "no" ? " on" : ""}" name="answer" value="no">Can't make it</button>${cur ? `<button class="rv-b" name="answer" value="clear">Clear answer</button>` : ""}</span></form>
+        <form method="post" action="${act}/rsvp-remove" onsubmit="return confirm('Remove ${esc(String(p.first_name).replace(/'/g, ""))} from this board? They stay in People.')"><input type="hidden" name="athlete_id" value="${p.id}"><button class="link-dark rv-rm" type="submit">Remove from board</button></form></details>`;
+      const list = (rows, empty, cur) => rows.length ? `<ul class="rv-list">${rows.map((p) => `<li><a href="/admin/people/${p.id}"><b>${nm(p)}</b></a>${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}${p.note ? `<span class="rv-note">“${esc(p.note)}”</span>` : ""}${edit(p, cur)}</li>`).join("")}</ul>` : `<p class="fine">${empty}</p>`;
+      const answered = new Set([...rsvp.going, ...rsvp.no].map((p) => p.id)), pick = [...onBoard.filter((p) => !answered.has(p.id)).map((p) => [p, true]), ...everyone.filter((p) => !answered.has(p.id)).map((p) => [p, false])];
+      const addBox = `<div class="rv-addbar"><button type="button" class="sb-btn primary" onclick="var a=document.getElementById('rv-add'); a.hidden=!a.hidden; if (!a.hidden) a.querySelector('select').focus();">+ Add someone</button></div>
+        <section class="sp-addbox" id="rv-add" hidden><h3>Add someone's answer</h3>
+        <form method="post" action="${act}/rsvp-set" class="stack sp-add"><input type="hidden" name="add" value="1">
+          <label>Who<select name="athlete_id" required><option value="">Choose…</option>
+            ${onBoard.some((p) => !answered.has(p.id)) ? `<optgroup label="On this board">${onBoard.filter((p) => !answered.has(p.id)).map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.group_name ? ` (${esc(p.group_name)})` : ""}</option>`).join("")}</optgroup>` : ""}
+            ${everyone.length ? `<optgroup label="Everyone else in People (adds them to the board)">${everyone.filter((p) => !answered.has(p.id)).map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.kind === "adult" ? " (adult)" : ""}</option>`).join("")}</optgroup>` : ""}</select></label>
+          <label>Note <span class="opt">(optional)</span><input name="note" maxlength="200" placeholder="e.g. arriving late"></label>
+          <div class="q-actions"><button type="button" class="link-dark" onclick="var a=document.getElementById('rv-add'); a.hidden=true; a.querySelector('form').reset();">Cancel</button><button class="btn-ghost" type="submit" name="answer" value="no">Can't make it</button><button class="btn-small" type="submit" name="answer" value="yes">Going</button></div></form>
+          <p class="fine">You're updating the list, so no one is emailed.</p></section>`;
+      return `${addBox}<div class="rv-sum"><span class="rv-c yes"><b>${rsvp.going.length}</b> going</span><span class="rv-c no"><b>${rsvp.no.length}</b> can't make it</span><span class="rv-c none"><b>${rsvp.none.length}</b> no answer yet</span></div>
+      <div class="rv-cols"><section><h3>Going <i class="sub-n">${rsvp.going.length}</i></h3>${list(rsvp.going, "No one yet.", "yes")}</section>
+        <section><h3>Can't make it <i class="sub-n">${rsvp.no.length}</i></h3>${list(rsvp.no, "No one.", "no")}</section>
+        <section><div class="rv-h"><h3>No answer yet <i class="sub-n">${rsvp.none.length}</i></h3>${rsvp.none.length ? `<form method="post" action="/admin/b/${sc.id}/items/${it.id}/rsvp-remind" onsubmit="return confirm('Email the ${rsvp.none.length} ${rsvp.none.length === 1 ? "family" : "families"} who haven\\'t answered?')"><button class="sb-btn" type="submit">Remind them</button></form>` : ""}</div>${list(rsvp.none, "Everyone has answered.", "")}</section></div>
+      <p class="fine rv-foot">Families can change their answers until the event starts; you can change anyone's anytime (Change). Going counts for check-in, reminders and reports.</p>`; })() : `
     <div class="ck-listbar"><h3>In this spot <i class="sub-n">${conf.length} of ${it.capacity}</i></h3>
       <button type="button" class="sb-btn primary" onclick="var a=document.getElementById('add'); a.hidden=!a.hidden; if (!a.hidden) a.querySelector('select').focus();">+ Add someone</button></div>
         <section class="sp-addbox" id="add" hidden><h3>Add someone to this spot</h3>

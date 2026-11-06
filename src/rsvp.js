@@ -8,7 +8,7 @@ async function ensure() { if (ready) return; await query(`ALTER TABLE board_clai
 const isRsvp = (board) => !!board && board.board_type === "rsvp";
 const cleanNote = (n) => String(n || "").replace(/\s+/g, " ").trim().slice(0, 200) || null;
 
-async function answer({ itemId, athleteId, userId = null, going, note }) {
+async function answer({ itemId, athleteId, userId = null, going, note, admin = false }) {
   await ensure();
   const db = await pool.connect();
   try {
@@ -16,11 +16,11 @@ async function answer({ itemId, athleteId, userId = null, going, note }) {
     await db.query(`SELECT id FROM board_items WHERE id=$1 FOR UPDATE`, [itemId]);
     const chain = await E.chainFor(itemId, db);
     if (!chain || !isRsvp(chain.board)) throw new E.ClaimError("That isn't available.");
-    if (chain.item.starts_at && new Date(chain.item.starts_at) <= new Date()) throw new E.ClaimError("That's already started, so answers are closed.");
+    if (!admin && chain.item.starts_at && new Date(chain.item.starts_at) <= new Date()) throw new E.ClaimError("That's already started, so answers are closed.");
     const member = (await db.query(`SELECT group_name, tags FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [chain.board.id, athleteId])).rows[0] || null;
-    const ok = E.check(chain, E.effective(chain), { athleteId, userId, member });
+    const ok = admin ? { ok: true } : E.check(chain, E.effective(chain), { athleteId, userId, member });   // an admin can set anyone's answer
     if (!ok.ok) throw new E.ClaimError(ok.reason || "That isn't open to them.");
-    { const r = (await E.rollingMap(chain.board.id, db)).get(itemId); if (r && !r.visible) throw new E.ClaimError(`That one isn't open yet. It opens after ${require("./time").fmtDateTime(r.showsAt)}.`); }
+    if (!admin) { const r = (await E.rollingMap(chain.board.id, db)).get(itemId); if (r && !r.visible) throw new E.ClaimError(`That one isn't open yet. It opens after ${require("./time").fmtDateTime(r.showsAt)}.`); }
     const n = cleanNote(note);
     const active = (await db.query(`SELECT * FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status<>'canceled' ORDER BY id DESC LIMIT 1`, [itemId, athleteId])).rows[0];
     const declined = (await db.query(`SELECT * FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status='canceled' AND rsvp='no' ORDER BY id DESC LIMIT 1`, [itemId, athleteId])).rows[0];
@@ -116,4 +116,9 @@ async function nudge() {
   }
   return n;
 }
-module.exports = { isRsvp, answer, answersFor, countsFor, summary, remind, nudge, ensure };
+// back to "No answer yet"
+async function clear(itemId, athleteId) {
+  await ensure();
+  await query(`UPDATE board_claims SET status='canceled', rsvp=NULL, canceled_at=coalesce(canceled_at, now()) WHERE item_id=$1 AND athlete_id=$2 AND (status<>'canceled' OR rsvp='no')`, [itemId, athleteId]);
+}
+module.exports = { clear, isRsvp, answer, answersFor, countsFor, summary, remind, nudge, ensure };

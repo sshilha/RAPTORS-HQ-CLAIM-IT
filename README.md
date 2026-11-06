@@ -285,6 +285,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.39.3** RSVP event People page (admin): Change anyone's answer (Going / Can't make it / Clear, with note), even
+  after it starts; + Add someone (adds them to the board if needed); Remove from board. No emails; logged in Activity.
 - **v0.39.2** Phones: tab rows become a "Section ▾" dropdown.
 - **v0.39.1** Check-in: sessions grouped under a header per board; the board tab a coach picks is remembered; the board
   shows as a label on a session's check-in.
