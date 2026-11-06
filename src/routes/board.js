@@ -108,7 +108,7 @@ router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
   const sc = await board(req); const n = await node(req, sc);
   if (!n) return go(res, at(sc.id), { err: "Not found." });
   const b = req.body;
-  const ONLY = { who: "who", limit: "limit", opens: "opens_at", cancel: "cancel_hours", leftover: "leftover_hours", waitlist: "waitlist", attendance: "attendance", location: "location", visible: null };
+  const ONLY = { who: "who", limit: "limit", opens: "opens_at", show: "show_next", cancel: "cancel_hours", leftover: "leftover_hours", waitlist: "waitlist", attendance: "attendance", location: "location", visible: null };
   const only = Object.prototype.hasOwnProperty.call(ONLY, b.only) ? b.only : null;
   const s = only ? { ...(n.settings || {}) } : {};
   if (only && ONLY[only]) delete s[ONLY[only]];
@@ -123,6 +123,7 @@ router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
   if (want("limit") && b.limit_mode === "n") s.limit = Math.max(1, Math.min(int(b.limit_n) || 1, 99));
   if (want("opens") && b.opens === "now") s.opens_at = null;
   if (want("opens") && b.opens === "at") { const t = await ts(b.opens_at); if (!t) return go(res, at(sc.id, n.id), { err: "Pick when claiming opens." }); s.opens_at = new Date(t).toISOString(); }
+  if (want("show") && ["0", "1", "2", "3"].includes(String(b.show))) s.show_next = Number(b.show);
   if (want("cancel") && b.cancel === "n") s.cancel_hours = Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
   if (want("leftover") && b.leftover === "never") s.leftover_hours = null;
   if (want("leftover") && b.leftover === "n") { const k = Math.max(1, Math.min(int(b.leftover_n) || 1, 1440)); s.leftover_hours = b.leftover_unit === "hours" ? k : k * 24; }
@@ -132,7 +133,7 @@ router.post("/:sid/nodes/:nid/settings", wrap(async (req, res) => {
   const vf = only && only !== "visible" ? n.visible_from : b.visible === "at" ? await ts(b.visible_from) : null;
   if (want("visible") && b.visible === "at" && !vf) return go(res, at(sc.id, n.id), { err: "Pick the date and time it becomes visible." });
   await query(`UPDATE board_nodes SET settings=$2, visible_from=$3 WHERE id=$1`, [n.id, JSON.stringify(s), vf]);
-  go(res, at(sc.id, n.id), { ok: only ? `Saved ${{ who: "who can claim", limit: "the limit", opens: "when claiming opens", cancel: "the cancel deadline", leftover: "open leftover spots", waitlist: "the waitlist", attendance: "attendance", location: "the location", visible: "when it's visible" }[only]} for ${n.name}.` : `Saved settings for ${n.name}.` });
+  go(res, at(sc.id, n.id), { ok: only ? `Saved ${{ who: "who can claim", limit: "the limit", opens: "when claiming opens", show: "what families see", cancel: "the cancel deadline", leftover: "open leftover spots", waitlist: "the waitlist", attendance: "attendance", location: "the location", visible: "when it's visible" }[only]} for ${n.name}.` : `Saved settings for ${n.name}.` });
 }));
 
 // ---------- board-wide defaults (Settings page) ----------
@@ -149,6 +150,7 @@ router.post("/:sid/defaults", wrap(async (req, res) => {
   if (b.q === "timing") {
     if (b.opens === "at") { const t = await ts(b.opens_at); if (!t) return go(res, back, { err: "Pick when claiming opens." }); s.opens_at = new Date(t).toISOString(); } else s.opens_at = null;
     if (b.cancel_hours !== undefined) s.cancel_hours = Math.max(0, Math.min(int(b.cancel_hours) ?? 24, 336));
+    if (b.show_next !== undefined) s.show_next = [0, 1, 2, 3].includes(int(b.show_next)) ? int(b.show_next) : 0;
   }
   if (b.q === "question") {
     const label = str(b.label).replace(/\s+/g, " ").slice(0, 80);
@@ -178,25 +180,112 @@ function repeatDates(first, until, days) {
   for (let t = start; t <= end && out.length < 200; t += 864e5) { const d = new Date(t); if (days.includes(d.getUTCDay())) out.push(d.toISOString().slice(0, 10)); }
   return out;
 }
+// the start/end times a session (or a split range) makes: one, or a slot every N minutes from start to end
+function slotTimes(start, end, every) {
+  const m = (t) => { const [h, mi] = t.split(":").map(Number); return h * 60 + mi; }, hm = (x) => `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
+  const a = m(start), b = m(end); if (!(every > 0)) return [[start, end]];
+  const out = []; for (let t = a; t + every <= b && out.length < 200; t += every) out.push([hm(t), hm(t + every)]);
+  return out;
+}
+const MAX_AT_ONCE = 200;
 router.post("/:sid/items", wrap(async (req, res) => {
-  const sc = await board(req); const nodeId = int(req.body.node_id) || null;
-  const v = await readItem(req.body); if (v.err) return go(res, at(sc.id, nodeId), { err: v.err });
-  // Repeat weekly: one session per chosen weekday, from the date through "until", same times and spots
-  if (req.body.repeat === "1" && v.startsAt) {
-    const days = [].concat(req.body.days || []).map((x) => int(x)).filter((x) => x >= 0 && x <= 6);
-    const until = str(req.body.until);
-    if (!days.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)) return go(res, at(sc.id, nodeId), { err: "For a repeat, pick the days and an end date." });
-    const dates = repeatDates(str(req.body.date), until, days);
-    if (!dates.length) return go(res, at(sc.id, nodeId), { err: "No dates match those days between the start and end dates." });
-    try {
-      for (const d of dates) await E.addItem({ boardId: sc.id, nodeId, title: v.title, capacity: v.capacity, location: v.location,
-        startsAt: await ts(d, str(req.body.start_time)), endsAt: await ts(d, str(req.body.end_time)) });
-    } catch (e) { return fail(res, at(sc.id, nodeId), e); }
-    return go(res, at(sc.id, nodeId), { ok: `Added ${dates.length} session${dates.length === 1 ? "" : "s"}, ${dates[0]} through ${dates[dates.length - 1]}${dates.length === 200 ? " (200 is the most at once)" : ""}.` });
+  const sc = await board(req); const nodeId = int(req.body.node_id) || null, b = req.body;
+  const mode = b.when_mode || (b.repeat === "1" ? "weekly" : "once");
+  // the dates: one, a weekly repeat, or days picked on the calendar
+  let dates = null;
+  if (mode === "dates") {
+    dates = [...new Set(String(b.dates || "").split(",").map((x) => x.trim()).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x)))].sort();
+    if (!dates.length) return go(res, at(sc.id, nodeId), { err: "Pick at least one date on the calendar." });
+    b.date = dates[0];
   }
-  try { await E.addItem({ boardId: sc.id, nodeId, ...v }); } catch (e) { return fail(res, at(sc.id, nodeId), e); }
-  if (sc.board_type === "rsvp") return go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}".` });
-  go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}" with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}.` });
+  const v = await readItem(b); if (v.err) return go(res, at(sc.id, nodeId), { err: v.err });
+  if (mode === "weekly" && v.startsAt) {
+    const days = [].concat(b.days || []).map((x) => int(x)).filter((x) => x >= 0 && x <= 6), until = str(b.until);
+    if (!days.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)) return go(res, at(sc.id, nodeId), { err: "For a repeat, pick the days and an end date." });
+    dates = repeatDates(str(b.date), until, days);
+    if (!dates.length) return go(res, at(sc.id, nodeId), { err: "No dates match those days between the start and end dates." });
+  }
+  if (!dates && v.startsAt) dates = [str(b.date)];
+  // the times: one session, or split into slots
+  const every = v.startsAt && b.split === "1" ? int(b.every) : 0;
+  if (every && ![5, 10, 15, 20, 30, 45, 60, 90, 120].includes(every)) return go(res, at(sc.id, nodeId), { err: "Pick how long each slot is." });
+  const times = v.startsAt ? slotTimes(str(b.start_time), str(b.end_time), every) : [];
+  if (every && !times.length) return go(res, at(sc.id, nodeId), { err: "The time range is shorter than one slot." });
+  if (!v.startsAt) { try { await E.addItem({ boardId: sc.id, nodeId, ...v }); } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+    return go(res, at(sc.id, nodeId), { ok: `Added "${v.title}".` }); }
+  const total = dates.length * times.length;
+  if (total > MAX_AT_ONCE) return go(res, at(sc.id, nodeId), { err: `That would make ${total} sessions; ${MAX_AT_ONCE} is the most at once. Pick fewer dates or longer slots.` });
+  try {
+    for (const d of dates) for (const [st, en] of times)
+      await E.addItem({ boardId: sc.id, nodeId, title: v.title, capacity: v.capacity, location: v.location, startsAt: await ts(d, st), endsAt: await ts(d, en) });
+  } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+  const nice = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  if (total === 1) return go(res, at(sc.id, nodeId), { ok: `Added "${require("../time").slotName({ title: v.title, starts_at: v.startsAt, ends_at: v.endsAt })}"${sc.board_type === "rsvp" ? "" : ` with ${v.capacity} spot${v.capacity === 1 ? "" : "s"}`}.` });
+  go(res, at(sc.id, nodeId), { ok: `Added ${total} sessions${times.length > 1 ? ` (${times.length} slots a day)` : ""}${dates.length > 1 ? ` on ${dates.length} days, ${nice(dates[0])} through ${nice(dates[dates.length - 1])}` : ` on ${nice(dates[0])}`}.` });
+}));
+const fileName = (s) => String(s || "export").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "export";
+// ---------- export a level / import a level into a board ----------
+router.get("/:sid/nodes/:nid/export", wrap(async (req, res) => {
+  const sc = await board(req); const n = (await query(`SELECT * FROM board_nodes WHERE id=$1 AND schedule_id=$2`, [int(req.params.nid), sc.id])).rows[0];
+  if (!n) return go(res, at(sc.id), { err: "Not found." });
+  const d = await require("../transfer").exportLevel(n.id);
+  res.setHeader("Content-Type", "application/json"); res.setHeader("Content-Disposition", `attachment; filename="${fileName(sc.name + "-" + n.name)}.claimit.json"`);
+  res.send(JSON.stringify(d, null, 1));
+}));
+async function levelTarget(sc, parentId) {
+  const p = parentId ? (await query(`SELECT * FROM board_nodes WHERE id=$1 AND schedule_id=$2`, [parentId, sc.id])).rows[0] : null;
+  return { sc, parentId: p ? p.id : null, parentName: p ? p.name : null };
+}
+router.get("/:sid/import-level", wrap(async (req, res) => { const sc = await board(req); res.send(require("../views/transfer").importPage({ user: req.user, flash: flashFrom(req), level: await levelTarget(sc, int(req.query.parent)) })); }));
+router.post("/:sid/import-level/preview", wrap(async (req, res) => {
+  const sc = await board(req), level = await levelTarget(sc, int(req.body.parent)), r = require("../transfer").read(String(req.body.data || ""));
+  if (r.err) return go(res, `/admin/b/${sc.id}/import-level?parent=${level.parentId || ""}`, { err: r.err });
+  if (r.data.kind !== "level") return go(res, `/admin/b/${sc.id}/import-level?parent=${level.parentId || ""}`, { err: "That file is a whole board. Import it from All Boards → Import a board." });
+  res.send(require("../views/transfer").previewPage({ user: req.user, flash: flashFrom(req), p: await require("../transfer").preview(r.data, { boardId: sc.id, parentId: level.parentId }), data: String(req.body.data), level }));
+}));
+router.post("/:sid/import-level", wrap(async (req, res) => {
+  const sc = await board(req), level = await levelTarget(sc, int(req.body.parent)), r = require("../transfer").read(String(req.body.data || ""));
+  if (r.err || r.data.kind !== "level") return go(res, at(sc.id, level.parentId), { err: r.err || "That file isn't a level." });
+  const out = await require("../transfer").importLevel(r.data, sc.id, level.parentId);
+  if (out.err) return go(res, at(sc.id, level.parentId), { err: out.err });
+  go(res, at(sc.id, level.parentId), { ok: `Imported "${out.name}": ${out.levels} level${out.levels === 1 ? "" : "s"} and ${out.sessions} session${out.sessions === 1 ? "" : "s"}.` });
+}));
+
+// ---------- Copy a day: every session on one day (this level, or the whole board) onto other days ----------
+const LOCAL = (col) => `to_char(${col} AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD')`;
+async function scopeNodes(sc, nodeId, scope) {
+  if (scope === "board" || !nodeId) return null;   // null = the whole board
+  return (await query(`WITH RECURSIVE t AS (SELECT id FROM board_nodes WHERE id=$1 UNION ALL SELECT n.id FROM board_nodes n JOIN t ON n.parent_id=t.id) SELECT id FROM t`, [nodeId])).rows.map((r) => r.id);
+}
+router.get("/:sid/days", wrap(async (req, res) => {
+  const sc = await board(req); const nodes = await scopeNodes(sc, int(req.query.node), req.query.scope);
+  const rows = (await query(`SELECT ${LOCAL("starts_at")} AS day, count(*)::int AS n FROM board_items WHERE schedule_id=$1 AND starts_at IS NOT NULL AND canceled_at IS NULL
+    ${nodes ? "AND node_id = ANY($2)" : ""} GROUP BY 1 ORDER BY 1`, nodes ? [sc.id, nodes] : [sc.id])).rows;
+  res.json({ ok: true, days: rows });
+}));
+router.post("/:sid/copy-day", wrap(async (req, res) => {
+  const sc = await board(req); const nodeId = int(req.body.node_id) || null, from = str(req.body.from);
+  const nodes = await scopeNodes(sc, nodeId, req.body.scope);
+  const to = [...new Set(String(req.body.to || "").split(",").map((x) => x.trim()).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x) && x !== from))].sort();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return go(res, at(sc.id, nodeId), { err: "Pick the day to copy." });
+  if (!to.length) return go(res, at(sc.id, nodeId), { err: "Pick at least one day to copy it to." });
+  const src = (await query(`SELECT *, to_char(starts_at AT TIME ZONE 'America/Chicago', 'HH24:MI') AS st, to_char(ends_at AT TIME ZONE 'America/Chicago', 'HH24:MI') AS en
+    FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL AND ${LOCAL("starts_at")}=$2 ${nodes ? "AND node_id = ANY($3)" : ""} ORDER BY starts_at, id`,
+    nodes ? [sc.id, from, nodes] : [sc.id, from])).rows;
+  if (!src.length) return go(res, at(sc.id, nodeId), { err: "That day has no sessions to copy." });
+  if (src.length * to.length > MAX_AT_ONCE) return go(res, at(sc.id, nodeId), { err: `That would make ${src.length * to.length} sessions; ${MAX_AT_ONCE} is the most at once. Pick fewer days.` });
+  let made = 0, skipped = 0;
+  try {
+    for (const d of to) for (const it of src) {
+      const startsAt = await ts(d, it.st), endsAt = it.ends_at ? await ts(d, it.en) : null;
+      const dup = (await query(`SELECT 1 FROM board_items WHERE schedule_id=$1 AND node_id IS NOT DISTINCT FROM $2 AND starts_at=$3 AND coalesce(title,'')=coalesce($4,'') AND canceled_at IS NULL`, [sc.id, it.node_id, startsAt, it.title])).rowCount;
+      if (dup) { skipped++; continue; }
+      await E.addItem({ boardId: sc.id, nodeId: it.node_id, title: it.title, capacity: it.capacity, location: it.location, startsAt, endsAt, settings: it.settings || {} });
+      made++;
+    }
+  } catch (e) { return fail(res, at(sc.id, nodeId), e); }
+  const nice = (x) => new Date(x + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  go(res, at(sc.id, nodeId), { ok: `Copied ${nice(from)} onto ${to.length} day${to.length === 1 ? "" : "s"}: ${made} session${made === 1 ? "" : "s"} added${skipped ? `, ${skipped} already there (skipped)` : ""}.` });
 }));
 router.post("/:sid/items/:iid", wrap(async (req, res) => {
   const sc = await board(req);
@@ -215,6 +304,26 @@ async function spot(req) {
   const it = sc && (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];
   return { sc, it };
 }
+// RSVP (admin): set someone's answer (Going / Can't make it / clear), add someone, or take someone off the board. No emails.
+router.post("/:sid/items/:iid/rsvp-set", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const back = `/admin/b/${sc.id}/items/${it.id}/people`, aid = int(req.body.athlete_id || req.body.athlete), R = require("../rsvp");
+  const p = (await query(`SELECT first_name, last_name FROM athletes WHERE id=$1`, [aid])).rows[0]; if (!p) return go(res, back, { err: "Pick someone." });
+  const name = `${p.first_name} ${p.last_name || ""}`.trim();
+  if (req.body.add === "1" && !(await query(`SELECT 1 FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, aid])).rowCount)
+    await query(`INSERT INTO schedule_members (schedule_id, athlete_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [sc.id, aid]);
+  if (req.body.answer === "clear") { await R.clear(it.id, aid); return go(res, back, { ok: `Cleared ${name}'s answer.` }); }
+  if (!["yes", "no"].includes(req.body.answer)) return go(res, back, { err: "Pick Going or Can't make it." });
+  try { await R.answer({ itemId: it.id, athleteId: aid, userId: req.user.id, going: req.body.answer === "yes", note: req.body.note, admin: true }); }
+  catch (e) { return fail(res, back, e); }
+  go(res, back, { ok: `${name}: ${req.body.answer === "yes" ? "Going" : "Can't make it"}${req.body.add === "1" ? " (added to the board)" : ""}.` });
+}));
+router.post("/:sid/items/:iid/rsvp-remove", wrap(async (req, res) => {
+  const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
+  const aid = int(req.body.athlete_id), p = (await query(`SELECT first_name, last_name FROM athletes WHERE id=$1`, [aid])).rows[0];
+  await query(`DELETE FROM schedule_members WHERE schedule_id=$1 AND athlete_id=$2`, [sc.id, aid]);
+  go(res, `/admin/b/${sc.id}/items/${it.id}/people`, { ok: `Removed ${p ? `${p.first_name} ${p.last_name || ""}`.trim() : "them"} from ${sc.name}. They stay in People, and answers they already gave are kept.` });
+}));
 // RSVP: email the families of everyone who hasn't answered this event
 router.post("/:sid/items/:iid/rsvp-remind", wrap(async (req, res) => {
   const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });

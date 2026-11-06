@@ -13,6 +13,8 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(auth.loadUser);
 app.use(require("./shadow").middleware);   // shadow mode: an admin using the app as someone else (see src/shadow.js)
 app.use(require("./routes/shadow"));
+app.use(require("./activity").middleware);
+app.use(require("./presence").middleware);   // who's on now, and which boards people have opened   // the activity log (App Settings → Accounts & sign-in → Activity)
 // pages always show current data: no saved copies (Back button, reopened tabs), and nothing to see after signing out
 app.use((req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
 app.use((req, res, next) => {   // finish the Welcome step first (password etc.), then the rest of the app
@@ -39,6 +41,9 @@ app.use("/admin/b", require("./routes/board")); // container engine actions
 app.use("/admin/people", require("./routes/people")); // ⚙ App settings → People
 app.use("/admin/requests", require("./routes/requests")); // family / change requests to approve
 app.use("/admin/signins", require("./routes/signins")); // sign-in history for troubleshooting
+app.use("/admin/activity", require("./routes/activity")); // the activity log: who did what, when
+app.use("/admin/email-log", require("./routes/emailLog")); // every email sent, and what happened
+app.use("/admin/online", require("./routes/online")); // who's on now
 app.use("/checkin", require("./routes/checkin2")); // check-in on the new boards
 app.use("/account", require("./routes/account")); // My Account
 app.use("/admin/setup", require("./routes/setup"));
@@ -94,7 +99,8 @@ async function start() {
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => console.log(`${require("./config").LABELS.app_name} running on port ${PORT}`));
-  require("./reminders").start();   // day-before reminders (Board → Notifications)
+  require("./reminders").start();
+  require("./activity").ensure().catch((e) => console.error("activity log:", e.message));   // the log table (and its one-time fill from past claims) before any request   // day-before reminders (Board → Notifications)
 }
 
 module.exports = { app, start };

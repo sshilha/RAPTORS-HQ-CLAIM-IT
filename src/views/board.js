@@ -36,7 +36,7 @@ function settingRows(sc, eff, own, at) {
       ? ["Who can claim", { public: "Anyone with the link", family: "Anyone with an account", roster: "Only people assigned to the board" }[SC.claimMode(sc)], "The board's front door"]
       : ["Who can claim here", whoText(own && own.who), own && own.who ? "Set here" : eff.who.length ? `Narrowed above (${eff.who.map((w) => w.name).join(", ")})` : "Same as the board"],
     ["Per-person limit", at === "board" ? (own && own.limit != null ? `${own.limit} per person on the board` : "Unlimited") : mine, at === "board" ? "Board" : `All limits that apply: ${all}`],
-    ...(dated ? [["Claiming opens", when(eff.opens_at), src("opens_at")], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time", src("cancel_hours")],
+    ...(dated ? [["Claiming opens", when(eff.opens_at), src("opens_at")], ["Show families", ((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(eff.show_next), src("show_next")], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time", src("cancel_hours")],
       ["Open leftover spots", eff.leftover_hours == null ? "Never" : `${hrs(eff.leftover_hours)} before`, src("leftover_hours")]] : [["Claiming opens", when(eff.opens_at), src("opens_at")]]),
     ["Waitlist", eff.waitlist ? "On" : "Off", src("waitlist")],
     ["Attendance", eff.attendance ? "Tracked" : "Not tracked", src("attendance")],
@@ -77,6 +77,13 @@ function settingsFormRaw(sc, node, eff) {
       ${opt("opens", "now", set("opens_at") ? (own.opens_at ? "at" : "now") : "", "Right away")}
       <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At <input type="datetime-local" name="opens_at" value="${at ? `${at.date}T${at.time}` : ""}" onfocus="this.form.opens[2].checked=true"></label>
     </fieldset>
+    ${dated ? `<fieldset><legend>Show families</legend>
+      ${opt("show", "", set("show_next") ? String(own.show_next || 0) : "", `Same as above ${inh("", ((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(eff.show_next).toLowerCase())}`)}
+      ${opt("show", "0", set("show_next") ? String(own.show_next || 0) : "", "All upcoming")}
+      ${opt("show", "1", set("show_next") ? String(own.show_next || 0) : "", "Only the next one (when it's over, the next appears)")}
+      ${opt("show", "2", set("show_next") ? String(own.show_next || 0) : "", "The next 2")}
+      ${opt("show", "3", set("show_next") ? String(own.show_next || 0) : "", "The next 3")}
+    </fieldset>` : ""}
     ${dated ? `<fieldset><legend>Cancel deadline</legend>
       ${opt("cancel", "", set("cancel_hours") ? "n" : "", `Same as above ${inh("", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "any time")}`)}
       <label class="radio-row"><input type="radio" name="cancel" value="n"${set("cancel_hours") ? " checked" : ""}> <input type="number" name="cancel_hours" min="0" max="336" value="${own.cancel_hours ?? 24}" class="spots-in" onfocus="this.form.cancel[1].checked=true"> hours before it starts</label>
@@ -146,9 +153,11 @@ function boardDefaultsSectionsRaw(sc) {
           <select name="leftover_unit"><option value="days"${lh == null || lh % 24 === 0 ? " selected" : ""}>days</option><option value="hours"${lh != null && lh % 24 ? " selected" : ""}>hours</option></select> before it starts</label></fieldset>` : ""}
       <fieldset><legend>Waitlist</legend>${radio("waitlist", "off", eff.waitlist ? "on" : "off", "Off: full means full")}${radio("waitlist", "on", eff.waitlist ? "on" : "off", "On: people can line up when something fills")}</fieldset>`)
     + sec("timing", I.calendar(), "Timing", "Board-wide. Any level can change these for what's inside it.",
-      rows([["Claiming opens", when(eff.opens_at)], ...(dated ? [["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time"]] : [])]),
+      rows([["Claiming opens", when(eff.opens_at)], ...(dated ? [["Show families", ((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(eff.show_next)], ["Cancel deadline", eff.cancel_hours ? `${eff.cancel_hours} hours before` : "Any time"]] : [])]),
       `<fieldset><legend>Claiming opens</legend>${radio("opens", "now", at ? "at" : "now", "Right away (once published)")}
         <label class="radio-row"><input type="radio" name="opens" value="at"${at ? " checked" : ""}> At <input type="datetime-local" name="opens_at" value="${at ? `${at.date}T${at.time}` : ""}" onfocus="this.form.opens[1].checked=true"></label></fieldset>
+      ${dated ? `<fieldset><legend>Show families</legend><select name="show_next">${[0, 1, 2, 3].map((v) => `<option value="${v}"${(Number(eff.show_next) || 0) === v ? " selected" : ""}>${((n) => !n ? "All upcoming" : n === 1 ? "Only the next one" : `The next ${n}`)(v)}</option>`).join("")}</select>
+        <p class="fine">"Only the next one" shows each one after the one before it is over. Any level can change this for what's inside it.</p></fieldset>` : ""}
       ${dated ? `<fieldset><legend>Cancel deadline</legend><label class="radio-row"><input type="number" name="cancel_hours" min="0" max="336" value="${eff.cancel_hours ?? 24}" class="spots-in"> hours before it starts (0 = any time)</label>
         <p class="fine">People can cancel their spot in the app until then. You can always remove someone yourself.</p></fieldset>` : ""}`)
     + sec("question", I.check(), "Question", "Asked when people claim anything on this board.",
@@ -205,12 +214,28 @@ function spotPeoplePage({ rsvp = null, head = "", user, flash, sc, it, path, peo
     <div class="sp-session"><b>${esc(it.title && !it.starts_at ? it.title : path[path.length - 1] || it.title || "Spot")}</b>
       <span>${esc([...path.slice(0, -1)].join(" • "))}${path.length > 1 ? " · " : ""}${esc(slotName(it))}${it.location ? ` · ${esc(it.location)}` : ""}</span></div>
     ${rsvp ? (() => { const nm = (p) => `${esc(p.first_name)} ${esc(p.last_name || "")}`;
-      const list = (rows, empty) => rows.length ? `<ul class="rv-list">${rows.map((p) => `<li><a href="/admin/people/${p.id}"><b>${nm(p)}</b></a>${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}${p.note ? `<span class="rv-note">“${esc(p.note)}”</span>` : ""}</li>`).join("")}</ul>` : `<p class="fine">${empty}</p>`;
-      return `<div class="rv-sum"><span class="rv-c yes"><b>${rsvp.going.length}</b> going</span><span class="rv-c no"><b>${rsvp.no.length}</b> can't make it</span><span class="rv-c none"><b>${rsvp.none.length}</b> no answer yet</span></div>
-      <div class="rv-cols"><section><h3>Going <i class="sub-n">${rsvp.going.length}</i></h3>${list(rsvp.going, "No one yet.")}</section>
-        <section><h3>Can't make it <i class="sub-n">${rsvp.no.length}</i></h3>${list(rsvp.no, "No one.")}</section>
-        <section><div class="rv-h"><h3>No answer yet <i class="sub-n">${rsvp.none.length}</i></h3>${rsvp.none.length ? `<form method="post" action="/admin/b/${sc.id}/items/${it.id}/rsvp-remind" onsubmit="return confirm('Email the ${rsvp.none.length} ${rsvp.none.length === 1 ? "family" : "families"} who haven\\'t answered?')"><button class="sb-btn" type="submit">Remind them</button></form>` : ""}</div>${list(rsvp.none, "Everyone has answered.")}</section></div>
-      <p class="fine rv-foot">Answers can be changed until the event starts. Going counts for check-in, reminders and reports.</p>`; })() : `
+      const act = `/admin/b/${sc.id}/items/${it.id}`;
+      const edit = (p, cur) => `<details class="rv-edit"><summary>Change</summary>
+        <form method="post" action="${act}/rsvp-set" class="rv-ef"><input type="hidden" name="athlete_id" value="${p.id}">
+          <input name="note" maxlength="200" value="${esc(p.note || "")}" placeholder="Note (optional)" aria-label="Note">
+          <span class="rv-btns"><button class="rv-b yes${cur === "yes" ? " on" : ""}" name="answer" value="yes">Going</button><button class="rv-b no${cur === "no" ? " on" : ""}" name="answer" value="no">Can't make it</button>${cur ? `<button class="rv-b" name="answer" value="clear">Clear answer</button>` : ""}</span></form>
+        <form method="post" action="${act}/rsvp-remove" onsubmit="return confirm('Remove ${esc(String(p.first_name).replace(/'/g, ""))} from this board? They stay in People.')"><input type="hidden" name="athlete_id" value="${p.id}"><button class="link-dark rv-rm" type="submit">Remove from board</button></form></details>`;
+      const list = (rows, empty, cur) => rows.length ? `<ul class="rv-list">${rows.map((p) => `<li><a href="/admin/people/${p.id}"><b>${nm(p)}</b></a>${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}${p.note ? `<span class="rv-note">“${esc(p.note)}”</span>` : ""}${edit(p, cur)}</li>`).join("")}</ul>` : `<p class="fine">${empty}</p>`;
+      const answered = new Set([...rsvp.going, ...rsvp.no].map((p) => p.id)), pick = [...onBoard.filter((p) => !answered.has(p.id)).map((p) => [p, true]), ...everyone.filter((p) => !answered.has(p.id)).map((p) => [p, false])];
+      const addBox = `<div class="rv-addbar"><button type="button" class="sb-btn primary" onclick="var a=document.getElementById('rv-add'); a.hidden=!a.hidden; if (!a.hidden) a.querySelector('select').focus();">+ Add someone</button></div>
+        <section class="sp-addbox" id="rv-add" hidden><h3>Add someone's answer</h3>
+        <form method="post" action="${act}/rsvp-set" class="stack sp-add"><input type="hidden" name="add" value="1">
+          <label>Who<select name="athlete_id" required><option value="">Choose…</option>
+            ${onBoard.some((p) => !answered.has(p.id)) ? `<optgroup label="On this board">${onBoard.filter((p) => !answered.has(p.id)).map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.group_name ? ` (${esc(p.group_name)})` : ""}</option>`).join("")}</optgroup>` : ""}
+            ${everyone.length ? `<optgroup label="Everyone else in People (adds them to the board)">${everyone.filter((p) => !answered.has(p.id)).map((p) => `<option value="${p.id}">${esc(p.last_name)}, ${esc(p.first_name)}${p.kind === "adult" ? " (adult)" : ""}</option>`).join("")}</optgroup>` : ""}</select></label>
+          <label>Note <span class="opt">(optional)</span><input name="note" maxlength="200" placeholder="e.g. arriving late"></label>
+          <div class="q-actions"><button type="button" class="link-dark" onclick="var a=document.getElementById('rv-add'); a.hidden=true; a.querySelector('form').reset();">Cancel</button><button class="btn-ghost" type="submit" name="answer" value="no">Can't make it</button><button class="btn-small" type="submit" name="answer" value="yes">Going</button></div></form>
+          <p class="fine">You're updating the list, so no one is emailed.</p></section>`;
+      return `${addBox}<div class="rv-sum"><span class="rv-c yes"><b>${rsvp.going.length}</b> going</span><span class="rv-c no"><b>${rsvp.no.length}</b> can't make it</span><span class="rv-c none"><b>${rsvp.none.length}</b> no answer yet</span></div>
+      <div class="rv-cols"><section><h3>Going <i class="sub-n">${rsvp.going.length}</i></h3>${list(rsvp.going, "No one yet.", "yes")}</section>
+        <section><h3>Can't make it <i class="sub-n">${rsvp.no.length}</i></h3>${list(rsvp.no, "No one.", "no")}</section>
+        <section><div class="rv-h"><h3>No answer yet <i class="sub-n">${rsvp.none.length}</i></h3>${rsvp.none.length ? `<form method="post" action="/admin/b/${sc.id}/items/${it.id}/rsvp-remind" onsubmit="return confirm('Email the ${rsvp.none.length} ${rsvp.none.length === 1 ? "family" : "families"} who haven\\'t answered?')"><button class="sb-btn" type="submit">Remind them</button></form>` : ""}</div>${list(rsvp.none, "Everyone has answered.", "")}</section></div>
+      <p class="fine rv-foot">Families can change their answers until the event starts; you can change anyone's anytime (Change). Going counts for check-in, reminders and reports.</p>`; })() : `
     <div class="ck-listbar"><h3>In this spot <i class="sub-n">${conf.length} of ${it.capacity}</i></h3>
       <button type="button" class="sb-btn primary" onclick="var a=document.getElementById('add'); a.hidden=!a.hidden; if (!a.hidden) a.querySelector('select').focus();">+ Add someone</button></div>
         <section class="sp-addbox" id="add" hidden><h3>Add someone to this spot</h3>

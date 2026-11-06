@@ -156,7 +156,7 @@ function dashboardPage({ user, flash, rows, metrics, tab = "" }) {
     body: `<section class="bh2">
       <div class="bh2-l"><span class="bh2-tile dash-tile">${DI.board}</span>
         <div><div class="bh2-t"><h1>Claim Board Dashboard</h1></div><span class="bh2-meta">${metrics.active} active board${metrics.active === 1 ? "" : "s"} · ${metrics.upcoming} upcoming claim${metrics.upcoming === 1 ? "" : "s"} · ${metrics.volunteers} volunteer${metrics.volunteers === 1 ? "" : "s"} signed up</span></div></div>
-      <div class="bh2-acts"><a class="sb-btn primary" href="/admin/setup/new">${DI.plus}Create Board</a></div></section>
+      <div class="bh2-acts"><a class="sb-btn" href="/admin/setup/import" title="Create a board from an export file (e.g. from staging)">Import a board</a><a class="sb-btn primary" href="/admin/setup/new">${DI.plus}Create Board</a></div></section>
     <nav class="bh2-tabs dash-tabs" role="tablist">${tabBtn("all", "All Boards", DI.layers)}${tabBtn("pub", "Published", DI.ok)}${tabBtn("draft", "Draft", DI.pen)}${tabBtn("arch", "Archived", DI.arch)}
       <span class="dash-tools"><label class="dt-search">${DI.search}<input type="search" placeholder="Search boards…" aria-label="Search boards"></label>
         <label class="dt-sort"><span>Sort by</span><select aria-label="Sort boards"><option value="name">Name (A–Z)</option><option value="name-d">Name (Z–A)</option>

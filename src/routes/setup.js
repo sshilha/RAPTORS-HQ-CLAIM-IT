@@ -38,6 +38,7 @@ router.get("/", wrap(async (req, res) => {
   if (sc.published_at && sc.claim_mode === "public" && !sc.share_code) sc.share_code = await require("./board").shareCode(sc);
   // three panels: the selected level (?n=) shows in the center and right; clicking in the tree asks for just those (partial=1)
   const sel = focus && nodes.some((n) => n.id === focus) ? focus : null;
+  sc._roll = await E.rollingMap(sc.id);   // "only the next one": which sessions families see right now
   const V = require("../views/setup2"), args = { sc, tree, topItems, totals, eff: E.effectiveAt(sc, []), sel };
   if (req.query.partial) return res.json(V.panels(args));
   res.send(V.setupPage({ user: req.user, flash: flashFrom(req), ...args }));
@@ -62,10 +63,12 @@ router.get("/notifications", wrap(async (req, res) => {
     body: `<nav class="back-row"><a class="back-btn" href="/admin/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All Boards</a></nav>
     ${head}
     <form method="post" action="/admin/setup/notifications?s=${sc.id}" class="sub-body no-subs nt-sheet">
-      <section class="nt-sec"><h3>Reminders</h3><p class="fine">A reminder before each claimed session, to the person and their parents/guardians (if family sharing is on). It has Add to calendar links and a way to cancel.</p>
+      <section class="nt-sec"><h3>Reminders</h3><p class="fine">${sc.board_type === "rsvp" ? "A reminder before each event, to those who answered Going" : "A reminder before each claimed session"}, to the person and their parents/guardians (if family sharing is on). It has Add to calendar links and ${sc.board_type === "rsvp" ? "a way to change their answer" : "a way to cancel"}.</p>
         <label class="field-l nt-when"><span>Send a reminder</span><select name="reminder_hours">${REMIND.map(([h, l]) => `<option value="${h}"${h === rh ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-        <p class="fine">${rh > 0 ? `${due} upcoming claim${due === 1 ? "" : "s"} will get a reminder. People who claim inside that window don't get one (they just signed up).` : "No reminders for this board."}</p></section>
-      <section class="nt-sec"><h3>Claim emails</h3><p class="fine">Turn off any this board shouldn't send. Their wording is in App Settings → People → <a href="/admin/people/communication">Communication</a>.</p>
+        <p class="fine">${rh > 0 ? `${sc.board_type === "rsvp" ? `${due} ${due === 1 ? "answer" : "answers"} of Going will get a reminder. People who answer inside that window don't get one (they just answered).` : `${due} upcoming claim${due === 1 ? "" : "s"} will get a reminder. People who claim inside that window don't get one (they just signed up).`}` : "No reminders for this board."}</p></section>
+      ${sc.board_type === "rsvp" ? `<section class="nt-sec"><h3>Reminder to answer</h3><p class="fine">Two days before each event, everyone on the list who hasn't answered yet gets the <b>Please RSVP</b> email (with their parents/guardians, if family emails are on), once. You can also use <b>Remind them</b> on an event's People page anytime.</p>
+        <label class="radio-row nt-sw"><input type="checkbox" name="rsvp_nudge" value="1"${n.rsvp_nudge !== false ? " checked" : ""}> <span><b>Remind those who haven't answered, 2 days before</b></span></label></section>` : ""}
+      <section class="nt-sec"${sc.board_type === "rsvp" ? " hidden" : ""}><h3>Claim emails</h3><p class="fine">Turn off any this board shouldn't send. Their wording is in App Settings → People → <a href="/admin/people/communication">Communication</a>.</p>
         ${NOTE_KEYS.map(([k, t, d]) => `<label class="radio-row nt-sw"><input type="checkbox" name="${k}" value="1"${n[k] !== false ? " checked" : ""}> <span><b>${t}</b><span class="fine">${d}</span></span></label>`).join("")}
         <p class="fine">Public-link confirmations always send, because they carry the visitor's private cancel link.</p></section>
       <div class="q-actions"><button class="sb-btn primary" type="submit">Save</button></div>
@@ -74,7 +77,8 @@ router.get("/notifications", wrap(async (req, res) => {
 router.post("/notifications", wrap(async (req, res) => {
   const sc = await SC.get(int(req.query.s)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
   const rh = REMIND.map((r) => r[0]).includes(Number(req.body.reminder_hours)) ? Number(req.body.reminder_hours) : 24;
-  const notify = { reminder_hours: rh, ...Object.fromEntries(NOTE_KEYS.map(([k]) => [k, req.body[k] === "1"])) };
+  const notify = { reminder_hours: rh, ...Object.fromEntries(NOTE_KEYS.map(([k]) => [k, sc.board_type === "rsvp" ? (((sc.settings || {}).notify || {})[k] !== false) : req.body[k] === "1"])),
+    ...(sc.board_type === "rsvp" ? { rsvp_nudge: req.body.rsvp_nudge === "1" } : {}) };
   await query(`UPDATE schedules SET settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('notify', $2::jsonb) WHERE id=$1`, [sc.id, JSON.stringify(notify)]);
   go(res, `/admin/setup/notifications?s=${sc.id}`, { ok: "Saved this board's notifications." });
 }));
@@ -176,7 +180,7 @@ router.post("/schedules/:id", wrap(async (req, res) => {
     if (img === "remove") await query(`UPDATE schedules SET image=NULL, image_at=now() WHERE id=$1`, [id]);
     else if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(img) && img.length < 1500000) await query(`UPDATE schedules SET image=$2, image_at=now() WHERE id=$1`, [id, img]);
   }
-  if (["training", "volunteer", "rsvp"].includes(b.board_type)) await query(`UPDATE schedules SET board_type=$2 WHERE id=$1`, [id, b.board_type]);
+  if (["training", "volunteer", "rsvp"].includes(b.board_type)) await query(`UPDATE schedules SET board_type=$2${b.board_type === "rsvp" ? ", claim_mode='roster'" : ""} WHERE id=$1`, [id, b.board_type]);
   if (b.short_code !== undefined) {
     const code = String(b.short_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
     const pic = (await query(`SELECT image IS NOT NULL AS has FROM schedules WHERE id=$1`, [id])).rows[0];
@@ -217,7 +221,9 @@ router.post("/schedules/:id", wrap(async (req, res) => {
   }
   const pick = b.dated === "no" ? "list" : b.dated === "yes" ? (b.pick === "both" ? "both" : b.pick === "list" ? "dlist" : "calendar")
     : ["list", "calendar", "both"].includes(b.pick) ? b.pick : null;
-  const claim = ["public", "family", "roster"].includes(b.claim) ? b.claim : null;
+  let claim = ["public", "family", "roster"].includes(b.claim) ? b.claim : null;
+  const typeNow = b.board_type || ((await query(`SELECT board_type FROM schedules WHERE id=$1`, [id])).rows[0] || {}).board_type;
+  if (typeNow === "rsvp") claim = "roster";   // RSVP boards are always just for the people on the board
   const restrict = b.restrict === "yes" ? true : b.restrict === "no" ? false : null;
   await query(`UPDATE schedules SET claim_mode = COALESCE($2, claim_mode), restricted = COALESCE($3, restricted) WHERE id=$1`, [id, claim, restrict]);
   await query(`UPDATE schedules SET name = COALESCE($2, name), labels=$3, pick_mode = COALESCE($4, pick_mode), use_calendar = COALESCE($4, pick_mode) <> 'list' WHERE id=$1`,
@@ -250,6 +256,26 @@ router.post("/schedules/:id/family", wrap(async (req, res) => {
   const mode = ["full", "initial", "off"].includes(req.body.family_names) ? req.body.family_names : "initial";
   await query(`UPDATE schedules SET family_names=$2 WHERE id=$1`, [id, mode]);
   go(res, `/admin/setup/schedule?s=${id}#family`, { ok: { full: "People now see full names of who's going.", initial: "People now see first names and last initials of who's going.", off: "People no longer see who's going." }[mode] });
+}));
+
+const fileName = (s) => String(s || "export").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "export";
+// ---------- export a board / import a board (moving setup between copies, e.g. staging → production) ----------
+router.get("/schedules/:id/export", wrap(async (req, res) => {
+  const sc = await SC.get(int(req.params.id)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
+  const d = await require("../transfer").exportBoard(sc.id, { people: req.query.people !== "0", coaches: req.query.coaches !== "0" });
+  res.setHeader("Content-Type", "application/json"); res.setHeader("Content-Disposition", `attachment; filename="${fileName(sc.name)}.claimit.json"`);
+  res.send(JSON.stringify(d, null, 1));
+}));
+router.get("/import", wrap(async (req, res) => res.send(require("../views/transfer").importPage({ user: req.user, flash: flashFrom(req) }))));
+router.post("/import/preview", wrap(async (req, res) => {
+  const r = require("../transfer").read(String(req.body.data || "")); if (r.err) return go(res, "/admin/setup/import", { err: r.err });
+  if (r.data.kind !== "board") return go(res, "/admin/setup/import", { err: "That file is a level, not a board. Import it from Board setup, where it should go." });
+  res.send(require("../views/transfer").previewPage({ user: req.user, flash: flashFrom(req), p: await require("../transfer").preview(r.data), data: String(req.body.data) }));
+}));
+router.post("/import", wrap(async (req, res) => {
+  const r = require("../transfer").read(String(req.body.data || "")); if (r.err || r.data.kind !== "board") return go(res, "/admin/setup/import", { err: r.err || "That file isn't a board." });
+  const out = await require("../transfer").importBoard(r.data, { name: str(req.body.name), people: req.body.people === "1", coaches: req.body.coaches === "1" });
+  go(res, `/admin/setup?s=${out.board.id}`, { ok: `Imported "${out.board.name}": ${out.levels} levels, ${out.sessions} sessions${out.people ? `, ${out.people} people` : ""}${out.coaches ? `, ${out.coaches} coach${out.coaches === 1 ? "" : "es"}` : ""}. It's unpublished.${out.missing.length ? ` ${out.missing.length} people weren't found in People here.` : ""}` });
 }));
 
 // ---------- copy a whole board ----------

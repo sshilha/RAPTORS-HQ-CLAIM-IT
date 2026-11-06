@@ -133,6 +133,11 @@ router.post("/:id/lists", wrap(async (req, res) => {
   go(res, `/admin/people/${id}#lists`, { ok: "Saved." });
 }));
 
+// ---------- People → Export: a spreadsheet the People import reads as is (e.g. into production) ----------
+router.get("/export.csv", wrap(async (req, res) => {
+  res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="people-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send("\ufeff" + await require("../transfer").peopleCsv());
+}));
 // ---------- import into the directory (no board) ----------
 const CSV = require("../csv");
 const H = () => require("./members").importHelpers;
@@ -150,7 +155,7 @@ router.post("/import/preview", wrap(async (req, res) => {
   else { const saved = await IM().savedMap(headers); if (saved) { map = saved.map; remembered = true; } else map = IM().guess(headers); }
   const people = await IM().analyze(IM().toRows(rows.slice(1), map, kind));
   res.send(IV().mapPage({ user: req.user, flash: flashFrom(req), head: await AHead(), headers, map, kind, data: req.body.data, rows: people, counts: IM().counts(people),
-    lists: await PP.lists(), remembered, openReview: !req.body.mapped }));
+    lists: await PP.lists(), remembered, openReview: false }));
 }));
 // the review pop-up's Re-check
 router.post("/import/check", wrap(async (req, res) => {

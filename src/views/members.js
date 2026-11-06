@@ -19,7 +19,10 @@ function needHelp(sc, L) {
   return `<p class="fine page-help"><b>Not in use on this board.</b> It's open to ${SCm.claimMode(sc) === "public" ? "anyone with the link" : "anyone signed in"}, so people just claim spots. <a href="/admin/setup/schedule?s=${sc.id}">Back to settings</a></p>`;
 }
 
-function membersPage({ user, flash, sc, members, others, group, total, teams = "", head = "", sub = "people", addOpen = false }) {
+const STAGE = { claimed: ["Claimed", "ok"], opened: ["Opened the board", "mid"], signedin: ["Signed in, hasn't opened it", "low"], never: ["Never signed in", "bad"], noaccount: ["No account", "bad"] };
+function engCell(a) { const e = a.eng || {}, st = STAGE[e.stage] || STAGE.noaccount, d = (t) => t ? new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+  return `<td data-sort="${["claimed", "opened", "signedin", "never", "noaccount"].indexOf(e.stage)}"><span class="eng ${st[1]}">${e.stage === "claimed" ? `Claimed ${e.claims}` : st[0]}</span>${e.stage === "opened" ? `<span class="em-why">${d(e.opened_at)}</span>` : e.stage === "signedin" ? `<span class="em-why">last ${d(e.signed_in_at)}</span>` : e.stage === "noaccount" ? `<span class="em-why">no parent/guardian or own email</span>` : ""}</td>`; }
+function membersPage({ user, flash, sc, members, others, group, total, teams = "", head = "", sub = "people", addOpen = false, eng = null, stageF = "" }) {
   const L = SC.labels(sc);
   const groups = SC.groupsFor(sc);
   const tags = sc.tags || [];
@@ -102,9 +105,12 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
         ${groups.map((g) => `<a href="/admin/members?s=${sc.id}&sub=people&g=${encodeURIComponent(g)}"${group === g ? ' aria-current="page"' : ""}>${esc(g)}</a>`).join("")}
         <a href="/admin/members?s=${sc.id}&sub=people&g=none"${group === "none" ? ' aria-current="page"' : ""}>No ${esc(L.group.one.toLowerCase())}</a>
         ${(sc.tags || []).map((t) => `<a class="tag-filter" href="/admin/members?s=${sc.id}&g=${encodeURIComponent("tag:" + t)}"${group === "tag:" + t ? ' aria-current="page"' : ""}>🏷 ${esc(t)}</a>`).join("")}</nav>` : ""}
+      ${eng && eng.total ? `<div class="eng-sum"><b>${eng.total} on this board:</b> <a href="${esc(back)}&e=" class="${!stageF ? "on" : ""}">all</a> · ${eng.signedin} signed in · ${eng.opened} opened it · <a href="${esc(back)}&e=claimed" class="${stageF === "claimed" ? "on" : ""}">${eng.claimed} claimed</a>
+        <span class="eng-f">Show: ${Object.entries(STAGE).map(([k, [l]]) => `<a href="${esc(back)}&e=${k}" class="${stageF === k ? "on" : ""}">${esc(l)}</a>`).join(" · ")}</span>
+        <span class="fine">The athlete or any parent/guardian. "Opened" counts from when this was added.</span></div>` : ""}
       ${members.length ? `<div class="table-wrap"><table>
-        <thead><tr><th><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th>${tags.length ? "<th>Tags</th>" : ""}<th>Emails</th><th>Also in</th><th></th></tr></thead>
-        <tbody>${members.map((a) => `<tr>
+        <thead><tr><th><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th>${tags.length ? "<th>Tags</th>" : ""}<th>Emails</th><th>Engagement</th><th>Also in</th><th></th></tr></thead>
+        <tbody>${members.filter((a) => !stageF || (a.eng && a.eng.stage === stageF)).map((a) => `<tr>
           <td><input type="checkbox" class="pick" name="athlete_id" value="${a.id}" form="bulk" aria-label="Select ${esc(a.first_name)}"></td>
           <td><a href="/admin/people/${a.id}" title="Details, family, and contact info are edited in People">${esc(a.last_name)}, ${esc(a.first_name)}</a>${a.self_user_id ? ` <span class="fine-inline">adult</span>` : ""}</td>
           <td><form method="post" action="/admin/members/${a.id}?s=${sc.id}" class="inline-group">
@@ -116,6 +122,7 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
             ${tags.map((t) => `<label class="tag-box${(a.tags || []).includes(t) ? " on" : ""}"><input type="checkbox" name="tags" value="${esc(t)}"${(a.tags || []).includes(t) ? " checked" : ""} onchange="this.form.submit()"> ${esc(t)}</label>`).join("")}
             <noscript><button class="btn-ghost">Save</button></noscript></form></td>` : ""}
           <td>${a.emails.length ? esc(a.emails.join(", ")) : `<span class="fine">None</span>`}</td>
+          ${engCell(a)}
           <td>${a.other_schedules.length ? esc(a.other_schedules.join(", ")) : ""}</td>
           <td><form method="post" action="/admin/members/${a.id}/remove?s=${sc.id}" onsubmit="return confirm('Remove ${esc(a.first_name)} from ${esc(sc.name)}?')">
             <input type="hidden" name="return_to" value="${esc(back)}"><button class="x" type="submit" aria-label="Remove from ${esc(sc.name)}">×</button></form></td>

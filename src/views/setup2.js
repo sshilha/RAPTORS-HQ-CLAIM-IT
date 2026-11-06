@@ -60,20 +60,23 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
           ${d ? `<span>${IC.clock}${esc(slotName({ starts_at: it.starts_at, ends_at: it.ends_at }).replace(/^[^,]+, [^,]+, /, ""))}</span>` : ""}
           ${(() => { const loc = it.location || (t && t.eff.location) || sc.event_location; if (!loc) return "";
             const src = it.location ? "" : t && t.eff.location ? (t.eff.from.location && t.eff.from.location !== sc.name ? `from ${t.eff.from.location}` : "board") : "board";
-            return `<span>${IC.pin}${esc(loc)}${src ? ` <i class="fine">(${esc(src)})</i>` : ""}</span>`; })()}</span>
+            return `<span>${IC.pin}${esc(loc)}${src ? ` <i class="fine">(${esc(src)})</i>` : ""}</span>`; })()}
+</span>
         ${(sc && sc.board_type === "rsvp") ? `<span class="ss-fill"><b>${it.claimed}</b> going</span>` : `<span class="ss-fill"><b>${it.claimed} / ${it.capacity}</b> claimed${it.waitlisted ? ` · ${it.waitlisted} waiting` : ""}
           <span class="ss-bar"><i style="width:${Math.min(100, pct)}%"></i></span><small>${it.capacity - it.claimed > 0 ? `${it.capacity - it.claimed} open` : "Full"} · ${pct}%</small></span>`}
         <span class="ss-acts"><a class="sb-btn sm ic" href="/admin/b/${sc.id}/items/${it.id}/people" title="People: see, add, or remove" aria-label="People">${IC.people}</a>
           ${locked ? "" : `<button type="button" class="sb-btn sm ic" title="Edit" aria-label="Edit" data-item='${esc(JSON.stringify({ id: it.id, node: it.node_id || "", title: it.title, capacity: it.capacity, location: it.location || "", date: st ? st.date : "", start: st ? st.time : "", end: en ? en.time : "" }))}'>${IC.edit}</button>
           <button type="button" class="sb-btn sm ic" title="Duplicate, then change what's different" aria-label="Duplicate" data-dup='${esc(JSON.stringify({ node: it.node_id || "", title: it.title, capacity: it.capacity, location: it.location || "", date: st ? st.date : "", start: st ? st.time : "", end: en ? en.time : "" }))}'>${IC.copy}</button>
-          <button type="button" class="sb-btn sm ic danger" title="Delete" data-del-item="${it.id}" data-name="${esc(slotName(it))}" data-claims="${it.claimed + it.waitlisted}" aria-label="Delete">${IC.trash}</button>`}</span></li>`;
+          <button type="button" class="sb-btn sm ic danger" title="Delete" data-del-item="${it.id}" data-name="${esc(slotName(it))}" data-claims="${it.claimed + it.waitlisted}" aria-label="Delete">${IC.trash}</button>`}</span><span class="roll-line">${(() => { const r = sc._roll && sc._roll.get(it.id); if (!r) return "";
+            return r.visible ? `<span class="roll on" title="${esc(r.scope)} shows families ${r.n === 1 ? "only the next one" : `the next ${r.n}`}">Showing to families now</span>`
+              : `<span class="roll" title="${esc(r.scope)} shows families ${r.n === 1 ? "only the next one" : `the next ${r.n}`}">Families see this after ${esc(require("../time").fmtDateTime(r.showsAt))}</span>`; })()}</span></li>`;
     };
     body = `<section class="sp-card"><div class="sp-card-h">${IC.clock}<b>${esc(L.slot.many)}</b><span class="fine">${(sc && sc.board_type === "rsvp") ? "(events to RSVP)" : "(spots to claim)"}</span>
-        ${locked ? "" : `<button type="button" class="sb-btn primary" data-add-item="${t ? t.node.id : ""}">${IC.plus}Add ${esc(L.slot.one.toLowerCase())}</button>`}</div>
+        ${locked ? "" : `${SC.usesCalendar(sc) ? `<button type="button" class="sb-btn" data-copy-day="${t ? t.node.id : ""}">Copy a day</button>` : ""}<button type="button" class="sb-btn primary" data-add-item="${t ? t.node.id : ""}">${IC.plus}Add ${esc(L.slot.one.toLowerCase())}</button>`}</div>
       ${items.length ? `<ul class="ss-list">${items.map(row).join("")}</ul>` : `<div class="sp-empty">${IC.clock}<b>No ${esc(L.slot.many.toLowerCase())} yet.</b><span>Add one, and people can start claiming it once the board is published.</span></div>`}</section>`;
   } else {
     body = `<section class="sp-card"><div class="sp-card-h">${LEVEL_IC[(lvl + 1) % LEVEL_IC.length]}<b>${esc(childW.many)}</b><span class="fine">in ${esc(t ? t.node.name : "this board")}</span>
-        ${locked ? "" : `<button type="button" class="sb-btn primary" data-add-node="${t ? t.node.id : ""}" data-word="${esc(childW.one)}">${IC.plus}Add ${esc(childW.one.toLowerCase())}</button>`}</div>
+        ${locked ? "" : `<a class="sb-btn" href="/admin/b/${sc.id}/import-level?parent=${t ? t.node.id : ""}" title="Add a level exported from another copy of Claim It">Import a level</a><button type="button" class="sb-btn primary" data-add-node="${t ? t.node.id : ""}" data-word="${esc(childW.one)}">${IC.plus}Add ${esc(childW.one.toLowerCase())}</button>`}</div>
       ${kids.length ? `<div class="kid-grid">${kids.map((k) => `<a class="kid" href="/admin/setup?s=${sc.id}&n=${k.node.id}" data-nav="${k.node.id}">
           <span class="kid-ico">${LEVEL_IC[(lvl + 1) % LEVEL_IC.length]}</span><b>${esc(k.node.name)}</b>
           <span class="fine">${k.kids.length ? `${plural(k.kids.length, lvl + 2 <= depth - 2 ? word(lvl + 2) : L.slot)} · ` : ""}${plural(k.count.items, L.slot)} · ${k.count.spots} spots · ${k.count.claimed} claimed</span>
@@ -102,14 +105,15 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
 }
 
 // each setting as a row with Edit; Edit shows that setting's own part of the settings form, saved alone (?only=)
-const KEY_OF = { "Who can claim here": "who", "Per-person limit here": "limit", "Claiming opens": "opens", "Cancel deadline": "cancel", "Open leftover spots": "leftover",
+const KEY_OF = { "Who can claim here": "who", "Per-person limit here": "limit", "Claiming opens": "opens", "Show families": "show", "Cancel deadline": "cancel", "Open leftover spots": "leftover",
   "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
-const ROW_KEY = { "Who can claim here": "who", "Per-person limit": "limit", "Claiming opens": "opens", "Cancel deadline": "cancel", "Open leftover spots": "leftover", "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
+const ROW_KEY = { "Who can claim here": "who", "Per-person limit": "limit", "Claiming opens": "opens", "Show families": "show", "Cancel deadline": "cancel", "Open leftover spots": "leftover", "Waitlist": "waitlist", "Attendance": "attendance", "Location": "location", "Visible from": "visible" };
 function inlineSettings(sc, t, locked) {
   const n = t.node;
   const form = B.settingsForm(sc, n, t.inherited);
   const parts = {}; form.replace(/<fieldset><legend>([^<]+)<\/legend>([\s\S]*?)<\/fieldset>/g, (m, legend, inner) => { const k = KEY_OF[legend.trim()]; if (k) parts[k] = m; return m; });
-  const rows = B.settingRows(sc, t.eff, n.settings || {}, "node");
+  let rows = B.settingRows(sc, t.eff, n.settings || {}, "node");
+  if (sc.board_type === "rsvp") rows = rows.filter(([k]) => !["Per-person limit", "Per-person limit here", "Cancel deadline", "Open leftover spots", "Waitlist"].includes(k));   // no spots on an RSVP board
   rows.push(["Visible from", n.visible_from ? `Hidden until ${require("../time").fmtDateTime(n.visible_from)}` : "Always", n.visible_from ? "Set here" : "Board default"]);
   const tag = (src) => { const m = /^Narrowed above \((.*)\)$/.exec(src || "");
     return src === "Set here" ? `<span class="src-tag here">Set here</span>` : m ? `<span class="src-tag from">From ${esc(m[1])}</span>` : /^From /.test(src) ? `<span class="src-tag from">${esc(src)}</span>`
@@ -176,6 +180,11 @@ function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }
       <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
         <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${(sc && sc.board_type === "rsvp") ? `${totals.claimed} going` : `${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)`}${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
     <div class="bh2-acts">
+      <details class="tx-exp"><summary class="sb-btn" title="Download this board to import into another copy (e.g. staging → production)">Export</summary>
+        <form class="tx-pop" method="get" action="/admin/setup/schedules/${sc.id}/export" onsubmit="this.people.value=this.p.checked?'1':'0';this.coaches.value=this.c.checked?'1':'0';setTimeout(()=>this.closest('details').open=false,300);">
+          <b>Export this board</b><span class="fine">Setup, levels and sessions. Never claims.</span>
+          <label class="radio-row"><input type="checkbox" name="p" checked> People on the board</label><label class="radio-row"><input type="checkbox" name="c" checked> Coaches</label>
+          <input type="hidden" name="people"><input type="hidden" name="coaches"><button class="btn-small" type="submit">Download the file</button></form></details>
       <a class="sb-btn" href="/b/${sc.id}?preview=1" target="_blank" rel="noopener" title="See the board as a family would, even before it's published">${IC.eye}Preview</a>
       ${published && SC.claimMode(sc) === "public" && shareUrl ? `<details class="share-pop"><summary class="sb-btn">Share</summary><div class="share-panel">
           <p class="fine">Anyone with this link can sign up, no account needed.</p>
@@ -218,6 +227,7 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
             <button type="button" data-rename="${t.node.id}" data-name="${esc(t.node.name)}">${IC.edit}Rename</button>
             <button type="button" data-dup-node="${t.node.id}" data-name="${esc(t.node.name)}">${IC.copy}Duplicate</button>
             <button type="button" data-settings="${t.node.id}">${IC.gear}Settings</button>
+            <a href="/admin/b/${sc.id}/nodes/${t.node.id}/export" download title="Download this level, with everything inside it, to import into another copy">${IC.copy}Export</a>
             <button type="button" class="danger" data-delete="${t.node.id}" data-name="${esc(t.node.name)}">${IC.trash}Delete</button></span></span>`}</div>
       ${t.kids.length ? `<ul>${t.kids.map((k) => node(k, lvl + 1)).join("")}</ul>` : ""}</li>`;
   };
@@ -272,11 +282,24 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
       ${SC.usesCalendar(sc) ? `<div class="sd-row"><label>Date<input type="date" name="date"></label><label>Start<input type="time" name="start_time"></label><label>End<input type="time" name="end_time"></label></div>` : ""}
       <label><span>Name ${SC.usesCalendar(sc) ? `<span class="opt">(optional when it has a date)</span>` : ""}</span><input name="title" maxlength="80" placeholder="e.g. Lower field"></label>
       <div class="sd-row">${(sc && sc.board_type === "rsvp") ? `<input type="hidden" name="capacity" value="500">` : `<label>Spots<input type="number" name="capacity" min="1" max="500" required></label>`}<label><span>Location <span class="opt">(optional)</span></span><input name="location" list="app-locations" maxlength="80"></label></div>
-      ${SC.usesCalendar(sc) ? `<fieldset class="sd-rep"><label class="radio-row"><input type="checkbox" name="repeat" value="1"> <b>Repeat weekly</b></label>
+      ${SC.usesCalendar(sc) ? `<fieldset class="sd-rep sd-split-f"><label class="radio-row"><input type="checkbox" name="split" value="1"> <b>Split into time slots</b> <span class="fine">e.g. 3:00 to 7:00, a slot every 30 minutes</span></label>
+        <div class="sd-split" hidden><label>Each slot<select name="every">${[5, 10, 15, 20, 30, 45, 60, 90, 120].map((m) => `<option value="${m}"${m === 30 ? " selected" : ""}>${m < 60 ? `${m} minutes` : m === 60 ? "1 hour" : `${m / 60} hours`}</option>`).join("")}</select></label><span class="fine sd-slots"></span></div></fieldset>
+      <fieldset class="sd-rep sd-when-f"><span class="q-label">Which days</span>
+        <div class="sd-when"><label class="radio-row"><input type="radio" name="when_mode" value="once" checked> Just this date</label><label class="radio-row"><input type="radio" name="when_mode" value="weekly"> Repeat weekly</label><label class="radio-row"><input type="radio" name="when_mode" value="dates"> Pick dates on a calendar</label></div>
         <div class="sd-rep-b" hidden><div class="sd-days">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => `<label><input type="checkbox" name="days" value="${i}"><span>${d}</span></label>`).join("")}</div>
-          <label>Until<input type="date" name="until"></label><p class="sd-count fine"></p></div></fieldset>` : ""}
+          <label>Until<input type="date" name="until"></label></div>
+        <div class="sd-cal-b" hidden><div class="cal-pick" data-input="dates"></div><input type="hidden" name="dates"></div>
+        <p class="sd-count fine"></p></fieldset>` : ""}
       <p class="fine sd-err" hidden></p>
       <div class="q-actions"><button type="button" class="btn-ghost" data-close>Cancel</button><button class="btn-small" type="submit">Save</button></div></form></dialog>
+    ${SC.usesCalendar(sc) ? `<dialog class="edit-dlg sd" id="dlg-copyday"><form method="post" action="/admin/b/${sc.id}/copy-day" class="stack"><input type="hidden" name="node_id"><input type="hidden" name="to">
+      <div class="dlg-head"><h2>Copy a day</h2><button type="button" class="dlg-x" data-close>×</button></div>
+      <p class="fine">Copies every ${esc(L.slot.one.toLowerCase())} on one day (times, spots, names and places, but no claims) onto the days you pick. Anything already there at the same time is skipped.</p>
+      <div class="sd-when"><label class="radio-row"><input type="radio" name="scope" value="level" checked> <span>Just <b class="cd-level"></b></span></label><label class="radio-row"><input type="radio" name="scope" value="board"> The whole board</label></div>
+      <label>Copy this day<select name="from" required><option value="">Loading…</option></select></label>
+      <div><span class="q-label">Onto these days</span><div class="cal-pick" data-input="to"></div></div>
+      <p class="fine cd-count"></p><p class="fine sd-err" hidden></p>
+      <div class="q-actions"><button type="button" class="btn-ghost" data-close>Cancel</button><button class="btn-small" type="submit">Copy</button></div></form></dialog>` : ""}
     <form method="post" id="del-form" hidden></form>
     <script>${CLIENT_JS}</script>` });
 }
@@ -319,7 +342,9 @@ const CLIENT_JS = `
     var t = e.target.closest("button, a"); if (!t) { document.querySelectorAll(".tn-menu").forEach(function (m) { m.hidden = true; }); return; }
     if (t.matches("[data-close]")) { t.closest("dialog").close(); return; }
     if (t.matches(".tn-tog:not(.none)")) { var li = t.closest(".tn"); setOpen(li, !li.classList.contains("open")); return; }
-    if (t.matches(".tn-dots")) { var m = t.nextElementSibling, was = m.hidden; document.querySelectorAll(".tn-menu").forEach(function (x) { x.hidden = true; }); m.hidden = !was; return; }
+    if (t.matches(".tn-dots")) { var m = t._menu || (t._menu = t.nextElementSibling), was = m.hidden; document.querySelectorAll(".tn-menu").forEach(function (x) { x.hidden = true; });
+      if (m.parentElement !== document.body) document.body.appendChild(m);   // on the page itself, so nothing in the tree can cover it
+      m.hidden = !was; if (was) placeMenu(m, t); return; }
     document.querySelectorAll(".tn-menu").forEach(function (x) { x.hidden = true; });
     if (t.matches("[data-nav]") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); go(t.dataset.nav, true); return; }
     if (t.matches("[data-settings]")) { go(t.dataset.settings, true); return; }
@@ -336,7 +361,7 @@ const CLIENT_JS = `
     if (t.matches("[data-add-item], [data-item], [data-dup]")) { var f3 = di.querySelector("form"), it = t.dataset.item ? JSON.parse(t.dataset.item) : null, dup = t.dataset.dup ? JSON.parse(t.dataset.dup) : null, src = it || dup;
       f3.reset(); f3.action = "/admin/b/" + sid + "/items" + (it ? "/" + it.id : ""); f3.node_id.value = dup ? dup.node : (t.dataset.addItem || "");
       if (src) { f3.title.value = src.title; f3.capacity.value = src.capacity; f3.location.value = src.location; if (f3.date) { f3.date.value = src.date; f3.start_time.value = src.start; f3.end_time.value = src.end; } }
-      var rep = di.querySelector(".sd-rep"); if (rep) { rep.hidden = !!it; rep.querySelector(".sd-rep-b").hidden = true; }
+      di.querySelectorAll(".sd-rep").forEach(function (r) { r.hidden = !!it; }); var cb = di.querySelector(".cal-pick"); if (cb && cb._cal) cb._cal.set([]);
       di.querySelector("h2").textContent = it ? "Edit" : dup ? "Duplicate: change what's different" : "Add" + (t.dataset.addItem ? " to " + nameOf(t.dataset.addItem) : "");
       di.querySelector(".sd-err").hidden = true; di.showModal(); (f3.date || f3.title).focus(); repCount(); return; }
   });
@@ -350,34 +375,106 @@ const CLIENT_JS = `
   });
   // keyboard: Enter/Space on a tree name works like a click (links already do); Escape closes menus
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".tn-menu").forEach(function (m) { m.hidden = true; }); });
-  // Repeat weekly: show the days (starting with the date's weekday) and how many sessions it will make
-  function repCount() {
-    var f = di.querySelector("form"); if (!f.repeat) return; var box = di.querySelector(".sd-rep-b"), out = di.querySelector(".sd-count");
-    box.hidden = !f.repeat.checked; if (!f.repeat.checked) return;
-    var days = [].filter.call(f.querySelectorAll("[name=days]"), function (c) { return c.checked; }).map(function (c) { return +c.value; });
-    if (!f.date.value || !f.until.value || !days.length) { out.textContent = "Pick the days and an end date."; return; }
-    var n = 0, a = Date.parse(f.date.value + "T12:00:00Z"), b = Date.parse(f.until.value + "T12:00:00Z");
-    for (var t = a; t <= b && n < 201; t += 864e5) if (days.indexOf(new Date(t).getUTCDay()) >= 0) n++;
-    out.textContent = b < a ? "The end date is before the first date." : n ? "This will create " + Math.min(n, 200) + " session" + (n === 1 ? "" : "s") + "." : "No dates match those days.";
+  function placeMenu(m, btn) {
+    var r = btn.getBoundingClientRect(); m.classList.add("tn-float"); m.style.left = "0px"; m.style.top = "0px";
+    var w = m.offsetWidth, h = m.offsetHeight, x = r.right - w, y = r.bottom + 4;
+    if (x < 8) x = Math.min(r.left, window.innerWidth - w - 8);
+    if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 4);
+    m.style.left = Math.round(x) + "px"; m.style.top = Math.round(y) + "px";
   }
+  // a floating menu closes when the page or the tree scrolls (it would otherwise drift away from its row)
+  function closeMenus() { document.querySelectorAll(".tn-menu:not([hidden])").forEach(function (m) { m.hidden = true; }); }
+  window.addEventListener("resize", closeMenus); document.addEventListener("scroll", closeMenus, true);
+  // a month calendar where you tap the days you want (used by Pick dates and Copy a day)
+  function calPick(box, input, onChange) {
+    var sel = {}, now = new Date(), y = now.getFullYear(), m = now.getMonth(), MON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    function key(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+    function draw() {
+      var first = new Date(y, m, 1), start = first.getDay(), days = new Date(y, m + 1, 0).getDate(), today = key(new Date()), h = "";
+      h += '<div class="cal-h"><button type="button" class="cal-nav" data-d="-1" aria-label="Previous month">‹</button><b>' + MON[m] + " " + y + '</b><button type="button" class="cal-nav" data-d="1" aria-label="Next month">›</button></div><div class="cal-g">';
+      ["S","M","T","W","T","F","S"].forEach(function (w) { h += '<span class="cal-w">' + w + "</span>"; });
+      for (var i = 0; i < start; i++) h += "<span></span>";
+      for (var d = 1; d <= days; d++) { var k = key(new Date(y, m, d)); h += '<button type="button" class="cal-d' + (sel[k] ? " on" : "") + (k === today ? " today" : "") + (k < today ? " past" : "") + '" data-k="' + k + '">' + d + "</button>"; }
+      box.innerHTML = h + '</div><p class="cal-n fine">' + count() + "</p>";
+    }
+    function count() { var n = Object.keys(sel).length; return n ? n + " day" + (n === 1 ? "" : "s") + " picked" : "Tap the days you want."; }
+    function sync() { input.value = Object.keys(sel).sort().join(","); if (onChange) onChange(); }
+    box.addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; e.preventDefault();
+      if (b.dataset.d) { m += +b.dataset.d; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } draw(); return; }
+      var k = b.dataset.k; if (sel[k]) delete sel[k]; else sel[k] = 1; b.classList.toggle("on"); box.querySelector(".cal-n").textContent = count(); sync(); });
+    box._cal = { set: function (list, month) { sel = {}; (list || []).forEach(function (k) { sel[k] = 1; }); if (month) { y = +month.slice(0, 4); m = +month.slice(5, 7) - 1; } draw(); sync(); }, size: function () { return Object.keys(sel).length; } };
+    draw(); return box._cal;
+  }
+  // the times a session (or a split range) makes
+  function slots(f) {
+    var a = f.start_time.value, b = f.end_time.value; if (!a || !b) return [];
+    var mm = function (t) { var p = t.split(":"); return +p[0] * 60 + +p[1]; }, hm = function (x) { var h = Math.floor(x / 60), mi = x % 60, ap = h < 12 ? "am" : "pm"; return (((h + 11) % 12) + 1) + (mi ? ":" + String(mi).padStart(2, "0") : "") + ap; };
+    if (!f.split || !f.split.checked) return [[hm(mm(a)), hm(mm(b))]];
+    var ev = +f.every.value, out = []; for (var t = mm(a); t + ev <= mm(b) && out.length < 201; t += ev) out.push([hm(t), hm(t + ev)]); return out;
+  }
+  function modeOf(f) { var r = f.querySelector("[name=when_mode]:checked"); return r ? r.value : "once"; }
+  function dayCount(f) {
+    var mode = modeOf(f);
+    if (mode === "dates") return f.dates.value ? f.dates.value.split(",").length : 0;
+    if (mode === "weekly") { var days = [].filter.call(f.querySelectorAll("[name=days]"), function (c) { return c.checked; }).map(function (c) { return +c.value; });
+      if (!f.date.value || !f.until.value || !days.length) return 0; var n = 0, a = Date.parse(f.date.value + "T12:00:00Z"), b = Date.parse(f.until.value + "T12:00:00Z");
+      for (var t = a; t <= b && n < 400; t += 864e5) if (days.indexOf(new Date(t).getUTCDay()) >= 0) n++; return n; }
+    return f.date.value ? 1 : 0;
+  }
+  // Which days + Split into time slots: show the right parts, and how many sessions it will make
+  function repCount() {
+    var f = di.querySelector("form"); if (!f.when_mode) return;
+    var mode = modeOf(f); di.querySelector(".sd-rep-b").hidden = mode !== "weekly"; di.querySelector(".sd-cal-b").hidden = mode !== "dates";
+    f.date.closest("label").hidden = mode === "dates"; di.querySelector(".sd-split").hidden = !f.split.checked;
+    var sl = slots(f), out = di.querySelector(".sd-count"), so = di.querySelector(".sd-slots");
+    if (f.split.checked) so.textContent = sl.length ? sl.length + " slot" + (sl.length === 1 ? "" : "s") + ": " + sl.slice(0, 3).map(function (x) { return x[0] + "–" + x[1]; }).join(", ") + (sl.length > 3 ? " … " + sl[sl.length - 1][0] + "–" + sl[sl.length - 1][1] : "") : "Set a start and end time first.";
+    var d = dayCount(f), total = d * (sl.length || 1);
+    if (mode === "weekly" && !d) out.textContent = f.date.value && f.until.value ? "No dates match those days." : "Pick the days and an end date.";
+    else if (mode === "dates" && !d) out.textContent = "Tap the days on the calendar.";
+    else out.textContent = total > 200 ? "That's " + total + " sessions; 200 is the most at once." : total > 1 ? "This will create " + total + " sessions" + (sl.length > 1 && d > 1 ? " (" + d + " days × " + sl.length + " slots)" : "") + "." : "";
+  }
+  var calF = di.querySelector(".cal-pick"); if (calF) calPick(calF, di.querySelector("[name=dates]"), repCount);
   di.addEventListener("change", function (e) {
     var f = di.querySelector("form");
-    if (e.target.name === "repeat" && e.target.checked && f.date.value && ![].some.call(f.querySelectorAll("[name=days]"), function (c) { return c.checked; })) {
+    if (e.target.name === "when_mode" && e.target.value === "weekly" && f.date.value && ![].some.call(f.querySelectorAll("[name=days]"), function (c) { return c.checked; })) {
       var wd = new Date(Date.parse(f.date.value + "T12:00:00Z")).getUTCDay(); f.querySelector('[name=days][value="' + wd + '"]').checked = true; }
-    if (/^(repeat|days|until|date)$/.test(e.target.name)) repCount();
+    if (e.target.name === "when_mode" && e.target.value === "dates" && calF && f.date.value && !calF._cal.size()) calF._cal.set([f.date.value], f.date.value);
+    repCount();
   });
+  di.addEventListener("input", function (e) { if (/^(start_time|end_time|date|until)$/.test(e.target.name)) repCount(); });
   // session form: friendly checks before sending
   di.querySelector("form").addEventListener("submit", function (e) {
     var f = e.target, err = di.querySelector(".sd-err"), msg = "";
-    if (f.date) { var any = f.date.value || f.start_time.value || f.end_time.value;
-      if (any && !(f.date.value && f.start_time.value && f.end_time.value)) msg = "For a date and time, fill in the date, start, and end (or leave all three empty).";
+    if (f.date) { var mode = modeOf(f), needDate = mode !== "dates", any = (needDate && f.date.value) || f.start_time.value || f.end_time.value;
+      if (mode === "dates" && !f.dates.value) msg = "Tap at least one day on the calendar.";
+      else if (mode === "dates" && !(f.start_time.value && f.end_time.value)) msg = "Fill in the start and end times.";
+      else if (any && !((needDate ? f.date.value : true) && f.start_time.value && f.end_time.value)) msg = "For a date and time, fill in the date, start, and end (or leave all three empty).";
       else if (any && f.end_time.value <= f.start_time.value) msg = "The end time needs to be after the start time.";
-      else if (!any && !f.title.value.trim()) msg = "Give it a name, or a date and time.";
-      else if (f.repeat && f.repeat.checked) { var dd = [].some.call(f.querySelectorAll("[name=days]"), function (c) { return c.checked; });
-        if (!f.date.value) msg = "Repeating needs a first date and times."; else if (!dd || !f.until.value) msg = "For a repeat, pick the days and an end date.";
-        else if (/No dates|before/.test(di.querySelector(".sd-count").textContent)) msg = di.querySelector(".sd-count").textContent; } }
+      else if (!any && mode !== "dates" && !f.title.value.trim()) msg = "Give it a name, or a date and time.";
+      else if (f.split && f.split.checked && !slots(f).length) msg = "The time range is shorter than one slot.";
+      else if (mode === "weekly" && /No dates|Pick the days/.test(di.querySelector(".sd-count").textContent)) msg = di.querySelector(".sd-count").textContent;
+      else if (/200 is the most/.test(di.querySelector(".sd-count").textContent)) msg = di.querySelector(".sd-count").textContent; }
     if (msg) { e.preventDefault(); err.textContent = msg; err.hidden = false; }
   });
+  // Copy a day
+  var dc = document.getElementById("dlg-copyday");
+  if (dc) {
+    var cf = dc.querySelector("form"), calC = calPick(dc.querySelector(".cal-pick"), cf.to, cdCount), fromSel = cf.from, dayN = {};
+    function cdCount() { var n = calC.size(), per = dayN[fromSel.value] || 0; dc.querySelector(".cd-count").textContent = fromSel.value && n ? "This will add up to " + per * n + " session" + (per * n === 1 ? "" : "s") + " (" + per + " on " + n + " day" + (n === 1 ? "" : "s") + ")." : ""; }
+    function loadDays() {
+      var scope = cf.querySelector("[name=scope]:checked").value;
+      fetch("/admin/b/" + sid + "/days?node=" + encodeURIComponent(cf.node_id.value) + "&scope=" + scope, { headers: { Accept: "application/json" } }).then(function (r) { return r.json(); }).then(function (j) {
+        dayN = {}; fromSel.innerHTML = j.days.length ? '<option value="">Pick a day…</option>' + j.days.map(function (d) { dayN[d.day] = d.n; var dt = new Date(d.day + "T12:00:00");
+          return '<option value="' + d.day + '">' + dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) + " (" + d.n + ")</option>"; }).join("") : '<option value="">No days with sessions yet</option>';
+        cdCount(); });
+    }
+    document.addEventListener("click", function (e) { var t = e.target.closest("[data-copy-day]"); if (!t) return;
+      cf.reset(); cf.node_id.value = t.dataset.copyDay || ""; dc.querySelector(".cd-level").textContent = t.dataset.copyDay ? nameOf(t.dataset.copyDay) : "this board";
+      calC.set([]); dc.querySelector(".sd-err").hidden = true; loadDays(); dc.showModal(); });
+    cf.addEventListener("change", function (e) { if (e.target.name === "scope") loadDays(); if (e.target.name === "from" && e.target.value) calC.set(calC.size() ? cf.to.value.split(",") : [], e.target.value); cdCount(); });
+    cf.addEventListener("submit", function (e) { var err = dc.querySelector(".sd-err"), msg = !fromSel.value ? "Pick the day to copy." : !cf.to.value ? "Tap at least one day to copy it to." : "";
+      if (msg) { e.preventDefault(); err.textContent = msg; err.hidden = false; } });
+  }
   // search: show matching levels (and the path to them)
   var q = document.querySelector(".spt-search input");
   q.addEventListener("input", function () {

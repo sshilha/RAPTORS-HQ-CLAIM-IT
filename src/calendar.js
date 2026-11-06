@@ -38,4 +38,17 @@ async function ics(claimId) {
     `LOCATION:${e(d.location || d.event_location || "")}`, `DESCRIPTION:${e(`${d.board_name}${d.contact_name || d.contact_info ? `\nQuestions? ${[d.contact_name, d.contact_info].filter(Boolean).join(", ")}` : ""}`)}`,
     ...(d.status === "canceled" ? ["STATUS:CANCELLED"] : []), "END:VEVENT", "END:VCALENDAR"].join("\r\n");
 }
-module.exports = { links, verify, ics };
+// one claim's event, for the in-app Add to calendar menu
+async function eventOf(claimId) {
+  return (await query(`SELECT c.id, c.status, c.athlete_id, a.first_name, i.title, i.starts_at, i.ends_at, i.location, n.name AS level, sc.name AS board_name, sc.event_location, sc.contact_name, sc.contact_info
+    FROM board_claims c JOIN athletes a ON a.id=c.athlete_id JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id LEFT JOIN board_nodes n ON n.id=i.node_id WHERE c.id=$1`, [claimId])).rows[0] || null;
+}
+// Outlook on the web (outlook.com, or Microsoft 365 work/school accounts): its "new event" page, filled in
+function outlookLink(d, work = false) {
+  const end = d.ends_at || new Date(new Date(d.starts_at).getTime() + 3600e3);
+  const q = new URLSearchParams({ path: "/calendar/action/compose", rru: "addevent", subject: `${d.first_name ? `${d.first_name}: ` : ""}${d.title || d.level || "Session"} (${d.board_name})`,
+    startdt: new Date(d.starts_at).toISOString(), enddt: new Date(end).toISOString(), location: d.location || d.event_location || "",
+    body: `${d.board_name}${d.contact_name || d.contact_info ? `\nQuestions? ${[d.contact_name, d.contact_info].filter(Boolean).join(", ")}` : ""}\n${base()}/dashboard` });
+  return `https://outlook.${work ? "office" : "live"}.com/calendar/0/deeplink/compose?${q}`;
+}
+module.exports = { links, verify, ics, eventOf, outlookLink };
