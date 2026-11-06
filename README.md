@@ -140,7 +140,11 @@ link). Reminders are checked every 15 minutes and sent once per claim.
 - **Check-in**: a day's sessions (folder tabs per board when several), then a session's list with ✓ Here / ✗ No-show,
   **Mark the rest here**, **+ Add walk-in**. Built for phones. Coaches can change it until the board's **check-in lock**
   (Board defaults → Attendance; default the end of the next day); admins always can.
-- **Reports**: per board (and team): By person · All claims, Download CSV.
+- **Reports**: Board (or All boards), team and date range at the top; Download CSV on every report.
+  Overview (key numbers, each linking to its report) · Claims (By person · All claims) · Attendance (Athletes · No-shows,
+  repeat = 3+ · Check-ins not done) · Sessions (Fill · Busiest times grid · Waitlists · Locations) · RSVP (Events · Athletes)
+  · Families (Engagement · Not signed up · Volunteer hours, with a per-family requirement) · Emails (bounced / failed
+  addresses) · Week sheet (printable rosters for a week). (src/reportsData.js; people limited to certain teams see Claims.)
 
 ### 4.4 People
 - **Import** (CSV or Excel): choose Athletes / Adults / Mixed; match the columns (up to 4 parents/guardians; remembered
@@ -285,6 +289,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.40** Reports: Overview, Attendance, Sessions, RSVP, Families (incl. volunteer hours), Emails, printable Week sheet.
 - **v0.39.4** Check-in for RSVP boards (always included, attendance tracked or not): day cards show going / can't make it
   / no answer; an event shows Going (with notes, to check in), Can't make it (with notes) and No answer yet.
 - **v0.39.3** RSVP event People page (admin): Change anyone's answer (Going / Can't make it / Clear, with note), even
