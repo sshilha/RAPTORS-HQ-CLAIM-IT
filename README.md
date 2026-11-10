@@ -292,6 +292,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.41.5** Phones: title bands put the icon beside the title (details wrap under the title); bands are 30–40% shorter.
 - **v0.41.4** Phones: no gap between a claim's description and its buttons (the card fits its content).
 - **v0.41.3** Phones: My Claims' upcoming claims show the date down the left and the buttons under the session (they
   overlapped the date).

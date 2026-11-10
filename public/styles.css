@@ -2921,3 +2921,12 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
   .d-claim > .d-claim-b { justify-content: flex-start !important; padding-bottom: 4px !important; }
   .d-claim > .d-acts { align-content: flex-start; align-items: flex-start; padding-top: 4px; }
 }
+/* phones: the icon and the title share one line; the details wrap under the title (not under the icon) */
+@media (max-width: 760px) {
+  .bh2-l { flex-wrap: nowrap !important; align-items: center; gap: 10px !important; min-width: 0; flex: 1 1 100%; }
+  .bh2-l > :not(.bh2-tile):not(img):not(.b-hd-img) { flex: 1 1 auto; min-width: 0; }
+  .bh2-l > .bh2-tile, .bh2-l > .b-hd-img, .bh2-l > img { flex: none; width: 40px !important; height: 40px !important; min-width: 40px; border-radius: 10px; }
+  .bh2-l > .bh2-tile svg { width: 20px; height: 20px; }
+  .bh2 h1 { font-size: 20px !important; line-height: 1.2; } .bh2-meta { font-size: 12px; margin-top: 2px; }
+  .bh2 { padding-top: 12px !important; padding-bottom: 12px !important; row-gap: 10px !important; }
+}
