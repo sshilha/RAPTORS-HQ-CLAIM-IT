@@ -2903,3 +2903,15 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
   .page-band, .stuck, thead th.stuck { position: static !important; top: auto !important; }
   html.scrolled .page-band { border-radius: 14px !important; box-shadow: none !important; }
 }
+/* phones: an upcoming claim is two columns, the date tile down the left, and the buttons under the session (never over the date) */
+@media (max-width: 760px) {
+  .d-claim { display: grid !important; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: start; }
+  .d-claim > .d-date { grid-row: 1 / span 2; align-self: stretch; }
+  .d-claim > .d-claim-b { grid-column: 2; min-width: 0; }
+  .d-claim > .d-acts { grid-column: 2; position: static !important; display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; margin: 6px 0 0 !important; width: auto !important; }
+}
+@media (max-width: 760px) {
+  .d-claim { row-gap: 0 !important; }
+  .d-claim > .d-claim-b { border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; border-bottom: 0 !important; }
+  .d-claim > .d-acts { transform: none !important; margin: 0 !important; padding: 2px 12px 10px; background: #fff; border: 1px solid #E3E8F0; border-top: 0; border-radius: 0 0 10px 10px; align-self: stretch; }
+}

@@ -292,6 +292,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.41.3** Phones: My Claims' upcoming claims show the date down the left and the buttons under the session (they
+  overlapped the date).
 - **v0.41.2** Phones: one plain page scroll. Nothing sticks or shrinks except the top bar (the band used to shrink while
   scrolling, which made the browser jump back to the top), and lists no longer scroll inside their own box. Desktop unchanged.
 - **v0.41.1** Board defaults → Question: "Show the question and answers on the Week sheet" (off by default).
