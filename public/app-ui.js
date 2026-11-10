@@ -63,7 +63,7 @@
     [/^\/account/, ["band", ".a-tabs-main", ".a-subs"]],                                           // My Account
     [/^\//, ["band"]]                                                                              // anything else
   ];
-  var PHONE_KEEP = { band: 1, ".ck-gbar": 1, ".ck-listbar": 1 };
+  var PHONE_KEEP = {};   // phones: nothing sticks (one plain scroll is far easier with a thumb)
   var plan = (SCREENS.filter(function (r) { return r[0].test(path); })[0] || [0, ["band"]])[1];
   var bandEl = [].slice.call(document.querySelectorAll(".bh2")).filter(function (e) { return !e.closest("header, dialog"); })[0];
   if (bandEl) bandEl.classList.add("page-band");

@@ -90,7 +90,7 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
     </div>
     <script>(function () {
       var box = document.getElementById("ck-scroll"), root = document.documentElement;
-      function fit() { root.classList.remove("b-fixed"); box.style.height = "";
+      function fit() { root.classList.remove("b-fixed"); box.style.height = ""; if (window.innerWidth <= 760) return;   /* phones: the whole page scrolls */
         root.classList.add("b-measure"); var after = Math.max(0, document.body.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom); root.classList.remove("b-measure");
         var h = window.innerHeight - (box.getBoundingClientRect().top + window.scrollY) - after - 10; if (h < 240) return; root.classList.add("b-fixed"); box.style.height = h + "px"; }
       fit(); window.addEventListener("resize", fit);

@@ -140,7 +140,10 @@ link). Reminders are checked every 15 minutes and sent once per claim.
 - **Check-in**: a day's sessions (folder tabs per board when several), then a session's list with ✓ Here / ✗ No-show,
   **Mark the rest here**, **+ Add walk-in**. Built for phones. Coaches can change it until the board's **check-in lock**
   (Board defaults → Attendance; default the end of the next day); admins always can.
-- **Reports**: Board (or All boards), team and date range at the top; Download CSV on every report.
+- **Reports**: Board (or All boards) and date range at the top, then filters under the tabs: Level (any level of the board,
+  with everything inside it), Team, Location, days of the week, and Search (any name, session, note or email). Active
+  filters show as chips to remove. **PDF** and **CSV** on every report (PDFs are built on the server, src/reportPdf.js,
+  with pdfmake; landscape when wide). The Week sheet adds Waitlist show/hide and blank lines for walk-ins.
   Overview (key numbers, each linking to its report) · Claims (By person · All claims) · Attendance (Athletes · No-shows,
   repeat = 3+ · Check-ins not done) · Sessions (Fill · Busiest times grid · Waitlists · Locations) · RSVP (Events · Athletes)
   · Families (Engagement · Not signed up · Volunteer hours, with a per-family requirement) · Emails (bounced / failed
@@ -255,7 +258,7 @@ test/check.js             page health check (npm run check)
   `data-sort="…"` on a cell to sort it by a different value than its text.
 - **While scrolling:** what stays on screen is chosen per screen in `public/app-ui.js` (`SCREENS`: a path pattern and the
   pieces that stick, top to bottom; "band" = the navy title band, "head" = the tables' column headings). Everything else
-  scrolls behind them. Phones keep only the band (shrunk to its title) plus Check-in's bars. The logo tucks into the top bar
+  scrolls behind them. Phones: only the slim top bar stays; everything else scrolls as one page. The logo tucks into the top bar
   once scrolled; "↑ Top" appears far down a long page. Current choices: All Boards band+tabs · Board setup band+board tabs ·
   other board screens band+board tabs+sub-tabs · People band+main tabs+filters · other App Settings band+main tabs+sub-tabs+
   headings · Reports band+bar+sub-tabs+headings · Check-in day band+day bar · session check-in band+counts+Signed up ·
@@ -289,6 +292,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.41.2** Phones: one plain page scroll. Nothing sticks or shrinks except the top bar (the band used to shrink while
+  scrolling, which made the browser jump back to the top), and lists no longer scroll inside their own box. Desktop unchanged.
+- **v0.41.1** Board defaults → Question: "Show the question and answers on the Week sheet" (off by default).
+- **v0.41** Reports: level / team / location / weekday / search filters on every report (Claims too), PDF export,
+  Week sheet options. New dependency: pdfmake.
 - **v0.40** Reports: Overview, Attendance, Sessions, RSVP, Families (incl. volunteer hours), Emails, printable Week sheet.
 - **v0.39.4** Check-in for RSVP boards (always included, attendance tracked or not): day cards show going / can't make it
   / no answer; an event shows Going (with notes, to check in), Can't make it (with notes) and No answer yet.

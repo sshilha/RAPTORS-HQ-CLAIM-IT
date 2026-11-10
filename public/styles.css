@@ -2747,12 +2747,7 @@ html.scrolled .page-band { border-top-left-radius: 0; border-top-right-radius: 0
 html.scrolled .dh-logo::before { height: 84px; border-radius: 0; box-shadow: none; }
 html.scrolled .dh-logo img { height: 68px; top: 8px; }
 @media (max-width: 760px) { html.scrolled .dh-logo::before { height: 70px; } html.scrolled .dh-logo img { height: 54px; top: 8px; } }
-/* phones: once you scroll, the title band shrinks to just its title (details and buttons come back at the top) */
-@media (max-width: 760px) {
-  html.scrolled .page-band .bh2-meta, html.scrolled .page-band .bh2-r, html.scrolled .page-band .bh2-acts, html.scrolled .page-band .b-hd-meta { display: none !important; }
-  html.scrolled .page-band { padding-top: 8px !important; padding-bottom: 8px !important; }
-  html.scrolled .page-band .bh2-tile { width: 34px; height: 34px; } html.scrolled .page-band h1 { font-size: 18px !important; }
-}
+
 /* ===== screen-by-screen sticky pieces (chosen in app-ui.js SCREENS) ===== */
 .stuck { position: sticky !important; }
 .page-band.stuck { z-index: 40; }
@@ -2891,3 +2886,20 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 @media print { header.dh, .r-gbar, .r-subs, .r-chips, .back-row, .to-top, .toasts, .env-bar, .env-mark, footer, .tab-dd { display: none !important; } body, .d-wrap { background: #fff !important; padding: 0 !important; }
   .r-hd { background: #fff !important; color: #000 !important; border: 0 !important; } .r-hd * { color: #000 !important; } .r-card, .r-sheet { border: 0 !important; box-shadow: none !important; padding: 0 !important; } .ws-s { border-color: #999; } }
 @media (max-width: 760px) { .ws-ppl { columns: 1; } .r-tile b { font-size: 26px; } }
+/* report filters */
+.r-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; padding: 10px 12px; border: 1px solid #E3E8F0; border-radius: 12px; background: #fff; }
+.r-f { display: inline-flex; align-items: center; gap: 6px; font: 600 13px Inter, sans-serif; color: #5B6B82; } .r-f select { width: auto; max-width: 320px; }
+.r-q { flex: 1 1 220px; } .r-q input { width: 100%; }
+.r-days { gap: 4px; } .r-day input { position: absolute; opacity: 0; width: 1px; height: 1px; } .r-day span { display: inline-block; padding: 5px 9px; border-radius: 999px; border: 1px solid #c9d1de; background: #fff; color: #0B1930; font: 600 12px Inter, sans-serif; cursor: pointer; }
+.r-day input:checked + span { background: #0B1930; color: #fff; border-color: #0B1930; } .r-day input:focus-visible + span { outline: 2px solid #8DDC32; }
+.r-on { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; } .r-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #E4F5D2; color: #2f6d0c; font: 600 12px Inter, sans-serif; text-decoration: none; }
+.r-chip:hover { background: #d4efb8; } .r-dl { display: inline-flex; gap: 6px; margin-left: auto; }
+@media print { .r-filters, .r-on { display: none !important; } }
+.r-table td.r-muted { color: #5B6B82; } .r-table td { vertical-align: top; }
+.ws-q { margin: 4px 0 0; font-size: 13px; color: #5B6B82; } .ws-q b { color: #0B1930; }
+
+/* ===== phones: one plain scroll. Only the slim top bar stays; nothing else sticks, shrinks or moves while scrolling ===== */
+@media (max-width: 760px) {
+  .page-band, .stuck, thead th.stuck { position: static !important; top: auto !important; }
+  html.scrolled .page-band { border-radius: 14px !important; box-shadow: none !important; }
+}

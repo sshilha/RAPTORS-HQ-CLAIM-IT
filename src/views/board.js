@@ -161,12 +161,13 @@ function boardDefaultsSectionsRaw(sc) {
       ${dated ? `<fieldset><legend>Cancel deadline</legend><label class="radio-row"><input type="number" name="cancel_hours" min="0" max="336" value="${eff.cancel_hours ?? 24}" class="spots-in"> hours before it starts (0 = any time)</label>
         <p class="fine">People can cancel their spot in the app until then. You can always remove someone yourself.</p></fieldset>` : ""}`)
     + sec("question", I.check(), "Question", "Asked when people claim anything on this board.",
-      rows([["Question", q.label ? `"${esc(q.label)}"${q.required ? " · required" : ""}${q.public === false ? " · private" : " · shown to others"}` : "None"]]),
+      rows([["Question", q.label ? `"${esc(q.label)}"${q.required ? " · required" : ""}${q.public === false ? " · private" : " · shown to others"}${q.week ? " · on the Week sheet" : ""}` : "None"]]),
       `<fieldset><legend>Ask a question when they claim</legend>
         <label class="radio-row"><input type="checkbox" name="ask" value="1"${q.label ? " checked" : ""}> Ask a question</label>
         <input name="label" maxlength="80" value="${esc(q.label || "")}" placeholder="e.g. What will you bring? or T-shirt size?">
         <label class="radio-row"><input type="checkbox" name="required" value="1"${q.required ? " checked" : ""}> Required</label>
-        <label class="radio-row"><input type="checkbox" name="public" value="1"${q.public !== false ? " checked" : ""}> Show answers to others, next to their name</label></fieldset>`);
+        <label class="radio-row"><input type="checkbox" name="public" value="1"${q.public !== false ? " checked" : ""}> Show answers to others, next to their name</label>
+        <label class="radio-row"><input type="checkbox" name="week" value="1"${q.week ? " checked" : ""}> Show the question and answers on the Week sheet (Reports)</label></fieldset>`);
 }
 
 // Copy a board (new engine): setup + levels always; sessions (dates moved), people, coaches optional; never claims

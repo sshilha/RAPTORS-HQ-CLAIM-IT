@@ -155,7 +155,7 @@ router.post("/:sid/defaults", wrap(async (req, res) => {
   if (b.q === "question") {
     const label = str(b.label).replace(/\s+/g, " ").slice(0, 80);
     if (b.ask && !label) return go(res, back, { err: "Type the question you want to ask." });
-    await query(`UPDATE schedules SET question=$2 WHERE id=$1`, [sc.id, b.ask ? JSON.stringify({ label, required: !!b.required, public: !!b.public }) : null]);
+    await query(`UPDATE schedules SET question=$2 WHERE id=$1`, [sc.id, b.ask ? JSON.stringify({ label, required: !!b.required, public: !!b.public, week: !!b.week }) : null]);
   }
   await query(`UPDATE schedules SET settings=$2 WHERE id=$1`, [sc.id, JSON.stringify(s)]);
   go(res, back, { ok: "Saved." });
