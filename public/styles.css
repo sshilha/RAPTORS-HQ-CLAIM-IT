@@ -2915,3 +2915,9 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
   .d-claim > .d-claim-b { border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; border-bottom: 0 !important; }
   .d-claim > .d-acts { transform: none !important; margin: 0 !important; padding: 2px 12px 10px; background: #fff; border: 1px solid #E3E8F0; border-top: 0; border-radius: 0 0 10px 10px; align-self: stretch; }
 }
+/* phones: the session text takes only what it needs and the buttons follow right under it; any extra height goes below */
+@media (max-width: 760px) {
+  .d-claim { grid-template-rows: auto 1fr; }
+  .d-claim > .d-claim-b { justify-content: flex-start !important; padding-bottom: 4px !important; }
+  .d-claim > .d-acts { align-content: flex-start; align-items: flex-start; padding-top: 4px; }
+}
