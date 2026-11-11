@@ -139,6 +139,71 @@
   }
   tabMenus(); window.addEventListener("resize", tabMenus);
   document.addEventListener("click", function (e) { if (!e.target.closest(".tab-dd")) [].forEach.call(document.querySelectorAll(".tab-dd[open]"), function (d) { d.open = false; }); });
+  // ---------- 1e. phones: wide tables become cards (each row a card; "Label: value" lines from the table's own headings) ----------
+  // Skips tables that are already phone-friendly or are really grids. Tables added later (Show more, live refresh) are handled too.
+  var SKIP_CARDS = ".dir2, .r-grid, .cal-pick, .cal-month, .as-grid, [data-nocards], .ck-roster, .b-cal";
+  function cardify(root) {
+    if (window.innerWidth > 760) return;
+    [].forEach.call((root || document).querySelectorAll("table"), function (t) {
+      if (t.matches(SKIP_CARDS) || t.closest("[data-nocards]") || !t.tHead) return;
+      var heads = [].map.call(t.tHead.rows[0].cells, function (c) { return (c.innerText || "").replace(/\s+/g, " ").trim(); });
+      [].forEach.call(t.tBodies, function (tb) { [].forEach.call(tb.rows, function (tr) { [].forEach.call(tr.cells, function (td, i) {
+        if (!td.hasAttribute("data-label")) td.setAttribute("data-label", heads[i] || "");
+        if (!td.innerText.trim() || td.innerText.trim() === "—") td.classList.add("cd-empty");
+      }); }); });
+      t.classList.add("cards");
+    });
+  }
+  cardify(); window.addEventListener("resize", function () { cardify(); });
+  if (window.MutationObserver) new MutationObserver(function (m) { m.forEach(function (x) { [].forEach.call(x.addedNodes, function (n) { if (n.nodeType === 1 && (n.tagName === "TABLE" || n.querySelector && n.querySelector("table"))) cardify(n.tagName === "TABLE" ? n.parentNode : n); }); }); })
+    .observe(document.body, { childList: true, subtree: true });
+  // ---------- 1f. phones: filters fold behind one "Filters" button; long card lists show 20 at a time; Board setup's side panels fold ----------
+  var PHONE = window.innerWidth <= 760;
+  function activeCount(box) {
+    var n = 0;
+    [].forEach.call(box.querySelectorAll("input, select"), function (e) {
+      if (e.disabled || e.type === "hidden" || e.type === "submit" || e.type === "button") return;
+      if (e.type === "checkbox" || e.type === "radio") { if (e.checked && e.type === "checkbox") n++; return; }
+      if (e.tagName === "SELECT") { if (e.selectedIndex > 0) n++; return; }
+      if (e.value && e.name !== "from" && e.name !== "to" && e.name !== "week") n++;
+    });
+    return n;
+  }
+  if (PHONE) {
+    [].forEach.call(document.querySelectorAll(".act-f, .dir-filters-bar, .r-filters"), function (f) {
+      if (f.closest(".flt") || f.closest("dialog")) return;
+      var d = document.createElement("details"), sm = document.createElement("summary"), n = activeCount(f);
+      d.className = "flt"; sm.innerHTML = '<span class="flt-ic" aria-hidden="true">⚙</span> Filters' + (n ? ' <b class="flt-n">' + n + ' on</b>' : "") + '<span class="flt-car" aria-hidden="true">▾</span>';
+      d.appendChild(sm); f.parentNode.insertBefore(d, f); d.appendChild(f);
+    });
+    // Reports: the two filter strips share one button
+    var strips = document.querySelectorAll(".flt > .r-filters");
+    if (strips.length > 1) { var first = strips[0].parentNode; for (var i = 1; i < strips.length; i++) { var other = strips[i].parentNode; first.appendChild(strips[i]); other.remove(); }
+      var n2 = activeCount(first); first.querySelector("summary").innerHTML = '<span class="flt-ic" aria-hidden="true">⚙</span> Filters' + (n2 ? ' <b class="flt-n">' + n2 + ' on</b>' : "") + '<span class="flt-car" aria-hidden="true">▾</span>'; }
+    // long card lists: 30 at a time
+    [].forEach.call(document.querySelectorAll("table.cards"), function (t) {
+      [].forEach.call(t.tBodies, function (tb) {
+        var rows = [].slice.call(tb.rows); if (rows.length <= 25) return;
+        rows.forEach(function (r, i) { if (i >= 20) r.classList.add("more-hid"); });
+        var b = document.createElement("button"); b.type = "button"; b.className = "sb-btn more-btn";
+        var left = function () { return tb.querySelectorAll("tr.more-hid").length; };
+        var label = function () { b.textContent = "Show " + Math.min(20, left()) + " more (" + left() + " left)"; };
+        label(); b.addEventListener("click", function () { [].slice.call(tb.querySelectorAll("tr.more-hid"), 0, 20).forEach(function (r) { r.classList.remove("more-hid"); }); if (left()) label(); else b.remove(); });
+        (t.closest(".table-wrap") || t).insertAdjacentElement("afterend", b);
+      });
+    });
+    // Board setup with a level open: the tree and the level settings fold, so the sessions come first
+    if (document.querySelector(".sp3-center")) {
+      [[".sp3-tree", "Board structure", /[?&]n=\d/.test(location.search)], [".sp3-right", null, true]].forEach(function (x) {
+        var el = document.querySelector(x[0]); if (!el) return;
+        var h = el.querySelector(".sp-card-h b, .sp-card-h h2, h2, h3"), name = x[1] || (h ? h.textContent.trim() : "Settings");
+        var t = document.createElement("button"); t.type = "button"; t.className = "ph-fold-h"; t.setAttribute("aria-expanded", String(!x[2]));
+        t.innerHTML = '<span>' + name.replace(/[<>&]/g, "") + '</span><span aria-hidden="true">▾</span>';
+        el.classList.add("ph-fold"); if (x[2]) el.classList.add("ph-closed"); el.insertBefore(t, el.firstChild);
+        t.addEventListener("click", function () { var c = el.classList.toggle("ph-closed"); t.setAttribute("aria-expanded", String(!c)); });
+      });
+    }
+  }
   // ---------- 2. keep your place after a change ----------
   function scrollers() { return [].slice.call(document.querySelectorAll(".table-wrap, .sh-list, .imp-dlg-body, .ck-scroll, .rv-cols, [data-keep-scroll]")); }
   var PLACE = "place:" + location.pathname;   // the page you come back to after a change may have a different ?query

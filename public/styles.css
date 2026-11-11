@@ -2949,3 +2949,133 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .as-mv { width: 26px; height: 30px; border-radius: 7px; border: 1px solid #c9d1de; background: #fff; cursor: pointer; font-weight: 800; } .as-mv:disabled { opacity: .3; cursor: default; }
 .as-retired, .as-log { margin-top: 12px; } .as-retired summary, .as-log summary { cursor: pointer; font-weight: 700; } .as-retired ul, .as-log ul { margin: 8px 0 0; padding-left: 18px; } .as-log li { margin: 4px 0; }
 @media (max-width: 760px) { .as-drill { grid-template-columns: auto 1fr !important; } .as-drill input[name=name] { grid-column: 2 / -1; } }
+
+/* ===================== PHONES, section 1 (families & coaches) ===================== */
+@media (max-width: 760px) {
+  /* 1 · sign-up rows: the answer box and Claim stack, full width, never past the edge */
+  .b-row { grid-template-columns: minmax(0, 1fr) !important; } .b-row > * { min-width: 0; max-width: 100%; }
+  .b-row-act { flex-wrap: wrap; width: 100%; gap: 8px; }
+  .b-claimf { flex-wrap: wrap; width: 100%; gap: 8px; } .b-claimf input[name=note] { flex: 1 1 100%; min-width: 0; }
+  .b-claimf .b-claim { flex: 1 1 100%; min-height: 44px; justify-content: center; }
+  .b-claimed { white-space: nowrap; } .b-row-act .b-cancelf { margin-left: auto; }
+  /* 2 · 16px text in every box, so iPhones don't zoom in when you tap one */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), select, textarea { font-size: 16px !important; }
+  /* 3 · messages: a slim bar, closes sooner, tap to close */
+  .toasts { bottom: 10px !important; left: 10px !important; right: 10px !important; }
+  .toasts .toast { padding: 8px 34px 8px 12px !important; font-size: 14px !important; line-height: 1.3 !important; border-radius: 10px !important; }
+  /* 4 · no floating ↑ Top on phones (it covered buttons) */
+  .to-top { display: none !important; }
+  /* 5 · Add session pop-up: date, start and end stack */
+  .sd-row { flex-wrap: wrap; } .sd-row > label, .sd-row > input, .sd-row > div { flex: 1 1 100%; min-width: 0; }
+  /* 7 · words only break between words (labels like "Level", "Sun", "New athlete") */
+  .panel, .sub-body, .sh-cols, .sh-cols > *, .sh-row, .sh-p { overflow-wrap: break-word !important; }
+  .r-days { flex-wrap: wrap; } .r-day span { white-space: nowrap; } .r-f { flex: 1 1 100%; } .r-f > select { flex: 1 1 auto; min-width: 0; } .r-f { white-space: nowrap; }
+  .ap-tab { white-space: normal; word-break: normal; overflow-wrap: normal; hyphens: none; }
+  /* 11 · nothing smaller than 12px */
+  .act-k, .st-pill, .pill, .role-pill, .b-hd-type, .d-type, .em-s, .eng, .r-flag, .r-chip, .as-tries label, .sub-n, .tn-row .tn-c, .tn-row small { font-size: 12px !important; }
+  .fine { font-size: 13px; }
+  /* 12 · claimed rows: Claimed / calendar / cancel wrap cleanly */
+  .b-row-act > * { flex: none; }
+  /* 15 · score entry: Next athlete gets its own full-width line */
+  .as-pick .sb-btn.primary { flex: 1 1 100%; justify-content: center; min-height: 44px; }
+}
+@media (max-width: 760px) {
+  /* 11 · the last small labels */
+  .bc-type, .bc-st, .bc-pill, .bc-top small, .bc small, .ss-date small, .ss-fill small, .src-tag, .st-why, .st-legend, .src, .ck-board { font-size: 12px !important; }
+  /* panel headers (Board setup, Sessions): their buttons wrap under the title instead of running off the edge */
+  .sp-card-h { flex-wrap: wrap; row-gap: 8px; } .sp-card-h > .sb-btn, .sp-card-h > form, .sp-card-h > details { margin-left: 0; }
+  /* step bars (Create Board, Import): steps share the width and wrap their labels */
+  .wz-steps, .imp-steps, .wz-tabs { display: grid !important; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
+  .wz-steps > *, .imp-steps > *, .wz-tabs > * { min-width: 0; white-space: normal !important; font-size: 12px; padding-left: 4px !important; padding-right: 4px !important; text-align: center; }
+  /* 14 (early) · Access & people's engagement filters: separate tappable chips, no overlapping lines */
+  .eng-sum a { display: inline-block; padding: 4px 2px; line-height: 1.4; } .eng-f { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+}
+@media (max-width: 760px) {
+  ol.wz-progress { display: grid !important; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
+  ol.wz-progress > li { display: block !important; min-width: 0; } ol.wz-progress > li > button { width: 100%; justify-content: center; text-align: center; }
+  .wz-progress button { min-width: 0 !important; white-space: normal !important; font-size: 12px !important; padding-left: 4px !important; padding-right: 4px !important; }
+}
+
+/* ===================== PHONES, section 2: tables as cards, bigger tap targets ===================== */
+@media (max-width: 760px) {
+  table.cards, table.cards tbody, table.cards tr, table.cards td { display: block; width: auto !important; }
+  table.cards thead { display: none; }
+  .table-wrap:has(> table.cards) { overflow: visible !important; border: 0 !important; }
+  table.cards tr { border: 1px solid #E3E8F0; border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; background: #fff; }
+  table.cards td { border: 0 !important; padding: 3px 0 !important; text-align: left !important; display: flex; gap: 10px; align-items: baseline; min-width: 0; overflow-wrap: break-word; }
+  table.cards td::before { content: attr(data-label); flex: 0 0 38%; max-width: 38%; color: #5B6B82; font: 600 12px Inter, sans-serif; }
+  table.cards td[data-label=""]::before { display: none; }
+  table.cards td > * { min-width: 0; }
+  table.cards td:first-child { display: block; font-size: 16px; padding: 0 0 6px !important; margin-bottom: 4px; border-bottom: 1px solid #EEF1F5 !important; }
+  table.cards td:first-child::before { display: none; }
+  table.cards td.cd-empty { display: none; }
+  table.cards td.r-num, table.cards td.r-muted { justify-content: flex-start; }
+  table.cards .r-pct { min-width: 0; flex: 1; }
+  table.cards tr:has(input[type=checkbox]) td:first-child { display: flex; align-items: center; gap: 10px; }
+
+  /* 8 · tap targets: 44px buttons, bigger checkboxes, roomy links */
+  .sb-btn, .btn-small, .btn-ghost, .btn, .back-btn, .bc-btn, summary.sb-btn, .q-actions button, .q-actions a, .st-editl, .as-share { min-height: 44px; display: inline-flex; align-items: center; }
+  .back-btn { padding-left: 12px; padding-right: 14px; }
+  input[type=checkbox], input[type=radio] { width: 22px !important; height: 22px !important; }
+  label.radio-row, .r-day span { min-height: 40px; display: inline-flex; align-items: center; }
+  .r-day span { padding: 8px 12px; }
+  .as-mv { width: 40px; height: 40px; } .as-move { min-width: 84px; }
+  .ck-days a, .ck-day-nav a, .ck-gbar .sb-btn { min-width: 44px; min-height: 44px; }
+  .link-dark, .rv-rm, .em-chk { display: inline-block; padding: 8px 0; }
+  table.cards td:first-child a { display: inline-block; padding: 4px 0; }
+  .sub-tabs a, .r-chips a { min-height: 40px; display: inline-flex; align-items: center; }
+}
+@media (max-width: 760px) {
+  /* cards: text wraps inside the card (some tables never wrap, or have a minimum width, on bigger screens) */
+  table.cards { width: 100% !important; min-width: 0 !important; max-width: 100% !important; table-layout: auto; }
+  table.cards td, table.cards td * { white-space: normal !important; } table.cards td { word-break: break-word; }
+  .table-wrap:has(> table.cards) { max-width: 100%; }
+  /* the remaining small targets */
+  .d-det, .d-acts button, .d-acts a, .d-acts summary { min-height: 44px !important; }
+  button.x, .x { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .tn-row { height: auto !important; min-height: 44px; align-items: center; } .tn-tog { min-width: 36px; min-height: 40px; }
+  .st-editl { min-width: 48px; justify-content: center; }
+  .r-chips a { min-height: 40px !important; padding: 8px 14px !important; }
+  .b-cal-nav a, .cal-nav a, .b-calhead a, .b-cal a.sb-btn { min-width: 44px !important; min-height: 44px !important; display: inline-flex; align-items: center; justify-content: center; }
+  .b-row summary, .b-tools summary, details > summary.sb-btn { min-height: 40px; min-width: 40px; display: inline-flex; align-items: center; justify-content: center; }
+}
+@media (max-width: 760px) {
+  /* sign-up page: filters get full-width rows (they were squeezed to a sliver in Calendar view) */
+  .b-tools { flex-wrap: wrap !important; row-gap: 8px; } .b-filters { flex: 1 1 100% !important; display: flex !important; flex-wrap: wrap !important; gap: 8px; min-width: 0; width: 100% !important; }
+  .b-f { flex: 1 1 140px !important; min-width: 0 !important; width: auto !important; } .b-f select { width: 100% !important; min-width: 0 !important; }
+  .b-who a, .b-group a { min-height: 40px; display: inline-flex; align-items: center; padding: 8px 14px !important; }
+  .c-nav a { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .cal-add > summary { min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+}
+
+@media (max-width: 760px) {
+  .b-cancelf button, .b-cancelf .sb-btn { min-height: 40px; }
+  .b-sel { flex: 1 1 100%; min-width: 0; } .b-sel select { width: 100% !important; min-width: 0; }
+}
+
+/* ===================== PHONES, section 3: Filters button, Show more, folding panels ===================== */
+@media (max-width: 760px) {
+  details.flt { margin: 0 0 10px; } details.flt > summary { list-style: none; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1px solid #c9d1de; border-radius: 10px; background: #fff; font: 700 15px Inter, sans-serif; color: #0B1930; cursor: pointer; }
+  details.flt > summary::-webkit-details-marker { display: none; } details.flt[open] > summary { border-color: #0B1930; margin-bottom: 8px; }
+  .flt-n { background: #8DDC32; color: #0B1930; border-radius: 999px; padding: 1px 8px; font-size: 12px; } .flt-car { margin-left: auto; transition: transform .15s; } details.flt[open] .flt-car { transform: rotate(180deg); }
+  details.flt > form, details.flt > div { margin: 0 0 8px !important; }
+  details.flt .act-f, details.flt .dir-filters-bar { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 8px; }
+  details.flt .act-f > *, details.flt .dir-filters-bar > *, details.flt .act-f select, details.flt .dir-filters-bar select, details.flt .act-f input[type=search], details.flt .dir-filters-bar input[type=search] { width: 100% !important; max-width: 100% !important; margin: 0 !important; }
+  details.flt .act-d { display: flex; align-items: center; gap: 8px; } details.flt .act-d input { flex: 1; }
+  tr.more-hid { display: none !important; } .more-btn { width: 100%; justify-content: center; margin: 4px 0 12px; }
+  .ph-fold-h { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 48px; padding: 10px 14px; border: 0; background: #0B1930; color: #fff; font: 800 15px Inter, sans-serif; border-radius: 12px; cursor: pointer; }
+  .ph-fold:not(.ph-closed) > .ph-fold-h { border-radius: 12px 12px 0 0; } .ph-fold-h span:last-child { transition: transform .15s; } .ph-fold:not(.ph-closed) > .ph-fold-h span:last-child { transform: rotate(180deg); }
+  .ph-fold.ph-closed > :not(.ph-fold-h) { display: none !important; } .ph-fold.ph-closed { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+  /* 13 · People's filters fill the width neatly inside the Filters panel (above); the toolbar buttons wrap evenly */
+  .pp-acts, .dir-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+}
+@media (max-width: 760px) {
+  /* compact cards: fields flow side by side (small label over each value); the first field is the card's title */
+  table.cards tr { display: flex; flex-wrap: wrap; column-gap: 16px; row-gap: 4px; padding: 10px 12px; }
+  table.cards td { display: inline-flex !important; flex-direction: column; gap: 1px; flex: 0 1 auto; max-width: 100%; padding: 2px 0 !important; align-items: flex-start; }
+  table.cards td::before { flex: none; max-width: none; font: 600 12px/1.2 Inter, sans-serif; }
+  table.cards td:first-child { display: flex !important; flex-direction: row; flex: 1 1 100%; padding: 0 0 6px !important; }
+  table.cards tr:has(input[type=checkbox]) td:first-child { flex: 0 0 auto; border: 0 !important; padding: 0 !important; margin: 0; } table.cards tr:has(input[type=checkbox]) td:nth-child(2) { flex: 1 1 calc(100% - 50px); font-size: 16px; }
+  table.cards td .em-why, table.cards td small { display: block; }
+}
+@media (max-width: 760px) { table.cards td.cd-empty { display: none !important; } table.cards tr { padding: 10px 12px 8px; } }

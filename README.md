@@ -306,6 +306,15 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.42.4** Phones, part 3: filters fold behind one "Filters · N on" button (Activity, Email log, People, Reports);
+  cards are compact (fields side by side, empty ones hidden) and long lists show 20 at a time (Show 20 more); with a
+  level open, Board setup folds the tree and the level settings so the sessions come first.
+- **v0.42.3** Phones, part 2: every wide table shows each row as a card ("label: value", from its own headings; app-ui.js
+  cardify, opt out with data-nocards); 44px buttons, bigger checkboxes and roomier links; the sign-up page's filters get
+  their own row (Calendar view squeezed them); taller tree rows in Board setup.
+- **v0.42.2** Phones, part 1: sign-up rows stack the answer box and a full-width Claim (Claim was cut off); 16px text in
+  every box (no iPhone zoom); slim messages that close sooner or on tap; no floating ↑ Top; Add session fields stack;
+  no mid-word breaks; nothing under 12px; step bars fit; panel header buttons wrap.
 - **v0.42.1** Assessments: rename, reorder drills, retire/restore assessments and drills, testing days keep the drills as
   they were (locked once scored), tries warning, change history.
 - **v0.42** Assessments: drills and testing days, score entry on phone/tablet, athlete history, family sharing per day,

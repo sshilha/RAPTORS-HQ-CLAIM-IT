@@ -56,7 +56,8 @@ const FLASH_JS = `<script>(function () {
     var timer = null, gone = false;
     function bye() { if (gone) return; gone = true; n.classList.add(toast ? "toast-out" : "flash-out"); setTimeout(function () { var w = n.parentElement; n.remove(); if (w && w.classList.contains("toasts") && !w.children.length) w.remove(); }, 400); }
     x.addEventListener("click", bye); n.appendChild(x);
-    function later() { clearTimeout(timer); if (n.classList.contains("notice")) timer = setTimeout(bye, 6000); }
+    function later() { clearTimeout(timer); if (n.classList.contains("notice")) timer = setTimeout(bye, window.innerWidth <= 760 ? 3500 : 6000); }   // shorter on phones
+    if (toast && window.innerWidth <= 760) n.addEventListener("click", function (e) { if (!e.target.closest("a")) bye(); });   // phones: tap the message to close it
     n.addEventListener("mouseenter", function () { clearTimeout(timer); }); n.addEventListener("mouseleave", later); later();
   });
 })();</script>`;
