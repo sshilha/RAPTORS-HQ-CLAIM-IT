@@ -157,6 +157,7 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
           ${lists.filter((l) => !mine.some((m) => m.id === l.id)).map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}<option value="new">＋ New list…</option></select>
           <input name="new_name" maxlength="60" placeholder="New list name" hidden><button class="btn-ghost" type="submit">Add</button></form>
       </section>
+      ${p.kind === "athlete" ? `<section class="panel side-card"><h2>Assessments</h2><p class="fine">Performance test results, kept year over year.</p><a class="sb-btn" href="/admin/assess/athlete/${p.id}">See results</a></section>` : ""}
       <section class="panel side-card"><h2>Boards</h2>
         ${boards.length ? `<dl class="rc-list">${boards.map((b) => `<div><dt><a href="/admin/setup?s=${b.id}">${esc(b.name)}</a>${b.archived_at ? ` <span class="fine">(archived)</span>` : ""}</dt>
           <dd>${esc([b.group_name, ...(b.tags || [])].filter(Boolean).join(" · ") || "On the list")}<span class="src">${b.claims} claim${b.claims === 1 ? "" : "s"}</span></dd></div>`).join("")}</dl>` : `<p class="muted small">Not on any board's list yet.</p>`}

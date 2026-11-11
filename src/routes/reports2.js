@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
+const NEW = { assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const isDay = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || "");
@@ -44,13 +44,24 @@ async function newReport(req, res, scope, boards) {
   const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
   const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
   Object.assign(f, { levels: subtree, location, days });
+  // assessments: which test, which two days, best or average
+  let assess = null;
+  if (/^assess/.test(r)) {
+    const AS = require("../assess"); await AS.ensure();
+    const tests = await AS.list(), t = tests.find((x) => x.id === int(req.query.as)) || tests[0] || null, full = t ? await AS.get(t.id) : null;
+    const dayList = full ? [...full.days].sort((x, y) => (x.day < y.day ? -1 : 1)) : [];
+    const pick = (id, pref, last) => dayList.find((d) => d.id === int(id)) || (last ? [...dayList].reverse() : dayList).find((d) => d.kind === pref) || (last ? dayList[dayList.length - 1] : dayList[0]) || null;
+    const da = pick(req.query.da, "Baseline", false), db = pick(req.query.db, "Final", true);
+    assess = { tests, test: t, days: dayList, a: da && da.id, b: db && db.id, how: req.query.how === "avg" ? "avg" : "best" };
+    f.assess = assess;
+  }
   let data = r === "overview" ? await D.overview(f, required) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
   if (q) {   // search: keep rows where any column mentions it
     const needle = q.toLowerCase(), has = (o) => Object.values(o).some((v) => v != null && typeof v !== "object" && String(v).toLowerCase().includes(needle));
     if (data.rows && !data.grid) data = { ...data, rows: data.rows.filter(has) };
     if (data.sessions) data = { ...data, sessions: data.sessions.filter((x) => has(x) || x.people.some(has)) };
   }
-  const opts = { levels: levelsAll, level, locations, location, days, q, wl, blanks };
+  const opts = { assess, levels: levelsAll, level, locations, location, days, q, wl, blanks };
   const filterText = [board ? board.name : "All boards", team, level && level.path, location, days.length && days.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join("/"),
     r === "week" ? `week of ${f.weekFrom}` : `${from} to ${to}`, q && `search “${q}”`].filter(Boolean).join(" · ");
   if (req.query.pdf) {

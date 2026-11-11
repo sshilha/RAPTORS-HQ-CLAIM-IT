@@ -226,6 +226,61 @@ async function weekSheet(f) {
       LEFT JOIN schedule_members m ON m.schedule_id=$2 AND m.athlete_id=a.id WHERE c.item_id=$1 AND c.status IN ('confirmed','waitlisted') ORDER BY c.status, lower(a.last_name), lower(a.first_name)`, [s.id, s.board_id])).rows;
   return { week: true, start, end, sessions: list };
 }
+
+// ---------- Assessments (baseline → final, and against attendance) ----------
+async function assessPair(f) {
+  const A = require("./assess"); await A.ensure();
+  const x = f.assess || {}; if (!x.a || !x.b) return null;
+  const da = await A.day(x.a), db = await A.day(x.b); if (!da || !db) return null;
+  const drills = db.drills.filter((x) => da.drills.some((y) => y.id === x.id)).concat(db.drills.filter((x) => !da.drills.some((y) => y.id === x.id))), how = x.how === "avg" ? "avg" : "best";
+  const ownA = new Map(da.drills.map((x) => [x.id, x])), ownB = new Map(db.drills.map((x) => [x.id, x]));
+  const vals = async (d) => { const m = new Map(); for (const r of await A.results(d.id)) { const k = `${r.athlete_id}|${r.drill_id}`; if (!m.has(k)) m.set(k, []); m.get(k).push(r.value); } return m; };
+  const [va, vb] = [await vals(da), await vals(db)];
+  const ids = [...new Set([...va.keys(), ...vb.keys()].map((k) => +k.split("|")[0]))];
+  const ppl = ids.length ? (await query(`SELECT a.id, a.first_name, a.last_name, coalesce((SELECT m.group_name FROM schedule_members m WHERE m.athlete_id=a.id AND m.schedule_id=$2), a.team) AS team FROM athletes a WHERE a.id = ANY($1)`, [ids, db.board_id || da.board_id || 0])).rows : [];
+  return { A, da, db, drills, how, va, vb, ownA, ownB, ppl: f.team ? ppl.filter((p) => p.team === f.team) : ppl };
+}
+const noPair = { cols: [["msg", ""]], rows: [], note: "Pick an assessment and the two testing days to compare (above)." };
+async function assessImprove(f) {
+  const P = await assessPair(f); if (!P) return noPair;
+  const rows = [];
+  for (const p of P.ppl) for (const dr of P.drills) {
+    const a = P.A.score(P.va.get(`${p.id}|${dr.id}`) || [], P.ownA.get(dr.id) || dr, P.how), b = P.A.score(P.vb.get(`${p.id}|${dr.id}`) || [], P.ownB.get(dr.id) || dr, P.how); if (a == null && b == null) continue;
+    const ch = P.A.change(a, b, dr);
+    rows.push({ id: p.id, name: nm(p), team: p.team || "", drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), a, b, diff: ch.diff, pct: ch.pct, verdict: ch.diff == null ? "" : ch.diff > 0 ? "Better" : ch.diff < 0 ? "Worse" : "Same" });
+  }
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["a", `${P.da.kind} ${P.da.day.toISOString ? P.da.day.toISOString().slice(5, 10) : ""}`, "num"], ["b", `${P.db.kind} ${P.db.day.toISOString ? P.db.day.toISOString().slice(5, 10) : ""}`, "num"],
+      ["diff", "Change (+ = better)", "num"], ["pct", "Change %", "num"], ["verdict", ""]], rows, link: (r) => `/admin/assess/athlete/${r.id}`,
+    note: `${P.how === "avg" ? "Average" : "Best"} of the tries on each day. Positive change = better, whichever direction the drill counts as better.` };
+}
+async function assessAttend(f) {
+  const P = await assessPair(f); if (!P) return noPair;
+  const board = P.db.board_id || P.da.board_id, from = P.da.day < P.db.day ? P.da.day : P.db.day, to = P.da.day < P.db.day ? P.db.day : P.da.day;
+  const att = new Map(board ? (await query(`SELECT c.athlete_id, count(*) FILTER (WHERE c.attended)::int AS here, count(*)::int AS claimed FROM board_claims c JOIN board_items i ON i.id=c.item_id
+      WHERE i.schedule_id=$1 AND c.status='confirmed' AND i.starts_at >= $2::date AND i.starts_at < ($3::date + 1) GROUP BY c.athlete_id`, [board, from, to])).rows.map((r) => [r.athlete_id, r]) : []);
+  const rows = [];
+  for (const p of P.ppl) {
+    const pcts = [], better = []; for (const dr of P.drills) { const ch = P.A.change(P.A.score(P.va.get(`${p.id}|${dr.id}`) || [], P.ownA.get(dr.id) || dr, P.how), P.A.score(P.vb.get(`${p.id}|${dr.id}`) || [], P.ownB.get(dr.id) || dr, P.how), dr); if (ch.pct != null) { pcts.push(ch.pct); better.push(ch.diff > 0); } }
+    const t = att.get(p.id) || { here: 0, claimed: 0 };
+    rows.push({ id: p.id, name: nm(p), team: p.team || "", sessions: t.here, claimed: t.claimed, avg: pcts.length ? Math.round((pcts.reduce((a, b) => a + b, 0) / pcts.length) * 10) / 10 : null, improved: pcts.length ? `${better.filter(Boolean).length} of ${pcts.length}` : "" });
+  }
+  rows.sort((a, b) => b.sessions - a.sessions || (b.avg ?? -999) - (a.avg ?? -999));
+  const withAvg = rows.filter((r) => r.avg != null), mid = withAvg.length ? [...withAvg].sort((a, b) => a.sessions - b.sessions)[Math.floor(withAvg.length / 2)].sessions : 0;
+  const mean = (xs) => (xs.length ? Math.round((xs.reduce((a, b) => a + b.avg, 0) / xs.length) * 10) / 10 : null);
+  const hi = withAvg.filter((r) => r.sessions >= mid && mid > 0), lo = withAvg.filter((r) => r.sessions < mid || mid === 0);
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["sessions", "Sessions attended", "num"], ["claimed", "Sessions claimed", "num"], ["avg", "Avg improvement %", "num"], ["improved", "Drills improved"]],
+    rows, link: (r) => `/admin/assess/athlete/${r.id}`,
+    note: board ? `Sessions on the linked program between the two testing days. ${withAvg.length > 1 && mid > 0 ? `Athletes who attended ${mid}+ sessions improved ${mean(hi)}% on average; those who attended fewer improved ${mean(lo) ?? "—"}%.` : ""}` : "Link the testing days to a program to count sessions attended." };
+}
+async function assessTeams(f) {
+  const P = await assessPair(f); if (!P) return noPair;
+  const by = new Map();
+  for (const p of P.ppl) for (const dr of P.drills) { const ch = P.A.change(P.A.score(P.va.get(`${p.id}|${dr.id}`) || [], P.ownA.get(dr.id) || dr, P.how), P.A.score(P.vb.get(`${p.id}|${dr.id}`) || [], P.ownB.get(dr.id) || dr, P.how), dr); if (ch.pct == null) continue;
+    const k = `${p.team || "(no team)"}|${dr.id}`, x = by.get(k) || { team: p.team || "(no team)", drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), n: 0, sum: 0, up: 0 }; x.n++; x.sum += ch.pct; if (ch.diff > 0) x.up++; by.set(k, x); }
+  return { cols: [["team", "Team"], ["drill", "Drill"], ["n", "Athletes", "num"], ["avg", "Avg improvement %", "num"], ["better", "Improved", "pct"]],
+    rows: [...by.values()].map((x) => ({ ...x, avg: Math.round((x.sum / x.n) * 10) / 10, better: Math.round((x.up / x.n) * 100) })).sort((a, b) => a.team.localeCompare(b.team) || a.drill.localeCompare(b.drill)), note: "Average change per team and drill (positive = better)." };
+}
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -242,4 +297,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

@@ -7,6 +7,7 @@ const GROUPS = [["overview", "Overview", [["overview", ""]]], ["claims", "Claims
   ["attendance", "Attendance", [["attendance", "Athletes"], ["noshows", "No-shows"], ["unchecked", "Check-ins not done"]]],
   ["sessions", "Sessions", [["fill", "Fill"], ["busiest", "Busiest times"], ["waitlists", "Waitlists"], ["locations", "Locations"]]],
   ["rsvp", "RSVP", [["rsvp", "Events"], ["rsvpAthletes", "Athletes"]]], ["families", "Families", [["engagement", "Engagement"], ["notSignedUp", "Not signed up"], ["volunteer", "Volunteer hours"]]],
+  ["assess", "Assessments", [["assessImprove", "Improvement"], ["assessAttend", "vs attendance"], ["assessTeams", "Team averages"]]],
   ["emails", "Emails", [["emails", ""]]], ["week", "Week sheet", [["week", ""]]]];
 function reportNav(key, url, full = true) {
   const g = GROUPS.find((x) => x[2].some(([k]) => k === key)) || GROUPS[0];
@@ -17,7 +18,7 @@ function reportNav(key, url, full = true) {
 }
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/></svg>`;
 const DL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="15" height="15"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>`;
-const TITLES = { person: "Claims by person", all: "All claims", overview: "Overview", attendance: "Attendance by athlete", noshows: "No-shows", unchecked: "Check-ins not done", fill: "Session fill", busiest: "Busiest times", waitlists: "Waitlists",
+const TITLES = { assessImprove: "Assessment improvement", assessAttend: "Improvement vs attendance", assessTeams: "Assessment team averages", person: "Claims by person", all: "All claims", overview: "Overview", attendance: "Attendance by athlete", noshows: "No-shows", unchecked: "Check-ins not done", fill: "Session fill", busiest: "Busiest times", waitlists: "Waitlists",
   locations: "Locations", rsvp: "RSVP by event", rsvpAthletes: "RSVP by athlete", engagement: "Family engagement", notSignedUp: "On the list, not signed up", volunteer: "Volunteer hours by family", emails: "Email problems", week: "Week sheet" };
 function cell(v, kind) {
   if (v == null || v === "") return `<td class="r-muted" data-sort="">—</td>`;
@@ -51,7 +52,8 @@ function weekSheet(d, o = {}) {
 }
 function reportPage({ user, flash, admin, boards, board, r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
   const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const state = { s: board ? board.id : "all", team, from, to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
+  const X = o.assess;
+  const state = { as: X && X.test ? X.test.id : "", da: X ? X.a || "" : "", db: X ? X.b || "" : "", how: X && X.how === "avg" ? "avg" : "", s: board ? board.id : "all", team, from, to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
   const url = (x) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ ...state, ...x }).filter(([, v]) => v !== "" && v != null))); return `/reports?${p}`; };
   const head = `<section class="bh2 r-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${ICON}</span><div><div class="bh2-t"><h1>Reports</h1></div>
       <span class="bh2-meta">${esc(TITLES[r] || "")} · ${esc(filterText)}</span></div></div></section>`;
@@ -60,7 +62,10 @@ function reportPage({ user, flash, admin, boards, board, r, data, from, to, team
       ${r === "week" ? `<label class="r-d">Week of<input type="date" name="week" value="${esc(week)}" onchange="this.form.submit()"></label>`
         : `<label class="r-d">From<input type="date" name="from" value="${esc(from)}"></label><label class="r-d">To<input type="date" name="to" value="${esc(to)}"></label>`}<button class="sb-btn" type="submit">Apply</button></form>
       <span class="r-dl">${data.cols || r === "week" || r === "overview" ? `<a class="sb-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="sb-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" ? `<button type="button" class="sb-btn" onclick="window.print()">Print</button>` : ""}</span></nav>`;
-  const strip = `<div class="r-filters">
+  const dayOpt = (sel) => (X.days || []).map((d) => `<option value="${d.id}"${d.id === sel ? " selected" : ""}>${esc(d.kind)} · ${esc(new Date(String(d.day.toISOString ? d.day.toISOString() : d.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}${d.board ? ` · ${esc(d.board)}` : ""}</option>`).join("");
+  const strip = `${X ? `<div class="r-filters r-assess">${X.tests.length ? `<label class="r-f">Assessment<select name="as" form="rf" onchange="document.querySelectorAll('[name=da],[name=db]').forEach(function (e) { e.disabled = true; }); this.form.submit()">${X.tests.map((t) => `<option value="${t.id}"${X.test && X.test.id === t.id ? " selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label>
+      <label class="r-f">From<select name="da" form="rf" onchange="this.form.submit()">${dayOpt(X.a)}</select></label><label class="r-f">To<select name="db" form="rf" onchange="this.form.submit()">${dayOpt(X.b)}</select></label>
+      <label class="r-f">Count<select name="how" form="rf" onchange="this.form.submit()"><option value="best">Best try</option><option value="avg"${X.how === "avg" ? " selected" : ""}>Average of tries</option></select></label>` : `<span class="fine">No assessments yet: App Settings → Organization → Assessments.</span>`}</div>` : ""}<div class="r-filters">
       ${board && (o.levels || []).length ? `<label class="r-f">Level<select name="level" form="rf" onchange="this.form.submit()"><option value="">All levels</option>${o.levels.map((n) => `<option value="${n.id}"${o.level && o.level.id === n.id ? " selected" : ""}>${"\u00a0\u00a0".repeat(n.d)}${esc(n.path)}</option>`).join("")}</select></label>` : board ? "" : `<span class="fine r-f">Pick one board to filter by level</span>`}
       ${teams.length ? `<label class="r-f">Team<select name="team" form="rf" onchange="this.form.submit()"><option value="">All teams</option>${teams.map((t) => `<option${t === team ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>` : ""}
       ${(o.locations || []).length > 1 ? `<label class="r-f">Location<select name="loc" form="rf" onchange="this.form.submit()"><option value="">All locations</option>${o.locations.map((l) => `<option${l === o.location ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}

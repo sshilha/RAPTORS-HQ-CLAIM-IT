@@ -205,6 +205,20 @@ about; claims and cancels from before it existed are filled in once at startup.
   board, Signed in but hasn't opened it, Never signed in, or has No account; totals and a filter for each. "Opened" counts
   from v0.37. (src/presence.js: users.last_seen_*, board_views.)
 
+### 4.7c Assessments (performance testing)
+App Settings → Organization → **Assessments**: an assessment (e.g. Speed & Agility) with its drills (unit, lower or higher
+is better, number of tries) and testing days (date; Baseline / Midpoint / Final / Other; optionally the program whose
+athletes are tested). **Enter scores** (phone/tablet, saves as you type): By athlete (all drills, Next athlete) or By drill
+(station: every athlete's tries). Every try is kept; reports choose Best or Average. Results belong to the athlete, so
+they build a history year over year (People → the athlete → Assessments). Each testing day is **Hidden** from families
+until shared; shared days appear in My Account → Family members → Assessment results (their own athletes only).
+Coaches of a testing day's program can enter its scores. Reports → Assessments: Improvement · vs attendance (sessions
+attended on the program between the two days) · Team averages. (src/assess.js, src/routes/assess.js)
+Editing never rewrites the past: each testing day keeps its own copy of the drills, locked once it has scores (days
+without scores follow your edits); a drill with scores is retired (kept, restorable) rather than deleted; the assessment
+can be renamed, its drills reordered (↑ ↓), and it can be retired / restored (hidden from entry and Reports, kept on
+profiles). Lowering a drill's tries below scores already entered asks first. Every edit is listed in Change history.
+
 ### 4.8 Sign in as (shadow mode)
 App Settings → Accounts & sign-in → **Sign in as** (or a person's page). Use the app exactly as someone else: a person
 with a sign-in (from their sign-in screen, "Continue as … (admin, no password)"), someone who used a public link (their
@@ -292,6 +306,10 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.42.1** Assessments: rename, reorder drills, retire/restore assessments and drills, testing days keep the drills as
+  they were (locked once scored), tries warning, change history.
+- **v0.42** Assessments: drills and testing days, score entry on phone/tablet, athlete history, family sharing per day,
+  reports (improvement, vs attendance, team averages).
 - **v0.41.5** Phones: title bands put the icon beside the title (details wrap under the title); bands are 30–40% shorter.
 - **v0.41.4** Phones: no gap between a claim's description and its buttons (the card fits its content).
 - **v0.41.3** Phones: My Claims' upcoming claims show the date down the left and the buttons under the session (they
