@@ -218,6 +218,9 @@ Editing never rewrites the past: each testing day keeps its own copy of the dril
 without scores follow your edits); a drill with scores is retired (kept, restorable) rather than deleted; the assessment
 can be renamed, its drills reordered (↑ ↓), and it can be retired / restored (hidden from entry and Reports, kept on
 profiles). Lowering a drill's tries below scores already entered asks first. Every edit is listed in Change history.
+Each drill records how it's measured ("Measured with": stopwatch, timing gates, jump mat, radar gun… grouped by kind of
+test, or Other; plus an optional "How it's measured" note). It's kept with each testing day, shown on score entry and in
+history, and the Improvement report flags "Method changed" when the two days were measured differently.
 
 ### 4.8 Sign in as (shadow mode)
 App Settings → Accounts & sign-in → **Sign in as** (or a person's page). Use the app exactly as someone else: a person
@@ -306,6 +309,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.42.5** Assessments: "Measured with" and "How it's measured" on each drill; "Method changed" flag in reports.
 - **v0.42.4** Phones, part 3: filters fold behind one "Filters · N on" button (Activity, Email log, People, Reports);
   cards are compact (fields side by side, empty ones hidden) and long lists show 20 at a time (Show 20 more); with a
   level open, Board setup folds the tree and the level settings so the sessions come first.

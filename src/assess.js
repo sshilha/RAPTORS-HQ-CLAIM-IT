@@ -15,24 +15,35 @@ function ensure() {
       attempt INT NOT NULL, value NUMERIC NOT NULL, by_user INT, at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (day_id, athlete_id, drill_id, attempt))`);
     await query(`CREATE INDEX IF NOT EXISTS assess_results_athlete ON assess_results (athlete_id)`);
     await query(`ALTER TABLE assess_drills ADD COLUMN IF NOT EXISTS retired_at TIMESTAMPTZ`);
+    await query(`ALTER TABLE assess_drills ADD COLUMN IF NOT EXISTS method TEXT`);
+    await query(`ALTER TABLE assess_drills ADD COLUMN IF NOT EXISTS method_note TEXT`);
     // each testing day keeps its own copy of the drills (frozen once it has scores, so later edits don't rewrite the past)
     await query(`CREATE TABLE IF NOT EXISTS assess_day_drills (day_id INT NOT NULL REFERENCES assess_days(id) ON DELETE CASCADE, drill_id INT NOT NULL, name TEXT NOT NULL, unit TEXT,
       better TEXT NOT NULL DEFAULT 'lower', attempts INT NOT NULL DEFAULT 3, sort INT NOT NULL DEFAULT 0, PRIMARY KEY (day_id, drill_id))`);
+    await query(`ALTER TABLE assess_day_drills ADD COLUMN IF NOT EXISTS method TEXT`);
+    await query(`ALTER TABLE assess_day_drills ADD COLUMN IF NOT EXISTS method_note TEXT`);
     await query(`CREATE TABLE IF NOT EXISTS assess_changes (id SERIAL PRIMARY KEY, assessment_id INT NOT NULL REFERENCES assessments(id) ON DELETE CASCADE, at TIMESTAMPTZ NOT NULL DEFAULT now(), who TEXT, what TEXT NOT NULL)`);
     // results stay when a drill is removed (it's retired instead; only drills without scores are deleted)
     await query(`ALTER TABLE assess_results DROP CONSTRAINT IF EXISTS assess_results_drill_id_fkey`);
     // days from before this existed get their copy now
-    await query(`INSERT INTO assess_day_drills (day_id, drill_id, name, unit, better, attempts, sort)
-      SELECT d.id, x.id, x.name, x.unit, x.better, x.attempts, x.sort FROM assess_days d JOIN assess_drills x ON x.assessment_id=d.assessment_id AND x.retired_at IS NULL
+    await query(`INSERT INTO assess_day_drills (day_id, drill_id, name, unit, better, attempts, sort, method, method_note)
+      SELECT d.id, x.id, x.name, x.unit, x.better, x.attempts, x.sort, x.method, x.method_note FROM assess_days d JOIN assess_drills x ON x.assessment_id=d.assessment_id AND x.retired_at IS NULL
       WHERE NOT EXISTS (SELECT 1 FROM assess_day_drills y WHERE y.day_id=d.id) ON CONFLICT DO NOTHING`);
   })().catch((e) => { ready = null; throw e; }));
 }
 const KINDS = ["Baseline", "Midpoint", "Final", "Other"];
+// how a drill is measured (grouped by kind of test). "Other" lets you name it.
+const METHODS = [
+  ["Speed & agility (time)", ["Stopwatch (hand-timed)", "Stopwatch app (phone)", "Electronic timing gates (laser / photocell)", "Video or slow-motion timing app", "Wearable or GPS sensor"]],
+  ["Jumps (height / distance)", ["Tape measure", "Wall reach (chalk or tape)", "Vertec (vanes)", "Jump mat (contact mat)", "Wearable jump sensor", "Force plate", "Video or app"]],
+  ["Throwing / hitting / ball speed", ["Radar gun", "Bat or ball sensor", "Tape measure (distance)"]],
+  ["Strength & endurance", ["Hand dynamometer", "Medicine ball throw (distance)", "Rep count", "Timed hold (stopwatch)"]]];
+const METHOD_LIST = METHODS.flatMap(([, xs]) => xs);
 async function list({ retired = false } = {}) { await ensure(); return (await query(`SELECT a.*, (SELECT count(*)::int FROM assess_drills WHERE assessment_id=a.id AND retired_at IS NULL) AS drills, (SELECT count(*)::int FROM assess_days WHERE assessment_id=a.id) AS days
   FROM assessments a WHERE ${retired ? "a.archived_at IS NOT NULL" : "a.archived_at IS NULL"} ORDER BY lower(a.name)`)).rows; }
 // the drills a testing day uses: its own copy (falls back to the live list)
 async function dayDrills(dayId, assessmentId) {
-  const own = (await query(`SELECT drill_id AS id, name, unit, better, attempts, sort FROM assess_day_drills WHERE day_id=$1 ORDER BY sort, drill_id`, [dayId])).rows;
+  const own = (await query(`SELECT drill_id AS id, name, unit, better, attempts, sort, method, method_note FROM assess_day_drills WHERE day_id=$1 ORDER BY sort, drill_id`, [dayId])).rows;
   return own.length ? own : (await query(`SELECT * FROM assess_drills WHERE assessment_id=$1 AND retired_at IS NULL ORDER BY sort, id`, [assessmentId])).rows;
 }
 const hasScores = async (dayId) => (await query(`SELECT 1 FROM assess_results WHERE day_id=$1 LIMIT 1`, [dayId])).rowCount > 0;
@@ -41,7 +52,7 @@ async function syncDays(assessmentId) {
   for (const d of (await query(`SELECT id FROM assess_days WHERE assessment_id=$1`, [assessmentId])).rows) {
     if (await hasScores(d.id)) continue;
     await query(`DELETE FROM assess_day_drills WHERE day_id=$1`, [d.id]);
-    await query(`INSERT INTO assess_day_drills (day_id, drill_id, name, unit, better, attempts, sort) SELECT $1, id, name, unit, better, attempts, sort FROM assess_drills WHERE assessment_id=$2 AND retired_at IS NULL`, [d.id, assessmentId]);
+    await query(`INSERT INTO assess_day_drills (day_id, drill_id, name, unit, better, attempts, sort, method, method_note) SELECT $1, id, name, unit, better, attempts, sort, method, method_note FROM assess_drills WHERE assessment_id=$2 AND retired_at IS NULL`, [d.id, assessmentId]);
   }
 }
 async function logChange(assessmentId, who, what) { await query(`INSERT INTO assess_changes (assessment_id, who, what) VALUES ($1,$2,$3)`, [assessmentId, who, what]); }
@@ -108,4 +119,4 @@ async function history(athleteId, { sharedOnly = false } = {}) {
   }
   return [...out.values()];
 }
-module.exports = { dayDrills, syncDays, logChange, hasScores, ensure, KINDS, list, get, day, roster, results, save, score, change, history };
+module.exports = { METHODS, METHOD_LIST, dayDrills, syncDays, logChange, hasScores, ensure, KINDS, list, get, day, roster, results, save, score, change, history };

@@ -247,11 +247,13 @@ async function assessImprove(f) {
   for (const p of P.ppl) for (const dr of P.drills) {
     const a = P.A.score(P.va.get(`${p.id}|${dr.id}`) || [], P.ownA.get(dr.id) || dr, P.how), b = P.A.score(P.vb.get(`${p.id}|${dr.id}`) || [], P.ownB.get(dr.id) || dr, P.how); if (a == null && b == null) continue;
     const ch = P.A.change(a, b, dr);
-    rows.push({ id: p.id, name: nm(p), team: p.team || "", drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), a, b, diff: ch.diff, pct: ch.pct, verdict: ch.diff == null ? "" : ch.diff > 0 ? "Better" : ch.diff < 0 ? "Worse" : "Same" });
+    const mA = (P.ownA.get(dr.id) || {}).method || "", mB = (P.ownB.get(dr.id) || dr).method || "";
+    rows.push({ id: p.id, name: nm(p), team: p.team || "", drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), method: mA && mB && mA !== mB ? `${mA} → ${mB}` : mB || mA, a, b, diff: ch.diff, pct: ch.pct,
+      verdict: [ch.diff == null ? "" : ch.diff > 0 ? "Better" : ch.diff < 0 ? "Worse" : "Same", mA && mB && mA !== mB ? "Method changed" : ""].filter(Boolean).join(" · ") });
   }
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["a", `${P.da.kind} ${P.da.day.toISOString ? P.da.day.toISOString().slice(5, 10) : ""}`, "num"], ["b", `${P.db.kind} ${P.db.day.toISOString ? P.db.day.toISOString().slice(5, 10) : ""}`, "num"],
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["method", "Measured with"], ["a", `${P.da.kind} ${P.da.day.toISOString ? P.da.day.toISOString().slice(5, 10) : ""}`, "num"], ["b", `${P.db.kind} ${P.db.day.toISOString ? P.db.day.toISOString().slice(5, 10) : ""}`, "num"],
       ["diff", "Change (+ = better)", "num"], ["pct", "Change %", "num"], ["verdict", ""]], rows, link: (r) => `/admin/assess/athlete/${r.id}`,
-    note: `${P.how === "avg" ? "Average" : "Best"} of the tries on each day. Positive change = better, whichever direction the drill counts as better.` };
+    note: `${P.how === "avg" ? "Average" : "Best"} of the tries on each day. Positive change = better, whichever direction the drill counts as better. "Method changed" means the two days were measured differently (e.g. stopwatch, then timing gates), so compare with care.` };
 }
 async function assessAttend(f) {
   const P = await assessPair(f); if (!P) return noPair;

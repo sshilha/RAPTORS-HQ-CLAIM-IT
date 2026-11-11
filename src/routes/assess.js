@@ -48,6 +48,12 @@ router.get("/admin/assess/:id(\\d+)", auth.requireAdmin, wrap(async (req, res) =
     <input name="unit" value="${esc(d ? d.unit || "" : "")}" placeholder="unit (sec, in, mph…)" maxlength="20" aria-label="Unit">
     <select name="better" aria-label="Better"><option value="lower"${d && d.better === "higher" ? "" : " selected"}>Lower is better</option><option value="higher"${d && d.better === "higher" ? " selected" : ""}>Higher is better</option></select>
     <select name="attempts" aria-label="Tries">${[1, 2, 3, 4, 5].map((n) => `<option value="${n}"${(d ? d.attempts : 3) === n ? " selected" : ""}>${n} ${n === 1 ? "try" : "tries"}</option>`).join("")}</select>
+    <div class="as-meth">${(() => { const cur = d ? d.method || "" : "", other = cur && !A.METHOD_LIST.includes(cur);
+      return `<label>Measured with<select name="method" onchange="this.form.method_other.hidden = this.value !== '__other'; if (this.value === '__other') this.form.method_other.focus();">
+        <option value="">Choose…</option>${A.METHODS.map(([g, xs]) => `<optgroup label="${esc(g)}">${xs.map((x) => `<option${x === cur ? " selected" : ""}>${esc(x)}</option>`).join("")}</optgroup>`).join("")}
+        <option value="__other"${other ? " selected" : ""}>Other (describe)…</option></select></label>
+        <input name="method_other" value="${esc(other ? cur : "")}" placeholder="What's used, e.g. Pocket Radar" maxlength="60" aria-label="Other method"${other ? "" : " hidden"}>
+        <label class="as-note-l">How it's measured <span class="opt">(optional)</span><input name="method_note" value="${esc(d ? d.method_note || "" : "")}" maxlength="200" placeholder="e.g. Start on first movement; 3-point stance"></label>`; })()}</div>
     <button class="btn-small" type="submit" onclick="this.form.dataset.act='save'">${d ? "Save" : "Add drill"}</button>${d ? `<button class="btn-ghost danger" name="remove" value="1" type="submit" onclick="this.form.dataset.act='remove'; return window.confirm(${d.scores ? "'This drill has scores, so it will be retired: gone from future testing days, but its past results stay. Continue?'" : "'Delete this drill? It has no scores.'"})">${d.scores ? "Retire" : "Delete"}</button>` : ""}</form>`;
   res.send(page({ title: a.name, tab: "settings", user: req.user, flash: flashFrom(req), wide: true,
     body: `<nav class="back-row"><a class="back-btn" href="/admin/assess">${ARROW}Assessments</a></nav>${await head("assess")}
@@ -105,14 +111,16 @@ router.post("/admin/assess/:id(\\d+)/drills", auth.requireAdmin, wrap(async (req
   }
   const name = str(req.body.name).slice(0, 80); if (!name) return go(res, back, { err: "Give the drill a name." });
   const unit = str(req.body.unit).slice(0, 20) || null, better = req.body.better === "higher" ? "higher" : "lower", attempts = Math.max(1, Math.min(int(req.body.attempts) || 3, 5));
+  const method = (req.body.method === "__other" ? str(req.body.method_other).slice(0, 60) : A.METHOD_LIST.includes(req.body.method) ? req.body.method : "") || null, methodNote = str(req.body.method_note).slice(0, 200) || null;
   if (old && attempts < old.max_try && req.body.lower_ok !== "1") return go(res, back, { err: `${old.name} has scores in try ${attempts + 1}${old.max_try > attempts + 1 ? `–${old.max_try}` : ""}. Lower the tries again and confirm to continue.` });
   if (old) {
-    await query(`UPDATE assess_drills SET name=$2, unit=$3, better=$4, attempts=$5 WHERE id=$1`, [did, name, unit, better, attempts]);
-    const ch = [old.name !== name && `name "${old.name}" → "${name}"`, (old.unit || null) !== unit && `unit ${old.unit || "none"} → ${unit || "none"}`, old.better !== better && `${old.better} is better → ${better} is better`, old.attempts !== attempts && `tries ${old.attempts} → ${attempts}`].filter(Boolean);
+    await query(`UPDATE assess_drills SET name=$2, unit=$3, better=$4, attempts=$5, method=$6, method_note=$7 WHERE id=$1`, [did, name, unit, better, attempts, method, methodNote]);
+    const ch = [old.name !== name && `name "${old.name}" → "${name}"`, (old.unit || null) !== unit && `unit ${old.unit || "none"} → ${unit || "none"}`, old.better !== better && `${old.better} is better → ${better} is better`, old.attempts !== attempts && `tries ${old.attempts} → ${attempts}`,
+      (old.method || null) !== method && `measured with ${old.method || "not set"} → ${method || "not set"}`, (old.method_note || null) !== methodNote && `how it's measured: "${methodNote || ""}"`].filter(Boolean);
     if (ch.length) await A.logChange(id, who, `Changed "${old.name}": ${ch.join(" · ")}`);
   } else {
-    await query(`INSERT INTO assess_drills (assessment_id, name, unit, better, attempts, sort) VALUES ($1,$2,$3,$4,$5,(SELECT coalesce(max(sort),0)+1 FROM assess_drills WHERE assessment_id=$1))`, [id, name, unit, better, attempts]);
-    await A.logChange(id, who, `Added the drill "${name}" (${unit || "no unit"}, ${better} is better, ${attempts} ${attempts === 1 ? "try" : "tries"})`);
+    await query(`INSERT INTO assess_drills (assessment_id, name, unit, better, attempts, sort, method, method_note) VALUES ($1,$2,$3,$4,$5,(SELECT coalesce(max(sort),0)+1 FROM assess_drills WHERE assessment_id=$1),$6,$7)`, [id, name, unit, better, attempts, method, methodNote]);
+    await A.logChange(id, who, `Added the drill "${name}" (${unit || "no unit"}, ${better} is better, ${attempts} ${attempts === 1 ? "try" : "tries"}${method ? `, measured with ${method}` : ""})`);
   }
   await A.syncDays(id);
   go(res, back, { ok: old ? `Saved ${name}. Testing days with scores keep the drill as it was.` : `Added ${name}.` });
@@ -147,12 +155,12 @@ router.get("/assess/days/:id(\\d+)", auth.requireUser, wrap(async (req, res) => 
         <select onchange="location.search='?mode=athlete&a='+this.value" aria-label="Athlete">${people.map((x) => `<option value="${x.id}"${x.id === p.id ? " selected" : ""}>${done(x.id) ? "✓ " : ""}${esc(nm(x))}${x.team ? ` (${esc(x.team)})` : ""}</option>`).join("")}</select>
         <a class="sb-btn primary" href="?mode=athlete&a=${(people[i + 1] || people[0]).id}">Next athlete ›</a></div>
       <h2 class="as-who">${esc(nm(p))}${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}</h2>
-      <div class="as-cards">${d.drills.map((dr) => `<section class="as-card"><b>${esc(dr.name)}</b><span class="fine">${esc(dr.unit || "")}${dr.unit ? " · " : ""}${dr.better === "higher" ? "higher is better" : "lower is better"}</span>
+      <div class="as-cards">${d.drills.map((dr) => `<section class="as-card"><b>${esc(dr.name)}</b><span class="fine">${esc(dr.unit || "")}${dr.unit ? " · " : ""}${dr.better === "higher" ? "higher is better" : "lower is better"}</span>${dr.method ? `<span class="as-m">📏 ${esc(dr.method)}${dr.method_note ? ` · ${esc(dr.method_note)}` : ""}</span>` : ""}
         <div class="as-tries">${[...Array(dr.attempts)].map((_, k) => `<label><span>Try ${k + 1}</span>${box(p.id, dr, k + 1)}</label>`).join("")}</div></section>`).join("")}</div>` : `<p class="muted">No athletes to test. Link the testing day to a program with athletes on it.</p>`;
   } else {
     const dr = d.drills.find((x) => x.id === int(req.query.drill)) || d.drills[0];
     body = dr ? `<div class="as-pick"><select onchange="location.search='?mode=drill&drill='+this.value" aria-label="Drill">${d.drills.map((x) => `<option value="${x.id}"${x.id === dr.id ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
-        <span class="fine">${esc(dr.unit || "")}${dr.unit ? " · " : ""}${dr.better === "higher" ? "higher is better" : "lower is better"}</span></div>
+        <span class="fine">${esc(dr.unit || "")}${dr.unit ? " · " : ""}${dr.better === "higher" ? "higher is better" : "lower is better"}</span>${dr.method ? `<span class="as-m">📏 ${esc(dr.method)}${dr.method_note ? ` · ${esc(dr.method_note)}` : ""}</span>` : ""}</div>
       <div class="table-wrap"><table class="r-table as-grid" data-nosort><thead><tr><th>Athlete</th>${[...Array(dr.attempts)].map((_, k) => `<th>Try ${k + 1}</th>`).join("")}</tr></thead><tbody>
         ${people.map((p) => `<tr><td><b>${esc(nm(p))}</b>${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}</td>${[...Array(dr.attempts)].map((_, k) => `<td>${box(p.id, dr, k + 1)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : `<p class="muted">This assessment has no drills yet.</p>`;
   }
@@ -186,7 +194,8 @@ function historyHtml(hist, how = "best") {
   if (!hist.length) return `<p class="muted">No assessment results yet.</p>`;
   return hist.map((h) => `<section class="as-hist"><h3>${esc(h.name)}</h3><div class="table-wrap"><table class="r-table" data-nosort><thead><tr><th>Drill</th>${h.days.map((d) => `<th>${esc(d.kind)}<span class="em-why">${esc(fmtDay(d.day))}</span></th>`).join("")}<th>Change</th></tr></thead><tbody>
     ${h.drills.map((dr) => { const sc = h.days.map((d) => { const own = (d.drills || []).find((x) => x.id === dr.id) || dr; return A.score(d.vals.filter((v) => v.drill_id === dr.id).map((v) => v.value), own, how); }); const first = sc.find((x) => x != null), last = [...sc].reverse().find((x) => x != null), ch = A.change(first, last, dr);
-      return `<tr><td><b>${esc(dr.name)}</b><span class="em-why">${esc(dr.unit || "")}${dr.unit ? " · " : ""}${dr.better === "higher" ? "higher is better" : "lower is better"}</span></td>${sc.map((x) => `<td class="r-num">${x == null ? "—" : x}</td>`).join("")}
+      const ms = [...new Set(h.days.filter((d) => d.vals.some((v) => v.drill_id === dr.id)).map((d) => ((d.drills || []).find((x) => x.id === dr.id) || {}).method).filter(Boolean))];
+      return `<tr><td><b>${esc(dr.name)}</b><span class="em-why">${esc(dr.unit || "")}${dr.unit ? " · " : ""}${dr.better === "higher" ? "higher is better" : "lower is better"}</span>${ms.length ? `<span class="em-why">📏 ${esc(ms.join(" → "))}${ms.length > 1 ? " (method changed)" : ""}</span>` : ""}</td>${sc.map((x) => `<td class="r-num">${x == null ? "—" : x}</td>`).join("")}
         <td class="r-num">${ch.diff == null || sc.filter((x) => x != null).length < 2 ? "—" : `<span class="as-ch ${ch.diff > 0 ? "up" : ch.diff < 0 ? "down" : ""}">${ch.diff > 0 ? "▲" : ch.diff < 0 ? "▼" : "="} ${Math.abs(ch.diff)}${ch.pct != null ? ` (${Math.abs(ch.pct)}%)` : ""}</span>`}</td></tr>`; }).join("")}</tbody></table></div></section>`).join("");
 }
 router.get("/admin/assess/athlete/:id(\\d+)", auth.requireAdmin, wrap(async (req, res) => {

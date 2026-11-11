@@ -3079,3 +3079,9 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
   table.cards td .em-why, table.cards td small { display: block; }
 }
 @media (max-width: 760px) { table.cards td.cd-empty { display: none !important; } table.cards tr { padding: 10px 12px 8px; } }
+/* assessments: how each drill is measured */
+.as-drill .as-meth { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: -2px 0 6px; padding-left: 64px; }
+.as-meth label { display: flex; flex-direction: column; gap: 3px; font: 600 12px Inter, sans-serif; color: #5B6B82; } .as-meth select { min-width: 220px; } .as-meth input[name=method_other] { flex: 0 1 220px; }
+.as-meth .as-note-l { flex: 1 1 260px; } .as-m { display: block; margin-top: 2px; font-size: 12px; color: #334155; }
+.as-drills form.as-drill { padding-bottom: 8px; border-bottom: 1px solid #EEF1F5; }
+@media (max-width: 760px) { .as-drill .as-meth { padding-left: 0; } .as-meth select, .as-meth label, .as-meth input { min-width: 0; width: 100%; flex: 1 1 100%; } }
