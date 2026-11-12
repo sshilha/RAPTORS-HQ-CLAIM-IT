@@ -309,6 +309,9 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.42.9** Assessment testing days: right under the name, formatted like drills (Day · Kind · Program · Tested ·
+  Families · Enter scores / Delete), + Testing day on top with a note that it uses the current drills (disabled until
+  there are drills); each day shows "Drills locked (has scores)" or "Follows drill changes".
 - **v0.42.8** Assessment drills: column headings, one line per drill (▲▼ · drill · unit · better · tries · measured with
   · how · Save / Retire), + Add drill on top with new drills added at the bottom; labeled cards on phones.
 - **v0.42.7** People → a person → Kind: change between athlete and adult (an adult who is someone's parent/guardian

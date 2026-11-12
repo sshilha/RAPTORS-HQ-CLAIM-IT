@@ -3121,3 +3121,17 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .dr-acts .btn-small, .dr-acts .btn-ghost { min-width: 0 !important; }
 @media (max-width: 1100px) { .dr-head, .dr-row, .dr-addbox .dr-row { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 1100px) { .dr-head, .dr-row, .dr-addbox .dr-row { grid-template-columns: 1fr 1fr 1fr; } }
+/* ===== assessment testing days: formatted like drills ===== */
+.td-head, .td-row { display: grid; grid-template-columns: 170px 130px minmax(180px, 1fr) 150px; gap: 6px; align-items: center; }
+.td-head.td-list, .td-row.td-list { grid-template-columns: minmax(200px, 1.3fr) 100px minmax(160px, 1fr) 70px 100px 200px; }
+.td-head { padding: 0 0 4px; border-bottom: 1px solid #E3E8F0; } .td-head span { font: 700 11px Inter, sans-serif; text-transform: uppercase; letter-spacing: .04em; color: #5B6B82; } .td-head i { font-style: normal; text-transform: none; font-weight: 500; letter-spacing: 0; }
+.td-row { padding: 8px 0; border-bottom: 1px solid #EEF1F5; } .dr-list .td-row:last-child { border-bottom: 0; } .td-row form { margin: 0; }
+.td-row .dr-acts a.btn-small { text-decoration: none; display: inline-flex; align-items: center; }
+.td-hint { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: #fff; border: 1px solid #E3E8F0; font-size: 13px; color: #334155; }
+.td-need { display: inline-flex; align-items: center; gap: 8px; } .td-need button[disabled] { opacity: .45; cursor: not-allowed; }
+.td-panel .dr-top { margin-bottom: 6px; }
+@media (max-width: 1100px) {
+  .td-head { display: none; } .td-row, .td-row.td-list { grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 12px; margin-bottom: 10px; border: 1px solid #E3E8F0; border-radius: 12px; background: #fff; }
+  .dr-addbox .td-row { border: 0; padding: 0; background: transparent; } .td-row > .dr-c:first-child, .td-row .dr-acts { grid-column: 1 / -1; }
+  .td-row .dr-acts a.btn-small, .td-row .dr-acts .btn-ghost { min-height: 44px; }
+}
