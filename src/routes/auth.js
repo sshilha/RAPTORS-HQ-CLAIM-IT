@@ -147,11 +147,13 @@ router.get("/request-account", (req, res) => res.send(v.requestAccountPage({ ema
 router.post("/request-account", wrap(async (req, res) => {
   const b = req.body, clean = (x, n) => String(x || "").replace(/\s+/g, " ").trim().slice(0, n);
   const data = { first_name: clean(b.first_name, 40), last_name: clean(b.last_name, 40), email: auth.normalizeEmail(b.email), phone: clean(b.phone, 30) || null,
-    organization: clean(b.organization, 80) || null, connection: String(b.connection || "").trim().slice(0, 600) || null };
+    organization: clean(b.organization, 80) || null, connection: String(b.connection || "").trim().slice(0, 600) || null,
+    who: ["athlete", "parent", "adult"].includes(b.who) ? b.who : null, birth_year: /^(19|20)\d\d$/.test(String(b.birth_year || "")) ? Number(b.birth_year) : null };
   const again = (error) => res.status(400).send(v.requestAccountPage({ ...data, error }));
   if (!data.first_name || !data.last_name) return again("Enter your first and last name.");
   if (!auth.isValidEmail(data.email)) return again("Enter a valid email address.");
   if (!data.connection) return again("Tell us how you're connected to the club.");
+  if (!data.who) return again("Tell us whether you're an athlete, a parent or guardian, or another adult.");
   if ((await query(`SELECT 1 FROM users WHERE email=$1`, [data.email])).rowCount) return res.send(v.loginPage({ notice: "That email already has an account. Sign in below.", email: data.email }));
   const recent = (await query(`SELECT count(*)::int AS n FROM account_requests WHERE kind='new_account' AND data->>'email'=$1 AND created_at > now() - interval '1 day'`, [data.email])).rows[0].n;
   if (!recent) {

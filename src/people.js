@@ -60,7 +60,7 @@ async function ensureAdult(email, { first = "", last = "", role = null } = {}) {
   const e = auth.normalizeEmail(email);
   const u = await auth.findOrCreateUser(e);
   let p = (await query(`SELECT * FROM athletes WHERE self_user_id=$1 AND archived_at IS NULL ORDER BY id LIMIT 1`, [u.id])).rows[0]
-    || (await query(`SELECT * FROM athletes WHERE kind='adult' AND lower(email)=$1 ORDER BY id LIMIT 1`, [e])).rows[0];
+    || (await query(`SELECT * FROM athletes WHERE lower(email)=$1 AND self_user_id IS NULL AND archived_at IS NULL ORDER BY (kind='adult') DESC, id LIMIT 1`, [e])).rows[0];   // an athlete with her own email counts too
   if (!p) p = (await query(`INSERT INTO athletes (first_name, last_name, kind, email, self_user_id, roles) VALUES ($1,$2,'adult',$3,$4,$5) RETURNING *`,
     [first, last, e, u.id, role ? [role] : []])).rows[0];
   else {
@@ -137,7 +137,7 @@ async function merge(keepId, dupId) {
   if (keepId === dupId) throw new Error("Pick a different person.");
   const [k, d] = await Promise.all([keepId, dupId].map(async (id) => (await query(`SELECT * FROM athletes WHERE id=$1 AND archived_at IS NULL`, [id])).rows[0]));
   if (!k || !d) throw new Error("One of them isn't in People anymore.");
-  if (k.kind !== d.kind) throw new Error(`Only the same kind can be merged (${k.kind === "athlete" ? "athlete" : "adult"} with ${k.kind === "athlete" ? "athlete" : "adult"}).`);
+  if (false && k.kind !== d.kind) throw new Error(`Only the same kind can be merged (${k.kind === "athlete" ? "athlete" : "adult"} with ${k.kind === "athlete" ? "athlete" : "adult"}).`);
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
@@ -154,7 +154,8 @@ async function merge(keepId, dupId) {
     await c.query(`DELETE FROM people_list_members WHERE athlete_id=$1`, [dupId]);
     if ((await c.query(`SELECT to_regclass('public.reservations') IS NOT NULL AS x`)).rows[0].x) await c.query(`UPDATE reservations SET athlete_id=$2 WHERE athlete_id=$1`, [dupId, keepId]);
     // sign-in: if only the duplicate had one, the kept person gets it; if both did, the duplicate's family links move to the kept sign-in
-    if (d.self_user_id && !k.self_user_id) await c.query(`UPDATE athletes SET self_user_id=$2, email=COALESCE(email,$3) WHERE id=$1`, [keepId, d.self_user_id, d.email]);
+    if (d.self_user_id && !k.self_user_id) { await c.query(`UPDATE athletes SET self_user_id=NULL WHERE id=$1`, [dupId]);   // a sign-in belongs to one person: release it first
+      await c.query(`UPDATE athletes SET self_user_id=$2, email=COALESCE(email,$3) WHERE id=$1`, [keepId, d.self_user_id, d.email]); }
     else if (d.self_user_id && k.self_user_id && d.self_user_id !== k.self_user_id) {
       await c.query(`INSERT INTO parent_athletes (user_id, athlete_id) SELECT $2, athlete_id FROM parent_athletes WHERE user_id=$1 ON CONFLICT DO NOTHING`, [d.self_user_id, k.self_user_id]);
       await c.query(`DELETE FROM parent_athletes WHERE user_id=$1`, [d.self_user_id]);

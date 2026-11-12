@@ -309,6 +309,15 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.42.8** Assessment drills: column headings, one line per drill (▲▼ · drill · unit · better · tries · measured with
+  · how · Save / Retire), + Add drill on top with new drills added at the bottom; labeled cards on phones.
+- **v0.42.7** People → a person → Kind: change between athlete and adult (an adult who is someone's parent/guardian
+  can't become an athlete; an athlete keeps any parent links, with a note).
+- **v0.42.6** Account requests: the form asks "I am…" (athlete / parent or guardian / other adult; athletes add a birth
+  year); Requests suggests people already in People with the same email or name ("This is …"), and approving links the
+  sign-in to that record (it keeps its kind) instead of creating a new adult; a new athlete is created as an athlete.
+  Merge works across kinds (the record you keep decides). Fixed: merging a duplicate whose sign-in moves to the kept
+  record failed ("duplicate key").
 - **v0.42.5** Assessments: "Measured with" and "How it's measured" on each drill; "Method changed" flag in reports.
 - **v0.42.4** Phones, part 3: filters fold behind one "Filters · N on" button (Activity, Email log, People, Reports);
   cards are compact (fields side by side, empty ones hidden) and long lists show 20 at a time (Show 20 more); with a

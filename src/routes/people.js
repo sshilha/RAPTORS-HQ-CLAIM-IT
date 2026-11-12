@@ -270,22 +270,38 @@ router.get("/:id(\\d+)/merge", wrap(async (req, res) => {
   const keep = (await query(`SELECT * FROM athletes WHERE id=$1 AND archived_at IS NULL`, [int(req.params.id)])).rows[0];
   if (!keep) return go(res, "/admin/people", { err: "Not found." });
   const esc = require("../views/layout").esc, nameOf = (p) => [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || `#${p.id}`;
-  const others = (await query(`SELECT a.id, a.first_name, a.last_name, a.email, a.team, a.birth_year FROM athletes a WHERE a.archived_at IS NULL AND a.kind=$1 AND a.id<>$2
-    ORDER BY (lower(a.last_name)=lower($3)) DESC, lower(a.last_name), lower(a.first_name)`, [keep.kind, keep.id, keep.last_name || ""])).rows;
+  const others = (await query(`SELECT a.id, a.kind, a.first_name, a.last_name, a.email, a.team, a.birth_year FROM athletes a WHERE a.archived_at IS NULL AND a.id<>$1
+    ORDER BY (lower(a.first_name)=lower($3) AND lower(a.last_name)=lower($2)) DESC, (lower(a.last_name)=lower($2)) DESC, lower(a.last_name), lower(a.first_name)`, [keep.id, keep.last_name || "", keep.first_name || ""])).rows;
   const dupId = int(req.query.with), dup = dupId && others.find((o) => o.id === dupId);
   const pv = dup ? await PP.mergePreview(keep.id, dup.id) : null;
+  const kd = (x) => (x.kind === "athlete" ? "an athlete" : "an adult");
+  const kindNote = dup && dup.kind !== keep.kind ? `<p class="rq-kind">The duplicate is ${kd(dup)} and the record you're keeping is ${kd(keep)}, so the merged record stays ${kd(keep)}. If that's backwards, open the ${dup.kind === "athlete" ? "athlete" : "adult"} record and merge from there.</p>` : "";
   res.send(require("../views/admin").page({ title: `Merge into ${nameOf(keep)}`, tab: "people", user: req.user, flash: flashFrom(req), xwide: true,
     body: `<nav class="back-row"><a class="back-btn" href="/admin/people/${keep.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>${esc(nameOf(keep))}</a></nav>${(await AHead())({ active: "people" })}<div class="sub-top"><h2>Merge a duplicate into ${esc(nameOf(keep))}</h2></div>
     <section class="panel mg">
       <p class="fine">Pick the duplicate. Everything that belongs to it moves to <b>${esc(nameOf(keep))}</b>, which you keep: claims, boards (with their group and tags), parents/guardians, lists, and their sign-in. Details ${esc(keep.first_name || "they")} is missing are filled in from the duplicate, and the duplicate is archived. This can't be undone.</p>
       <form method="get" action="/admin/people/${keep.id}/merge" class="mg-pick"><label class="field-l"><span>The duplicate</span>
-        <select name="with" onchange="this.form.submit()"><option value="">Choose…</option>${others.map((o) => `<option value="${o.id}"${o.id === dupId ? " selected" : ""}>${esc(nameOf(o))}${o.birth_year ? ` · ${o.birth_year}` : ""}${o.team ? ` · ${esc(o.team)}` : ""}${o.email && nameOf(o) !== o.email ? ` · ${esc(o.email)}` : ""}</option>`).join("")}</select></label></form>
+        <select name="with" onchange="this.form.submit()"><option value="">Choose…</option>${others.map((o) => `<option value="${o.id}"${o.id === dupId ? " selected" : ""}>${esc(nameOf(o))} · ${o.kind === "athlete" ? "Athlete" : "Adult"}${o.birth_year ? ` · ${o.birth_year}` : ""}${o.team ? ` · ${esc(o.team)}` : ""}${o.email && nameOf(o) !== o.email ? ` · ${esc(o.email)}` : ""}</option>`).join("")}</select></label></form>
       ${dup ? `<div class="mg-pv"><h3>${esc(nameOf(dup))} → ${esc(nameOf(keep))}</h3><ul>
         <li><b>${pv.claims}</b> claim${pv.claims === 1 ? "" : "s"} move${pv.sameClaims ? ` (${pv.sameClaims} for spots ${esc(keep.first_name || "they")} already has are dropped)` : ""}</li>
         <li><b>${pv.boards}</b> board${pv.boards === 1 ? "" : "s"} · <b>${pv.parents}</b> parent${pv.parents === 1 ? "" : "s"}/guardian${pv.parents === 1 ? "" : "s"} · <b>${pv.lists}</b> list${pv.lists === 1 ? "" : "s"}</li></ul>
+        ${kindNote}
         <form method="post" action="/admin/people/${keep.id}/merge" onsubmit="return confirm('Merge ${esc(nameOf(dup)).replace(/'/g, "")} into ${esc(nameOf(keep)).replace(/'/g, "")}? This can\\'t be undone.');">
           <input type="hidden" name="dup_id" value="${dup.id}"><button class="sb-btn primary" type="submit">Merge into ${esc(nameOf(keep))}</button></form></div>` : ""}
     </section>` }));
+}));
+// change someone between athlete and adult (an adult who is someone's parent/guardian can't become an athlete)
+router.post("/:id(\\d+)/kind", wrap(async (req, res) => {
+  const p = (await query(`SELECT * FROM athletes WHERE id=$1 AND archived_at IS NULL`, [int(req.params.id)])).rows[0]; if (!p) return go(res, "/admin/people", { err: "Not found." });
+  const to = req.body.kind === "adult" ? "adult" : "athlete", back = `/admin/people/${p.id}`, nm = `${p.first_name} ${p.last_name || ""}`.trim();
+  if (p.kind === to) return go(res, back, { ok: `${nm} is already ${to === "adult" ? "an adult" : "an athlete"}.` });
+  if (to === "athlete" && p.self_user_id) {
+    const kids = (await query(`SELECT a.first_name, a.last_name FROM parent_athletes pa JOIN athletes a ON a.id=pa.athlete_id WHERE pa.user_id=$1 AND a.archived_at IS NULL AND a.id<>$2 ORDER BY a.first_name`, [p.self_user_id, p.id])).rows;
+    if (kids.length) return go(res, back, { err: `${nm} is the parent/guardian of ${kids.map((k) => `${k.first_name} ${k.last_name || ""}`.trim()).join(", ")}, so they can't be an athlete. Remove those links first (Family), then change them.` });
+  }
+  await query(`UPDATE athletes SET kind=$2 WHERE id=$1`, [p.id, to]);
+  const parents = to === "adult" ? (await query(`SELECT count(*)::int AS n FROM parent_athletes WHERE athlete_id=$1`, [p.id])).rows[0].n : 0;
+  go(res, back, { ok: `${nm} is now ${to === "adult" ? "an adult" : "an athlete"}.${parents ? ` They still have ${parents} parent/guardian link${parents === 1 ? "" : "s"}; remove them under Family if they no longer apply.` : ""}` });
 }));
 router.post("/:id(\\d+)/merge", wrap(async (req, res) => {
   const keepId = int(req.params.id), dupId = int(req.body.dup_id);
