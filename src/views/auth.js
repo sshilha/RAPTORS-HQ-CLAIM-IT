@@ -154,6 +154,11 @@ const requestAccountPage = ({ email = "", first_name = "", last_name = "", phone
     <h1>Request an account</h1>
     <p class="muted">An admin will review it. You'll get an email with a link to finish setting up.</p>
     <form method="post" action="/request-account" class="stack">
+      <fieldset class="gate-who"><legend>I am…</legend>
+        <label class="radio-row"><input type="radio" name="who" value="athlete" required onchange="document.getElementById('rby').hidden = false"> An athlete</label>
+        <label class="radio-row"><input type="radio" name="who" value="parent" onchange="document.getElementById('rby').hidden = true"> A parent or guardian</label>
+        <label class="radio-row"><input type="radio" name="who" value="adult" onchange="document.getElementById('rby').hidden = true"> A coach, volunteer, or other adult</label></fieldset>
+      <div class="gate-row" id="rby" hidden><span><label for="rbyi">Birth year <span class="opt">(helps us find you)</span></label><input id="rbyi" name="birth_year" inputmode="numeric" maxlength="4" placeholder="e.g. 2011"></span></div>
       <div class="gate-row"><span><label for="rf">First name</label><input id="rf" name="first_name" required maxlength="40" value="${esc(first_name)}" autocomplete="given-name"></span>
         <span><label for="rl">Last name</label><input id="rl" name="last_name" required maxlength="40" value="${esc(last_name)}" autocomplete="family-name"></span></div>
       <label for="re">Email</label><input id="re" name="email" type="email" required value="${esc(email)}" autocomplete="email">

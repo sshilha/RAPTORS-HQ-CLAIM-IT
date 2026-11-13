@@ -7,24 +7,25 @@ const GROUPS = [["overview", "Overview", [["overview", ""]]], ["claims", "Claims
   ["attendance", "Attendance", [["attendance", "Athletes"], ["noshows", "No-shows"], ["unchecked", "Check-ins not done"]]],
   ["sessions", "Sessions", [["fill", "Fill"], ["busiest", "Busiest times"], ["waitlists", "Waitlists"], ["locations", "Locations"]]],
   ["rsvp", "RSVP", [["rsvp", "Events"], ["rsvpAthletes", "Athletes"]]], ["families", "Families", [["engagement", "Engagement"], ["notSignedUp", "Not signed up"], ["volunteer", "Volunteer hours"]]],
+  ["assess", "Assessments", [["assessImprove", "Improvement"], ["assessAttend", "vs attendance"], ["assessTeams", "Team averages"]]],
   ["emails", "Emails", [["emails", ""]]], ["week", "Week sheet", [["week", ""]]]];
 function reportNav(key, url, full = true) {
   const g = GROUPS.find((x) => x[2].some(([k]) => k === key)) || GROUPS[0];
-  const go = (k) => (k === "person" || k === "all" ? url({ r: "", v: k === "all" ? "all" : "person" }) : url({ r: k, v: "" }));
+  const go = (k) => url({ r: k, v: "" });
   const groups = full ? GROUPS : GROUPS.filter((x) => x[0] === "claims");
   return `<nav class="sub-tabs r-subs">${groups.map(([id, label, subs]) => `<a href="${go(subs[0][0])}"${id === g[0] ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>
     ${g[2].length > 1 ? `<nav class="r-chips" aria-label="${esc(g[1])} reports">${g[2].map(([k, l]) => `<a href="${go(k)}"${k === key ? ' class="on" aria-current="page"' : ""}>${esc(l)}</a>`).join("")}</nav>` : ""}`;
 }
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/></svg>`;
 const DL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="15" height="15"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>`;
-const TITLES = { overview: "Overview", attendance: "Attendance by athlete", noshows: "No-shows", unchecked: "Check-ins not done", fill: "Session fill", busiest: "Busiest times", waitlists: "Waitlists",
+const TITLES = { assessImprove: "Assessment improvement", assessAttend: "Improvement vs attendance", assessTeams: "Assessment team averages", person: "Claims by person", all: "All claims", overview: "Overview", attendance: "Attendance by athlete", noshows: "No-shows", unchecked: "Check-ins not done", fill: "Session fill", busiest: "Busiest times", waitlists: "Waitlists",
   locations: "Locations", rsvp: "RSVP by event", rsvpAthletes: "RSVP by athlete", engagement: "Family engagement", notSignedUp: "On the list, not signed up", volunteer: "Volunteer hours by family", emails: "Email problems", week: "Week sheet" };
 function cell(v, kind) {
-  if (v == null || v === "") return `<td class="fine" data-sort="">—</td>`;
+  if (v == null || v === "") return `<td class="r-muted" data-sort="">—</td>`;
   if (kind === "pct") return `<td data-sort="${v}"><span class="r-pct"><b>${v}%</b><i style="width:${Math.min(100, v)}%"></i></span></td>`;
   if (kind === "num") return `<td class="r-num" data-sort="${v}">${esc(String(v))}</td>`;
-  if (kind === "date" || kind === "dt") { const d = new Date(v); return `<td class="fine" data-sort="${d.toISOString()}">${esc(kind === "dt" ? fmtDateTime(d) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }))}</td>`; }
-  return `<td>${/^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never)$/.test(String(v)) ? `<span class="r-flag bad">${esc(v)}</span>` : /^(Done|Active)$/.test(String(v)) ? `<span class="r-flag ok">${esc(v)}</span>` : /^(Close|Signed in, no claims)$/.test(String(v)) ? `<span class="r-flag mid">${esc(v)}</span>` : esc(String(v))}</td>`;
+  if (kind === "date" || kind === "dt") { const d = new Date(v); return `<td class="r-muted" data-sort="${d.toISOString()}">${esc(kind === "dt" ? fmtDateTime(d) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }))}</td>`; }
+  return `<td>${/^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never)$/.test(String(v)) ? `<span class="r-flag bad">${esc(v)}</span>` : /^(Done|Active)$/.test(String(v)) ? `<span class="r-flag ok">${esc(v)}</span>` : /^(Close|Signed in, no claims)$/.test(String(v)) || /Method changed/.test(String(v)) ? `<span class="r-flag mid">${esc(v)}</span>` : esc(String(v))}</td>`;
 }
 function table(d) {
   if (!d.rows.length) return `<div class="d-empty"><b>Nothing to show for this board and date range.</b></div>`;
@@ -37,35 +38,52 @@ function grid(d) {
   return `<div class="table-wrap"><table class="r-grid" data-nosort><thead><tr><th>Starts</th>${DAYS.map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>
     ${d.rows.map((row) => `<tr><th>${esc(row.hour)}</th>${DAYS.map((x) => row[x] == null ? `<td class="r-g0"></td>` : `<td style="background:rgba(141,220,50,${(0.12 + Math.min(100, row[x]) / 100 * 0.88).toFixed(2)})"><b>${row[x]}%</b><small>${row[x + "_n"]}</small></td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
-function weekSheet(d) {
+function weekSheet(d, o = {}) {
   const days = new Map(); for (const s of d.sessions) { const k = new Date(s.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }); if (!days.has(k)) days.set(k, []); days.get(k).push(s); }
   const dl = (k) => new Date(k + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
   const tr = (s) => new Date(s.starts_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }) + (s.ends_at ? `–${new Date(s.ends_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })}` : "");
   return `<div class="ws">${days.size ? [...days.entries()].map(([k, list]) => `<section class="ws-day"><h2>${esc(dl(k))}</h2>
     ${list.map((s) => `<div class="ws-s"><div class="ws-h"><b>${esc(tr(s))} · ${esc(s.session)}</b><span>${esc(s.board)}${s.location ? ` · ${esc(s.location)}` : ""}${s.board_type === "rsvp" ? "" : ` · ${s.claimed}/${s.capacity}`}</span></div>
-      <ol class="ws-ppl">${s.people.filter((p) => p.status === "confirmed").map((p) => `<li><span class="ws-box"></span>${esc(p.first_name)} ${esc(p.last_name || "")}${p.team ? ` <small>${esc(p.team)}</small>` : ""}${p.note ? ` <i>“${esc(p.note)}”</i>` : ""}</li>`).join("")}
-        ${[1, 2, 3].map(() => `<li class="ws-blank"><span class="ws-box"></span></li>`).join("")}</ol>
-      ${s.people.some((p) => p.status === "waitlisted") ? `<p class="fine">Waitlist: ${esc(s.people.filter((p) => p.status === "waitlisted").map((p) => `${p.first_name} ${p.last_name || ""}`.trim()).join(", "))}</p>` : ""}</div>`).join("")}</section>`).join("")
+      ${s.qLabel ? `<p class="ws-q">Question: <b>${esc(s.qLabel)}</b></p>` : ""}
+      <ol class="ws-ppl">${s.people.filter((p) => p.status === "confirmed").map((p) => `<li><span class="ws-box"></span>${esc(p.first_name)} ${esc(p.last_name || "")}${p.team ? ` <small>${esc(p.team)}</small>` : ""}${p.note && s.showNotes ? ` <i>“${esc(p.note)}”</i>` : ""}</li>`).join("")}
+        ${Array.from({ length: o.blanks ?? 3 }, () => `<li class="ws-blank"><span class="ws-box"></span></li>`).join("")}</ol>
+      ${o.wl !== false && s.people.some((p) => p.status === "waitlisted") ? `<p class="fine">Waitlist: ${esc(s.people.filter((p) => p.status === "waitlisted").map((p) => `${p.first_name} ${p.last_name || ""}`.trim()).join(", "))}</p>` : ""}</div>`).join("")}</section>`).join("")
     : `<div class="d-empty"><b>No sessions that week.</b></div>`}</div>`;
 }
-function reportPage({ user, flash, admin, boards, board, r, data, from, to, team, teams, required, week }) {
-  const url = (o) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ s: board ? board.id : "all", team, from, to, r, week: r === "week" ? week : "", ...o }).filter(([, x]) => x))); return `/reports?${p}`; };
+function reportPage({ user, flash, admin, boards, board, r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
+  const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const X = o.assess;
+  const state = { as: X && X.test ? X.test.id : "", da: X ? X.a || "" : "", db: X ? X.b || "" : "", how: X && X.how === "avg" ? "avg" : "", s: board ? board.id : "all", team, from, to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
+  const url = (x) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ ...state, ...x }).filter(([, v]) => v !== "" && v != null))); return `/reports?${p}`; };
   const head = `<section class="bh2 r-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${ICON}</span><div><div class="bh2-t"><h1>Reports</h1></div>
-      <span class="bh2-meta">${esc(board ? board.name : "All boards")}${team ? ` · ${esc(team)}` : ""} · ${esc(TITLES[r] || "")}</span></div></div></section>`;
-  const bar = `<nav class="bh2-tabs dash-tabs r-gbar"><form method="get" action="/reports" class="r-pick"><input type="hidden" name="r" value="${esc(r)}">
-      <span class="r-pick-l">Board</span><select name="s" onchange="this.form.submit()" aria-label="Board"><option value="all"${board ? "" : " selected"}>All boards</option>${boards.map((b) => `<option value="${b.id}"${board && b.id === board.id ? " selected" : ""}>${esc(b.name)}${b.archived_at ? " (archived)" : ""}</option>`).join("")}</select>
-      ${teams.length ? `<select name="team" onchange="this.form.submit()" aria-label="Team"><option value="">All teams</option>${teams.map((t) => `<option${t === team ? " selected" : ""}>${esc(t)}</option>`).join("")}</select>` : ""}
+      <span class="bh2-meta">${esc(TITLES[r] || "")} · ${esc(filterText)}</span></div></div></section>`;
+  const bar = `<nav class="bh2-tabs dash-tabs r-gbar"><form method="get" action="/reports" class="r-pick" id="rf"><input type="hidden" name="r" value="${esc(r)}">
+      <span class="r-pick-l">Board</span><select name="s" onchange="this.form.level && (this.form.level.value = ''); this.form.submit()" aria-label="Board"><option value="all"${board ? "" : " selected"}>All boards</option>${boards.map((b) => `<option value="${b.id}"${board && b.id === board.id ? " selected" : ""}>${esc(b.name)}${b.archived_at ? " (archived)" : ""}</option>`).join("")}</select>
       ${r === "week" ? `<label class="r-d">Week of<input type="date" name="week" value="${esc(week)}" onchange="this.form.submit()"></label>`
-        : r === "busiest" || r === "overview" || true ? `<label class="r-d">From<input type="date" name="from" value="${esc(from)}"></label><label class="r-d">To<input type="date" name="to" value="${esc(to)}"></label><button class="sb-btn" type="submit">Apply</button>` : ""}</form>
-      ${r === "week" ? `<button type="button" class="sb-btn" onclick="window.print()">Print</button>` : data.cols ? `<a class="sb-btn" href="${url({ csv: "1" })}">${DL}Download CSV</a>` : ""}</nav>`;
+        : `<label class="r-d">From<input type="date" name="from" value="${esc(from)}"></label><label class="r-d">To<input type="date" name="to" value="${esc(to)}"></label>`}<button class="sb-btn" type="submit">Apply</button></form>
+      <span class="r-dl">${data.cols || r === "week" || r === "overview" ? `<a class="sb-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="sb-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" ? `<button type="button" class="sb-btn" onclick="window.print()">Print</button>` : ""}</span></nav>`;
+  const dayOpt = (sel) => (X.days || []).map((d) => `<option value="${d.id}"${d.id === sel ? " selected" : ""}>${esc(d.kind)} · ${esc(new Date(String(d.day.toISOString ? d.day.toISOString() : d.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}${d.board ? ` · ${esc(d.board)}` : ""}</option>`).join("");
+  const strip = `${X ? `<div class="r-filters r-assess">${X.tests.length ? `<label class="r-f">Assessment<select name="as" form="rf" onchange="document.querySelectorAll('[name=da],[name=db]').forEach(function (e) { e.disabled = true; }); this.form.submit()">${X.tests.map((t) => `<option value="${t.id}"${X.test && X.test.id === t.id ? " selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label>
+      <label class="r-f">From<select name="da" form="rf" onchange="this.form.submit()">${dayOpt(X.a)}</select></label><label class="r-f">To<select name="db" form="rf" onchange="this.form.submit()">${dayOpt(X.b)}</select></label>
+      <label class="r-f">Count<select name="how" form="rf" onchange="this.form.submit()"><option value="best">Best try</option><option value="avg"${X.how === "avg" ? " selected" : ""}>Average of tries</option></select></label>` : `<span class="fine">No assessments yet: App Settings → Organization → Assessments.</span>`}</div>` : ""}<div class="r-filters">
+      ${board && (o.levels || []).length ? `<label class="r-f">Level<select name="level" form="rf" onchange="this.form.submit()"><option value="">All levels</option>${o.levels.map((n) => `<option value="${n.id}"${o.level && o.level.id === n.id ? " selected" : ""}>${"\u00a0\u00a0".repeat(n.d)}${esc(n.path)}</option>`).join("")}</select></label>` : board ? "" : `<span class="fine r-f">Pick one board to filter by level</span>`}
+      ${teams.length ? `<label class="r-f">Team<select name="team" form="rf" onchange="this.form.submit()"><option value="">All teams</option>${teams.map((t) => `<option${t === team ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>` : ""}
+      ${(o.locations || []).length > 1 ? `<label class="r-f">Location<select name="loc" form="rf" onchange="this.form.submit()"><option value="">All locations</option>${o.locations.map((l) => `<option${l === o.location ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
+      <span class="r-f r-days" role="group" aria-label="Days">${DAYS.map((d, i) => `<label class="r-day"><input type="checkbox" name="d" value="${i}" form="rf"${(o.days || []).includes(i) ? " checked" : ""} onchange="this.form.submit()"><span>${d}</span></label>`).join("")}</span>
+      <label class="r-f r-q"><input type="search" name="q" form="rf" value="${esc(o.q || "")}" placeholder="Search names, sessions, notes, emails…" aria-label="Search"></label>
+      ${r === "week" ? `<label class="r-f">Waitlist<select name="wl" form="rf" onchange="this.form.submit()"><option value="1">Show</option><option value="0"${o.wl === false ? " selected" : ""}>Hide</option></select></label>
+        <label class="r-f">Blank lines<select name="blanks" form="rf" onchange="this.form.submit()">${[0, 1, 2, 3, 4, 6].map((n) => `<option${n === o.blanks ? " selected" : ""}>${n}</option>`).join("")}</select></label>` : ""}
+    </div>
+    ${(() => { const on = [o.level && ["level", `Level: ${o.level.path}`], team && ["team", `Team: ${team}`], o.location && ["loc", `Location: ${o.location}`], (o.days || []).length && ["days", `Days: ${o.days.map((d) => DAYS[d]).join(", ")}`], o.q && ["q", `Search: “${o.q}”`]].filter(Boolean);
+      return on.length ? `<div class="r-on">${on.map(([k, l]) => `<a class="r-chip" href="${url({ [k]: "" })}" title="Remove this filter">${esc(l)} <span aria-hidden="true">✕</span></a>`).join("")}<a class="link-dark" href="${url({ level: "", team: "", loc: "", days: "", q: "" })}">Clear all</a></div>` : ""; })()}`;
   let body;
   if (r === "overview") body = `<div class="r-tiles">${data.tiles.map(([k, label, v, unit, sub]) => `<a class="r-tile" href="${url({ r: k })}"><span class="r-tl">${esc(label)}</span><b>${v == null ? "—" : `${v}${unit}`}</b><span class="fine">${esc(sub)}</span></a>`).join("")}</div>
     <p class="fine r-foot">For ${esc(board ? board.name : "all boards")}, ${esc(from)} to ${esc(to)}. Click a number to see the report behind it.</p>`;
-  else if (r === "week") body = weekSheet(data);
+  else if (r === "week") body = weekSheet(data, o);
   else body = `${r === "volunteer" && admin ? `<form method="post" action="${url({}).replace("/reports?", "/reports/volunteer-required?")}" class="r-req"><label>Hours each family needs <input type="number" name="hours" min="0" max="500" step="0.5" value="${required || ""}" placeholder="none"></label><button class="sb-btn" type="submit">Save</button><span class="fine">Leave empty for no requirement.</span></form>` : ""}
     ${data.note ? `<p class="fine r-note2">${esc(data.note)}</p>` : ""}${data.grid ? grid(data) : table(data)}`;
   return layout({ title: `Reports · ${TITLES[r] || ""}`, user, flash, admin, tab: "reports", dash: true,
-    body: `<div class="d-wrap r-wrap${r === "week" ? " r-print" : ""}">${head}${bar}${reportNav(r, url)}<div class="sub-body r-sheet"><section class="d-card r-card">${body}</section></div></div>` });
+    body: `<div class="d-wrap r-wrap${r === "week" ? " r-print" : ""}">${head}${bar}${reportNav(r, url)}<div class="sub-body r-sheet">${strip}<section class="d-card r-card">${body}</section></div></div>` });
 }
 
 function reportsPage({ user, flash, admin, boards, board, rows, people, teams, teamFilter, view, limitedTo }) {
@@ -88,7 +106,7 @@ function reportsPage({ user, flash, admin, boards, board, rows, people, teams, t
     ${anyAttendance ? "" : `<p class="r-note">Attendance shows here once check-in is used for this board. Until then, the Attended column shows “—”.</p>`}
     <section class="d-card r-card">${view === "person"
       ? (people.length ? `<div class="table-wrap"><table class="r-table"><thead><tr><th>Name</th><th>Team</th><th>Claimed</th><th>Waitlisted</th><th>Attended</th><th>No-shows</th><th>Last one</th></tr></thead><tbody>
-          ${people.map((p) => `<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.team || "")}</td><td>${p.claimed}</td><td>${p.waitlisted || ""}</td><td>${anyAttendance ? p.attended : "—"}</td><td>${anyAttendance ? p.missed || "" : "—"}</td><td class="fine">${p.last ? esc(new Date(p.last).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" })) : ""}</td></tr>`).join("")}</tbody></table></div>`
+          ${people.map((p) => `<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.team || "")}</td><td>${p.claimed}</td><td>${p.waitlisted || ""}</td><td>${anyAttendance ? p.attended : "—"}</td><td>${anyAttendance ? p.missed || "" : "—"}</td><td class="r-muted">${p.last ? esc(new Date(p.last).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" })) : ""}</td></tr>`).join("")}</tbody></table></div>`
         : `<div class="d-empty"><b>No claims yet.</b></div>`)
       : (rows.length ? `<div class="table-wrap"><table class="r-table"><thead><tr><th>Name</th><th>Team</th><th>Where</th><th>When</th><th>Status</th><th>Attended</th></tr></thead><tbody>
           ${rows.map((r) => `<tr><td><b>${esc(r.first_name)} ${esc(r.last_name)}</b>${r.note ? `<div class="fine">${esc(r.note)}</div>` : ""}</td><td>${esc(r.group_name || "")}</td><td>${esc(r.path || "")}</td>
@@ -96,4 +114,4 @@ function reportsPage({ user, flash, admin, boards, board, rows, people, teams, t
         : `<div class="d-empty"><b>No claims yet.</b></div>`)}
     </section></div></div>` });
 }
-module.exports = { reportsPage, reportPage, GROUPS };
+module.exports = { reportsPage, reportPage, GROUPS, TITLES };

@@ -45,6 +45,7 @@ app.use("/admin/activity", require("./routes/activity")); // the activity log: w
 app.use("/admin/email-log", require("./routes/emailLog")); // every email sent, and what happened
 app.use("/admin/online", require("./routes/online")); // who's on now
 app.use("/checkin", require("./routes/checkin2")); // check-in on the new boards
+app.use(require("./routes/assess")); // assessments: setup, testing days, score entry, history, families' shared results
 app.use("/account", require("./routes/account")); // My Account
 app.use("/admin/setup", require("./routes/setup"));
 app.use("/admin/members", require("./routes/members"));

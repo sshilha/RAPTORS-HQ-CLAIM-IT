@@ -82,6 +82,7 @@ function accountPage({ user, flash, u, person, kids, coaching, scope, reportBoar
     </div><div class="a-col">
       ${card("family", "My family", "", `
         <div class="fam-top"><span class="fine">People linked to your account. Changes and additions go to an admin to approve; you'll get an email when it's done.</span>
+          <a class="sb-btn" href="/account/results">Assessment results</a>
           <button type="button" class="sb-btn primary" onclick="var a=document.getElementById('fam-add'); a.hidden=!a.hidden; if (!a.hidden) a.querySelector('input').focus()">+ Add a family member</button></div>
         <div id="fam-add" class="fam-add" hidden><h3 class="a-h3">Add a family member</h3>
                   <form method="post" action="/account/request" class="a-form"><input type="hidden" name="kind" value="add_family">

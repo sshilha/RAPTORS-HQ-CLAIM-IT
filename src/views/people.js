@@ -101,7 +101,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
           return `<tr>
           <td data-l=""><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td>
           <td data-l="Person"><a class="dir-name" href="/admin/people/${p.id}">${esc(PP.display(p))}</a>${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}
-            <div class="dir-sub">${kindTag(p)}${p.team ? `<span class="dir-team">${esc(p.team)}</span>` : ""}</div></td>
+            <div class="dir-sub">${kindTag(p)}${p.team ? `<span class="dir-team">${esc(p.team)}</span>` : ""}</div>${(p.assessDays || []).length ? `<div class="ae-row">${require("../assess").entryButton(p.id, p.assessDays, "/admin/people", { small: true })}</div>` : ""}</td>
           <td data-l="Contact" class="dir-contact">${[p.email, p.phone].filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join("") || `<span class="fine">—</span>`}</td>
           <td data-l="Family" class="dir-family">${p.kind === "athlete" ? (p.parents.length ? `<span class="dir-lbl">Parents/guardians</span>${esc(p.parents.join(", "))}` : `<span class="fine">—</span>`) : (p.kids.length ? `<span class="dir-lbl">Kids</span>${esc(p.kids.join(", "))}` : `<span class="fine">—</span>`)}</td>
           <td data-l="Lists &amp; boards" class="dir-lists">${ls.length ? `<div class="dir-chips">${ls.slice(0, 3).map((n) => `<span class="dir-chip list" title="List">${esc(n)}</span>`).join("")}${more(ls)}</div>` : ""}
@@ -157,6 +157,10 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
           ${lists.filter((l) => !mine.some((m) => m.id === l.id)).map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}<option value="new">＋ New list…</option></select>
           <input name="new_name" maxlength="60" placeholder="New list name" hidden><button class="btn-ghost" type="submit">Add</button></form>
       </section>
+      <section class="panel side-card"><h2>Kind</h2><p><b>${p.kind === "athlete" ? "Athlete" : "Adult"}</b> <span class="fine">${p.kind === "athlete" ? "can be put on boards as an athlete, and have parents/guardians" : "a parent/guardian, coach, volunteer or other adult"}</span></p>
+        <form method="post" action="/admin/people/${p.id}/kind" onsubmit="return window.confirm('Change ${esc(String(p.first_name || "this person").replace(/'/g, ""))} to ${p.kind === "athlete" ? "an adult" : "an athlete"}? Their sign-in, claims, boards and history stay.${p.kind === "athlete" && (parents || []).length ? " Their parents/guardians stay linked; remove them if they no longer apply." : ""}')">
+          <input type="hidden" name="kind" value="${p.kind === "athlete" ? "adult" : "athlete"}"><button class="sb-btn" type="submit">Change to ${p.kind === "athlete" ? "adult" : "athlete"}</button></form></section>
+      ${p.kind === "athlete" ? `<section class="panel side-card"><h2>Assessments</h2><p class="fine">Performance test results, kept year over year.</p><a class="sb-btn" href="/admin/assess/athlete/${p.id}">See results</a>${require("../assess").entryButton(p.id, p.assessDays || [], `/admin/people/${p.id}`)}</section>` : ""}
       <section class="panel side-card"><h2>Boards</h2>
         ${boards.length ? `<dl class="rc-list">${boards.map((b) => `<div><dt><a href="/admin/setup?s=${b.id}">${esc(b.name)}</a>${b.archived_at ? ` <span class="fine">(archived)</span>` : ""}</dt>
           <dd>${esc([b.group_name, ...(b.tags || [])].filter(Boolean).join(" · ") || "On the list")}<span class="src">${b.claims} claim${b.claims === 1 ? "" : "s"}</span></dd></div>`).join("")}</dl>` : `<p class="muted small">Not on any board's list yet.</p>`}

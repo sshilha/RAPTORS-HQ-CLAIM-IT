@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
+const NEW = { assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const isDay = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || "");
@@ -34,14 +34,49 @@ async function newReport(req, res, scope, boards) {
   const team = str(req.query.team), required = await requiredHours();
   const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today };
   const teams = (await query(`SELECT DISTINCT group_name FROM schedule_members WHERE schedule_id = ANY($1) AND group_name IS NOT NULL ORDER BY 1`, [ids])).rows.map((x) => x.group_name);
-  const data = r === "overview" ? await D.overview(f, required) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
+  // the fine filters: level (and everything inside it), location, weekdays, search
+  const levelsAll = board ? (await query(`WITH RECURSIVE t AS (SELECT id, parent_id, name, name::text AS path, 0 AS d, sort FROM board_nodes WHERE schedule_id=$1 AND parent_id IS NULL
+      UNION ALL SELECT n.id, n.parent_id, n.name, t.path || ' › ' || n.name, t.d + 1, n.sort FROM board_nodes n JOIN t ON n.parent_id=t.id) SELECT id, path, d FROM t ORDER BY path`, [board.id])).rows : [];
+  const level = levelsAll.find((n) => n.id === int(req.query.level)) || null;
+  const subtree = level ? levelsAll.filter((n) => n.path === level.path || n.path.startsWith(level.path + " › ")).map((n) => n.id) : null;
+  const locations = (await query(`SELECT DISTINCT coalesce(nullif(i.location,''), sc.event_location) AS l FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL ORDER BY 1`, [ids])).rows.map((x) => x.l).filter(Boolean);
+  const location = locations.includes(req.query.loc) ? req.query.loc : "";
+  const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
+  const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
+  Object.assign(f, { levels: subtree, location, days });
+  // assessments: which test, which two days, best or average
+  let assess = null;
+  if (/^assess/.test(r)) {
+    const AS = require("../assess"); await AS.ensure();
+    const tests = await AS.list(), t = tests.find((x) => x.id === int(req.query.as)) || tests[0] || null, full = t ? await AS.get(t.id) : null;
+    const dayList = full ? [...full.days].sort((x, y) => (x.day < y.day ? -1 : 1)) : [];
+    const pick = (id, pref, last) => dayList.find((d) => d.id === int(id)) || (last ? [...dayList].reverse() : dayList).find((d) => d.kind === pref) || (last ? dayList[dayList.length - 1] : dayList[0]) || null;
+    const da = pick(req.query.da, "Baseline", false), db = pick(req.query.db, "Final", true);
+    assess = { tests, test: t, days: dayList, a: da && da.id, b: db && db.id, how: req.query.how === "avg" ? "avg" : "best" };
+    f.assess = assess;
+  }
+  let data = r === "overview" ? await D.overview(f, required) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
+  if (q) {   // search: keep rows where any column mentions it
+    const needle = q.toLowerCase(), has = (o) => Object.values(o).some((v) => v != null && typeof v !== "object" && String(v).toLowerCase().includes(needle));
+    if (data.rows && !data.grid) data = { ...data, rows: data.rows.filter(has) };
+    if (data.sessions) data = { ...data, sessions: data.sessions.filter((x) => has(x) || x.people.some(has)) };
+  }
+  const opts = { assess, levels: levelsAll, level, locations, location, days, q, wl, blanks };
+  const filterText = [board ? board.name : "All boards", team, level && level.path, location, days.length && days.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join("/"),
+    r === "week" ? `week of ${f.weekFrom}` : `${from} to ${to}`, q && `search “${q}”`].filter(Boolean).join(" · ");
+  if (req.query.pdf) {
+    const V = require("../views/reports2");
+    const buf = await require("../reportPdf").build({ title: `Reports · ${V.TITLES[r] || r}`, filters: filterText, data, kind: r === "overview" ? "overview" : r === "week" ? "week" : "table", opts: { waitlist: wl, blanks } });
+    res.set("Content-Type", "application/pdf").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.pdf"`);
+    return res.send(buf);
+  }
   if (req.query.csv && data.cols) {
     const q = (x) => `"${String(x == null ? "" : x instanceof Date ? x.toISOString() : x).replace(/"/g, '""')}"`;
     const lines = [data.cols.map((c) => q(c[1])).join(",")].concat(data.rows.map((row) => data.cols.map((c) => q(c[2] === "dt" || c[2] === "date" ? (row[c[0]] ? require("../time").fmtDateTime(row[c[0]]) : "") : row[c[0]])).join(",")));
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, r, data, from, to, team, teams, required, week: f.weekFrom }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 router.get("/", wrap(async (req, res) => {
@@ -50,8 +85,10 @@ router.get("/", wrap(async (req, res) => {
   req.user.can_reports = true;
   const boards = (await query(`SELECT id, name, archived_at, groups FROM schedules WHERE ${scope.all ? "TRUE" : "id = ANY($1)"} ORDER BY archived_at NULLS FIRST, name`, scope.all ? [] : [scope.boards])).rows;
   if (!boards.length) return go(res, "/dashboard", { err: "No boards to report on yet." });
+  if (!scope.teams.length && req.query.v && !req.query.r) return res.redirect(`/reports?${new URLSearchParams({ ...req.query, r: req.query.v === "all" ? "all" : "person", v: "" })}`);   // older links → the filterable claims reports
   if (!scope.teams.length && (NEW[req.query.r] || (!req.query.v && !req.query.csv))) return newReport(req, res, scope, boards);   // Overview by default
   if (req.query.s === "all") req.query.s = "";   // By person / All claims are for one board
+  if (req.query.r === "all") req.query.v = "all";
   // open on the board asked for, or the one with the most recent claim
   const busiest = (await query(`SELECT i.schedule_id FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE i.schedule_id = ANY($1) AND c.status<>'canceled'
     ORDER BY c.created_at DESC LIMIT 1`, [boards.map((b) => b.id)])).rows[0];

@@ -140,7 +140,10 @@ link). Reminders are checked every 15 minutes and sent once per claim.
 - **Check-in**: a day's sessions (folder tabs per board when several), then a session's list with ✓ Here / ✗ No-show,
   **Mark the rest here**, **+ Add walk-in**. Built for phones. Coaches can change it until the board's **check-in lock**
   (Board defaults → Attendance; default the end of the next day); admins always can.
-- **Reports**: Board (or All boards), team and date range at the top; Download CSV on every report.
+- **Reports**: Board (or All boards) and date range at the top, then filters under the tabs: Level (any level of the board,
+  with everything inside it), Team, Location, days of the week, and Search (any name, session, note or email). Active
+  filters show as chips to remove. **PDF** and **CSV** on every report (PDFs are built on the server, src/reportPdf.js,
+  with pdfmake; landscape when wide). The Week sheet adds Waitlist show/hide and blank lines for walk-ins.
   Overview (key numbers, each linking to its report) · Claims (By person · All claims) · Attendance (Athletes · No-shows,
   repeat = 3+ · Check-ins not done) · Sessions (Fill · Busiest times grid · Waitlists · Locations) · RSVP (Events · Athletes)
   · Families (Engagement · Not signed up · Volunteer hours, with a per-family requirement) · Emails (bounced / failed
@@ -202,6 +205,23 @@ about; claims and cancels from before it existed are filled in once at startup.
   board, Signed in but hasn't opened it, Never signed in, or has No account; totals and a filter for each. "Opened" counts
   from v0.37. (src/presence.js: users.last_seen_*, board_views.)
 
+### 4.7c Assessments (performance testing)
+App Settings → People → **Assessments**: an assessment (e.g. Speed & Agility) with its drills (unit, lower or higher
+is better, number of tries) and testing days (date; Baseline / Midpoint / Final / Other; optionally the program whose
+athletes are tested). **Enter scores** (phone/tablet, saves as you type): By athlete (all drills, Next athlete) or By drill
+(station: every athlete's tries). Every try is kept; reports choose Best or Average. Results belong to the athlete, so
+they build a history year over year (People → the athlete → Assessments). Each testing day is **Hidden** from families
+until shared; shared days appear in My Account → Family members → Assessment results (their own athletes only).
+Coaches of a testing day's program can enter its scores. Reports → Assessments: Improvement · vs attendance (sessions
+attended on the program between the two days) · Team averages. (src/assess.js, src/routes/assess.js)
+Editing never rewrites the past: each testing day keeps its own copy of the drills, locked once it has scores (days
+without scores follow your edits); a drill with scores is retired (kept, restorable) rather than deleted; the assessment
+can be renamed, its drills reordered (↑ ↓), and it can be retired / restored (hidden from entry and Reports, kept on
+profiles). Lowering a drill's tries below scores already entered asks first. Every edit is listed in Change history.
+Each drill records how it's measured ("Measured with": stopwatch, timing gates, jump mat, radar gun… grouped by kind of
+test, or Other; plus an optional "How it's measured" note). It's kept with each testing day, shown on score entry and in
+history, and the Improvement report flags "Method changed" when the two days were measured differently.
+
 ### 4.8 Sign in as (shadow mode)
 App Settings → Accounts & sign-in → **Sign in as** (or a person's page). Use the app exactly as someone else: a person
 with a sign-in (from their sign-in screen, "Continue as … (admin, no password)"), someone who used a public link (their
@@ -255,7 +275,7 @@ test/check.js             page health check (npm run check)
   `data-sort="…"` on a cell to sort it by a different value than its text.
 - **While scrolling:** what stays on screen is chosen per screen in `public/app-ui.js` (`SCREENS`: a path pattern and the
   pieces that stick, top to bottom; "band" = the navy title band, "head" = the tables' column headings). Everything else
-  scrolls behind them. Phones keep only the band (shrunk to its title) plus Check-in's bars. The logo tucks into the top bar
+  scrolls behind them. Phones: only the slim top bar stays; everything else scrolls as one page. The logo tucks into the top bar
   once scrolled; "↑ Top" appears far down a long page. Current choices: All Boards band+tabs · Board setup band+board tabs ·
   other board screens band+board tabs+sub-tabs · People band+main tabs+filters · other App Settings band+main tabs+sub-tabs+
   headings · Reports band+bar+sub-tabs+headings · Check-in day band+day bar · session check-in band+counts+Signed up ·
@@ -289,6 +309,46 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.42.11** "📏 Add assessment data" on People (each athlete), a board's Access & people (each athlete) and an
+  athlete's page: only the testing days that apply to them (a program they're on, no program, or where they have
+  scores); one day opens score entry on that athlete with their scores filled in, several show a short list; Back
+  returns to where you started.
+- **v0.42.10** Assessments moved to App Settings → People (next to People).
+- **v0.42.9** Assessment testing days: right under the name, formatted like drills (Day · Kind · Program · Tested ·
+  Families · Enter scores / Delete), + Testing day on top with a note that it uses the current drills (disabled until
+  there are drills); each day shows "Drills locked (has scores)" or "Follows drill changes".
+- **v0.42.8** Assessment drills: column headings, one line per drill (▲▼ · drill · unit · better · tries · measured with
+  · how · Save / Retire), + Add drill on top with new drills added at the bottom; labeled cards on phones.
+- **v0.42.7** People → a person → Kind: change between athlete and adult (an adult who is someone's parent/guardian
+  can't become an athlete; an athlete keeps any parent links, with a note).
+- **v0.42.6** Account requests: the form asks "I am…" (athlete / parent or guardian / other adult; athletes add a birth
+  year); Requests suggests people already in People with the same email or name ("This is …"), and approving links the
+  sign-in to that record (it keeps its kind) instead of creating a new adult; a new athlete is created as an athlete.
+  Merge works across kinds (the record you keep decides). Fixed: merging a duplicate whose sign-in moves to the kept
+  record failed ("duplicate key").
+- **v0.42.5** Assessments: "Measured with" and "How it's measured" on each drill; "Method changed" flag in reports.
+- **v0.42.4** Phones, part 3: filters fold behind one "Filters · N on" button (Activity, Email log, People, Reports);
+  cards are compact (fields side by side, empty ones hidden) and long lists show 20 at a time (Show 20 more); with a
+  level open, Board setup folds the tree and the level settings so the sessions come first.
+- **v0.42.3** Phones, part 2: every wide table shows each row as a card ("label: value", from its own headings; app-ui.js
+  cardify, opt out with data-nocards); 44px buttons, bigger checkboxes and roomier links; the sign-up page's filters get
+  their own row (Calendar view squeezed them); taller tree rows in Board setup.
+- **v0.42.2** Phones, part 1: sign-up rows stack the answer box and a full-width Claim (Claim was cut off); 16px text in
+  every box (no iPhone zoom); slim messages that close sooner or on tap; no floating ↑ Top; Add session fields stack;
+  no mid-word breaks; nothing under 12px; step bars fit; panel header buttons wrap.
+- **v0.42.1** Assessments: rename, reorder drills, retire/restore assessments and drills, testing days keep the drills as
+  they were (locked once scored), tries warning, change history.
+- **v0.42** Assessments: drills and testing days, score entry on phone/tablet, athlete history, family sharing per day,
+  reports (improvement, vs attendance, team averages).
+- **v0.41.5** Phones: title bands put the icon beside the title (details wrap under the title); bands are 30–40% shorter.
+- **v0.41.4** Phones: no gap between a claim's description and its buttons (the card fits its content).
+- **v0.41.3** Phones: My Claims' upcoming claims show the date down the left and the buttons under the session (they
+  overlapped the date).
+- **v0.41.2** Phones: one plain page scroll. Nothing sticks or shrinks except the top bar (the band used to shrink while
+  scrolling, which made the browser jump back to the top), and lists no longer scroll inside their own box. Desktop unchanged.
+- **v0.41.1** Board defaults → Question: "Show the question and answers on the Week sheet" (off by default).
+- **v0.41** Reports: level / team / location / weekday / search filters on every report (Claims too), PDF export,
+  Week sheet options. New dependency: pdfmake.
 - **v0.40** Reports: Overview, Attendance, Sessions, RSVP, Families (incl. volunteer hours), Emails, printable Week sheet.
 - **v0.39.4** Check-in for RSVP boards (always included, attendance tracked or not): day cards show going / can't make it
   / no answer; an event shows Going (with notes, to check in), Can't make it (with notes) and No answer yet.

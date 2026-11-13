@@ -112,7 +112,7 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
         <thead><tr><th><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked)"></th><th>${esc(L.participant.one)}</th><th>${esc(L.group.one)}</th>${tags.length ? "<th>Tags</th>" : ""}<th>Emails</th><th>Engagement</th><th>Also in</th><th></th></tr></thead>
         <tbody>${members.filter((a) => !stageF || (a.eng && a.eng.stage === stageF)).map((a) => `<tr>
           <td><input type="checkbox" class="pick" name="athlete_id" value="${a.id}" form="bulk" aria-label="Select ${esc(a.first_name)}"></td>
-          <td><a href="/admin/people/${a.id}" title="Details, family, and contact info are edited in People">${esc(a.last_name)}, ${esc(a.first_name)}</a>${a.self_user_id ? ` <span class="fine-inline">adult</span>` : ""}</td>
+          <td><a href="/admin/people/${a.id}" title="Details, family, and contact info are edited in People">${esc(a.last_name)}, ${esc(a.first_name)}</a>${(a.assessDays || []).length ? `<div class="ae-row">${require("../assess").entryButton(a.id, a.assessDays, back, { small: true })}</div>` : ""}${a.self_user_id ? ` <span class="fine-inline">adult</span>` : ""}</td>
           <td><form method="post" action="/admin/members/${a.id}?s=${sc.id}" class="inline-group">
             <input type="hidden" name="return_to" value="${esc(back)}">
             ${groupSelect(sc, a.group_name, `onchange="this.form.submit()" aria-label="${esc(L.group.one)}"`)}

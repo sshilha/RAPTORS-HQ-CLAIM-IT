@@ -366,7 +366,7 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       // only the list (or the calendar) scrolls; everything above it stays put. Tiny windows fall back to normal scrolling.
       var box = document.getElementById("b-scroll"), root = document.documentElement, key = "b-scroll:" + location.pathname + ":" + (/[?&]v=cal/.test(location.search) ? "cal" : "list");
       function fit() {
-        root.classList.remove("b-fixed"); box.style.height = "";
+        root.classList.remove("b-fixed"); box.style.height = ""; if (window.innerWidth <= 760) return;   /* phones: the whole page scrolls */
         root.classList.add("b-measure");   // hide the footer while measuring; keep anything else below the list (like Sign in)
         var after = Math.max(0, document.body.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom);
         root.classList.remove("b-measure");
