@@ -35,6 +35,8 @@ router.get("/", wrap(async (req, res) => {
     && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.status || PP.statusOf(p) === f.status) && (!batchIds || batchIds.has(p.id)));
   const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [];
   const waiting = (await query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
+  const assessDays = await require("../assess").daysFor(shown.filter((x) => x.kind === "athlete").map((x) => x.id));
+  for (const x of shown) x.assessDays = assessDays.get(x.id) || [];
   res.send(v.directoryPage({ waiting, head: await AHead(), user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
 }));
 
@@ -328,6 +330,7 @@ router.get("/:id", wrap(async (req, res) => {
   const acct = p.self_user_id ? (await query(`SELECT * FROM users WHERE id=$1`, [p.self_user_id])).rows[0] : null;
   const history = acct || p.email ? (await query(`SELECT * FROM login_events WHERE user_id=$1 OR (user_id IS NULL AND lower(identity)=lower($2)) ORDER BY at DESC LIMIT 25`, [acct ? acct.id : 0, p.email || ""])).rows : [];
   const allTeams = [...new Set((await query(`SELECT unnest(groups) AS g FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.g))].sort();
+  p.assessDays = (await require("../assess").daysFor([p.id])).get(p.id) || [];
   res.send(v.personPage({ head: await AHead(), user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
 }));
 

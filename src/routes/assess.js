@@ -157,6 +157,8 @@ router.post("/admin/assess/days/:id(\\d+)/delete", auth.requireAdmin, wrap(async
 router.get("/assess/days/:id(\\d+)", auth.requireUser, wrap(async (req, res) => {
   const d = await A.day(int(req.params.id)); if (!d || !(await canEnter(req.user, d))) return go(res, "/dashboard", { err: "You can't enter scores for that." });
   const people = await A.roster(d), res0 = await A.results(d.id), mode = req.query.mode === "drill" ? "drill" : "athlete";
+  const backTo = /^\/(admin|reports|checkin)[\w\/?=&%.-]*$/.test(String(req.query.back || "")) ? String(req.query.back) : "";   // came from People / Access & people / a person
+  const keep = backTo ? `&back=${encodeURIComponent(backTo)}` : "";
   const val = new Map(res0.map((r) => [`${r.athlete_id}|${r.drill_id}|${r.attempt}`, r.value]));
   const done = (aid) => d.drills.every((dr) => [...Array(dr.attempts)].some((_, i) => val.has(`${aid}|${dr.id}|${i + 1}`)));
   const nm = (p) => `${p.first_name} ${p.last_name || ""}`.trim();
@@ -164,9 +166,9 @@ router.get("/assess/days/:id(\\d+)", auth.requireUser, wrap(async (req, res) => 
   let body;
   if (mode === "athlete") {
     const i = Math.max(0, people.findIndex((p) => p.id === int(req.query.a))), p = people[i];
-    body = p ? `<div class="as-pick"><a class="sb-btn" href="?mode=athlete&a=${(people[i - 1] || people[people.length - 1]).id}" aria-label="Previous athlete">‹</a>
-        <select onchange="location.search='?mode=athlete&a='+this.value" aria-label="Athlete">${people.map((x) => `<option value="${x.id}"${x.id === p.id ? " selected" : ""}>${done(x.id) ? "✓ " : ""}${esc(nm(x))}${x.team ? ` (${esc(x.team)})` : ""}</option>`).join("")}</select>
-        <a class="sb-btn primary" href="?mode=athlete&a=${(people[i + 1] || people[0]).id}">Next athlete ›</a></div>
+    body = p ? `<div class="as-pick"><a class="sb-btn" href="?mode=athlete&a=${(people[i - 1] || people[people.length - 1]).id}${keep}" aria-label="Previous athlete">‹</a>
+        <select onchange="location.search='?mode=athlete&a='+this.value+'${keep}'" aria-label="Athlete">${people.map((x) => `<option value="${x.id}"${x.id === p.id ? " selected" : ""}>${done(x.id) ? "✓ " : ""}${esc(nm(x))}${x.team ? ` (${esc(x.team)})` : ""}</option>`).join("")}</select>
+        <a class="sb-btn primary" href="?mode=athlete&a=${(people[i + 1] || people[0]).id}${keep}">Next athlete ›</a></div>
       <h2 class="as-who">${esc(nm(p))}${p.team ? ` <span class="fine">${esc(p.team)}</span>` : ""}</h2>
       <div class="as-cards">${d.drills.map((dr) => `<section class="as-card"><b>${esc(dr.name)}</b><span class="fine">${esc(dr.unit || "")}${dr.unit ? " · " : ""}${dr.better === "higher" ? "higher is better" : "lower is better"}</span>${dr.method ? `<span class="as-m">📏 ${esc(dr.method)}${dr.method_note ? ` · ${esc(dr.method_note)}` : ""}</span>` : ""}
         <div class="as-tries">${[...Array(dr.attempts)].map((_, k) => `<label><span>Try ${k + 1}</span>${box(p.id, dr, k + 1)}</label>`).join("")}</div></section>`).join("")}</div>` : `<p class="muted">No athletes to test. Link the testing day to a program with athletes on it.</p>`;
@@ -179,9 +181,9 @@ router.get("/assess/days/:id(\\d+)", auth.requireUser, wrap(async (req, res) => 
   }
   const tested = people.filter((p) => done(p.id)).length;
   res.send(layout({ title: `Scores · ${d.assessment}`, user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), tab: "checkin", dash: true,
-    body: `<div class="d-wrap">${auth.isAdmin(req.user) ? `<nav class="back-row"><a class="back-btn" href="/admin/assess/${d.assessment_id}">${ARROW}${esc(d.assessment)}</a></nav>` : ""}
+    body: `<div class="d-wrap">${backTo ? `<nav class="back-row"><a class="back-btn" href="${esc(backTo)}">${ARROW}Back</a></nav>` : auth.isAdmin(req.user) ? `<nav class="back-row"><a class="back-btn" href="/admin/assess/${d.assessment_id}">${ARROW}${esc(d.assessment)}</a></nav>` : ""}
     <section class="bh2"><div class="bh2-l"><div><div class="bh2-t"><h1>${esc(d.kind)} · ${esc(d.assessment)}</h1></div><span class="bh2-meta">${esc(fmtDay(d.day))}${d.board ? ` · ${esc(d.board)}` : ""} · <span id="as-n">${tested}</span> of ${people.length} fully tested</span></div></div></section>
-    <nav class="sub-tabs"><a href="?mode=athlete"${mode === "athlete" ? ' aria-current="page"' : ""}>By athlete</a><a href="?mode=drill"${mode === "drill" ? ' aria-current="page"' : ""}>By drill (station)</a></nav>
+    <nav class="sub-tabs"><a href="?mode=athlete${req.query.a ? `&a=${int(req.query.a)}` : ""}${keep}"${mode === "athlete" ? ' aria-current="page"' : ""}>By athlete</a><a href="?mode=drill${keep}"${mode === "drill" ? ' aria-current="page"' : ""}>By drill (station)</a></nav>
     <div class="sub-body"><section class="d-card as-body">${body}<p class="fine as-note">Scores save as you type (✓ = saved). Clear a box to remove that try.</p></section></div></div>
     <script>(function () { var t = {};
       function save(el) { el.classList.remove("ok", "bad"); el.classList.add("busy");

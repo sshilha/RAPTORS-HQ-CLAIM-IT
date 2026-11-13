@@ -119,4 +119,27 @@ async function history(athleteId, { sharedOnly = false } = {}) {
   }
   return [...out.values()];
 }
-module.exports = { METHODS, METHOD_LIST, dayDrills, syncDays, logChange, hasScores, ensure, KINDS, list, get, day, roster, results, save, score, change, history };
+// testing days that apply to each athlete: linked to a program they're on, linked to none (everyone), or where they
+// already have scores. Active assessments only, newest first. → Map athlete id → [{ id, day, kind, assessment }]
+async function daysFor(athleteIds) {
+  const out = new Map(); if (!athleteIds.length) return out;
+  try { await ensure(); } catch (e) { return out; }
+  const rows = (await query(`SELECT a.id AS athlete_id, d.id, d.day, d.kind, x.name AS assessment FROM athletes a
+      JOIN assess_days d ON true JOIN assessments x ON x.id=d.assessment_id AND x.archived_at IS NULL
+    WHERE a.id = ANY($1) AND a.kind='athlete' AND (d.board_id IS NULL OR EXISTS (SELECT 1 FROM schedule_members m WHERE m.schedule_id=d.board_id AND m.athlete_id=a.id)
+      OR EXISTS (SELECT 1 FROM assess_results r WHERE r.day_id=d.id AND r.athlete_id=a.id))
+    ORDER BY d.day DESC, d.id DESC`, [athleteIds])).rows;
+  for (const r of rows) { if (!out.has(r.athlete_id)) out.set(r.athlete_id, []); out.get(r.athlete_id).push(r); }
+  return out;
+}
+// "Add assessment data": straight to score entry for one testing day, or a short menu when there are several
+function entryButton(athleteId, days, back, { small = false } = {}) {
+  if (!days || !days.length) return "";
+  const esc = (x) => String(x == null ? "" : x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const day = (d) => new Date(String(d.day.toISOString ? d.day.toISOString() : d.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const href = (d) => `/assess/days/${d.id}?mode=athlete&a=${athleteId}&back=${encodeURIComponent(back || "")}`;
+  const cls = small ? "sb-btn sm ae-btn" : "sb-btn ae-btn";
+  if (days.length === 1) return `<a class="${cls}" href="${href(days[0])}" title="${esc(`${days[0].assessment} · ${days[0].kind} · ${day(days[0])}`)}">📏 Add assessment data</a>`;
+  return `<details class="ae-menu"><summary class="${cls}">📏 Add assessment data ▾</summary><div class="ae-list">${days.slice(0, 10).map((d) => `<a href="${href(d)}"><b>${esc(d.assessment)}</b><span>${esc(d.kind)} · ${esc(day(d))}</span></a>`).join("")}</div></details>`;
+}
+module.exports = { daysFor, entryButton, METHODS, METHOD_LIST, dayDrills, syncDays, logChange, hasScores, ensure, KINDS, list, get, day, roster, results, save, score, change, history };

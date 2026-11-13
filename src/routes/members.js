@@ -48,6 +48,7 @@ router.get("/", wrap(async (req, res) => {
   const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "access" });
   const card = String(req.query.card || "");
   const sub = ["people", "groups", "shortcuts"].includes(req.query.sub) ? req.query.sub : ({ groups: "groups", tags: "groups", copy: "groups", presets: "shortcuts" }[card] || "people");
+  { const ad = await require("../assess").daysFor(members.map((m) => m.id)); for (const m of members) m.assessDays = ad.get(m.id) || []; }
   res.send(v.membersPage({ eng: engCounts, stageF,  head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams, sub, addOpen: card === "add" || req.query.add === "1" || (!total && sub === "people") }));
 }));
 

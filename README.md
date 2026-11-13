@@ -206,7 +206,7 @@ about; claims and cancels from before it existed are filled in once at startup.
   from v0.37. (src/presence.js: users.last_seen_*, board_views.)
 
 ### 4.7c Assessments (performance testing)
-App Settings → Organization → **Assessments**: an assessment (e.g. Speed & Agility) with its drills (unit, lower or higher
+App Settings → People → **Assessments**: an assessment (e.g. Speed & Agility) with its drills (unit, lower or higher
 is better, number of tries) and testing days (date; Baseline / Midpoint / Final / Other; optionally the program whose
 athletes are tested). **Enter scores** (phone/tablet, saves as you type): By athlete (all drills, Next athlete) or By drill
 (station: every athlete's tries). Every try is kept; reports choose Best or Average. Results belong to the athlete, so
@@ -309,6 +309,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.42.11** "📏 Add assessment data" on People (each athlete), a board's Access & people (each athlete) and an
+  athlete's page: only the testing days that apply to them (a program they're on, no program, or where they have
+  scores); one day opens score entry on that athlete with their scores filled in, several show a short list; Back
+  returns to where you started.
+- **v0.42.10** Assessments moved to App Settings → People (next to People).
 - **v0.42.9** Assessment testing days: right under the name, formatted like drills (Day · Kind · Program · Tested ·
   Families · Enter scores / Delete), + Testing day on top with a note that it uses the current drills (disabled until
   there are drills); each day shows "Drills locked (has scores)" or "Follows drill changes".
