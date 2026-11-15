@@ -12,6 +12,7 @@ function more(f, args) {
   if (f.levels && f.levels.length) { args.push(f.levels); w.push(`i.node_id = ANY($${args.length})`); }
   if (f.location) { args.push(f.location); w.push(`coalesce(nullif(i.location,''), sc.event_location) = $${args.length}`); }
   if (f.days && f.days.length) { args.push(f.days); w.push(`EXTRACT(DOW FROM i.starts_at AT TIME ZONE '${TZ}')::int = ANY($${args.length})`); }
+  if (f.btype) { args.push(f.btype); w.push(`sc.board_type = $${args.length}`); }   // Session type = the board's type
   return w.length ? ` AND ${w.join(" AND ")}` : "";
 }
 
@@ -31,6 +32,7 @@ async function sessions(f) {
 }
 // confirmed claims on past sessions in range (for attendance)
 async function claimsIn(f, { past = true, statuses = ["confirmed"] } = {}) {
+  if (f.cstatus) statuses = statuses.includes(f.cstatus) || f.cstatus === "canceled" ? [f.cstatus] : statuses;   // Claim status filter
   const [lo, hi] = span("$2", "$3"), args = [f.boards, f.from, f.to, statuses];
   let x = more(f, args); if (f.team) { args.push(f.team); x += ` AND m.group_name = $${args.length}`; }
   return (await query(`SELECT c.id, c.status, c.attended, c.walk_in, c.note, c.counts, c.added_by_admin, c.rsvp, a.id AS athlete_id, a.first_name, a.last_name, m.group_name AS team, i.id AS item_id, i.title, i.starts_at, i.ends_at,
@@ -40,6 +42,7 @@ async function claimsIn(f, { past = true, statuses = ["confirmed"] } = {}) {
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id
     LEFT JOIN schedule_members m ON m.schedule_id=i.schedule_id AND m.athlete_id=a.id
     WHERE i.schedule_id = ANY($1) AND c.status = ANY($4) AND i.canceled_at IS NULL AND i.starts_at >= ${lo} AND i.starts_at < ${hi}${past ? " AND coalesce(i.ends_at, i.starts_at) < now()" : ""}${x}
+      ${f.cstatus === "canceled" ? "AND c.rsvp IS NULL" : ""}${f.astatus === "attended" ? " AND c.attended" : f.astatus === "noshow" ? " AND c.attended = false" : f.astatus === "unrecorded" ? " AND c.attended IS NULL AND coalesce(i.ends_at, i.starts_at) < now()" : ""}
     ORDER BY i.starts_at, lower(a.last_name), lower(a.first_name)`, args)).rows;
 }
 const pastClaims = (f) => claimsIn(f);
@@ -47,10 +50,10 @@ const nm = (r) => `${r.first_name} ${r.last_name || ""}`.trim();
 const REPEAT = 3;   // no-shows that count as "repeat"
 
 // ---------- Claims ----------
-const stat = (c) => c.status === "waitlisted" ? "Waitlist" : c.board_type === "rsvp" ? "Going" : c.walk_in ? "Walk-in" : c.added_by_admin ? "Added by admin" : "Claimed";
-const att = (c) => c.attended == null ? "" : c.attended ? "Here" : "No-show";
+const stat = (c) => c.status === "canceled" ? "Canceled" : c.status === "waitlisted" ? "Waitlist" : c.board_type === "rsvp" ? "Going" : c.walk_in ? "Walk-in" : c.added_by_admin ? "Added by admin" : "Claimed";
+const att = (c) => c.status === "canceled" ? "" : c.attended == null ? "" : c.attended ? "Here" : "No-show";
 async function claimsAll(f) {
-  const rows = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).map((c) => ({ id: c.athlete_id, name: nm(c), team: c.team || "", session: [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session",
+  const rows = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).map((c) => ({ canceled_at: c.canceled_at, id: c.athlete_id, name: nm(c), team: c.team || "", session: [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session",
     when: c.starts_at, board: c.board, location: c.location || "", status: stat(c), attended: att(c), note: c.note || "" }));
   return { cols: [["name", "Name"], ["team", "Team"], ["session", "Session"], ["when", "When", "dt"], ["board", "Board"], ["location", "Location"], ["status", "Status"], ["attended", "Attended"], ["note", "Answer / note"]],
     rows, link: (r) => `/admin/people/${r.id}`, note: "Every claim (and waitlist spot) in the range that matches the filters." };
@@ -65,6 +68,28 @@ async function claimsByPerson(f) {
   }
   return { cols: [["name", "Name"], ["team", "Team"], ["claimed", "Claimed", "num"], ["waitlisted", "Waitlisted", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["last", "Last one", "dt"], ["next", "Next one", "dt"]],
     rows: [...by.values()].sort((a, b) => a.name.localeCompare(b.name)), link: (r) => `/admin/people/${r.id}`, note: "Each person's claims in the range that match the filters." };
+}
+
+// ---------- Teams: participation grouped by team ----------
+async function teamsReport(f) {
+  const cl = (await claimsIn(f, { past: false, statuses: ["confirmed"] })).filter((c) => c.board_type !== "rsvp"), now = Date.now(), by = new Map();
+  for (const c of cl) {
+    const k = c.team || "(no team)", x = by.get(k) || { team: k, people: new Set(), claims: 0, done: 0, here: 0, noshow: 0, upcoming: 0 };
+    x.people.add(c.athlete_id); x.claims++;
+    if (new Date(c.ends_at || c.starts_at).getTime() < now) { x.done++; if (c.attended === true) x.here++; if (c.attended === false) x.noshow++; } else x.upcoming++;
+    by.set(k, x);
+  }
+  return { cols: [["team", "Team"], ["people", "Participants", "num"], ["claims", "Total claims", "num"], ["per", "Claims per person", "num"], ["done", "Completed sessions", "num"], ["att", "Attendance", "pct"], ["noshow", "No-shows", "num"], ["upcoming", "Upcoming claims", "num"]],
+    rows: [...by.values()].map((x) => ({ ...x, people: x.people.size, per: Math.round((x.claims / x.people.size) * 10) / 10, att: pct(x.here, x.here + x.noshow) })).sort((a, b) => b.people - a.people),
+    note: "Active claims on program and volunteer boards, grouped by each athlete's team on that board. Attendance = attended ÷ (attended + no-shows) on past sessions." };
+}
+// ---------- Volunteers: shift coverage ----------
+async function coverage(f) {
+  const rows = (await sessions(f)).filter((s) => s.board_type === "volunteer"), now = Date.now();
+  return { cols: [["when", "When", "dt"], ["session", "Shift"], ["board", "Board"], ["capacity", "Needed", "num"], ["taken", "Claimed", "num"], ["open", "Open", "num"], ["cov", "Coverage", "pct"], ["status", "Status"]],
+    rows: rows.map((s) => ({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, capacity: s.capacity, taken: s.taken, open: s.capacity ? Math.max(s.capacity - s.taken, 0) : null,
+      cov: s.capacity ? pct(Math.min(s.taken, s.capacity), s.capacity) : null, status: new Date(s.starts_at).getTime() < now ? "Past" : !s.capacity ? "No limit" : s.taken >= s.capacity ? "Covered" : "Needs people" })),
+    link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "Shifts on volunteer boards in the range. Claimed means signed up, not completed; completed hours are under Volunteer hours." };
 }
 
 // ---------- Attendance ----------
@@ -456,4 +481,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

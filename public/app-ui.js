@@ -171,7 +171,7 @@
   }
   if (PHONE) {
     [].forEach.call(document.querySelectorAll(".act-f, .dir-filters-bar, .r-filters"), function (f) {
-      if (f.closest(".flt") || f.closest("dialog")) return;
+      if (f.closest(".flt") || f.closest("dialog") || f.closest(".rf-panel")) return;   // the Reports filter panel folds itself
       var d = document.createElement("details"), sm = document.createElement("summary"), n = activeCount(f);
       d.className = "flt"; sm.innerHTML = '<span class="flt-ic" aria-hidden="true">⚙</span> Filters' + (n ? ' <b class="flt-n">' + n + ' on</b>' : "") + '<span class="flt-car" aria-hidden="true">▾</span>';
       d.appendChild(sm); f.parentNode.insertBefore(d, f); d.appendChild(f);

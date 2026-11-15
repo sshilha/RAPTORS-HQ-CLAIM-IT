@@ -70,27 +70,85 @@ function hBars(data, { unit = "%", max = 100 } = {}) {
 }
 const STATUS = (taken, cap) => { if (!cap) return ["No limit", ""]; const p = taken / cap; return p > 1 ? ["Over capacity", "over"] : p >= 1 ? ["Full", "full"] : p >= 0.9 ? ["Nearly full", "near"] : p >= 0.5 ? ["Healthy", "ok"] : ["Low", "low"]; };
 
-function reportPage({ user, flash, admin, boards, board, several = null, qd = "", QD = {}, r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
+
+const SV = (d, cls = "ic") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const IC2 = {
+  chart: SV('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', "ic"), filter: SV('<path d="M22 3H2l8 9.5V19l4 2v-8.5z"/>'), layers: SV('<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>'),
+  stack: SV('<path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5"/>'), users: SV('<circle cx="9" cy="8" r="3.5"/><path d="M2 21v-1a6 6 0 0 1 12 0v1"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5a5 5 0 0 1 6 4.8V21"/>'),
+  pin: SV('<path d="M12 22s7-6.4 7-12a7 7 0 0 0-14 0c0 5.6 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>'), cal: SV('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/>'),
+  clip: SV('<rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 2.5h6v3H9zM9 11h6M9 15h4"/>'), user: SV('<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/>'),
+  search: SV('<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>'), reset: SV('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'), mark: SV('<path d="M6 3h12v18l-6-4-6 4z"/>'),
+  check: SV('<path d="m5 12.5 4.5 4.5L19 7"/>'), down: SV('<path d="m6 9 6 6 6-6"/>'), home: SV('<path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z"/>'),
+  list: SV('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'), hand: SV('<path d="M11 14h2a2 2 0 0 0 0-4h-3l-4 4 4 4h5l6-6-2-2-4 4"/><path d="m2 13 4 4"/>'),
+  mail: SV('<rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="m3 6 9 7 9-7"/>'), calcheck: SV('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18M9 15.5l2 2 4-4"/>'),
+  doc: SV('<path d="M14 2.5H6a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.5z"/><path d="M14 2.5v6h6M8 13h8M8 17h6"/>'), fam: SV('<circle cx="7" cy="6" r="2.5"/><circle cx="17" cy="6" r="2.5"/><circle cx="12" cy="12" r="2"/><path d="M3 21v-5a4 4 0 0 1 8 0M13 21v-5a4 4 0 0 1 8 0M9.5 21v-3a2.5 2.5 0 0 1 5 0v3"/>'),
+  bars: SV('<path d="M4 20V12M9 20V6M14 20v-9M19 20V4"/>'),
+};
+// the report sections (tabs) and their reports (chips under the tabs)
+const TABS = [["overview", "Overview", IC2.home, [["overview", ""]]], ["claims", "Claims", IC2.clip, [["person", "By person"], ["all", "All claims"]]],
+  ["sessions", "Sessions", IC2.cal, [["fill", "Fill & capacity"], ["busiest", "Busiest times"], ["locations", "Locations"]]],
+  ["attendance", "Attendance", IC2.users, [["attendance", "By athlete"], ["noshows", "No-shows"], ["unchecked", "Check-ins not done"]]],
+  ["teams", "Teams", IC2.users, [["teams", ""]]], ["volunteers", "Volunteers", IC2.hand, [["coverage", "Shift coverage"], ["volunteer", "Hours by family"]]],
+  ["waitlists", "Waitlists", IC2.list, [["waitlists", ""]]], ["families", "Families", IC2.fam, [["engagement", "Engagement"], ["notSignedUp", "Not signed up"]]],
+  ["assess", "Assessments", IC2.bars, [["assessResults", "Results"], ["assessLeaders", "Leaderboard"], ["assessTeamBest", "Best by team"], ["assessRecords", "Records"], ["assessImprove", "Improvement"], ["assessAttend", "vs attendance"], ["assessTeams", "Team improvement"]]],
+  ["comms", "Communications", IC2.mail, [["emails", ""]]], ["rsvp", "RSVP", IC2.calcheck, [["rsvp", "Events"], ["rsvpAthletes", "Athletes"]]], ["week", "Weekly Rosters", IC2.doc, [["week", ""]]]];
+// which filters each report uses (the rest show disabled)
+const SESSIONS_R = ["overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "coverage", "volunteer", "rsvp", "rsvpAthletes", "week"];
+const USES = { level: SESSIONS_R, loc: SESSIONS_R, days: SESSIONS_R, bt: ["overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "week"],
+  cs: ["person", "all"], at: ["person", "all", "attendance"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "engagement", "notSignedUp", "emails"], team: [...SESSIONS_R, "engagement", "notSignedUp"] };
+
+function reportPage({ user, flash, admin, boards, board, several = null, qd = "", QD = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
   const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const X = o.assess;
   const PAIR = ["assessImprove", "assessAttend", "assessTeams"].includes(r);
   const sIds = board ? String(board.id) : several ? several.map((b) => b.id).join(",") : "all";
   const state = { as: X && X.test ? X.test.id : "", da: X && PAIR ? X.a || "" : "", db: X && PAIR ? X.b || "" : "", how: X && X.how === "avg" ? "avg" : "",
-    qd: qd || "", dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd ? "" : from, to: qd ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
+    qd: qd || "", bt: btype, cs: cstatus, at: astatus, dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd ? "" : from, to: qd ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
   const url = (x) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ ...state, ...x }).filter(([, v]) => v !== "" && v != null))); return `/reports?${p}`; };
-  const head = `<section class="bh2 r-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${ICON}</span><div><div class="bh2-t"><h1>Reports</h1></div>
-      <span class="bh2-meta">${esc(TITLES[r] || "")} · ${esc(filterText)}</span></div></div></section>`;
+  const uses = (k) => (USES[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
+  const off = (k) => (uses(k) ? "" : ` disabled title="Not used by this report"`);
+  const fmtD = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const period = r === "week" ? `Week of ${fmtD(week)}` : X ? (X.test ? X.test.name : "Assessments") : `${fmtD(from)} – ${fmtD(to)}`;
   const chosen = new Set(board ? [board.id] : several ? several.map((b) => b.id) : []);
-  const boardLabel = board ? board.name : several ? `${several.length} boards` : "All boards";
-  const bar = `<nav class="bh2-tabs dash-tabs r-gbar"><form method="get" action="/reports" class="r-pick" id="rf"><input type="hidden" name="r" value="${esc(r)}">
-      <details class="r-boards"><summary class="sb-btn"><span class="r-pick-l">Boards</span> ${esc(boardLabel)} ▾</summary><div class="r-boards-list">
-        <label class="radio-row"><input type="checkbox" name="s" value="all"${chosen.size ? "" : " checked"} onchange="if (this.checked) this.form.querySelectorAll('input[name=s]:not([value=all])').forEach(function (c) { c.checked = false; })"> All boards</label>
-        ${boards.map((b) => `<label class="radio-row"><input type="checkbox" name="s" value="${b.id}"${chosen.has(b.id) ? " checked" : ""} onchange="if (this.checked) this.form.querySelector('input[name=s][value=all]').checked = false"> ${esc(b.name)}${b.archived_at ? ' <span class="fine">(archived)</span>' : ""}</label>`).join("")}
-        <button class="btn-small" type="submit">Show</button></div></details>
-      ${r === "week" ? `<label class="r-d">Week of<input type="date" name="week" value="${esc(week)}" onchange="this.form.submit()"></label>`
-        : X ? "" : `<span class="r-qd">${Object.entries(QD).map(([k, l]) => `<a href="${url({ qd: k, from: "", to: "" })}"${qd === k ? ' class="on" aria-current="true"' : ""}>${l}</a>`).join("")}<a href="${url({ qd: "" })}"${qd ? "" : ' class="on"'} onclick="var d = document.getElementById('rqc'); if (d) { d.hidden = !d.hidden; return false; }">Custom</a></span>
-          <span class="r-custom" id="rqc"${qd ? " hidden" : ""}><label class="r-d">From<input type="date" name="from" value="${esc(from)}"></label><label class="r-d">To<input type="date" name="to" value="${esc(to)}"></label><button class="sb-btn" type="submit">Apply</button></span>`}</form>
-      <span class="r-dl">${data.cols || r === "week" || r === "overview" ? `<a class="sb-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="sb-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="sb-btn" onclick="window.print()">Print</button>` : ""}</span></nav>`;
+  const boardLabel = board ? board.name : several ? `${several.length} boards` : "All Boards";
+  const hidden = (skip) => Object.entries(state).filter(([k, v]) => v !== "" && v != null && !skip.includes(k)).map(([k, v]) => `<input type="hidden" name="${k}" value="${esc(String(v))}">`).join("");
+  // ---- header ----
+  const head = `<header class="ra-hd"><div class="ra-l"><span class="ra-tile">${IC2.chart}</span><div><h1>Reports &amp; Analytics</h1><p>Claim-It • Participation, Attendance &amp; Board Management</p></div></div>
+    <span class="ra-sep"></span><img class="ra-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="Chippewa Valley Raptors Claim It">
+    <div class="ra-r"><div class="ra-period">${IC2.cal}<div><span>Reporting Period</span><b>${esc(period)}</b></div></div><span class="ra-sep"></span>
+      <details class="ra-boards"><summary>${IC2.layers}<b>${esc(boardLabel)}</b>${IC2.down}</summary>
+        <form method="get" action="/reports" class="ra-boards-list">${hidden(["s"])}
+          <label class="radio-row"><input type="checkbox" name="s" value="all"${chosen.size ? "" : " checked"} onchange="if (this.checked) this.form.querySelectorAll('input[name=s]:not([value=all])').forEach(function (c) { c.checked = false; })"> All boards</label>
+          ${boards.map((b) => `<label class="radio-row"><input type="checkbox" name="s" value="${b.id}"${chosen.has(b.id) ? " checked" : ""} onchange="if (this.checked) this.form.querySelector('input[name=s][value=all]').checked = false"> ${esc(b.name)}${b.archived_at ? ' <span class="fine">(archived)</span>' : ""}</label>`).join("")}
+          <button class="btn-small" type="submit">Show boards</button></form></details></div></header>`;
+  // ---- the filter panel ----
+  const sel = (name, icon, label, opts, cur, extra = "") => `<label class="rf-f"><span class="rf-l">${icon}${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()"${extra}>${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
+  const boardOpts = [["all", "All boards"], ...(several ? [[several.map((b) => b.id).join(","), `${several.length} boards selected`]] : []), ...boards.map((b) => [b.id, b.name + (b.archived_at ? " (archived)" : "")])];
+  const levelOpts = board && (o.levels || []).length ? [["", "All levels"], ...o.levels.map((n) => [n.id, "  ".repeat(n.d) + n.path])] : [["", board ? "No levels" : "All levels (pick one board)"]];
+  const row1 = `<div class="rf-row rf-r1">
+      ${sel("s", IC2.layers, "Boards", boardOpts, board ? board.id : several ? several.map((b) => b.id).join(",") : "all")}
+      ${sel("level", IC2.stack, "Level", levelOpts, o.level ? o.level.id : "", uses("level") && board && (o.levels || []).length ? "" : ` disabled title="${board ? "Not used by this report" : "Pick one board to filter by level"}"`)}
+      ${sel("team", IC2.users, "Team", [["", "All teams"], ...teams.map((t) => [t, t])], team || "", off("team"))}
+      ${sel("loc", IC2.pin, "Location", [["", "All locations"], ...(o.locations || []).map((l) => [l, l])], o.location || "", off("loc"))}
+      ${sel("bt", IC2.cal, "Session Type", [["", "All session types"], ...Object.entries(BT).filter(([k]) => kinds.includes(k) || btype === k)], btype, off("bt"))}</div>`;
+  const row2 = r === "week" ? `<div class="rf-row rf-r2"><span class="rf-l rf-lb">${IC2.cal}Week of</span><input type="date" class="rf-date" name="week" form="rf" value="${esc(week)}" onchange="this.form.submit()"></div>`
+    : `<div class="rf-row rf-r2${uses("dates") ? "" : " rf-off"}"><span class="rf-l rf-lb">${IC2.cal}Date Range</span>
+      <span class="rf-pills">${Object.entries(QD).map(([k, l]) => `<a href="${url({ qd: k, from: "", to: "" })}"${qd === k ? ' class="on" aria-current="true"' : ""}>${l}</a>`).join("")}<a href="${url({ qd: "" })}"${qd ? "" : ' class="on" aria-current="true"'} onclick="document.getElementById('rfc').hidden = false; [].forEach.call(this.parentNode.children, function (a) { a.classList.remove('on'); }); this.classList.add('on'); return false;">Custom</a></span>
+      <span class="rf-custom" id="rfc"${qd ? " hidden" : ""}><span class="rf-sep"></span><label class="rf-dl">From<input type="date" class="rf-date" name="from" form="rf" value="${esc(from)}"></label><label class="rf-dl">To<input type="date" class="rf-date" name="to" form="rf" value="${esc(to)}"></label>
+        <button class="rf-apply" type="submit" form="rf">${IC2.check}Apply</button></span></div>`;
+  const allDays = !(o.days || []).length, DAYS7 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const row3 = `<div class="rf-row rf-r3"><span class="rf-l rf-lb">${IC2.cal}Days of Week</span>
+      <span class="rf-days${uses("days") ? "" : " rf-off"}">${DAYS7.map((d, i) => `<label class="rf-day"><input type="checkbox" name="d" value="${i}" form="rf"${allDays || o.days.includes(i) ? " checked" : ""}${uses("days") ? "" : " disabled"} onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()"><span>${IC2.check}${d}</span></label>`).join("")}</span>
+      <span class="rf-sep"></span>
+      ${sel("cs", IC2.clip, "Claim Status", [["", "All claim statuses"], ...Object.entries(CS)], cstatus, off("cs"))}
+      ${sel("at", IC2.user, "Attendance Status", [["", "All attendance statuses"], ...Object.entries(AT)], astatus, off("at"))}
+      <span class="rf-sep"></span>
+      <label class="rf-search">${IC2.search}<input type="search" name="q" form="rf" value="${esc(o.q || "")}" placeholder="Search names, sessions, notes, emails…" aria-label="Search"></label></div>`;
+  const viewsMenu = `<details class="rf-views"><summary class="rf-btn">${IC2.mark}Save View${IC2.down}</summary><div class="rf-views-list">
+      <form method="post" action="/reports/views" class="rf-save"><input type="hidden" name="qs" value="${esc(new URLSearchParams(Object.fromEntries(Object.entries(state).filter(([, v]) => v !== "" && v != null))).toString())}">
+        <input name="name" maxlength="60" placeholder="Name this view, e.g. Monday Speed & Agility" required aria-label="View name"><button class="btn-small" type="submit">Save</button></form>
+      ${views.length ? `<span class="rf-vh">Saved views</span>${views.map((v) => `<div class="rf-v"><a href="/reports?${esc(v.qs)}">${esc(v.name)}</a><form method="post" action="/reports/views/${v.id}/delete" onsubmit="return window.confirm('Delete the saved view &quot;${esc(v.name).replace(/'/g, "")}&quot;?')"><input type="hidden" name="back" value="${esc(new URLSearchParams(Object.fromEntries(Object.entries(state).filter(([, x]) => x !== "" && x != null))).toString())}"><button class="x" type="submit" aria-label="Delete ${esc(v.name)}">×</button></form></div>`).join("")}` : `<span class="fine">No saved views yet. A view remembers this report and its filters.</span>`}</div></details>`;
+  const resetHref = (() => { const q = new URLSearchParams({ r }); if (X && X.test) q.set("as", X.test.id); return `/reports?${q}`; })();
   const dayOpt = (sel) => (X.days || []).map((d) => `<option value="${d.id}"${d.id === sel ? " selected" : ""}>${esc(d.kind)} · ${esc(new Date(String(d.day.toISOString ? d.day.toISOString() : d.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}${d.board ? ` · ${esc(d.board)}` : ""}</option>`).join("");
   const strip = `${X ? `<div class="r-filters r-assess">${X.tests.length ? `<label class="r-f">Assessment<select name="as" form="rf" onchange="document.querySelectorAll('[name=da],[name=db]').forEach(function (e) { e.disabled = true; }); this.form.submit()">${X.tests.map((t) => `<option value="${t.id}"${X.test && X.test.id === t.id ? " selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label>
       ${PAIR ? `<label class="r-f">From<select name="da" form="rf" onchange="this.form.submit()">${dayOpt(X.a)}</select></label><label class="r-f">To<select name="db" form="rf" onchange="this.form.submit()">${dayOpt(X.b)}</select></label>`
@@ -98,17 +156,20 @@ function reportPage({ user, flash, admin, boards, board, several = null, qd = ""
       <label class="r-f">Drill<select name="drill" form="rf" onchange="this.form.submit()"><option value="">All drills</option>${(X.drills || []).map((d) => `<option value="${d.id}"${X.drill === d.id ? " selected" : ""}>${esc(d.name)}${d.retired_at ? " (retired)" : ""}</option>`).join("")}</select></label>
       <label class="r-f">Count<select name="how" form="rf" onchange="this.form.submit()"><option value="best">Best try</option><option value="avg"${X.how === "avg" ? " selected" : ""}>Average of tries</option></select></label>` : `<span class="fine">No assessments yet: App Settings → People → Assessments.</span>`}
       ${X.tests.length && r === "assessLeaders" ? `<label class="r-f">Top<select name="top" form="rf" onchange="this.form.submit()">${[[5, "5"], [10, "10"], [25, "25"], [0, "Everyone"]].map(([v, l]) => `<option value="${v}"${X.top === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
-      ${X.tests.length ? `<label class="r-f r-born">Born<input name="bf" form="rf" inputmode="numeric" maxlength="4" placeholder="from" value="${esc(X.bornFrom || "")}" onchange="this.form.submit()">–<input name="bt" form="rf" inputmode="numeric" maxlength="4" placeholder="to" value="${esc(X.bornTo || "")}" onchange="this.form.submit()"></label>` : ""}</div>` : ""}<div class="r-filters">
-      ${X ? "" : board && (o.levels || []).length ? `<label class="r-f">Level<select name="level" form="rf" onchange="this.form.submit()"><option value="">All levels</option>${o.levels.map((n) => `<option value="${n.id}"${o.level && o.level.id === n.id ? " selected" : ""}>${"\u00a0\u00a0".repeat(n.d)}${esc(n.path)}</option>`).join("")}</select></label>` : board ? "" : `<span class="fine r-f">Pick one board to filter by level</span>`}
-      ${teams.length ? `<label class="r-f">Team<select name="team" form="rf" onchange="this.form.submit()"><option value="">All teams</option>${teams.map((t) => `<option${t === team ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></label>` : ""}
-      ${!X && (o.locations || []).length > 1 ? `<label class="r-f">Location<select name="loc" form="rf" onchange="this.form.submit()"><option value="">All locations</option>${o.locations.map((l) => `<option${l === o.location ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
-      ${X ? "" : `<span class="r-f r-days" role="group" aria-label="Days">${DAYS.map((d, i) => `<label class="r-day"><input type="checkbox" name="d" value="${i}" form="rf"${(o.days || []).includes(i) ? " checked" : ""} onchange="this.form.submit()"><span>${d}</span></label>`).join("")}</span>`}
-      <label class="r-f r-q"><input type="search" name="q" form="rf" value="${esc(o.q || "")}" placeholder="Search names, sessions, notes, emails…" aria-label="Search"></label>
-      ${r === "week" ? `<label class="r-f">Waitlist<select name="wl" form="rf" onchange="this.form.submit()"><option value="1">Show</option><option value="0"${o.wl === false ? " selected" : ""}>Hide</option></select></label>
-        <label class="r-f">Blank lines<select name="blanks" form="rf" onchange="this.form.submit()">${[0, 1, 2, 3, 4, 6].map((n) => `<option${n === o.blanks ? " selected" : ""}>${n}</option>`).join("")}</select></label>` : ""}
-    </div>
-    ${(() => { const on = [X && X.drill && ["drill", `Drill: ${((X.drills || []).find((d) => d.id === X.drill) || {}).name || ""}`], X && (X.bornFrom || X.bornTo) && ["bf", `Born: ${X.bornFrom || "…"}–${X.bornTo || "…"}`], X && !PAIR && X.dsel !== "all" && ["dsel", `Day: ${X.dsel.startsWith("k:") ? `All ${X.dsel.slice(2)} days` : (((X.days || []).find((d) => String(d.id) === X.dsel)) || {}).kind || ""}`], o.level && ["level", `Level: ${o.level.path}`], team && ["team", `Team: ${team}`], o.location && ["loc", `Location: ${o.location}`], (o.days || []).length && ["days", `Days: ${o.days.map((d) => DAYS[d]).join(", ")}`], o.q && ["q", `Search: “${o.q}”`]].filter(Boolean);
-      return on.length ? `<div class="r-on">${on.map(([k, l]) => `<a class="r-chip" href="${url(k === "bf" ? { bf: "", bt: "" } : { [k]: "" })}" title="Remove this filter">${esc(l)} <span aria-hidden="true">✕</span></a>`).join("")}<a class="link-dark" href="${url({ level: "", team: "", loc: "", days: "", q: "", drill: "", bf: "", bt: "", dsel: "" })}">Clear all</a></div>` : ""; })()}`;
+      ${X.tests.length ? `<label class="r-f r-born">Born<input name="bf" form="rf" inputmode="numeric" maxlength="4" placeholder="from" value="${esc(X.bornFrom || "")}" onchange="this.form.submit()">–<input name="bt" form="rf" inputmode="numeric" maxlength="4" placeholder="to" value="${esc(X.bornTo || "")}" onchange="this.form.submit()"></label>` : ""}</div>` : ""}`;
+  const panel = `<section class="rf-panel"><form method="get" action="/reports" id="rf" onsubmit="var d = this.querySelectorAll('input[name=d]'), on = [].filter.call(document.querySelectorAll('input[name=d][form=rf]'), function (x) { return x.checked; }); if (on.length === 7) [].forEach.call(document.querySelectorAll('input[name=d][form=rf]'), function (x) { x.disabled = true; });">${hidden(["s", "level", "team", "loc", "bt", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt2"]).replace(/<input type="hidden" name="(qd)"[^>]*>/, (m) => m)}</form>
+    <div class="rf-top"><span class="rf-h">${IC2.filter}<h2>Report Filters</h2><span>Refine the data across all reports</span></span>
+      <span class="rf-acts"><a class="rf-btn" href="${resetHref}">${IC2.reset}Reset Filters</a>${viewsMenu}</span></div>
+    <details class="rf-body" open><summary class="rf-fold">${IC2.filter}Filters${(() => { const n = [o.level, team, o.location, btype, cstatus, astatus, o.q, (o.days || []).length].filter(Boolean).length; return n ? ` <b>${n} on</b>` : ""; })()}${IC2.down}</summary>
+      ${row1}<div class="rf-div"></div>${row2}<div class="rf-div"></div>${row3}
+      ${X ? `<div class="rf-div"></div><div class="rf-row rf-r4">${strip}</div>` : ""}</details></section>`;
+  // ---- report navigation: only sections this person can use and that apply to the chosen boards ----
+  const showTab = (id) => id === "comms" ? admin : id === "volunteers" ? kinds.includes("volunteer") : id === "rsvp" ? kinds.includes("rsvp") : true;
+  const curTab = TABS.find((t) => t[3].some(([k]) => k === r)) || TABS[0];
+  const go = (k) => url({ r: k, v: "" });
+  const tabs = `<nav class="rt-tabs" aria-label="Reports">${TABS.filter((t) => showTab(t[0]) || t === curTab).map(([id, label, icon, subs]) => `<a href="${go(subs[0][0])}"${t0(id)}>${icon}<span>${label}</span></a>`).join("")}</nav>
+    ${curTab[3].length > 1 ? `<nav class="r-chips" aria-label="${esc(curTab[1])} reports">${curTab[3].map(([k, l]) => `<a href="${go(k)}"${k === r ? ' class="on" aria-current="page"' : ""}>${esc(l)}</a>`).join("")}</nav>` : ""}`;
+  function t0(id) { return id === curTab[0] ? ' class="on" aria-current="page"' : ""; }
   let body;
   if (r === "overview") {
     const D = data, fmt = (t) => new Date(t).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -139,7 +200,8 @@ function reportPage({ user, flash, admin, boards, board, several = null, qd = ""
   else body = `${r === "volunteer" && admin ? `<form method="post" action="${url({}).replace("/reports?", "/reports/volunteer-required?")}" class="r-req"><label>Hours each family needs <input type="number" name="hours" min="0" max="500" step="0.5" value="${required || ""}" placeholder="none"></label><button class="sb-btn" type="submit">Save</button><span class="fine">Leave empty for no requirement.</span></form>` : ""}
     ${data.note ? `<p class="fine r-note2">${esc(data.note)}</p>` : ""}${data.grid ? grid(data) : table(data)}`;
   return layout({ title: `Reports · ${TITLES[r] || ""}`, user, flash, admin, tab: "reports", dash: true,
-    body: `<div class="d-wrap r-wrap${r === "week" ? " r-print" : ""}">${head}${bar}${reportNav(r, url, true, admin)}<div class="sub-body r-sheet">${strip}<section class="d-card r-card">${body}</section></div></div>` });
+    body: `<div class="d-wrap r-wrap ra-page${r === "week" ? " r-print" : ""}">${head}${panel}${tabs}<div class="r-sheet"><div class="ra-dl">${data.cols || r === "week" || r === "overview" ? `<a class="rf-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="rf-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="rf-btn" onclick="window.print()">Print</button>` : ""}</div><section class="d-card r-card">${body}</section></div></div>
+    <script>if (window.innerWidth <= 760) { var fb = document.querySelector(".rf-body"); if (fb) fb.open = false; }</script>` });
 }
 
 function reportsPage({ user, flash, admin, boards, board, rows, people, teams, teamFilter, view, limitedTo }) {

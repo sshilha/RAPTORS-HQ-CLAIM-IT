@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
+const NEW = { teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const isDay = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || "");
@@ -23,6 +23,22 @@ router.post("/volunteer-required", auth.requireAdmin, wrap(async (req, res) => {
   await query(`CREATE TABLE IF NOT EXISTS app_kv (key TEXT PRIMARY KEY, value JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await query(`INSERT INTO app_kv (key, value) VALUES ('volunteer_hours_required', $1::jsonb) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, [JSON.stringify(n)]);
   go(res, `/reports?${new URLSearchParams({ ...req.query, r: "volunteer" })}`, { ok: n ? `Each family needs ${n} volunteer hours.` : "No volunteer-hour requirement." });
+}));
+// ---------- saved views: a name + the report and its filters, per person. Opening one re-checks permissions as usual ----------
+async function viewsTable() { await query(`CREATE TABLE IF NOT EXISTS report_views (id SERIAL PRIMARY KEY, user_id INT NOT NULL, name TEXT NOT NULL, qs TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`); }
+async function savedViews(userId) { await viewsTable(); return (await query(`SELECT id, name, qs FROM report_views WHERE user_id=$1 ORDER BY lower(name)`, [userId])).rows; }
+router.post("/views", wrap(async (req, res) => {
+  if (!(await PP.reportScope(req.user))) return go(res, "/dashboard", { err: "You don't have access to reports." });
+  await viewsTable(); const name = str(req.body.name).slice(0, 60), qs = String(req.body.qs || "").replace(/^\?/, "").slice(0, 1500);
+  const params = new URLSearchParams(qs); params.delete("pdf"); params.delete("csv");
+  if (!name) return go(res, `/reports?${params}`, { err: "Give the view a name." });
+  await query(`DELETE FROM report_views WHERE user_id=$1 AND lower(name)=lower($2)`, [req.user.id, name]);
+  await query(`INSERT INTO report_views (user_id, name, qs) VALUES ($1,$2,$3)`, [req.user.id, name, params.toString()]);
+  go(res, `/reports?${params}`, { ok: `Saved "${name}". Find it under Saved views.` });
+}));
+router.post("/views/:id(\\d+)/delete", wrap(async (req, res) => {
+  await viewsTable(); const v = (await query(`DELETE FROM report_views WHERE id=$1 AND user_id=$2 RETURNING name`, [int(req.params.id), req.user.id])).rows[0];
+  go(res, `/reports?${String(req.body.back || "").replace(/^\?/, "")}`, v ? { ok: `Deleted "${v.name}".` } : { err: "Not found." });
 }));
 const ADMIN_ONLY = { emails: 1 };   // reports only admins can open (every view, CSV and PDF)
 async function newReport(req, res, scope, boards) {
@@ -48,6 +64,10 @@ async function newReport(req, res, scope, boards) {
     if (qd === "season") { const r0 = (await query(`SELECT min(starts_at) AS a, max(starts_at) AS b FROM board_items WHERE schedule_id = ANY($1) AND canceled_at IS NULL`, [ids])).rows[0]; if (r0.a) { from = localDay(r0.a); to = localDay(r0.b); } }
   }
   const team = str(req.query.team), required = await requiredHours();
+  const BT = { training: "Programs", volunteer: "Volunteer", rsvp: "RSVP" }, btype = BT[req.query.bt] ? req.query.bt : "";
+  const CS = { confirmed: "Active", waitlisted: "Waitlisted", canceled: "Canceled" }, cstatus = CS[req.query.cs] ? req.query.cs : "";
+  const AT = { attended: "Attended", noshow: "No-show", unrecorded: "Unrecorded" }, astatus = AT[req.query.at] ? req.query.at : "";
+  const kinds = [...new Set(boards.filter((b) => ids.includes(b.id)).map((b) => b.board_type || "training"))];
   const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today, admin: !!scope.all, scoped: !scope.all };
   const teams = (await query(`SELECT DISTINCT group_name FROM schedule_members WHERE schedule_id = ANY($1) AND group_name IS NOT NULL ORDER BY 1`, [ids])).rows.map((x) => x.group_name);
   // the fine filters: level (and everything inside it), location, weekdays, search
@@ -59,7 +79,7 @@ async function newReport(req, res, scope, boards) {
   const location = locations.includes(req.query.loc) ? req.query.loc : "";
   const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
   const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
-  Object.assign(f, { levels: subtree, location, days });
+  Object.assign(f, { levels: subtree, location, days, btype, cstatus, astatus });
   // assessments: which test, which two days, best or average
   let assess = null;
   if (/^assess/.test(r)) {
@@ -102,14 +122,14 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, several, qd, QD, r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, several, qd, QD, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 router.get("/", wrap(async (req, res) => {
   const scope = await PP.reportScope(req.user);
   if (!scope) return go(res, "/dashboard", { err: "You don't have access to reports. Ask an admin if you need it." });
   req.user.can_reports = true;
-  const boards = (await query(`SELECT id, name, archived_at, groups FROM schedules WHERE ${scope.all ? "TRUE" : "id = ANY($1)"} ORDER BY archived_at NULLS FIRST, name`, scope.all ? [] : [scope.boards])).rows;
+  const boards = (await query(`SELECT id, name, archived_at, groups, board_type FROM schedules WHERE ${scope.all ? "TRUE" : "id = ANY($1)"} ORDER BY archived_at NULLS FIRST, name`, scope.all ? [] : [scope.boards])).rows;
   if (!boards.length) return go(res, "/dashboard", { err: "No boards to report on yet." });
   if (!scope.teams.length && req.query.v && !req.query.r) return res.redirect(`/reports?${new URLSearchParams({ ...req.query, r: req.query.v === "all" ? "all" : "person", v: "" })}`);   // older links → the filterable claims reports
   if (!scope.teams.length && (NEW[req.query.r] || (!req.query.v && !req.query.csv))) return newReport(req, res, scope, boards);   // Overview by default
