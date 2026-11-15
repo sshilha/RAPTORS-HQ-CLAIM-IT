@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
+const NEW = { assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const isDay = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || "");
@@ -24,15 +24,31 @@ router.post("/volunteer-required", auth.requireAdmin, wrap(async (req, res) => {
   await query(`INSERT INTO app_kv (key, value) VALUES ('volunteer_hours_required', $1::jsonb) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, [JSON.stringify(n)]);
   go(res, `/reports?${new URLSearchParams({ ...req.query, r: "volunteer" })}`, { ok: n ? `Each family needs ${n} volunteer hours.` : "No volunteer-hour requirement." });
 }));
+const ADMIN_ONLY = { emails: 1 };   // reports only admins can open (every view, CSV and PDF)
 async function newReport(req, res, scope, boards) {
-  const r = NEW[req.query.r] ? req.query.r : "overview";
-  const all = req.query.s === "all" || !req.query.s;
-  const board = all ? null : boards.find((b) => b.id === int(req.query.s)) || null;
-  const ids = board ? [board.id] : boards.filter((b) => !b.archived_at).map((b) => b.id);
+  let r = NEW[req.query.r] ? req.query.r : "overview";
+  if (ADMIN_ONLY[r] && !scope.all) r = "overview";
+  // boards: All, one, or several, and never anything outside this person's boards
+  const pickIds = [].concat(req.query.s || []).flatMap((x) => String(x).split(",")).map((x) => x.trim()).filter((x) => x && x !== "all").map(Number);
+  const picked = boards.filter((b) => pickIds.includes(b.id));
+  const board = picked.length === 1 ? picked[0] : null, several = picked.length > 1 ? picked : null;
+  const ids = picked.length ? picked.map((b) => b.id) : boards.filter((b) => !b.archived_at).map((b) => b.id);
   const today = localDay(Date.now()), back = (n) => localDay(Date.now() - n * 864e5), ahead = (n) => localDay(Date.now() + n * 864e5);
-  const from = isDay(req.query.from) ? req.query.from : back(180), to = isDay(req.query.to) ? req.query.to : ahead(90);
+  // quick date picks (Chicago time); "season" = the chosen boards' first to last session
+  const QD = { today: "Today", week: "This week", nextweek: "Next week", month: "This month", lastmonth: "Last month", season: "This season" };
+  const qd = QD[req.query.qd] ? req.query.qd : "";
+  let from = isDay(req.query.from) ? req.query.from : back(180), to = isDay(req.query.to) ? req.query.to : ahead(90);
+  if (qd) {
+    const t = new Date(today + "T12:00:00"), mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7)); const ds = (d) => localDay(d);
+    if (qd === "today") from = to = today;
+    if (qd === "week") { from = ds(mon); to = ds(new Date(mon.getTime() + 6 * 864e5)); }
+    if (qd === "nextweek") { from = ds(new Date(mon.getTime() + 7 * 864e5)); to = ds(new Date(mon.getTime() + 13 * 864e5)); }
+    if (qd === "month") { from = today.slice(0, 8) + "01"; to = ds(new Date(t.getFullYear(), t.getMonth() + 1, 0, 12)); }
+    if (qd === "lastmonth") { from = ds(new Date(t.getFullYear(), t.getMonth() - 1, 1, 12)); to = ds(new Date(t.getFullYear(), t.getMonth(), 0, 12)); }
+    if (qd === "season") { const r0 = (await query(`SELECT min(starts_at) AS a, max(starts_at) AS b FROM board_items WHERE schedule_id = ANY($1) AND canceled_at IS NULL`, [ids])).rows[0]; if (r0.a) { from = localDay(r0.a); to = localDay(r0.b); } }
+  }
   const team = str(req.query.team), required = await requiredHours();
-  const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today };
+  const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today, admin: !!scope.all, scoped: !scope.all };
   const teams = (await query(`SELECT DISTINCT group_name FROM schedule_members WHERE schedule_id = ANY($1) AND group_name IS NOT NULL ORDER BY 1`, [ids])).rows.map((x) => x.group_name);
   // the fine filters: level (and everything inside it), location, weekdays, search
   const levelsAll = board ? (await query(`WITH RECURSIVE t AS (SELECT id, parent_id, name, name::text AS path, 0 AS d, sort FROM board_nodes WHERE schedule_id=$1 AND parent_id IS NULL
@@ -52,22 +68,32 @@ async function newReport(req, res, scope, boards) {
     const dayList = full ? [...full.days].sort((x, y) => (x.day < y.day ? -1 : 1)) : [];
     const pick = (id, pref, last) => dayList.find((d) => d.id === int(id)) || (last ? [...dayList].reverse() : dayList).find((d) => d.kind === pref) || (last ? dayList[dayList.length - 1] : dayList[0]) || null;
     const da = pick(req.query.da, "Baseline", false), db = pick(req.query.db, "Final", true);
-    assess = { tests, test: t, days: dayList, a: da && da.id, b: db && db.id, how: req.query.how === "avg" ? "avg" : "best" };
+    const yr = (v) => (/^(19|20)\d\d$/.test(String(v || "")) ? Number(v) : null);
+    const dsel = req.query.dsel === "all" || !req.query.dsel ? "all" : /^k:/.test(req.query.dsel) && AS.KINDS.includes(req.query.dsel.slice(2)) ? req.query.dsel : dayList.some((d) => d.id === int(req.query.dsel)) ? String(int(req.query.dsel)) : "all";
+    const drills = full ? full.drills.filter((x) => !x.retired_at || x.scores) : [];
+    assess = { tests, test: t, days: dayList, a: da && da.id, b: db && db.id, how: req.query.how === "avg" ? "avg" : "best", dsel, drills,
+      drill: drills.some((x) => x.id === int(req.query.drill)) ? int(req.query.drill) : null, top: req.query.top === "0" ? 0 : [5, 10, 25].includes(int(req.query.top)) ? int(req.query.top) : 10,
+      bornFrom: yr(req.query.bf), bornTo: yr(req.query.bt) };
     f.assess = assess;
   }
-  let data = r === "overview" ? await D.overview(f, required) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
+  let data = r === "overview" ? await D.dashboard(f) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
+  if (!scope.all && data && data.cols) {   // non-admins: no links into admin pages, no contact details
+    const hide = new Set(["emails", "email", "addr"]);
+    data = { ...data, link: null, cols: data.cols.filter((c) => !hide.has(c[0])), rows: (data.rows || []).map((row) => { const o = { ...row }; for (const k of hide) delete o[k]; return o; }) };
+  }
   if (q) {   // search: keep rows where any column mentions it
     const needle = q.toLowerCase(), has = (o) => Object.values(o).some((v) => v != null && typeof v !== "object" && String(v).toLowerCase().includes(needle));
     if (data.rows && !data.grid) data = { ...data, rows: data.rows.filter(has) };
     if (data.sessions) data = { ...data, sessions: data.sessions.filter((x) => has(x) || x.people.some(has)) };
   }
   const opts = { assess, levels: levelsAll, level, locations, location, days, q, wl, blanks };
-  const filterText = [board ? board.name : "All boards", team, level && level.path, location, days.length && days.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join("/"),
-    r === "week" ? `week of ${f.weekFrom}` : `${from} to ${to}`, q && `search “${q}”`].filter(Boolean).join(" · ");
+  if (r === "overview") data.tiles = data.kpis.map(([k, label, v, unit, sub]) => [k, label, v, unit, sub]);   // the PDF's number grid
+  const filterText = [board ? board.name : several ? several.map((b) => b.name).join(" + ") : "All boards", team, level && level.path, location, days.length && days.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join("/"),
+    r === "week" ? `week of ${f.weekFrom}` : /^assess/.test(r) ? (assess && assess.test ? assess.test.name : "") : `${from} to ${to}`, q && `search “${q}”`].filter(Boolean).join(" · ");
   if (req.query.pdf) {
     const V = require("../views/reports2");
     const buf = await require("../reportPdf").build({ title: `Reports · ${V.TITLES[r] || r}`, filters: filterText, data, kind: r === "overview" ? "overview" : r === "week" ? "week" : "table", opts: { waitlist: wl, blanks } });
-    res.set("Content-Type", "application/pdf").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.pdf"`);
+    res.set("Content-Type", "application/pdf").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : several ? "several-boards" : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.pdf"`);
     return res.send(buf);
   }
   if (req.query.csv && data.cols) {
@@ -76,7 +102,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, several, qd, QD, r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 router.get("/", wrap(async (req, res) => {

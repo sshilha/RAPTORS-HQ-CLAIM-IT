@@ -194,6 +194,27 @@ kind, dates; Download CSV. Kept a year. How it works: every change ends in a con
 src/activity.js records each one (plus check-in taps, which have no message) with the board, person and session it was
 about; claims and cancels from before it existed are filled in once at startup.
 
+### 4.7a Reports: access and metric definitions
+**Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Others: the boards granted under
+People → Reports access (optionally limited to teams). One check (people.reportScope) decides the boards, and every
+report, chart, alert, search, CSV and PDF is computed only from them; board ids outside them are ignored. Emails is
+admin-only. Non-admins get no links into admin pages and no contact details (in the page, CSV and PDF). Assessment
+reports only include athletes on the user's boards.
+**Definitions** (within the active filters: boards, dates, level, team, location, weekdays):
+- Active claim = status confirmed. Takes a spot = active and counts (walk-ins and extra spots don't).
+- Waitlist entry = status waitlisted (position = order added). Canceled = status canceled, not an RSVP "no"
+  (an RSVP "Can't make it" is stored as a canceled claim with rsvp='no').
+- Attended / No-show / Unrecorded = attended true / false / empty, past sessions only.
+- Attendance rate = attended ÷ (attended + no-shows); unrecorded and future sessions don't count.
+- Unique participants = distinct athlete ids (no double counting across boards).
+- Available spots = Σ max(capacity − spots taken, 0) over upcoming sessions. RSVP boards are left out of claim and
+  capacity numbers.
+**Needs attention** (Overview): always flags over capacity, open spots while people wait, attendance not recorded,
+volunteer shifts not covered, repeated no-shows (3+). Low enrollment (under X% within N days) and nearly full (X%+) use
+each board's thresholds: Board → Notifications → Needs attention (no defaults).
+**Toolbar**: Boards (All, one or several) · Today / This week / Next week / This month / Last month / This season
+(the boards' first to last session) / Custom.
+
 ### 4.7b Email log, On now, and who's engaged on a board
 - **Email log** (App Settings → People → Email log): every email the app tried to send: to whom, which email, the subject,
   and the result: Sent, Failed (with Resend's reason in plain words), Held (Sign in as), or Not sent (no email service).
@@ -309,6 +330,14 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.44** Reports, phase 1: coaches get Reports for their boards automatically; Emails admin-only; assessments,
+  links and contact details scoped by permission; capacity counts only spots taken; toolbar with several boards and
+  quick dates; new Overview (KPI cards that drill down, claims over time, capacity, attendance trend, team
+  participation, upcoming sessions, board utilization, Needs attention with per-board thresholds).
+- **v0.43** Assessment reports: Results (every try), Leaderboard (best by drill, top 5/10/25/all), Best by team (team
+  best, average, median), Records (record holder, and the average by kind of day), plus Improvement / vs attendance /
+  Team improvement. Filters: assessment, testing day (all / all of a kind / one), drill, best or average, top, born
+  from–to, team, search. Each athlete counts once per drill (their best across the chosen days).
 - **v0.42.11** "📏 Add assessment data" on People (each athlete), a board's Access & people (each athlete) and an
   athlete's page: only the testing days that apply to them (a program they're on, no program, or where they have
   scores); one day opens score entry on that athlete with their scores filled in, several show a short list; Back

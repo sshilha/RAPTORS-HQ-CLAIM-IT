@@ -98,12 +98,15 @@ async function reportScope(user) {
   if (!user) return null;
   if (require("./auth").isAdmin(user)) return { all: true, boards: null, teams: [] };
   const p = (await query(`SELECT * FROM athletes WHERE kind='adult' AND (self_user_id=$1 OR lower(email)=lower($2)) AND archived_at IS NULL ORDER BY id LIMIT 1`, [user.id, user.email])).rows[0];
-  const a = p && p.report_access;
-  if (!a || !a.mode || a.mode === "none") return null;
-  let boards = [];
-  if (a.mode === "coached") boards = (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [user.email])).rows.map((r) => r.schedule_id);
-  if (a.mode === "boards") boards = (a.boards || []).map(Number).filter(Boolean);
-  return boards.length ? { all: false, boards, teams: (a.teams || []).filter(Boolean) } : null;
+  const a = (p && p.report_access) || {};
+  const coached = (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [user.email])).rows.map((r) => r.schedule_id);   // coaches: their boards, automatically
+  let granted = [];
+  if (a.mode === "coached") granted = coached;
+  if (a.mode === "boards") granted = (a.boards || []).map(Number).filter(Boolean);
+  const boards = [...new Set([...coached, ...granted])];
+  // team limits apply only to boards granted that way; a coach's own boards are never limited
+  const teams = a.mode && a.mode !== "none" && !coached.length ? (a.teams || []).filter(Boolean) : [];
+  return boards.length ? { all: false, boards, teams, coach: coached.length > 0 } : null;
 }
 
 // A person's status in People: what (if anything) needs attention
