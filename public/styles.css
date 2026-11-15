@@ -3273,3 +3273,17 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .rf-r2 { column-gap: 14px; } .rf-custom { gap: 10px 12px; } .rf-dl { gap: 8px; } .rf-date { min-width: 0; width: 152px; padding: 0 10px; } .rf-apply { padding: 0 16px; }
 @media (max-width: 760px) { .rf-date { width: auto; } }
 .rf-btn { white-space: nowrap; }
+/* Reports v2: slim header, dates, per-report filter bar */
+.ra-hd { display: flex; align-items: center; gap: 14px; padding: 14px 22px 34px; } .ra-tile { width: 44px; height: 44px; border-radius: 11px; } .ra-tile .ic { width: 24px; height: 24px; }
+.ra-hd h1 { font-size: 21px; } .ra-hd p { font-size: 13.5px; margin-top: 2px; white-space: normal; }
+.rf-r2 { flex-wrap: wrap !important; } .rf-now { margin-left: auto; font: 600 14px Inter, sans-serif; color: var(--mut); } .rf-now a { color: var(--nv); }
+.rf-custom { flex-wrap: wrap; } .rf-date { width: 165px; }
+.r-sheet { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; } .r-sheet > .r-card { flex: 1 1 100%; } .ra-dl { margin: 0 0 0 auto; align-self: center; }
+.rb-bar { flex: 1 1 600px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; padding: 10px 14px; background: #fff; border: 1px solid var(--ln); border-radius: 14px; }
+.rb-bar > .ic { width: 18px; height: 18px; color: var(--nv); align-self: center; } .rb-t { font: 700 15px Inter, sans-serif; color: var(--nv); align-self: center; margin-right: 4px; white-space: nowrap; }
+.rb-f { display: flex; flex-direction: column; gap: 4px; min-width: 170px; flex: 0 1 220px; } .rb-f > span:first-child { font: 600 12.5px Inter, sans-serif; color: var(--mut); }
+.rb-f .rf-sel select { height: 40px; font-size: 15px; padding: 0 36px 0 12px; border-radius: 10px; } .rb-f .rf-sel > .ic { right: 12px; width: 17px; height: 17px; } .rb-f .rf-date { height: 40px; width: auto; font-size: 15px; }
+.rb-q { flex: 1 1 220px; } .rb-q input { height: 40px; font-size: 15px; padding-left: 42px; } .rb-q .ic { left: 13px; width: 18px; height: 18px; }
+.rb-bar .r-filters { border: 0; padding: 0; margin: 0; background: transparent; flex: 1 1 100%; }
+@media (max-width: 760px) { .rb-bar { flex: 1 1 100%; } .rb-f { flex: 1 1 100%; } .rf-now { margin-left: 0; flex-basis: 100%; } .ra-dl { margin-left: 0; } .ra-hd p { display: none; } }
+@media (max-width: 1500px) { .rt-tabs a { padding: 9px 8px; font-size: 14px; gap: 5px; } .rt-tabs a .ic { width: 16px; height: 16px; } }

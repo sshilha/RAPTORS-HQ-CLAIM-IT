@@ -212,15 +212,17 @@ reports only include athletes on the user's boards.
 **Needs attention** (Overview): always flags over capacity, open spots while people wait, attendance not recorded,
 volunteer shifts not covered, repeated no-shows (3+). Low enrollment (under X% within N days) and nearly full (X%+) use
 each board's thresholds: Board → Notifications → Needs attention (no defaults).
-**Layout** (Reports & Analytics): navy header (title, logo, Reporting Period, Boards picker for one or several boards);
-Report Filters panel with Reset Filters and Save View (saved per person in report_views: a name + the report and its
-filters; opening one re-checks permissions) and three rows: Boards · Level (one board) · Team · Location · Session Type
-(= board type: Programs / Volunteer / RSVP); Date Range (Today / This week / Next week / This month / Last month / This
-season / Custom with From–To); Days of Week (all ticked = every day) · Claim Status (Active / Waitlisted / Canceled,
-claim reports) · Attendance Status (Attended / No-show / Unrecorded, claim and attendance reports) · Search. Filters a
-report doesn't use show disabled. Tabs: Overview · Claims · Sessions · Attendance · Teams · Volunteers (Shift coverage,
-Hours by family; volunteer boards only) · Waitlists · Families · Assessments · Communications (admins) · RSVP (RSVP
-boards only) · Weekly Rosters. Filters carry across tabs. Phones: the filters fold behind "Filters"; tabs scroll.
+**Layout** (Reports & Analytics): a slim navy header; the **Report Filters** panel applies to every report: Boards (one,
+several or all) · Level (one board) · Team · Location · Session Type (board type: Programs / Volunteer / RSVP), and Dates
+(Today · This week · This month · Custom with typed From–To; nothing picked = all dates). Reset Filters and Save View
+(saved per person in report_views; both kinds of filters; permissions re-checked when opened). Each report has its own
+filter bar: Claims (claim status, attendance status, search) · Sessions (when, capacity, search) · Attendance
+(attendance status, search) · Volunteers (when, coverage, search) · Families (status, search) · Communications
+(problem, search) · RSVP Answers (answer, search) · Assessments (assessment, testing day, drill, count, top, born,
+search) · Weekly Rosters (week of, waitlist, blank lines); others have search. Report filters reset when switching to
+another section and stay within a section; the top filters carry everywhere. Tabs: Overview · Claims · Sessions ·
+Attendance · Teams · Volunteers (volunteer boards) · Waitlists · Families · Assessments · Communications (admins) ·
+RSVP (RSVP boards) · Weekly Rosters. Phones: the top filters fold behind "Filters"; tabs scroll.
 
 ### 4.7b Email log, On now, and who's engaged on a board
 - **Email log** (App Settings → People → Email log): every email the app tried to send: to whom, which email, the subject,
@@ -337,6 +339,9 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.46** Reports: slim header; top filters (boards, level, team, location, session type, dates: today / this week /
+  this month / custom; default all dates) and a filter bar per report (statuses, when, capacity, coverage, family
+  status, email problem, RSVP answer, search); new RSVP Answers report.
 - **v0.45** Reports & Analytics redesign: navy header with logo, period and boards; Report Filters panel (three rows,
   Reset, Save View); icon tabs incl. new Teams, Volunteers (Shift coverage) and Waitlists; Session Type, Claim Status
   and Attendance Status filters.

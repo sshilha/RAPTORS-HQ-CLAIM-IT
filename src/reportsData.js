@@ -13,6 +13,7 @@ function more(f, args) {
   if (f.location) { args.push(f.location); w.push(`coalesce(nullif(i.location,''), sc.event_location) = $${args.length}`); }
   if (f.days && f.days.length) { args.push(f.days); w.push(`EXTRACT(DOW FROM i.starts_at AT TIME ZONE '${TZ}')::int = ANY($${args.length})`); }
   if (f.btype) { args.push(f.btype); w.push(`sc.board_type = $${args.length}`); }   // Session type = the board's type
+  if (f.when === "up") w.push(`i.starts_at >= now()`); if (f.when === "past") w.push(`coalesce(i.ends_at, i.starts_at) < now()`);   // When
   return w.length ? ` AND ${w.join(" AND ")}` : "";
 }
 
@@ -121,8 +122,10 @@ async function unchecked(f) {
 // ---------- Sessions ----------
 async function fill(f) {
   const rows = (await sessions(f)).filter((s) => s.board_type !== "rsvp");
-  return { cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["capacity", "Spots", "num"], ["claimed", "Claimed", "num"], ["fill", "Full", "pct"], ["waitlisted", "Waitlist", "num"], ["here", "Attended", "num"]],
-    rows: rows.map((s) => ({ id: s.id, when: s.starts_at, session: s.session, board: s.board, capacity: s.capacity, claimed: s.taken, fill: pct(s.taken, s.capacity), waitlisted: s.waitlisted, here: s.here, board_id: s.board_id })),
+  const rowsOut = rows.map((s) => ({ id: s.id, when: s.starts_at, session: s.session, board: s.board, capacity: s.capacity, claimed: s.taken, fill: pct(s.taken, s.capacity), waitlisted: s.waitlisted, here: s.here, board_id: s.board_id }));
+  for (const r of rowsOut) r.status = !r.capacity ? "No limit" : r.claimed > r.capacity ? "Over capacity" : r.claimed >= r.capacity ? "Full" : r.claimed / r.capacity >= 0.9 ? "Nearly full" : r.claimed / r.capacity >= 0.5 ? "Healthy" : "Low";
+  return { cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["capacity", "Spots", "num"], ["claimed", "Claimed", "num"], ["fill", "Full", "pct"], ["status", "Status"], ["waitlisted", "Waitlist", "num"], ["here", "Attended", "num"]],
+    rows: rowsOut,
     link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "How full each session is. Sort by Full to find what's always full (add more) or always empty." };
 }
 async function busiest(f) {
@@ -163,6 +166,20 @@ async function rsvpEvents(f) {
   }
   return { cols: [["when", "When", "dt"], ["session", "Event"], ["board", "Board"], ["open", "On the list", "num"], ["answered", "Answered", "pct"], ["going", "Going", "num"], ["no", "Can't", "num"], ["none", "No answer", "num"], ["noshow", "Said Going, didn't come", "num"]],
     rows, link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "Each RSVP event in the range. \"Said Going, didn't come\" counts Going answers marked No-show at check-in." };
+}
+// one row per athlete per RSVP event: their answer (Going / Can't make it / No answer), note, and attendance
+async function rsvpAnswers(f) {
+  const R = require("./rsvp"), rows = [];
+  for (const s of (await sessions(f)).filter((x) => x.board_type === "rsvp")) {
+    const r = await R.summary(s.id); if (!r) continue;
+    const att = new Map((await query(`SELECT athlete_id, attended FROM board_claims WHERE item_id=$1 AND status='confirmed'`, [s.id])).rows.map((x) => [x.athlete_id, x.attended]));
+    for (const [list, label] of [[r.going, "Going"], [r.no, "Can't make it"], [r.none, "No answer"]]) for (const p of list) {
+      if (f.team && (p.group_name || p.team) !== f.team) continue;
+      const a = att.get(p.id); rows.push({ id: p.id, name: nm(p), team: p.group_name || p.team || "", session: s.session, when: s.starts_at, board: s.board, answer: label, note: p.note || "", attended: label === "Going" ? (a == null ? "" : a ? "Here" : "No-show") : "" });
+    }
+  }
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["session", "Event"], ["when", "When", "dt"], ["board", "Board"], ["answer", "Answer"], ["note", "Note"], ["attended", "Attended"]],
+    rows: rows.sort((a, b) => new Date(a.when) - new Date(b.when) || a.name.localeCompare(b.name)), link: (r) => `/admin/people/${r.id}`, note: "Every athlete on the list for each RSVP event and their answer." };
 }
 async function rsvpAthletes(f) {
   const R = require("./rsvp"), by = new Map();
@@ -481,4 +498,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

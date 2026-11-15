@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
+const NEW = { rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { rsvpAnswers: D.rsvpAnswers, teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const isDay = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || "");
@@ -51,9 +51,10 @@ async function newReport(req, res, scope, boards) {
   const ids = picked.length ? picked.map((b) => b.id) : boards.filter((b) => !b.archived_at).map((b) => b.id);
   const today = localDay(Date.now()), back = (n) => localDay(Date.now() - n * 864e5), ahead = (n) => localDay(Date.now() + n * 864e5);
   // quick date picks (Chicago time); "season" = the chosen boards' first to last session
-  const QD = { today: "Today", week: "This week", nextweek: "Next week", month: "This month", lastmonth: "Last month", season: "This season" };
+  const QD = { today: "Today", week: "This week", month: "This month" };
   const qd = QD[req.query.qd] ? req.query.qd : "";
-  let from = isDay(req.query.from) ? req.query.from : back(180), to = isDay(req.query.to) ? req.query.to : ahead(90);
+  const custom = isDay(req.query.from) || isDay(req.query.to), allDates = !req.query.qd && !custom;   // nothing picked = all dates
+  let from = isDay(req.query.from) ? req.query.from : "2000-01-01", to = isDay(req.query.to) ? req.query.to : "2100-12-31";
   if (qd) {
     const t = new Date(today + "T12:00:00"), mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7)); const ds = (d) => localDay(d);
     if (qd === "today") from = to = today;
@@ -64,7 +65,7 @@ async function newReport(req, res, scope, boards) {
     if (qd === "season") { const r0 = (await query(`SELECT min(starts_at) AS a, max(starts_at) AS b FROM board_items WHERE schedule_id = ANY($1) AND canceled_at IS NULL`, [ids])).rows[0]; if (r0.a) { from = localDay(r0.a); to = localDay(r0.b); } }
   }
   const team = str(req.query.team), required = await requiredHours();
-  const BT = { training: "Programs", volunteer: "Volunteer", rsvp: "RSVP" }, btype = BT[req.query.bt] ? req.query.bt : "";
+  const BT = { training: "Programs", volunteer: "Volunteer", rsvp: "RSVP" }, btype = BT[req.query.stype] ? req.query.stype : "";
   const CS = { confirmed: "Active", waitlisted: "Waitlisted", canceled: "Canceled" }, cstatus = CS[req.query.cs] ? req.query.cs : "";
   const AT = { attended: "Attended", noshow: "No-show", unrecorded: "Unrecorded" }, astatus = AT[req.query.at] ? req.query.at : "";
   const kinds = [...new Set(boards.filter((b) => ids.includes(b.id)).map((b) => b.board_type || "training"))];
@@ -79,7 +80,11 @@ async function newReport(req, res, scope, boards) {
   const location = locations.includes(req.query.loc) ? req.query.loc : "";
   const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
   const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
-  Object.assign(f, { levels: subtree, location, days, btype, cstatus, astatus });
+  const RF = { when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
+    cov: { "Needs people": "Needs people", Covered: "Covered" }, st: { "No account": "No account", "Never signed in": "Never signed in", "Signed in, no claims": "No claims", Active: "Active" },
+    prob: { Bounced: "Bounced", spam: "Marked as spam", failed: "Failed" }, ans: { Going: "Going", "Can't make it": "Can't make it", "No answer": "No answer" } };
+  const rf = Object.fromEntries(Object.keys(RF).map((k) => [k, RF[k][req.query[k]] ? req.query[k] : ""]));
+  Object.assign(f, { levels: subtree, location, days, btype, cstatus, astatus, when: rf.when });
   // assessments: which test, which two days, best or average
   let assess = null;
   if (/^assess/.test(r)) {
@@ -101,6 +106,12 @@ async function newReport(req, res, scope, boards) {
     const hide = new Set(["emails", "email", "addr"]);
     data = { ...data, link: null, cols: data.cols.filter((c) => !hide.has(c[0])), rows: (data.rows || []).map((row) => { const o = { ...row }; for (const k of hide) delete o[k]; return o; }) };
   }
+  // the report's own row filters
+  if (data && data.rows && !data.grid) {
+    const keep = { cap: (x) => x.status === rf.cap, cov: (x) => x.status === rf.cov, st: (x) => x.status === rf.st, ans: (x) => x.answer === rf.ans,
+      prob: (x) => (rf.prob === "Bounced" ? /^Bounced/.test(x.why) : rf.prob === "spam" ? /spam/i.test(x.why) : !/^Bounced|spam/i.test(x.why || "")) };
+    for (const k of Object.keys(keep)) if (rf[k]) data = { ...data, rows: data.rows.filter(keep[k]) };
+  }
   if (q) {   // search: keep rows where any column mentions it
     const needle = q.toLowerCase(), has = (o) => Object.values(o).some((v) => v != null && typeof v !== "object" && String(v).toLowerCase().includes(needle));
     if (data.rows && !data.grid) data = { ...data, rows: data.rows.filter(has) };
@@ -109,7 +120,7 @@ async function newReport(req, res, scope, boards) {
   const opts = { assess, levels: levelsAll, level, locations, location, days, q, wl, blanks };
   if (r === "overview") data.tiles = data.kpis.map(([k, label, v, unit, sub]) => [k, label, v, unit, sub]);   // the PDF's number grid
   const filterText = [board ? board.name : several ? several.map((b) => b.name).join(" + ") : "All boards", team, level && level.path, location, days.length && days.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join("/"),
-    r === "week" ? `week of ${f.weekFrom}` : /^assess/.test(r) ? (assess && assess.test ? assess.test.name : "") : `${from} to ${to}`, q && `search “${q}”`].filter(Boolean).join(" · ");
+    r === "week" ? `week of ${f.weekFrom}` : /^assess/.test(r) ? (assess && assess.test ? assess.test.name : "") : allDates ? "all dates" : `${from} to ${to}`, q && `search “${q}”`].filter(Boolean).join(" · ");
   if (req.query.pdf) {
     const V = require("../views/reports2");
     const buf = await require("../reportPdf").build({ title: `Reports · ${V.TITLES[r] || r}`, filters: filterText, data, kind: r === "overview" ? "overview" : r === "week" ? "week" : "table", opts: { waitlist: wl, blanks } });
@@ -122,7 +133,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, several, qd, QD, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 router.get("/", wrap(async (req, res) => {
