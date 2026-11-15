@@ -214,8 +214,7 @@ volunteer shifts not covered, repeated no-shows (3+). Low enrollment (under X% w
 each board's thresholds: Board → Notifications → Needs attention (no defaults).
 **Layout** (Reports & Analytics): a slim navy header; the **Report Filters** panel applies to every report: Boards (one,
 several or all) · Level (one board) · Team · Location · Session Type (board type: Programs / Volunteer / RSVP), and Dates
-(Today · This week · This month · Custom with typed From–To; nothing picked = all dates). Reset Filters and Save View
-(saved per person in report_views; both kinds of filters; permissions re-checked when opened). Each report has its own
+(Today · This week · This month · Custom with typed From–To; nothing picked = all dates). (Saved views remain in the code, report_views, but have no button.) Each report has its own
 filter bar: Claims (claim status, attendance status, search) · Sessions (when, capacity, search) · Attendance
 (attendance status, search) · Volunteers (when, coverage, search) · Families (status, search) · Communications
 (problem, search) · RSVP Answers (answer, search) · Assessments (assessment, testing day, drill, count, top, born,
@@ -339,6 +338,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.46.1** Reports: filter panel at the app's standard sizes; Reset Filters and Save View buttons removed.
 - **v0.46** Reports: slim header; top filters (boards, level, team, location, session type, dates: today / this week /
   this month / custom; default all dates) and a filter bar per report (statuses, when, capacity, coverage, family
   status, email problem, RSVP answer, search); new RSVP Answers report.

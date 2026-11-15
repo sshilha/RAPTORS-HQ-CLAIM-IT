@@ -3287,3 +3287,19 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .rb-bar .r-filters { border: 0; padding: 0; margin: 0; background: transparent; flex: 1 1 100%; }
 @media (max-width: 760px) { .rb-bar { flex: 1 1 100%; } .rb-f { flex: 1 1 100%; } .rf-now { margin-left: 0; flex-basis: 100%; } .ra-dl { margin-left: 0; } .ra-hd p { display: none; } }
 @media (max-width: 1500px) { .rt-tabs a { padding: 9px 8px; font-size: 14px; gap: 5px; } .rt-tabs a .ic { width: 16px; height: 16px; } }
+/* Reports filters: the app's standard sizes (13px labels, 14px controls, 16px panel heading) */
+.rf-panel { padding: 12px 18px 14px; border-radius: 14px; border-bottom-width: 4px; margin-top: -18px; }
+.rf-top { margin-bottom: 10px; gap: 8px; } .rf-h { gap: 8px; } .rf-h > .ic { width: 18px; height: 18px; } .rf-h h2 { font-size: 16px; font-weight: 800; } .rf-h span { font-size: 13px; }
+.rf-r1 { gap: 10px 16px; } .rf-f { gap: 5px; } .rf-l { font-size: 13px; font-weight: 600; gap: 6px; } .rf-l .ic { width: 15px; height: 15px; }
+.rf-sel select { height: 36px; font-size: 14px; padding: 0 32px 0 10px; border-radius: 8px; border-width: 1px; } .rf-sel > .ic { right: 10px; width: 15px; height: 15px; }
+.rf-div { margin: 10px 0; } .rf-row { gap: 8px 12px; } .rf-lb { font-size: 13px; }
+.rf-pills { padding: 2px; border-radius: 10px; } .rf-pills a { padding: 6px 12px; font-size: 13.5px; border-radius: 8px; }
+.rf-dl { font-size: 13px; gap: 6px; } .rf-date { height: 36px; width: 150px; font-size: 14px; border-radius: 8px; border-width: 1px; padding: 0 8px; }
+.rf-apply { height: 36px; padding: 0 14px; font-size: 14px; border-radius: 8px; border-width: 1px; } .rf-apply .ic { width: 15px; height: 15px; }
+.rf-now { font-size: 13px; }
+.ra-hd { padding: 12px 18px 30px; } .ra-tile { width: 38px; height: 38px; border-radius: 10px; } .ra-tile .ic { width: 20px; height: 20px; } .ra-hd h1 { font-size: 18px; } .ra-hd p { font-size: 13px; }
+.rt-tabs { margin-top: 16px; } .rt-tabs a { font-size: 14px; padding: 8px 12px; } .rt-tabs a .ic { width: 15px; height: 15px; }
+.rb-bar { padding: 8px 12px; gap: 8px 12px; } .rb-t { font-size: 14px; } .rb-f > span:first-child { font-size: 12.5px; } .rb-f .rf-sel select, .rb-q input, .rb-f .rf-date { height: 34px; font-size: 14px; }
+.ra-dl .rf-btn, .r-sheet .rf-btn { padding: 6px 12px; font-size: 14px; border-radius: 8px; } .rf-btn .ic { width: 15px; height: 15px; }
+@media (max-width: 1500px) { .rt-tabs a { padding: 8px 9px; font-size: 13.5px; } }
+@media (max-width: 760px) { .rf-sel select, .rf-date, .rb-f .rf-sel select, .rb-q input { font-size: 16px; height: 42px; } .rf-body > summary.rf-fold { min-height: 40px; font-size: 14px; } }

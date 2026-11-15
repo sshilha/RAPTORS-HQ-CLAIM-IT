@@ -160,7 +160,7 @@ function reportPage({ user, flash, admin, boards, board, several = null, qd = ""
   const rbar = mine.length ? `<div class="rb-bar">${IC2.filter}<span class="rb-t">${esc((TABS.find((t) => t[3].some(([k]) => k === r)) || [, ""])[1])} filters</span>${mine.map((k) => piece[k]()).join("")}</div>` : "";
   const panel = `<section class="rf-panel"><form method="get" action="/reports" id="rf" onsubmit="var d = this.querySelectorAll('input[name=d]'), on = [].filter.call(document.querySelectorAll('input[name=d][form=rf]'), function (x) { return x.checked; }); if (on.length === 7) [].forEach.call(document.querySelectorAll('input[name=d][form=rf]'), function (x) { x.disabled = true; });">${hidden(["s", "level", "team", "loc", "stype", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "when", "cap", "cov", "st", "prob", "ans", "wl", "blanks", ...(qd ? [] : ["qd"])]).replace(/<input type="hidden" name="(qd)"[^>]*>/, (m) => m)}</form>
     <div class="rf-top"><span class="rf-h">${IC2.filter}<h2>Report Filters</h2><span>Refine the data across all reports</span></span>
-      <span class="rf-acts"><a class="rf-btn" href="${resetHref}">${IC2.reset}Reset Filters</a>${viewsMenu}</span></div>
+</div>
     <details class="rf-body" open><summary class="rf-fold">${IC2.filter}Filters${(() => { const n = [o.level, team, o.location, btype, !allDates].filter(Boolean).length; return n ? ` <b>${n} on</b>` : ""; })()}${IC2.down}</summary>
       ${row1}<div class="rf-div"></div>${row2}</details></section>`;
   // ---- report navigation: only sections this person can use and that apply to the chosen boards ----
