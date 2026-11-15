@@ -114,7 +114,7 @@ function reportPage({ user, flash, admin, boards, board, several = null, qd = ""
   const boardLabel = board ? board.name : several ? `${several.length} boards` : "All Boards";
   const hidden = (skip) => Object.entries(state).filter(([k, v]) => v !== "" && v != null && !skip.includes(k)).map(([k, v]) => `<input type="hidden" name="${k}" value="${esc(String(v))}">`).join("");
   // ---- header ----
-  const head = `<header class="ra-hd"><span class="ra-tile">${IC2.chart}</span><div><h1>Reports &amp; Analytics</h1><p>Claim-It • Participation, Attendance &amp; Board Management</p></div></header>`;
+  const head = `<section class="ra-hd"><span class="ra-tile">${IC2.chart}</span><div><h1>Reports &amp; Analytics</h1><p>Claim-It • Participation, Attendance &amp; Board Management</p></div></section>`;
   // ---- the filter panel ----
   const sel = (name, icon, label, opts, cur, extra = "") => `<label class="rf-f"><span class="rf-l">${icon}${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()"${extra}>${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
   const boardOpts = [["all", "All boards"], ...(several ? [[several.map((b) => b.id).join(","), `${several.length} boards selected`]] : []), ...boards.map((b) => [b.id, b.name + (b.archived_at ? " (archived)" : "")])];

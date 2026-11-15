@@ -338,6 +338,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.46.2** Reports: the header sticks under the top bar like other screens, with the tabs and table headings
+  below it (computers; phones keep one plain scroll).
 - **v0.46.1** Reports: filter panel at the app's standard sizes; Reset Filters and Save View buttons removed.
 - **v0.46** Reports: slim header; top filters (boards, level, team, location, session type, dates: today / this week /
   this month / custom; default all dates) and a filter bar per report (statuses, when, capacity, coverage, family
