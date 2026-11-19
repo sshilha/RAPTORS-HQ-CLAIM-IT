@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { attSessions: 1, upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement({ ...f, fview: "never" }); return { ...d, note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
+const NEW = { assessProgress: 1, assessTeamProgress: 1, assessAthlete: 1, attSessions: 1, upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { assessProgress: D.assessProgress, assessTeamProgress: D.assessTeamProgress, attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement({ ...f, fview: "never" }); return { ...d, note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
   rsvpAnswers: D.rsvpAnswers, teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -104,10 +104,10 @@ async function newReport(req, res, scope, boards) {
     const drills = full ? full.drills.filter((x) => !x.retired_at || x.scores) : [];
     assess = { tests, test: t, days: dayList, a: da && da.id, b: db && db.id, how: req.query.how === "avg" ? "avg" : "best", dsel, drills,
       drill: drills.some((x) => x.id === int(req.query.drill)) ? int(req.query.drill) : null, top: req.query.top === "0" ? 0 : [5, 10, 25].includes(int(req.query.top)) ? int(req.query.top) : 10,
-      bornFrom: yr(req.query.bf), bornTo: yr(req.query.bt) };
+      bornFrom: yr(req.query.bf), bornTo: yr(req.query.bt), rank: req.query.rank === "improved" ? "improved" : "best" };
     f.assess = assess;
   }
-  let data = r === "personView" ? await D.personView(f, int(req.query.pid)) : r === "overview" ? await D.dashboard(f) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
+  let data = r === "assessAthlete" ? await D.assessAthlete(f, int(req.query.pid)) : r === "personView" ? await D.personView(f, int(req.query.pid)) : r === "overview" ? await D.dashboard(f) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
   if (!scope.all && data && data.cols) {   // non-admins: no links into admin pages, no contact details
     const hide = new Set(["emails", "email", "addr"]);
     const lk = data.link, mine = new Set((scope.coached || []).map(Number));

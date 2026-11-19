@@ -341,6 +341,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.54** Reports step 7, Assessments: Progress (per athlete and drill: initial, latest, best with "Personal best",
+  change in units and % where + is always better, number of tests, "More testing needed" with one test); an athlete
+  progress view (a chart per drill, better direction and method, a plain progress sentence); Team progress (athletes
+  tested, with 2+ tests, average change and %, share improved); Leaderboard "Rank by: Most improved"; vs attendance
+  worded as an association. All limited to athletes on the viewer's boards (and teams).
 - **v0.53** Reports step 6, Families and Communications: Family engagement with summary cards (total athletes, active
   accounts, never signed in, with / without claims, signed in in the last 30 days), a Show filter (never signed in, no
   claims, active participants, inactive, no account) and a table without email lists (emails in the admin CSV only);

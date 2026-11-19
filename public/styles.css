@@ -3349,3 +3349,4 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .ws-t td { padding: 7px 8px; border-bottom: 1px solid #E3E8F0; height: 22px; } .ws-c { width: 44px; text-align: center; } .ws-n { width: 40%; color: #475569; font-size: 13px; }
 .ws-t .ws-box { margin: 0; } .ws-blank td { height: 26px; } .ws-wl { margin: 6px 0 0; font-size: 13px; color: #334155; }
 @media print { .ws-title { font-size: 16px; } .ws-s { break-inside: avoid; page-break-inside: avoid; border: 0; padding: 0; margin-bottom: 14px; } .ws-t td { border-bottom-color: #999; } .ws-day { break-inside: auto; } }
+.pb { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #E4F5D2; color: #2f6d0c; font: 700 11px Inter, sans-serif; vertical-align: 2px; } .pv-sum { margin: 6px 0 2px; font-weight: 600; color: #0B1930; }

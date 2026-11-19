@@ -415,7 +415,7 @@ async function assessAttend(f) {
   const hi = withAvg.filter((r) => r.sessions >= mid && mid > 0), lo = withAvg.filter((r) => r.sessions < mid || mid === 0);
   return { cols: [["name", "Athlete"], ["team", "Team"], ["sessions", "Sessions attended", "num"], ["claimed", "Sessions claimed", "num"], ["avg", "Avg improvement %", "num"], ["improved", "Drills improved"]],
     rows, link: (r) => `/admin/assess/athlete/${r.id}`,
-    note: board ? `Sessions on the linked program between the two testing days. ${withAvg.length > 1 && mid > 0 ? `Athletes who attended ${mid}+ sessions improved ${mean(hi)}% on average; those who attended fewer improved ${mean(lo) ?? "—"}%.` : ""}` : "Link the testing days to a program to count sessions attended." };
+    note: board ? `Sessions on the linked program between the two testing days. ${withAvg.length > 1 && mid > 0 ? `Athletes who attended ${mid}+ sessions improved ${mean(hi)}% on average; those who attended fewer improved ${mean(lo) ?? "—"}%. This shows an association, not proof that attendance caused the difference.` : ""}` : "Link the testing days to a program to count sessions attended." };
 }
 async function assessTeams(f) {
   const P = await assessPair(f); if (!P) return noPair;
@@ -473,6 +473,15 @@ async function assessResults(f) {
 async function assessLeaders(f) {
   const S = await assessScores(f); if (!S) return noTest;
   const top = Number((f.assess || {}).top) || 10, rows = [];
+  if ((f.assess || {}).rank === "improved") {   // most improved: first → latest testing day
+    for (const dr of S.drills) {
+      const list = series(S).filter((x) => x.drill_id === dr.id && x.list.length > 1).map((x) => { const last = x.list[x.list.length - 1]; return { x, last, ch: S.A.change(x.list[0].score, last.score, last.dr) }; })
+        .filter((y) => y.ch.pct != null).sort((a, b) => b.ch.pct - a.ch.pct).slice(0, top || undefined);
+      list.forEach((y, i) => rows.push({ id: y.x.athlete_id, drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), rank: i + 1, name: y.x.name, team: y.x.team, born: y.x.born, from: y.x.list[0].score, to: y.last.score, score: y.ch.pct, day: y.last.dayLabel }));
+    }
+    return { cols: [["drill", "Drill"], ["rank", "#", "num"], ["name", "Athlete"], ["team", "Team"], ["born", "Born", "num"], ["from", "First", "num"], ["to", "Latest", "num"], ["score", "Improved %", "num"], ["day", "Latest test"]],
+      rows, note: `${top ? `Top ${top}` : "Everyone"} per drill by improvement from their first to their most recent testing day (athletes tested at least twice). Improvement isn't the only measure of progress; see Progress for each athlete.` };
+  }
   for (const dr of S.drills) {
     const best = new Map();   // each athlete's best across the chosen days
     for (const r of S.rows.filter((x) => x.drill_id === dr.id && x.score != null)) { const cur = best.get(r.athlete_id); if (!cur || better(r.dr, r.score, cur.score) < 0) best.set(r.athlete_id, r); }   // keep the better one
@@ -593,6 +602,61 @@ async function attention(f, all) {
   return out.sort((a, b) => b.sev - a.sev || new Date(a.when) - new Date(b.when)).slice(0, 60);
 }
 
+
+// ---------- Assessments: progress over time (initial → latest, best, personal bests) ----------
+const dstr = (d) => String(d && d.toISOString ? d.toISOString() : d);
+function series(S) {   // athlete × drill → results in date order, each judged by that day's own drill settings
+  const m = new Map();
+  for (const r of S.rows) { if (r.score == null) continue; const k = `${r.athlete_id}|${r.drill_id}`; if (!m.has(k)) m.set(k, { athlete_id: r.athlete_id, name: r.name, team: r.team, born: r.born, drill_id: r.drill_id, list: [] }); m.get(k).list.push(r); }
+  for (const x of m.values()) x.list.sort((a, b) => dstr(a.dayDate).localeCompare(dstr(b.dayDate)));
+  return [...m.values()];
+}
+const better2 = (dr, a, b) => (dr.better === "higher" ? b > a : b < a);
+async function assessProgress(f) {
+  const S = await assessScores(f); if (!S) return noTest;
+  if (!S.rows.length) return { cols: [["msg", ""]], rows: [], note: "No results for these filters yet." };
+  const drillOf = new Map(S.drills.map((d) => [d.id, d])), rows = [];
+  for (const x of series(S)) {
+    const dr = drillOf.get(x.drill_id) || x.list[x.list.length - 1].dr, first = x.list[0], last = x.list[x.list.length - 1];
+    let best = first; for (const r of x.list) if (better2(r.dr, best.score, r.score)) best = r;
+    const ch = x.list.length > 1 ? S.A.change(first.score, last.score, last.dr) : { diff: null, pct: null };
+    rows.push({ id: x.athlete_id, name: x.name, team: x.team, drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), better: dr.better === "higher" ? "Higher" : "Lower",
+      initial: first.score, latest: last.score, best: best.score, pb: x.list.length > 1 && best === last ? "Personal best" : "", diff: ch.diff, pct: ch.pct, tests: x.list.length,
+      verdict: x.list.length < 2 ? "More testing needed" : ch.diff > 0 ? "Improved" : ch.diff < 0 ? "Declined" : "Same" });
+  }
+  rows.sort((a, b) => a.name.localeCompare(b.name) || a.drill.localeCompare(b.drill));
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["better", "Better"], ["initial", "Initial", "num"], ["latest", "Latest", "num"], ["best", "Best", "num"], ["pb", ""], ["diff", "Change (+ = better)", "num"], ["pct", "Change %", "num"], ["tests", "Tests", "num"], ["verdict", ""]],
+    rows, link: (r) => `/reports?r=assessAthlete&pid=${r.id}`, note: `${S.how === "avg" ? "Average" : "Best"} of the tries on each testing day; initial = their first testing day, latest = their most recent. Change is positive when they got better, whichever direction the drill counts as better. Click a name for their progress charts.` };
+}
+async function assessAthlete(f, pid) {
+  const S = await assessScores(f); if (!S) return { person: null, empty: "No assessments yet." };
+  const mine = series(S).filter((x) => x.athlete_id === pid);
+  const p = (await query(`SELECT id, first_name, last_name, team FROM athletes WHERE id=$1`, [pid])).rows[0];
+  if (!p || !mine.length) return { person: null, empty: "No results for this athlete with these filters (or they're not on your boards)." };
+  const drillOf = new Map(S.drills.map((d) => [d.id, d]));
+  const drills = mine.map((x) => { const dr = drillOf.get(x.drill_id) || x.list[x.list.length - 1].dr, first = x.list[0], last = x.list[x.list.length - 1];
+    let best = first; for (const r of x.list) if (better2(r.dr, best.score, r.score)) best = r;
+    const ch = x.list.length > 1 ? S.A.change(first.score, last.score, last.dr) : null;
+    return { name: dr.name, unit: dr.unit || "", better: dr.better, method: dr.method || "", points: x.list.map((r) => ({ label: r.dayLabel, value: r.score })), initial: first.score, latest: last.score, best: best.score, pb: x.list.length > 1 && best === last,
+      summary: !ch ? "One testing day so far: more testing is needed to show improvement." : `${ch.diff > 0 ? "Improved" : ch.diff < 0 ? "Declined" : "No change"} by ${Math.abs(ch.diff)}${dr.unit ? " " + dr.unit : ""}${ch.pct != null ? ` (${Math.abs(ch.pct)}%)` : ""} since their first test.` }; });
+  return { person: p, test: f.assess.test.name, drills, cols: [["drill", "Drill"], ["initial", "Initial", "num"], ["latest", "Latest", "num"], ["best", "Best", "num"], ["summary", "Progress"]],
+    rows: drills.map((d) => ({ drill: d.name, initial: d.initial, latest: d.latest, best: d.best, summary: d.summary })), note: `${p.first_name} ${p.last_name || ""}: ${f.assess.test.name}.` };
+}
+async function assessTeamProgress(f) {
+  const S = await assessScores(f); if (!S) return noTest;
+  const by = new Map();
+  for (const x of series(S)) {
+    const k = `${x.team || "(no team)"}|${x.drill_id}`, dr = x.list[x.list.length - 1].dr, t = by.get(k) || { team: x.team || "(no team)", drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), tested: 0, multi: 0, sum: 0, sumP: 0, nP: 0, up: 0 };
+    t.tested++;
+    if (x.list.length > 1) { const ch = S.A.change(x.list[0].score, x.list[x.list.length - 1].score, dr); t.multi++; t.sum += ch.diff || 0; if (ch.pct != null) { t.sumP += ch.pct; t.nP++; } if (ch.diff > 0) t.up++; }
+    by.set(k, t);
+  }
+  const rows = [...by.values()].map((t) => ({ team: t.team, drill: t.drill, tested: t.tested, multi: t.multi, avg: t.multi ? Math.round((t.sum / t.multi) * 100) / 100 : null, avgP: t.nP ? Math.round((t.sumP / t.nP) * 10) / 10 : null, improved: t.multi ? pct(t.up, t.multi) : null }))
+    .sort((a, b) => a.team.localeCompare(b.team) || a.drill.localeCompare(b.drill));
+  return { cols: [["team", "Team"], ["drill", "Drill"], ["tested", "Athletes tested", "num"], ["multi", "With 2+ tests", "num"], ["avg", "Avg change", "num"], ["avgP", "Avg change %", "num"], ["improved", "Improved", "pct"]],
+    rows, note: "Change = each athlete's first to most recent testing day (only athletes tested at least twice), positive = better. Athletes tested once count as tested but can't show improvement yet." };
+}
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -609,4 +673,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
