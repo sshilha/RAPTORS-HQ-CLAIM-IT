@@ -173,7 +173,9 @@ async function familyReport(req, res, mgmt, fam) {
   const board = boards.some((b) => b.id === int(req.query.b)) ? int(req.query.b) : "";
   const list = board ? all.filter((c) => c.board_id === board) : all;
   const show = ["past", "waitlisted", "released", "all"].includes(req.query.show) ? req.query.show : "", whenF = req.query.when === "past" ? "past" : "";
-  const url = (o = {}) => { const q = { view: "family", r, a: sel, b: board, show: r === "fClaims" ? show : "", when: r === "fSchedule" ? whenF : "", ...o }; return `/reports?${new URLSearchParams(Object.entries(q).filter(([, v]) => v !== "" && v != null))}`; };
+  const mode = r === "fSchedule" && req.query.mode === "cal" ? "cal" : "", todayM = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" }).slice(0, 7);
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.m || "")) ? String(req.query.m) : todayM;
+  const url = (o = {}) => { const q = { view: "family", r, a: sel, b: board, show: r === "fClaims" ? show : "", when: r === "fSchedule" && !mode ? whenF : "", mode, m: mode && month !== todayM ? month : "", ...o }; return `/reports?${new URLSearchParams(Object.entries(q).filter(([, v]) => v !== "" && v != null))}`; };
   let data;
   if (r === "fOverview") {
     const athletes = fam.filter((p) => scopeIds.includes(p.id) && p.kind === "athlete").map((p) => p.id), prog = await FD.progress(athletes);
@@ -182,6 +184,7 @@ async function familyReport(req, res, mgmt, fam) {
   } else if (r === "fClaims") data = list.filter(show === "past" ? (c) => c.past && c.status === "confirmed" : show === "waitlisted" ? (c) => c.status === "waitlisted" : show === "released" ? (c) => c.status === "canceled" : show === "all" ? () => true : (c) => !c.past && c.status !== "canceled");
   else if (r === "fAttendance") data = FD.attendance(list);
   else if (r === "fProgress") data = await FD.progress(fam.filter((p) => scopeIds.includes(p.id) && p.kind === "athlete").map((p) => p.id));
+  else if (mode === "cal") data = list.filter((c) => c.status !== "canceled" && new Date(c.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }).slice(0, 7) === month);
   else data = whenF === "past" ? list.filter((c) => c.past && c.status === "confirmed").reverse() : list.filter((c) => !c.past && c.status !== "canceled");
   if (req.query.csv && ["fClaims", "fAttendance", "fSchedule"].includes(r)) {
     const rows = r === "fAttendance" ? data.history : data, cq = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
@@ -190,7 +193,7 @@ async function familyReport(req, res, mgmt, fam) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="my-family-${r.slice(1).toLowerCase()}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(V.familyPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), people: fam, sel, r, data, url, mgmt, boards, board, show, whenF }));
+  res.send(V.familyPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), people: fam, sel, r, data, url, mgmt, boards, board, show, whenF, mode, month }));
 }
 router.get("/", wrap(async (req, res, next) => {
   if (req.query.reset) { await prefs(req.user.id, null); return res.redirect(`/reports?r=${encodeURIComponent(String(req.query.r || "overview"))}`); }

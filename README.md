@@ -341,6 +341,14 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.57** Reports steps 10–13: My Schedule calendar (List | Calendar, month grid with ‹ ›, chips by status, dots on
+  phones); signed change columns (+8% / −10.1%, +0.39; green better, red worse; plain numbers in CSV); readable testing-day
+  headings on Improvement; blank number cells aligned; person view tables full width; phone fixes (assessment filters,
+  12px minimum text, fingertip-size buttons, tabs, chips, dropdowns, toggles). Audited: all 34 reports × one board / all
+  boards × admin, coach, team manager (no bad values, every row matches its headings, CSV columns match the page, every
+  PDF opens); 86-screen phone audit (no zoom inputs, tiny text, sideways scrolling, overlaps or errors).
+  Known limits: emails before v0.53 have no related board; "Released" needs an activity record (older cancellations show
+  "Canceled"); parents filter by athlete and program (no date range).
 - **v0.56** Reports step 9, My Family: parents, guardians and athletes get Reports (menu item for anyone with a linked
   family or management reports). My Family: Overview (upcoming, claims, attendance, progress cards; upcoming sessions;
   recent activity from real records), My Claims (Upcoming / Past / Waitlisted / Released / All; Release uses the existing

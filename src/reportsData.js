@@ -400,8 +400,8 @@ async function assessImprove(f) {
     rows.push({ id: p.id, name: nm(p), team: p.team || "", drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), method: mA && mB && mA !== mB ? `${mA} → ${mB}` : mB || mA, a, b, diff: ch.diff, pct: ch.pct,
       verdict: [ch.diff == null ? "" : ch.diff > 0 ? "Better" : ch.diff < 0 ? "Worse" : "Same", mA && mB && mA !== mB ? "Method changed" : ""].filter(Boolean).join(" · ") });
   }
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["method", "Measured with"], ["a", `${P.da.kind} ${P.da.day.toISOString ? P.da.day.toISOString().slice(5, 10) : ""}`, "num"], ["b", `${P.db.kind} ${P.db.day.toISOString ? P.db.day.toISOString().slice(5, 10) : ""}`, "num"],
-      ["diff", "Change (+ = better)", "num"], ["pct", "Change %", "num"], ["verdict", ""]], rows, link: (r) => `/admin/assess/athlete/${r.id}`,
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["method", "Measured with"], ["a", `${P.da.kind} · ${new Date(String(P.da.day.toISOString ? P.da.day.toISOString() : P.da.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, "num"], ["b", `${P.db.kind} · ${new Date(String(P.db.day.toISOString ? P.db.day.toISOString() : P.db.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, "num"],
+      ["diff", "Change (+ = better)", "chg"], ["pct", "Change %", "spct"], ["verdict", ""]], rows, link: (r) => `/admin/assess/athlete/${r.id}`,
     note: `${P.how === "avg" ? "Average" : "Best"} of the tries on each day. Positive change = better, whichever direction the drill counts as better. "Method changed" means the two days were measured differently (e.g. stopwatch, then timing gates), so compare with care.` };
 }
 async function assessAttend(f) {
@@ -419,7 +419,7 @@ async function assessAttend(f) {
   const withAvg = rows.filter((r) => r.avg != null), mid = withAvg.length ? [...withAvg].sort((a, b) => a.sessions - b.sessions)[Math.floor(withAvg.length / 2)].sessions : 0;
   const mean = (xs) => (xs.length ? Math.round((xs.reduce((a, b) => a + b.avg, 0) / xs.length) * 10) / 10 : null);
   const hi = withAvg.filter((r) => r.sessions >= mid && mid > 0), lo = withAvg.filter((r) => r.sessions < mid || mid === 0);
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["sessions", "Sessions attended", "num"], ["claimed", "Sessions claimed", "num"], ["avg", "Avg improvement %", "num"], ["improved", "Drills improved"]],
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["sessions", "Sessions attended", "num"], ["claimed", "Sessions claimed", "num"], ["avg", "Avg improvement %", "spct"], ["improved", "Drills improved"]],
     rows, link: (r) => `/admin/assess/athlete/${r.id}`,
     note: board ? `Sessions on the linked program between the two testing days. ${withAvg.length > 1 && mid > 0 ? `Athletes who attended ${mid}+ sessions improved ${mean(hi)}% on average; those who attended fewer improved ${mean(lo) ?? "—"}%. This shows an association, not proof that attendance caused the difference.` : ""}` : "Link the testing days to a program to count sessions attended." };
 }
@@ -428,7 +428,7 @@ async function assessTeams(f) {
   const by = new Map();
   for (const p of P.ppl) for (const dr of P.drills) { const ch = P.A.change(P.A.score(P.va.get(`${p.id}|${dr.id}`) || [], P.ownA.get(dr.id) || dr, P.how), P.A.score(P.vb.get(`${p.id}|${dr.id}`) || [], P.ownB.get(dr.id) || dr, P.how), dr); if (ch.pct == null) continue;
     const k = `${p.team || "(no team)"}|${dr.id}`, x = by.get(k) || { team: p.team || "(no team)", drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), n: 0, sum: 0, up: 0 }; x.n++; x.sum += ch.pct; if (ch.diff > 0) x.up++; by.set(k, x); }
-  return { cols: [["team", "Team"], ["drill", "Drill"], ["n", "Athletes", "num"], ["avg", "Avg improvement %", "num"], ["better", "Improved", "pct"]],
+  return { cols: [["team", "Team"], ["drill", "Drill"], ["n", "Athletes", "num"], ["avg", "Avg improvement %", "spct"], ["better", "Improved", "pct"]],
     rows: [...by.values()].map((x) => ({ ...x, avg: Math.round((x.sum / x.n) * 10) / 10, better: Math.round((x.up / x.n) * 100) })).sort((a, b) => a.team.localeCompare(b.team) || a.drill.localeCompare(b.drill)), note: "Average change per team and drill (positive = better)." };
 }
 
@@ -485,7 +485,7 @@ async function assessLeaders(f) {
         .filter((y) => y.ch.pct != null).sort((a, b) => b.ch.pct - a.ch.pct).slice(0, top || undefined);
       list.forEach((y, i) => rows.push({ id: y.x.athlete_id, drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), rank: i + 1, name: y.x.name, team: y.x.team, born: y.x.born, from: y.x.list[0].score, to: y.last.score, score: y.ch.pct, day: y.last.dayLabel }));
     }
-    return { cols: [["drill", "Drill"], ["rank", "#", "num"], ["name", "Athlete"], ["team", "Team"], ["born", "Born", "num"], ["from", "First", "num"], ["to", "Latest", "num"], ["score", "Improved %", "num"], ["day", "Latest test"]],
+    return { cols: [["drill", "Drill"], ["rank", "#", "num"], ["name", "Athlete"], ["team", "Team"], ["born", "Born", "num"], ["from", "First", "num"], ["to", "Latest", "num"], ["score", "Improved %", "spct"], ["day", "Latest test"]],
       rows, note: `${top ? `Top ${top}` : "Everyone"} per drill by improvement from their first to their most recent testing day (athletes tested at least twice). Improvement isn't the only measure of progress; see Progress for each athlete.` };
   }
   for (const dr of S.drills) {
@@ -631,7 +631,7 @@ async function assessProgress(f) {
       verdict: x.list.length < 2 ? "More testing needed" : ch.diff > 0 ? "Improved" : ch.diff < 0 ? "Declined" : "Same" });
   }
   rows.sort((a, b) => a.name.localeCompare(b.name) || a.drill.localeCompare(b.drill));
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["better", "Better"], ["initial", "Initial", "num"], ["latest", "Latest", "num"], ["best", "Best", "num"], ["pb", ""], ["diff", "Change (+ = better)", "num"], ["pct", "Change %", "num"], ["tests", "Tests", "num"], ["verdict", ""]],
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["drill", "Drill"], ["better", "Better"], ["initial", "Initial", "num"], ["latest", "Latest", "num"], ["best", "Best", "num"], ["pb", ""], ["diff", "Change (+ = better)", "chg"], ["pct", "Change %", "spct"], ["tests", "Tests", "num"], ["verdict", ""]],
     rows, link: (r) => `/reports?r=assessAthlete&pid=${r.id}`, note: `${S.how === "avg" ? "Average" : "Best"} of the tries on each testing day; initial = their first testing day, latest = their most recent. Change is positive when they got better, whichever direction the drill counts as better. Click a name for their progress charts.` };
 }
 async function assessAthlete(f, pid) {
@@ -659,7 +659,7 @@ async function assessTeamProgress(f) {
   }
   const rows = [...by.values()].map((t) => ({ team: t.team, drill: t.drill, tested: t.tested, multi: t.multi, avg: t.multi ? Math.round((t.sum / t.multi) * 100) / 100 : null, avgP: t.nP ? Math.round((t.sumP / t.nP) * 10) / 10 : null, improved: t.multi ? pct(t.up, t.multi) : null }))
     .sort((a, b) => a.team.localeCompare(b.team) || a.drill.localeCompare(b.drill));
-  return { cols: [["team", "Team"], ["drill", "Drill"], ["tested", "Athletes tested", "num"], ["multi", "With 2+ tests", "num"], ["avg", "Avg change", "num"], ["avgP", "Avg change %", "num"], ["improved", "Improved", "pct"]],
+  return { cols: [["team", "Team"], ["drill", "Drill"], ["tested", "Athletes tested", "num"], ["multi", "With 2+ tests", "num"], ["avg", "Avg change", "chg"], ["avgP", "Avg change %", "spct"], ["improved", "Improved", "pct"]],
     rows, note: "Change = each athlete's first to most recent testing day (only athletes tested at least twice), positive = better. Athletes tested once count as tested but can't show improvement yet." };
 }
 

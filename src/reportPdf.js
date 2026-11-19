@@ -8,6 +8,7 @@ const NAVY = "#0B1930", LIME = "#8DDC32", GRAY = "#5B6B82";
 function text(v, kind) {
   if (v == null || v === "") return "—";
   if (kind === "pct") return `${v}%`;
+  if (kind === "spct" || kind === "chg") { const n = Number(v); return `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}${kind === "spct" ? "%" : ""}`; }
   if (kind === "dt") return fmtDateTime(v);
   if (kind === "date") return new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" });
   return String(v);
@@ -16,10 +17,10 @@ function text(v, kind) {
 function lime(t) { const mix = (a, b) => Math.round(255 + (b - 255) * t).toString(16).padStart(2, "0"); return `#${mix(0, 0x8d)}${mix(0, 0xdc)}${mix(0, 0x32)}`; }
 function table(d) {
   const wide = d.cols.length > 6;
-  const body = [d.cols.map((c) => ({ text: c[1], bold: true, color: "#fff", fillColor: NAVY, alignment: c[2] === "num" || c[2] === "pct" ? "right" : "left" })),
-    ...d.rows.map((r) => d.cols.map((c) => ({ text: text(r[c[0]], c[2]), alignment: c[2] === "num" || c[2] === "pct" ? "right" : "left",
+  const body = [d.cols.map((c) => ({ text: c[1], bold: true, color: "#fff", fillColor: NAVY, alignment: ["num", "pct", "spct", "chg"].includes(c[2]) ? "right" : "left" })),
+    ...d.rows.map((r) => d.cols.map((c) => ({ text: text(r[c[0]], c[2]), alignment: ["num", "pct", "spct", "chg"].includes(c[2]) ? "right" : "left",
       color: /^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never|No-show)$/.test(String(r[c[0]])) ? "#b91c1c" : undefined })))];
-  return { wide, block: d.rows.length ? { table: { headerRows: 1, widths: d.cols.map((c) => (c[2] === "num" || c[2] === "pct" || c[2] === "dt" || c[2] === "date" ? "auto" : "*")), body },
+  return { wide, block: d.rows.length ? { table: { headerRows: 1, widths: d.cols.map((c) => (c[2] === "num" || c[2] === "pct" || c[2] === "spct" || c[2] === "chg" || c[2] === "dt" || c[2] === "date" ? "auto" : "*")), body },
     layout: { fillColor: (i) => (i > 0 && i % 2 === 0 ? "#F6F8FB" : null), hLineColor: "#E3E8F0", vLineColor: "#E3E8F0", hLineWidth: () => 0.5, vLineWidth: () => 0.5 }, fontSize: wide ? 7.5 : 8.5 }
     : { text: "Nothing to show for these filters.", color: GRAY, italics: true } };
 }

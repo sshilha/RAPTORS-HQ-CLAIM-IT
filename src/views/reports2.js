@@ -23,7 +23,8 @@ const TITLES = { assessProgress: "Assessment progress", assessTeamProgress: "Ass
   locations: "Locations", rsvp: "RSVP by event", rsvpAthletes: "RSVP by athlete", engagement: "Family engagement", notSignedUp: "On the list, not signed up", volunteer: "Volunteer hours by family", emails: "Email problems", week: "Weekly roster" };
 function cell(v, kind) {
   if (kind === "act") return v ? `<td data-sort=""><a class="rf-btn na-act" href="${esc(v[1])}">${esc(v[0])}</a></td>` : `<td data-sort=""></td>`;
-  if (v == null || v === "") return `<td class="r-muted" data-sort="">—</td>`;
+  if (v == null || v === "") return `<td class="r-muted${["num", "pct", "spct", "chg"].includes(kind) ? " r-num" : ""}" data-sort="">—</td>`;   // blanks line up with their column
+  if (kind === "spct" || kind === "chg") { const n = Number(v); return `<td class="r-num" data-sort="${n}"><b class="chg ${n > 0 ? "up" : n < 0 ? "down" : ""}">${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}${kind === "spct" ? "%" : ""}</b></td>`; }
   if (kind === "pct") return `<td data-sort="${v}"><span class="r-pct"><b>${v}%</b><i style="width:${Math.min(100, v)}%"></i></span></td>`;
   if (kind === "num") return `<td class="r-num" data-sort="${v}">${esc(String(v))}</td>`;
   if (kind === "date" || kind === "dt") { const d = new Date(v); return `<td class="r-muted" data-sort="${d.toISOString()}">${esc(kind === "dt" ? fmtDateTime(d) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }))}</td>`; }
@@ -33,7 +34,7 @@ function table(d0, url = null) {
   const d = { ...d0, cols: d0.cols.filter((c) => c[2] !== "csv") };
   const L = (row) => { const h = d.link && d.link(row); if (h && url && h.startsWith("/reports?")) return url(Object.fromEntries(new URLSearchParams(h.split("?")[1]))); return h; };
   if (!d.rows.length) return `<div class="d-empty"><b>Nothing matches these filters.</b> Try widening the dates or removing a filter.</div>`;
-  return `<div class="table-wrap"><table class="r-table"><thead><tr>${d.cols.map((c) => `<th${c[2] === "num" || c[2] === "pct" ? ' class="r-num"' : ""}>${esc(c[1])}</th>`).join("")}</tr></thead><tbody>
+  return `<div class="table-wrap"><table class="r-table"><thead><tr>${d.cols.map((c) => `<th${c[2] === "num" || c[2] === "pct" || c[2] === "spct" || c[2] === "chg" ? ' class="r-num"' : ""}>${esc(c[1])}</th>`).join("")}</tr></thead><tbody>
     ${d.rows.map((row) => `<tr>${d.cols.map((c, i) => i === 0 && L(row) ? cell(row[c[0]], c[2]).replace(/^<td([^>]*)>([\s\S]*)<\/td>$/, (m, at, inner) => `<td${at}><a href="${L(row)}"><b>${inner}</b></a></td>`) : cell(row[c[0]], c[2])).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 function grid(d) {
@@ -241,11 +242,11 @@ function reportPage({ famOK = false, coached = [], pid = "", user, flash, admin,
       <div class="pv-hd"><a class="link-dark" href="${url({ r: "person", pid: "" })}">← Claims by person</a>
         <h2>${esc(P.first_name)} ${esc(P.last_name || "")}</h2><p class="fine">${[P.team, ...data.boards.map((b) => b.name + (b.group_name ? ` (${b.group_name})` : ""))].filter(Boolean).map(esc).join(" · ") || "Not on a board in view"}${admin ? ` · <a href="/admin/people/${P.id}">Open in People</a>` : ""}</p></div>
       <div class="kpis pv-k">${data.kpis.map(([l, v, u]) => `<div class="kpi"><span class="kpi-l">${esc(l)}</span><b>${v == null ? "—" : `${v}${u || ""}`}</b></div>`).join("")}</div>
-      <div class="db-grid"><section class="db-card"><h3>Attendance by month <span class="fine">% attended</span></h3>${barChart(data.trend, { unit: "%", max: 100 })}</section>
-        <section class="db-card"><h3>Upcoming <span class="fine">${data.upcoming.rows.length}</span></h3>${data.upcoming.rows.length ? table(data.upcoming) : `<p class="ch-empty">Nothing upcoming.</p>`}</section></div>
+      ${data.trend.length ? `<section class="db-card"><h3>Attendance by month <span class="fine">% attended (recorded sessions)</span></h3>${barChart(data.trend, { unit: "%", max: 100 })}</section>` : ""}
+      <section class="db-card"><h3>Upcoming <span class="fine">${data.upcoming.rows.length}</span></h3>${data.upcoming.rows.length ? table(data.upcoming) : `<p class="ch-empty">Nothing upcoming.</p>`}</section>
       <section class="db-card"><h3>Attendance history <span class="fine">${data.history.rows.length} past sessions</span></h3>${data.history.rows.length ? table(data.history) : `<p class="ch-empty">No past sessions in this range.</p>`}</section>
-      <div class="db-grid"><section class="db-card"><h3>Cancellations <span class="fine">${data.canceled.rows.length}</span></h3>${data.canceled.rows.length ? table(data.canceled) : `<p class="ch-empty">No cancellations.</p>`}</section>
-        <section class="db-card"><h3>Waitlist activity <span class="fine">${data.waitlist.rows.length}</span></h3>${data.waitlist.rows.length ? table(data.waitlist) : `<p class="ch-empty">No waitlist activity.</p>`}</section></div>`;
+      <section class="db-card"><h3>Cancellations <span class="fine">${data.canceled.rows.length}</span></h3>${data.canceled.rows.length ? table(data.canceled) : `<p class="ch-empty">No cancellations.</p>`}</section>
+      <section class="db-card"><h3>Waitlist activity <span class="fine">${data.waitlist.rows.length}</span></h3>${data.waitlist.rows.length ? table(data.waitlist) : `<p class="ch-empty">No waitlist activity.</p>`}</section>`;
   }
   else body = `${r === "volunteer" && admin ? `<form method="post" action="${url({}).replace("/reports?", "/reports/volunteer-required?")}" class="r-req"><label>Hours each family needs <input type="number" name="hours" min="0" max="500" step="0.5" value="${required || ""}" placeholder="none"></label><button class="sb-btn" type="submit">Save</button><span class="fine">Leave empty for no requirement.</span></form>` : ""}
     ${data.summary ? `<div class="kpis pv-k">${data.summary.map(([l, v]) => `<div class="kpi"><span class="kpi-l">${esc(l)}</span><b>${v}</b></div>`).join("")}</div>` : ""}

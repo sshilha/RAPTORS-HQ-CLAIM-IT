@@ -7,7 +7,7 @@ const day = (t) => new Date(t).toLocaleDateString("en-US", { timeZone: TZ, weekd
 const SECTIONS = [["fOverview", "Overview", IC2.home], ["fClaims", "My Claims", IC2.clip], ["fAttendance", "My Attendance", IC2.users], ["fProgress", "My Progress", IC2.bars], ["fSchedule", "My Schedule", IC2.cal]];
 const tag = (s) => `<span class="fm-tag fm-${s.replace(/[^a-z]/gi, "").toLowerCase()}">${esc(s)}</span>`;
 
-function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, boards = [], board = "", show = "", whenF = "" }) {
+function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, boards = [], board = "", show = "", whenF = "", mode = "", month = "" }) {
   const byId = new Map(people.map((p) => [p.id, p]));
   const head = `<section class="ra-hd"><span class="ra-tile">${IC2.chart}</span><div><h1>Reports &amp; Analytics</h1><p>Claim-It • Participation, Attendance &amp; Board Management</p></div>
       ${mgmt ? `<nav class="ra-views" aria-label="Reports view"><a href="/reports?view=mgmt">Management Reports</a><a href="${url({})}" class="on" aria-current="page">My Family</a></nav>` : ""}</section>`;
@@ -20,7 +20,8 @@ function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, board
       ${people.length > 1 ? pick("a", "Athlete", [["", "All my athletes"], ...people.map((p) => [p.id, p.you ? `${p.first_name} (you)` : p.first_name])], sel || "") : `<span class="fm-one">${esc(people[0] ? people[0].first_name : "")}</span>`}
       ${r !== "fProgress" && boards.length > 1 ? pick("b", "Program", [["", "All programs"], ...boards.map((b) => [b.id, b.name])], board) : hidden({ b: board })}
       ${r === "fClaims" ? pick("show", "Show", [["", "Upcoming & waitlisted"], ["past", "Past"], ["waitlisted", "Waitlisted"], ["released", "Released"], ["all", "All"]], show) : ""}
-      ${r === "fSchedule" ? pick("when", "When", [["", "Upcoming"], ["past", "Past"]], whenF) : ""}</form>`;
+      ${r === "fSchedule" && !mode ? pick("when", "When", [["", "Upcoming"], ["past", "Past"]], whenF) : ""}
+      ${r === "fSchedule" ? `<span class="fm-mode" role="group" aria-label="View"><a href="${url({ mode: "", m: "" })}"${mode ? "" : ' class="on" aria-current="true"'}>List</a><a href="${url({ mode: "cal", when: "" })}"${mode ? ' class="on" aria-current="true"' : ""}>Calendar</a></span>` : ""}</form>`;
   const csv = ["fClaims", "fAttendance", "fSchedule"].includes(r) ? `<div class="ra-dl"><a class="rf-btn" href="${url({ csv: "1" })}">⬇ CSV</a></div>` : "";
   let body = "";
   const empty = (t, more = "") => `<div class="d-empty"><b>${t}</b>${more ? ` ${more}` : ""}</div>`;
@@ -52,6 +53,27 @@ function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, board
         <p class="fine">${esc(people.length > 1 ? (byId.get(p.athlete_id) || {}).first_name + " · " : "")}${esc(p.assessment)} · ${p.better === "higher" ? "higher is better" : "lower is better"}</p>
         ${p.points.length > 1 ? R.barChart(p.points, { line: true }) : ""}
         <p class="pv-sum">${esc(p.summary)}</p><p class="fine">First ${p.first} · Latest ${p.latest} · Best ${p.best} · ${p.tests} test${p.tests === 1 ? "" : "s"}</p></section>`).join("")}</div>`;
+  } else if (r === "fSchedule" && mode === "cal") {
+    // a month grid; each session is a chip linking to its card below
+    const [y, mo] = month.split("-").map(Number), first = new Date(Date.UTC(y, mo - 1, 1)), daysIn = new Date(Date.UTC(y, mo, 0)).getUTCDate(), lead = first.getUTCDay();
+    const shift = (n) => { const d = new Date(Date.UTC(y, mo - 1 + n, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`; };
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: TZ }), byDay = new Map();
+    for (const c of data) { const k = new Date(c.starts_at).toLocaleDateString("en-CA", { timeZone: TZ }); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(c); }
+    const tm = (t) => new Date(t).toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).replace(":00", "").replace(" ", "").toLowerCase();
+    const chipCls = (c) => (c.status === "waitlisted" ? "wl" : c.past ? "past" : "up");
+    const short = (c) => (c.session.split(" › ").slice(-2).join(" › "));
+    const cells = [...Array(lead).fill(null), ...Array.from({ length: daysIn }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
+    while (cells.length % 7) cells.push(null);
+    const title = new Date(Date.UTC(y, mo - 1, 15)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+    body = `<div class="cal-hd"><a class="rf-btn" href="${url({ m: shift(-1) })}" aria-label="Previous month">‹</a><h3>${esc(title)}</h3><a class="rf-btn" href="${url({ m: shift(1) })}" aria-label="Next month">›</a>
+        <span class="cal-key"><i class="up"></i>Claimed <i class="wl"></i>Waitlisted <i class="past"></i>Past</span></div>
+      <div class="cal" role="grid" aria-label="${esc(title)}">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<div class="cal-dow" role="columnheader">${d}</div>`).join("")}
+        ${cells.map((k) => { if (!k) return `<div class="cal-d cal-x"></div>`; const list = byDay.get(k) || [];
+          return `<div class="cal-d${k === today ? " today" : ""}${list.length ? " has" : ""}" role="gridcell">${list.length ? `<a class="cal-n" href="#d${k}">${Number(k.slice(8))}</a>` : `<span class="cal-n">${Number(k.slice(8))}</span>`}
+            ${list.map((c) => `<a class="cal-c ${chipCls(c)}" href="#c${c.id}" title="${esc(`${when(c.starts_at)} · ${c.who} · ${c.session}${c.status === "waitlisted" ? " (waitlisted)" : ""}`)}"><b>${esc(tm(c.starts_at))}</b> ${esc(people.length > 1 ? c.who + " · " : "")}${esc(short(c))}</a>`).join("")}
+            ${list.length ? `<span class="cal-dots">${list.map((c) => `<i class="${chipCls(c)}"></i>`).join("")}</span>` : ""}</div>`; }).join("")}</div>
+      ${data.length ? [...byDay].sort().map(([k, list]) => `<section class="fm-day" id="d${k}"><h3>${esc(day(list[0].starts_at))}</h3>${list.map((c) => `<div id="c${c.id}">${card(c, false)}</div>`).join("")}</section>`).join("")
+        : `<p class="ch-empty">Nothing this month. <a href="/dashboard">Find sessions on Claim Boards →</a></p>`}`;
   } else if (r === "fSchedule") {
     const days = new Map(); for (const c of data) { const k = new Date(c.starts_at).toLocaleDateString("en-CA", { timeZone: TZ }); if (!days.has(k)) days.set(k, []); days.get(k).push(c); }
     body = !data.length ? empty(whenF === "past" ? "No past sessions." : "Nothing upcoming.", `<a href="/dashboard">Find sessions on Claim Boards →</a>`) :
