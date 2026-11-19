@@ -64,10 +64,22 @@ const nm = (r) => `${r.first_name} ${r.last_name || ""}`.trim();
 const REPEAT = 3;   // no-shows that count as "repeat"
 
 // ---------- Claims ----------
-const stat = (c) => c.status === "canceled" ? "Canceled" : c.status === "waitlisted" ? "Waitlist" : c.board_type === "rsvp" ? "Going" : c.walk_in ? "Walk-in" : c.added_by_admin ? "Added by admin" : "Claimed";
+async function cancelWho(rows) {
+  const c = rows.filter((x) => x.status === "canceled" && x.canceled_at); if (!c.length) return;
+  const found = (await query(`SELECT DISTINCT ON (l.item_id, l.athlete_id) l.item_id, l.athlete_id, l.via FROM activity_log l
+      WHERE l.item_id = ANY($1) AND l.athlete_id = ANY($2) AND l.kind IN ('claims','people','sessions','checkin','rsvp') ORDER BY l.item_id, l.athlete_id, l.at DESC`,
+    [[...new Set(c.map((x) => x.item_id))], [...new Set(c.map((x) => x.athlete_id))]])).rows;
+  const by = new Map(found.map((r) => [`${r.item_id}|${r.athlete_id}`, r.via]));
+  // an admin removal from a session's People page is logged by its address (…/items/<session>/people/<claim>/remove)
+  const removed = new Set((await query(`SELECT path FROM activity_log WHERE via='admin' AND path LIKE ANY($1)`, [c.map((x) => `%/items/${x.item_id}/people/${x.id}/remove%`)])).rows
+    .map((r) => (/\/people\/(\d+)\/remove/.exec(r.path) || [])[1]).filter(Boolean).map(Number));
+  for (const x of c) { const v = removed.has(x.id) ? "admin" : by.get(`${x.item_id}|${x.athlete_id}`); x.cancel_kind = v === "admin" ? "Canceled by admin" : v ? "Released" : "Canceled"; }
+}
+const stat = (c) => c.status === "canceled" ? (c.cancel_kind || "Canceled") : c.status === "waitlisted" ? "Waitlisted" : c.board_type !== "rsvp" && new Date(c.ends_at || c.starts_at).getTime() < Date.now() ? "Past" : c.board_type !== "rsvp" && !c.walk_in && !c.added_by_admin ? "Active" : c.board_type === "rsvp" ? "Going" : c.walk_in ? "Walk-in" : c.added_by_admin ? "Added by admin" : "Claimed";
 const att = (c) => c.status === "canceled" ? "" : c.attended == null ? "" : c.attended ? "Here" : "No-show";
 async function claimsAll(f) {
-  const rows = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).filter((c) => c.board_type !== "rsvp" || f.cstatus).map((c) => ({ id: c.athlete_id, name: nm(c), team: c.team || "", board: c.board,
+  const raw = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).filter((c) => c.board_type !== "rsvp" || f.cstatus); await cancelWho(raw);
+  const rows = raw.map((c) => ({ id: c.athlete_id, name: nm(c), team: c.team || "", board: c.board,
     session: [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session", when: c.starts_at, location: c.location || "", status: stat(c), attended: att(c),
     claimed: c.created_at, canceled: c.canceled_at, note: c.note || "" }));
   return { cols: [["name", "Name"], ["team", "Team"], ["board", "Board"], ["session", "Level & session"], ["when", "When", "dt"], ["location", "Location"], ["status", "Status"], ["attended", "Attendance"], ["claimed", "Claimed on", "dt"], ["canceled", "Canceled on", "dt"], ["note", "Answer / note"]],
@@ -76,25 +88,25 @@ async function claimsAll(f) {
 async function claimsByPerson(f) {
   const by = new Map(), now = Date.now();
   for (const c of (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).filter((x) => x.board_type !== "rsvp")) {
-    const p = by.get(c.athlete_id) || { id: c.athlete_id, name: nm(c), team: c.team || "", levels: new Map(), active: 0, waitlisted: 0, here: 0, noshow: 0, last: null, next: null };
+    const p = by.get(c.athlete_id) || { id: c.athlete_id, name: nm(c), team: c.team || "", levels: new Map(), total: 0, upcoming: 0, waitlisted: 0, here: 0, noshow: 0, last: null, next: null };
     if (c.status === "waitlisted") p.waitlisted++; else {
-      p.active++; const lv = (c.path || "").split(" › ").slice(0, 2).join(" › "); if (lv) p.levels.set(lv, (p.levels.get(lv) || 0) + 1);
+      p.total++; const lv = (c.path || "").split(" › ").slice(0, 2).join(" › "); if (lv) p.levels.set(lv, (p.levels.get(lv) || 0) + 1);
       const t = new Date(c.starts_at).getTime(), done = new Date(c.ends_at || c.starts_at).getTime() < now;
-      if (c.attended === true) { p.here++; if (!p.last || t > p.last) p.last = t; } if (c.attended === false) p.noshow++;
-      if (!done && t > now && (!p.next || t < p.next)) p.next = t;
+      if (c.attended === true) p.here++; if (c.attended === false) p.noshow++;
+      if (done) { if (!p.last || t > p.last) p.last = t; } else { p.upcoming++; if (!p.next || t < p.next) p.next = t; }
     }
     by.set(c.athlete_id, p);
   }
-  const rows = [...by.values()].map((p) => ({ id: p.id, name: p.name, team: p.team, level: [...p.levels].sort((a, b) => b[1] - a[1]).map(([k]) => k)[0] || "", active: p.active, waitlisted: p.waitlisted,
-    here: p.here, noshow: p.noshow, att: pct(p.here, p.here + p.noshow), last: p.last ? new Date(p.last) : null, next: p.next ? new Date(p.next) : null })).sort((a, b) => a.name.localeCompare(b.name));
-  return { cols: [["name", "Name"], ["team", "Team"], ["level", "Level"], ["active", "Active claims", "num"], ["waitlisted", "Waitlisted", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["att", "Attendance", "pct"], ["last", "Last attended", "dt"], ["next", "Next scheduled", "dt"]],
-    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: "Each person's claims in the range (program and volunteer boards). Attendance = attended ÷ (attended + no-shows) on past sessions. Click a name for their full history." };
+  const rows = [...by.values()].map((p) => ({ id: p.id, name: p.name, team: p.team, level: [...p.levels].sort((a, b) => b[1] - a[1]).map(([k]) => k)[0] || "", total: p.total, upcoming: p.upcoming,
+    here: p.here, noshow: p.noshow, att: p.here + p.noshow ? pct(p.here, p.here + p.noshow) : null, waitlisted: p.waitlisted, last: p.last ? new Date(p.last) : null, next: p.next ? new Date(p.next) : null })).sort((a, b) => a.name.localeCompare(b.name));
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["level", "Level"], ["total", "Total claims", "num"], ["upcoming", "Upcoming", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["att", "Attendance", "pct"], ["waitlisted", "Waitlisted", "num"], ["last", "Last session", "dt"], ["next", "Next session", "dt"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: "Active claims in the range (program and volunteer boards). Attendance = attended ÷ (attended + no-shows) on past sessions; shown once any attendance is recorded. Click a name for their history." };
 }
 // ---------- one person, in detail (opened from a name) ----------
 async function personView(f, pid) {
   const p = (await query(`SELECT id, first_name, last_name, team, kind FROM athletes WHERE id=$1`, [pid])).rows[0];
   if (!p) return { person: null };
-  const all = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted", "canceled"] })).filter((c) => c.athlete_id === pid && c.board_type !== "rsvp" && !(c.status === "canceled" && c.rsvp));
+  const all = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted", "canceled"] })).filter((c) => c.athlete_id === pid && c.board_type !== "rsvp" && !(c.status === "canceled" && c.rsvp)); await cancelWho(all);
   const ob = [pid, f.boards];   // only boards (and teams) this viewer may see
   const onBoards = (await query(`SELECT sc.id, sc.name, m.group_name FROM schedule_members m JOIN schedules sc ON sc.id=m.schedule_id WHERE m.athlete_id=$1 AND m.schedule_id = ANY($2)${memberCond(f, ob, "m")} ORDER BY sc.name`, ob)).rows;
   if (f.scoped && !all.length && !onBoards.length) return { person: null };   // not someone on this person's boards
@@ -120,15 +132,21 @@ async function personView(f, pid) {
 // ---------- Teams: participation grouped by team ----------
 async function teamsReport(f) {
   const cl = (await claimsIn(f, { past: false, statuses: ["confirmed"] })).filter((c) => c.board_type !== "rsvp"), now = Date.now(), by = new Map();
+  const roster = new Map(); for (const m of await members(f)) { if (m.board_type === "rsvp") continue; const k = m.team || "(no team)"; if (!roster.has(k)) roster.set(k, new Set()); roster.get(k).add(m.id); }
+  const blank = (k) => ({ team: k, people: new Set(), claims: 0, done: 0, here: 0, noshow: 0, upcoming: 0, upPeople: new Set() });
   for (const c of cl) {
-    const k = c.team || "(no team)", x = by.get(k) || { team: k, people: new Set(), claims: 0, done: 0, here: 0, noshow: 0, upcoming: 0 };
+    const k = c.team || "(no team)", x = by.get(k) || blank(k);
     x.people.add(c.athlete_id); x.claims++;
-    if (new Date(c.ends_at || c.starts_at).getTime() < now) { x.done++; if (c.attended === true) x.here++; if (c.attended === false) x.noshow++; } else x.upcoming++;
+    if (new Date(c.ends_at || c.starts_at).getTime() < now) { x.done++; if (c.attended === true) x.here++; if (c.attended === false) x.noshow++; } else { x.upcoming++; x.upPeople.add(c.athlete_id); }
     by.set(k, x);
   }
-  return { cols: [["team", "Team"], ["people", "Participants", "num"], ["claims", "Total claims", "num"], ["per", "Claims per person", "num"], ["done", "Completed sessions", "num"], ["att", "Attendance", "pct"], ["noshow", "No-shows", "num"], ["upcoming", "Upcoming claims", "num"]],
-    rows: [...by.values()].map((x) => ({ ...x, people: x.people.size, per: Math.round((x.claims / x.people.size) * 10) / 10, att: pct(x.here, x.here + x.noshow) })).sort((a, b) => b.people - a.people),
-    note: "Active claims on program and volunteer boards, grouped by each athlete's team on that board. Attendance = attended ÷ (attended + no-shows) on past sessions." };
+  for (const k of roster.keys()) if (!by.has(k)) by.set(k, blank(k));
+  const rows = [...by.values()].map((x) => { const r = roster.get(x.team), n = x.people.size, rs = r ? r.size : null;
+    return { team: x.team, roster: rs, people: n, rate: rs ? pct([...x.people].filter((id) => r.has(id)).length, rs) : null, claims: x.claims, per: n ? Math.round((x.claims / n) * 10) / 10 : null,
+      done: x.done, att: x.here + x.noshow ? pct(x.here, x.here + x.noshow) : null, noshow: x.noshow, upcoming: x.upcoming, upPeople: x.upPeople.size, upRate: rs ? pct([...x.upPeople].filter((id) => r.has(id)).length, rs) : null }; })
+    .sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1) || a.team.localeCompare(b.team));
+  return { cols: [["team", "Team"], ["roster", "Roster", "num"], ["people", "Participants", "num"], ["rate", "Participation", "pct"], ["claims", "Claims", "num"], ["per", "Claims per participant", "num"], ["done", "Completed", "num"], ["att", "Attendance", "pct"], ["noshow", "No-shows", "num"], ["upcoming", "Upcoming claims", "num"], ["upRate", "Upcoming participation", "pct"]],
+    rows, note: "Roster = athletes on the boards' lists for that team. Participation = roster athletes with at least one claim; Upcoming participation = roster athletes with an upcoming claim. Attendance = attended ÷ (attended + no-shows)." };
 }
 // ---------- Volunteers: shift coverage ----------
 async function coverage(f) {
@@ -158,11 +176,18 @@ async function noshows(f) {
     rows: all.map((c) => ({ id: c.athlete_id, when: c.starts_at, session: slotName(c), board: c.board, name: nm(c), team: c.team || "", total: count.get(c.athlete_id), flag: count.get(c.athlete_id) >= REPEAT ? "Repeat" : "" })).reverse(),
     link: (r) => `/admin/people/${r.id}`, note: `Newest first. "Repeat" = ${REPEAT} or more no-shows in the date range.` };
 }
+async function attendanceSessions(f) {
+  const rows = (await sessions({ ...f, past: true })).filter((s) => s.board_type !== "rsvp" && s.claimed > 0);
+  return { cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["claimed", "Expected", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["unmarked", "Not recorded", "num"], ["done", "Recorded", "pct"], ["rate", "Attendance", "pct"]],
+    rows: rows.reverse().map((s) => ({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, claimed: s.claimed, here: s.here, noshow: s.noshow, unmarked: s.unmarked,
+      done: pct(s.here + s.noshow, s.claimed), rate: s.here + s.noshow ? pct(s.here, s.here + s.noshow) : null })),
+    link: (r) => `/checkin/i/${r.id}`, note: "Past sessions with claims. Recorded = how much of the session's attendance is marked; Attendance = attended ÷ (attended + no-shows). Not recorded never counts as a no-show. Click a date to record attendance." };
+}
 async function unchecked(f) {
   const rows = (await sessions({ ...f, past: true })).filter((s) => s.unmarked > 0);
   const coaches = new Map((await query(`SELECT schedule_id, string_agg(email, ', ' ORDER BY email) AS e FROM schedule_coaches WHERE schedule_id = ANY($1) GROUP BY schedule_id`, [f.boards])).rows.map((r) => [r.schedule_id, r.e]));
   return { cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["claimed", "Claimed", "num"], ["unmarked", "Not checked in", "num"], ["coaches", "Coaches"]],
-    rows: rows.reverse().map((s) => ({ id: s.id, when: s.starts_at, session: s.session, board: s.board, claimed: s.claimed, unmarked: s.unmarked, coaches: coaches.get(s.board_id) || "" })),
+    rows: rows.reverse().map((s) => ({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, claimed: s.claimed, unmarked: s.unmarked, coaches: coaches.get(s.board_id) || "" })),
     link: (r) => `/checkin/i/${r.id}`, note: "Past sessions where someone who claimed was never marked Here or No-show. Open one to finish it." };
 }
 // ---------- Sessions ----------
@@ -188,9 +213,10 @@ async function busiest(f) {
 }
 async function waitlists(f) {
   const rows = (await sessions(f)).filter((s) => s.waitlisted > 0);
-  return { cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["capacity", "Spots", "num"], ["claimed", "Claimed", "num"], ["waitlisted", "Waiting", "num"]],
-    rows: rows.map((s) => ({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, capacity: s.capacity, claimed: s.claimed, waitlisted: s.waitlisted })).sort((a, b) => b.waitlisted - a.waitlisted),
-    link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "Sessions with people waiting for a spot right now, most waiting first: where more room would help." };
+  return { cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["capacity", "Capacity", "num"], ["taken", "Claimed", "num"], ["waitlisted", "Waitlisted", "num"], ["open", "Available", "num"], ["flag", ""]],
+    rows: rows.map((s) => { const open = s.capacity ? Math.max(s.capacity - s.taken, 0) : null; return { id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, capacity: s.capacity, taken: s.taken, waitlisted: s.waitlisted, open, flag: open > 0 && new Date(s.starts_at).getTime() > Date.now() ? "Open spots while people wait" : "" }; })
+      .sort((a, b) => (b.flag ? 1 : 0) - (a.flag ? 1 : 0) || b.waitlisted - a.waitlisted),
+    link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "Sessions with people waiting. Sessions with open spots while people wait are listed first; moving someone up follows each board's waitlist rules (nothing changes automatically here)." };
 }
 async function locations(f) {
   const by = new Map();
@@ -561,4 +587,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

@@ -341,6 +341,12 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.51** Reports step 4, Participation: Claims by person (total, upcoming, attended, no-shows, attendance %, waitlisted,
+  last and next session); claim statuses Active / Past / Waitlisted / Released (canceled by the family) / Canceled by admin
+  (from the activity log; older cancellations with no record stay "Canceled"); Attendance by session (expected, attended,
+  no-shows, not recorded, recorded %, attendance %; date opens check-in for admins and the board's coaches); Teams against
+  the roster (participation, claims per participant, attendance, upcoming participation); Waitlists (capacity, claimed,
+  waitlisted, available; "Open spots while people wait" first).
 - **v0.50** Reports step 3, Overview: six KPI cards that open their report filtered (Active claims + unique
   participants · Upcoming sessions + next date · Capacity % + claimed/available · Attendance % + sessions awaiting
   check-in · Waitlists + sessions with waitlists · Needs attention + high priority; "—" with a reason instead of a
