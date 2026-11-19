@@ -3343,3 +3343,9 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .db-all { float: right; font-size: 13px; font-weight: 600; } .up-t .up-c { min-width: 150px; }
 @media (max-width: 1100px) { .kpis.kp6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .kpis.kp6 { grid-template-columns: 1fr 1fr; } }
+/* weekly roster: a printable table per session */
+.ws-title { font: 800 18px Inter, sans-serif; color: #0B1930; margin: 0 0 12px; }
+.ws-t { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; } .ws-t th { text-align: left; font: 700 11px Inter, sans-serif; color: #5B6B82; text-transform: uppercase; letter-spacing: .04em; padding: 4px 8px; border-bottom: 1px solid #C9D1DE; }
+.ws-t td { padding: 7px 8px; border-bottom: 1px solid #E3E8F0; height: 22px; } .ws-c { width: 44px; text-align: center; } .ws-n { width: 40%; color: #475569; font-size: 13px; }
+.ws-t .ws-box { margin: 0; } .ws-blank td { height: 26px; } .ws-wl { margin: 6px 0 0; font-size: 13px; color: #334155; }
+@media print { .ws-title { font-size: 16px; } .ws-s { break-inside: avoid; page-break-inside: avoid; border: 0; padding: 0; margin-bottom: 14px; } .ws-t td { border-bottom-color: #999; } .ws-day { break-inside: auto; } }

@@ -36,19 +36,22 @@ function overview(d) {
 }
 function week(d, { waitlist = true, blanks = 3 } = {}) {
   const tm = (t) => new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" });
-  const box = { width: 14, table: { widths: [6], heights: [6], body: [[{ text: "", fontSize: 4 }]] }, layout: { hLineWidth: () => 0.8, vLineWidth: () => 0.8, hLineColor: () => NAVY, vLineColor: () => NAVY, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 }, margin: [0, 1, 0, 0] };
+  const box = () => ({ table: { widths: [7], heights: [7], body: [[{ text: "", fontSize: 4 }]] }, layout: { hLineWidth: () => 0.8, vLineWidth: () => 0.8, hLineColor: () => NAVY, vLineColor: () => NAVY, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 }, margin: [4, 1, 0, 0] });
   const days = new Map(); for (const s of d.sessions) { const k = new Date(s.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }); if (!days.has(k)) days.set(k, []); days.get(k).push(s); }
   const out = [];
   for (const [k, list] of days) {
     out.push({ text: new Date(k + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }), fontSize: 13, bold: true, color: NAVY, margin: [0, 10, 0, 4] });
     for (const s of list) {
       const conf = s.people.filter((p) => p.status === "confirmed"), wl = s.people.filter((p) => p.status === "waitlisted");
-      const lines = [...conf.map((p) => ({ columns: [box, { text: [{ text: `${p.first_name} ${p.last_name || ""}`.trim() }, p.team ? { text: `  ${p.team}`, color: GRAY, fontSize: 8 } : "", p.note && s.showNotes ? { text: `  “${p.note}”`, italics: true, color: GRAY, fontSize: 8 } : ""] }], margin: [0, 2, 0, 2] })),
-        ...Array.from({ length: blanks }, () => ({ columns: [box, { canvas: [{ type: "line", x1: 0, y1: 9, x2: 200, y2: 9, lineWidth: 0.5, lineColor: "#c9d1de" }] }], margin: [0, 3, 0, 3] }))];
-      out.push({ unbreakable: true, stack: [s.qLabel ? "" : "", { columns: [{ text: `${tm(s.starts_at)}${s.ends_at ? `–${tm(s.ends_at)}` : ""} · ${s.session}`, bold: true }, { text: `${s.board}${s.location ? ` · ${s.location}` : ""}${s.board_type === "rsvp" ? "" : ` · ${s.claimed}/${s.capacity}`}`, alignment: "right", color: GRAY, fontSize: 8 }] },
+      const cap = s.board_type === "rsvp" ? `${conf.length} going` : s.capacity ? `${s.taken} of ${s.capacity} claimed · ${Math.max(s.capacity - s.taken, 0)} open` : `${conf.length} claimed`;
+      const body = [[{ text: "Here", bold: true, fontSize: 8, color: GRAY }, { text: "Athlete", bold: true, fontSize: 8, color: GRAY }, { text: "Team", bold: true, fontSize: 8, color: GRAY }, { text: s.showNotes ? "Answer / notes" : "Notes", bold: true, fontSize: 8, color: GRAY }],
+        ...conf.map((p) => [box(), { text: `${p.first_name} ${p.last_name || ""}`.trim(), bold: true }, { text: p.team || "", color: GRAY }, { text: p.note && s.showNotes ? `“${p.note}”` : "", italics: true, color: GRAY, fontSize: 8 }]),
+        ...Array.from({ length: blanks }, () => [box(), { text: " " }, { text: "" }, { text: "" }])];
+      out.push({ unbreakable: true, stack: [
+        { columns: [{ text: `${tm(s.starts_at)}${s.ends_at ? `–${tm(s.ends_at)}` : ""} · ${s.session}`, bold: true }, { text: [s.location, s.board, cap].filter(Boolean).join(" · "), alignment: "right", color: GRAY, fontSize: 8 }] },
         s.qLabel ? { text: [{ text: "Question: ", color: GRAY }, { text: s.qLabel, bold: true }], fontSize: 8, margin: [0, 2, 0, 0] } : "",
-        { columns: [{ stack: lines.filter((_, i) => i % 2 === 0) }, { stack: lines.filter((_, i) => i % 2 === 1) }], columnGap: 16, margin: [0, 4, 0, 0] },
-        waitlist && wl.length ? { text: `Waitlist: ${wl.map((p) => `${p.first_name} ${p.last_name || ""}`.trim()).join(", ")}`, fontSize: 8, color: GRAY, margin: [0, 3, 0, 0] } : ""], margin: [0, 0, 0, 8] });
+        { table: { headerRows: 1, widths: [24, "*", 60, "*"], heights: (r) => (r === 0 ? 12 : 18), body }, layout: { hLineWidth: (i) => (i === 0 ? 0 : 0.5), vLineWidth: () => 0, hLineColor: () => "#c9d1de", paddingTop: () => 4, paddingBottom: () => 2 }, margin: [0, 4, 0, 0] },
+        waitlist && wl.length ? { text: `Waitlist: ${wl.map((p, i) => `${i + 1}. ${p.first_name} ${p.last_name || ""}`.trim()).join(" · ")}`, fontSize: 8, color: GRAY, margin: [0, 3, 0, 0] } : ""], margin: [0, 0, 0, 10] });
     }
   }
   return out.length ? out : [{ text: "No sessions that week for these filters.", color: GRAY, italics: true }];

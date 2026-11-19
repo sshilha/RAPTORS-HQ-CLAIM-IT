@@ -20,13 +20,14 @@ function reportNav(key, url, full = true, admin = true) {
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/></svg>`;
 const DL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="15" height="15"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>`;
 const TITLES = { attSessions: "Attendance by session", upcoming: "Upcoming sessions", notSignedIn: "Not signed in", assessResults: "Assessment results", assessLeaders: "Assessment leaderboard", assessTeamBest: "Assessment best by team", assessRecords: "Assessment records", assessImprove: "Assessment improvement", assessAttend: "Improvement vs attendance", assessTeams: "Assessment team averages", person: "Claims by person", all: "All claims", overview: "Overview", attendance: "Attendance by athlete", noshows: "No-shows", unchecked: "Check-ins not done", fill: "Session fill", busiest: "Busiest times", waitlists: "Waitlists",
-  locations: "Locations", rsvp: "RSVP by event", rsvpAthletes: "RSVP by athlete", engagement: "Family engagement", notSignedUp: "On the list, not signed up", volunteer: "Volunteer hours by family", emails: "Email problems", week: "Week sheet" };
+  locations: "Locations", rsvp: "RSVP by event", rsvpAthletes: "RSVP by athlete", engagement: "Family engagement", notSignedUp: "On the list, not signed up", volunteer: "Volunteer hours by family", emails: "Email problems", week: "Weekly roster" };
 function cell(v, kind) {
+  if (kind === "act") return v ? `<td data-sort=""><a class="rf-btn na-act" href="${esc(v[1])}">${esc(v[0])}</a></td>` : `<td data-sort=""></td>`;
   if (v == null || v === "") return `<td class="r-muted" data-sort="">—</td>`;
   if (kind === "pct") return `<td data-sort="${v}"><span class="r-pct"><b>${v}%</b><i style="width:${Math.min(100, v)}%"></i></span></td>`;
   if (kind === "num") return `<td class="r-num" data-sort="${v}">${esc(String(v))}</td>`;
   if (kind === "date" || kind === "dt") { const d = new Date(v); return `<td class="r-muted" data-sort="${d.toISOString()}">${esc(kind === "dt" ? fmtDateTime(d) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }))}</td>`; }
-  return `<td>${/^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never)$/.test(String(v)) ? `<span class="r-flag bad">${esc(v)}</span>` : /^(Done|Active|Past)$/.test(String(v)) ? `<span class="r-flag ok">${esc(v)}</span>` : /^(Close|Signed in, no claims|Waitlisted|Released)$/.test(String(v)) || /Method changed|Open spots/.test(String(v)) ? `<span class="r-flag mid">${esc(v)}</span>` : esc(String(v))}</td>`;
+  return `<td>${/^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never|Full|Over capacity)$/.test(String(v)) ? `<span class="r-flag bad">${esc(v)}</span>` : /^(Done|Active|Past|Complete|Healthy)$/.test(String(v)) ? `<span class="r-flag ok">${esc(v)}</span>` : /^(Close|Signed in, no claims|Waitlisted|Released|Nearly full|Low)$/.test(String(v)) || /Method changed|Open spots|^Pending/.test(String(v)) ? `<span class="r-flag mid">${esc(v)}</span>` : esc(String(v))}</td>`;
 }
 function table(d, url = null) {
   const L = (row) => { const h = d.link && d.link(row); if (h && url && h.startsWith("/reports?")) return url(Object.fromEntries(new URLSearchParams(h.split("?")[1]))); return h; };
@@ -43,14 +44,20 @@ function grid(d) {
 function weekSheet(d, o = {}) {
   const days = new Map(); for (const s of d.sessions) { const k = new Date(s.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }); if (!days.has(k)) days.set(k, []); days.get(k).push(s); }
   const dl = (k) => new Date(k + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  const tr = (s) => new Date(s.starts_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }) + (s.ends_at ? `–${new Date(s.ends_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })}` : "");
-  return `<div class="ws">${days.size ? [...days.entries()].map(([k, list]) => `<section class="ws-day"><h2>${esc(dl(k))}</h2>
-    ${list.map((s) => `<div class="ws-s"><div class="ws-h"><b>${esc(tr(s))} · ${esc(s.session)}</b><span>${esc(s.board)}${s.location ? ` · ${esc(s.location)}` : ""}${s.board_type === "rsvp" ? "" : ` · ${s.claimed}/${s.capacity}`}</span></div>
+  const tm = (t) => new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" });
+  const range = `${new Date(d.start + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })} – ${new Date(d.end + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+  const blanks = o.blanks ?? 3;
+  return `<div class="ws"><h2 class="ws-title">Weekly roster · ${esc(range)}</h2>${days.size ? [...days.entries()].map(([k, list]) => `<section class="ws-day"><h2>${esc(dl(k))}</h2>
+    ${list.map((s) => { const conf = s.people.filter((p) => p.status === "confirmed"), wl = s.people.filter((p) => p.status === "waitlisted");
+      const cap = s.board_type === "rsvp" ? `${conf.length} going` : s.capacity ? `${s.taken} of ${s.capacity} claimed · ${Math.max(s.capacity - s.taken, 0)} open` : `${conf.length} claimed`;
+      return `<div class="ws-s"><div class="ws-h"><b>${esc(tm(s.starts_at))}${s.ends_at ? `–${esc(tm(s.ends_at))}` : ""} · ${esc(s.session)}</b><span>${[s.location, s.board, cap].filter(Boolean).map(esc).join(" · ")}</span></div>
       ${s.qLabel ? `<p class="ws-q">Question: <b>${esc(s.qLabel)}</b></p>` : ""}
-      <ol class="ws-ppl">${s.people.filter((p) => p.status === "confirmed").map((p) => `<li><span class="ws-box"></span>${esc(p.first_name)} ${esc(p.last_name || "")}${p.team ? ` <small>${esc(p.team)}</small>` : ""}${p.note && s.showNotes ? ` <i>“${esc(p.note)}”</i>` : ""}</li>`).join("")}
-        ${Array.from({ length: o.blanks ?? 3 }, () => `<li class="ws-blank"><span class="ws-box"></span></li>`).join("")}</ol>
-      ${o.wl !== false && s.people.some((p) => p.status === "waitlisted") ? `<p class="fine">Waitlist: ${esc(s.people.filter((p) => p.status === "waitlisted").map((p) => `${p.first_name} ${p.last_name || ""}`.trim()).join(", "))}</p>` : ""}</div>`).join("")}</section>`).join("")
-    : `<div class="d-empty"><b>No sessions that week.</b></div>`}</div>`;
+      <table class="ws-t" data-nocards data-nosort><thead><tr><th class="ws-c">Here</th><th>Athlete</th><th>Team</th><th>${s.showNotes ? "Answer / notes" : "Notes"}</th></tr></thead><tbody>
+        ${conf.map((p) => `<tr><td class="ws-c"><span class="ws-box"></span></td><td><b>${esc(p.first_name)} ${esc(p.last_name || "")}</b></td><td>${esc(p.team || "")}</td><td class="ws-n">${p.note && s.showNotes ? `<i>“${esc(p.note)}”</i>` : ""}</td></tr>`).join("")}
+        ${Array.from({ length: blanks }, () => `<tr class="ws-blank"><td class="ws-c"><span class="ws-box"></span></td><td></td><td></td><td class="ws-n"></td></tr>`).join("")}
+      </tbody></table>
+      ${o.wl !== false && wl.length ? `<p class="ws-wl"><b>Waitlist:</b> ${wl.map((p, i) => `${i + 1}. ${esc(p.first_name)} ${esc(p.last_name || "")}`).join(" · ")}</p>` : ""}</div>`; }).join("")}</section>`).join("")
+    : `<div class="d-empty"><b>No sessions that week for these filters.</b></div>`}</div>`;
 }
 
 // ---------- small SVG charts (no library): labels, tooltips, and readable in print and PDF ----------
@@ -104,7 +111,7 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
   const PAIR = ["assessImprove", "assessAttend", "assessTeams"].includes(r);
   const sIds = board ? String(board.id) : several ? several.map((b) => b.id).join(",") : "all";
   const state = { as: X && X.test ? X.test.id : "", da: X && PAIR ? X.a || "" : "", db: X && PAIR ? X.b || "" : "", how: X && X.how === "avg" ? "avg" : "",
-    pid: r === "personView" ? pid : "", qd: qd || "", stype: btype, cs: cstatus, at: astatus, when: rf.when || "", cap: rf.cap || "", cov: rf.cov || "", st: rf.st || "", prob: rf.prob || "", ans: rf.ans || "", dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd || allDates ? "" : from, to: qd || allDates ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
+    pid: r === "personView" ? pid : "", qd: qd || "", stype: btype, cs: cstatus, at: astatus, when: rf.when || "", view: rf.view || "", cap: rf.cap || "", cov: rf.cov || "", st: rf.st || "", prob: rf.prob || "", ans: rf.ans || "", dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd || allDates ? "" : from, to: qd || allDates ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
   const url = (x) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ ...state, ...x }).filter(([, v]) => v !== "" && v != null))); return `/reports?${p}`; };
   const uses = (k) => (USES[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
   const off = (k) => (uses(k) ? "" : ` disabled title="Not used by this report"`);
@@ -120,12 +127,12 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
   const boardOpts = [["all", "All boards"], ...(several ? [[several.map((b) => b.id).join(","), `${several.length} boards selected`]] : []), ...boards.map((b) => [b.id, b.name + (b.archived_at ? " (archived)" : "")])];
   const levelOpts = board && (o.levels || []).length ? [["", "All levels"], ...o.levels.map((n) => [n.id, "  ".repeat(n.d) + n.path])] : [["", board ? "No levels" : "All levels (pick one board)"]];
   // ---- each report's own filters (a slim bar above the report) ----
-  const RFS = { attSessions: ["q"], upcoming: ["cap", "q"], notSignedIn: ["q"], person: ["cs", "at", "q"], all: ["cs", "at", "q"], fill: ["when", "cap", "q"], busiest: ["when"], locations: ["when"], attendance: ["at", "q"], noshows: ["q"], unchecked: ["q"],
+  const RFS = { attSessions: ["q"], upcoming: ["view", "q"], notSignedIn: ["q"], person: ["cs", "at", "q"], all: ["cs", "at", "q"], fill: ["view", "q"], busiest: ["when"], locations: ["when"], attendance: ["at", "q"], noshows: ["q"], unchecked: ["q"],
     teams: ["q"], coverage: ["when", "cov", "q"], volunteer: ["q"], waitlists: ["q"], engagement: ["st", "q"], notSignedUp: ["q"], emails: ["prob", "q"], rsvp: ["q"], rsvpAnswers: ["ans", "q"], rsvpAthletes: ["q"], week: ["week", "wl", "blanks"] };
   const mine = /^assess/.test(r) ? ["assess", "q"] : RFS[r] || [];
   const small = (name, label, opts, cur) => `<label class="rb-f"><span>${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()">${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
   const piece = { cs: () => small("cs", "Claim status", [["", "All claim statuses"], ...Object.entries(CS)], cstatus), at: () => small("at", "Attendance status", [["", "All attendance statuses"], ...Object.entries(AT)], astatus),
-    when: () => small("when", "When", [["", "Upcoming and past"], ...Object.entries(RF.when || {})], rf.when || ""), cap: () => small("cap", "Capacity", [["", "Any capacity"], ...Object.entries(RF.cap || {})], rf.cap || ""),
+    when: () => small("when", "When", [["", "Upcoming and past"], ...Object.entries(RF.when || {})], rf.when || ""), view: () => small("view", "Show", [["", "All sessions"], ...Object.entries(RF.view || {})], rf.view || ""), cap: () => small("cap", "Capacity", [["", "Any capacity"], ...Object.entries(RF.cap || {})], rf.cap || ""),
     cov: () => small("cov", "Coverage", [["", "Any coverage"], ...Object.entries(RF.cov || {})], rf.cov || ""), st: () => small("st", "Status", [["", "Any status"], ...Object.entries(RF.st || {})], rf.st || ""),
     prob: () => small("prob", "Problem", [["", "Any problem"], ...Object.entries(RF.prob || {})], rf.prob || ""), ans: () => small("ans", "Answer", [["", "Any answer"], ...Object.entries(RF.ans || {})], rf.ans || ""),
     q: () => `<label class="rf-search rb-q">${IC2.search}<input type="search" name="q" form="rf" value="${esc(o.q || "")}" placeholder="Search this report…" aria-label="Search this report"></label>`,
@@ -155,8 +162,8 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
     uses("loc") && (o.locations || []).length > 1 ? mini("loc", "Location", [["", "All locations"], ...(o.locations || []).map((l) => [l, l])], o.location || "") : "",
     uses("bt") ? mini("stype", "Session type", [["", "All session types"], ...Object.entries(BT).filter(([k]) => kinds.includes(k) || btype === k)], btype) : ""].filter(Boolean);
   const showCustom = !qd && !allDates;
-  const RLAB = { cs: "Claim status", at: "Attendance", when: "When", cap: "Capacity", cov: "Coverage", st: "Status", prob: "Problem", ans: "Answer", q: "Search" };
-  const RVAL = { cs: CS, at: AT, when: RF.when || {}, cap: RF.cap || {}, cov: RF.cov || {}, st: RF.st || {}, prob: RF.prob || {}, ans: RF.ans || {} };
+  const RLAB = { view: "Show", cs: "Claim status", at: "Attendance", when: "When", cap: "Capacity", cov: "Coverage", st: "Status", prob: "Problem", ans: "Answer", q: "Search" };
+  const RVAL = { view: RF.view || {}, cs: CS, at: AT, when: RF.when || {}, cap: RF.cap || {}, cov: RF.cov || {}, st: RF.st || {}, prob: RF.prob || {}, ans: RF.ans || {} };
   const chipsOn = [
     (board || several) && ["s", `Board: ${board ? board.name : `${several.length} boards`}`],
     uses("team") && team && ["team", `Team: ${team}`],
@@ -165,7 +172,7 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
     ...Object.keys(RLAB).filter((k) => (state[k] || (k === "q" && o.q)) && (mine.includes(k))).map((k) => [k, `${RLAB[k]}: ${k === "q" ? `“${o.q}”` : (RVAL[k][state[k]] || state[k])}`]),
   ].filter(Boolean);
   const clearOne = (k) => url(k === "qd" ? { qd: "", from: "", to: "" } : k === "s" ? { s: "all", level: "" } : { [k]: "" });
-  const panel = `<form method="get" action="/reports" id="rf">${hidden(["s", "level", "team", "loc", "stype", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "when", "cap", "cov", "st", "prob", "ans", "wl", "blanks", ...(qd ? [] : ["qd"])])}</form>
+  const panel = `<form method="get" action="/reports" id="rf">${hidden(["s", "level", "team", "loc", "stype", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "when", "view", "cap", "cov", "st", "prob", "ans", "wl", "blanks", ...(qd ? [] : ["qd"])])}</form>
     <section class="tb">
       <button type="button" class="tb-t" aria-expanded="true" onclick="var t = this.closest('.tb'), c = t.classList.toggle('tb-closed'); this.setAttribute('aria-expanded', String(!c));">${IC2.filter}Filters${chipsOn.length ? ` <b class="tb-n">${chipsOn.length}</b>` : ""}<span class="tb-car">${IC2.down}</span></button>
       ${mini("s", "Board", boardOpts, board ? board.id : several ? several.map((b) => b.id).join(",") : "all", ` onchange="var l = this.form.querySelector('[name=level]'); if (l) l.disabled = true; this.form.submit()"`).replace(' onchange="this.form.submit()"', "")}
@@ -180,7 +187,7 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
   const showSub = (k) => k === "emails" ? admin : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" || k === "volunteer" ? kinds.includes("volunteer") : true;
   const showTab = (id) => (TABS.find((t) => t[0] === id) || [, , , []])[3].some(([k, l]) => !l || showSub(k));
   const curTab = TABS.find((t) => t[3].some(([k]) => k === r)) || TABS[0];
-  const RK = ["pid", "cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters
+  const RK = ["view", "pid", "cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters
   const go = (k) => url({ r: k, v: "" }), goNew = (k) => url({ r: k, v: "", ...Object.fromEntries(RK.map((x) => [x, ""])) });
   const tabs = `<nav class="rt-tabs" aria-label="Reports">${TABS.filter((t) => showTab(t[0]) || t === curTab).map(([id, label, icon, subs]) => { const first = (subs.find(([k, l]) => l && showSub(k)) || subs[0])[0]; return `<a href="${id === curTab[0] ? go(first) : goNew(first)}"${t0(id)}>${icon}<span>${label}</span></a>`; }).join("")}</nav>
     ${curTab[3].filter(([k, l]) => l && showSub(k)).length > 1 ? `<nav class="r-chips" aria-label="${esc(curTab[1])} reports">${curTab[3].filter(([k, l]) => l && showSub(k)).map(([k, l]) => `<a href="${go(k)}"${k === r ? ' class="on" aria-current="page"' : ""}>${esc(l)}</a>`).join("")}</nav>` : ""}`;

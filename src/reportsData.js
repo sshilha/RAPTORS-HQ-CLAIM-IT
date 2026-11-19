@@ -192,12 +192,20 @@ async function unchecked(f) {
 }
 // ---------- Sessions ----------
 async function fill(f) {
-  const rows = (await sessions(f)).filter((s) => s.board_type !== "rsvp");
-  const rowsOut = rows.map((s) => ({ id: s.id, when: s.starts_at, session: s.session, board: s.board, capacity: s.capacity, claimed: s.taken, fill: pct(s.taken, s.capacity), waitlisted: s.waitlisted, here: s.here, board_id: s.board_id }));
-  for (const r of rowsOut) r.status = !r.capacity ? "No limit" : r.claimed > r.capacity ? "Over capacity" : r.claimed >= r.capacity ? "Full" : r.claimed / r.capacity >= 0.9 ? "Nearly full" : r.claimed / r.capacity >= 0.5 ? "Healthy" : "Low";
-  return { cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["capacity", "Spots", "num"], ["claimed", "Claimed", "num"], ["fill", "Full", "pct"], ["status", "Status"], ["waitlisted", "Waitlist", "num"], ["here", "Attended", "num"]],
-    rows: rowsOut,
-    link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "How full each session is. Sort by Full to find what's always full (add more) or always empty." };
+  const now = Date.now(), rows = (await sessions(f)).filter((s) => s.board_type !== "rsvp");
+  const statusOf = (s) => { if (!s.capacity) return "No limit"; const p = (s.taken / s.capacity) * 100, t = s.thresholds || {};
+    return s.taken > s.capacity ? "Over capacity" : s.taken >= s.capacity ? "Full" : p >= (Number(t.near_pct) || 90) ? "Nearly full" : p < (Number(t.min_pct) || 50) ? "Low" : "Healthy"; };
+  const out = rows.map((s) => { const past = new Date(s.ends_at || s.starts_at).getTime() < now, st = statusOf(s);
+    const attend = !past ? "Upcoming" : !s.claimed ? "No claims" : s.unmarked ? `Pending (${s.unmarked} not recorded)` : "Complete";
+    return { id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, location: s.location || "", capacity: s.capacity, claimed: s.taken,
+      open: s.capacity ? Math.max(s.capacity - s.taken, 0) : null, fill: pct(s.taken, s.capacity), status: st, waitlisted: s.waitlisted, attend, past,
+      act: past && s.unmarked ? ["Record attendance", `/checkin/i/${s.id}`] : ["Manage", `/admin/b/${s.board_id}/items/${s.id}/people`] }; });
+  const V = { upcoming: (x) => !x.past, past: (x) => x.past, low: (x) => !x.past && x.status === "Low", near: (x) => !x.past && x.status === "Nearly full", full: (x) => !x.past && x.status === "Full",
+    over: (x) => x.status === "Over capacity", waitlisted: (x) => x.waitlisted > 0, pending: (x) => /^Pending/.test(x.attend) };
+  const shown = f.view && V[f.view] ? out.filter(V[f.view]) : out;
+  return { cols: [["when", "Date / time", "dt"], ["session", "Session"], ["board", "Board"], ["location", "Location"], ["capacity", "Capacity", "num"], ["claimed", "Claimed", "num"], ["open", "Available", "num"],
+      ["fill", "% full", "pct"], ["status", "Status"], ["waitlisted", "Waitlist", "num"], ["attend", "Attendance"], ["act", "", "act"]],
+    rows: shown, note: "Capacity counts spots taken (walk-ins and extra spots don't). Low / Nearly full use each board's thresholds when set (Board → Notifications), otherwise under 50% / 90%+. Sort any column." };
 }
 async function busiest(f) {
   const rows = (await sessions(f)).filter((s) => s.board_type !== "rsvp" && s.capacity);

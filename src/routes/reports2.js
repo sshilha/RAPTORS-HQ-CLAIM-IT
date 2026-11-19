@@ -82,11 +82,12 @@ async function newReport(req, res, scope, boards) {
   const location = locations.includes(req.query.loc) ? req.query.loc : "";
   const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
   const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
-  const RF = { when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
+  const RF = { view: { upcoming: "Upcoming", past: "Past", low: "Low enrollment", near: "Nearly full", full: "Full", over: "Over capacity", waitlisted: "Waitlisted", pending: "Attendance pending" }, when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
     cov: { "Needs people": "Needs people", Covered: "Covered" }, st: { "No account": "No account", "Never signed in": "Never signed in", "Signed in, no claims": "No claims", Active: "Active" },
     prob: { Bounced: "Bounced", spam: "Marked as spam", failed: "Failed" }, ans: { Going: "Going", "Can't make it": "Can't make it", "No answer": "No answer" } };
   const rf = Object.fromEntries(Object.keys(RF).map((k) => [k, RF[k][req.query[k]] ? req.query[k] : ""]));
   const U = require("../views/reports2").USES, uses = (k) => (U[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
+  f.view = rf.view;
   Object.assign(f, { levels: uses("level") ? subtree : null, location: uses("loc") ? location : "", days: uses("days") ? days : [], btype: uses("bt") ? btype : "", cstatus, astatus, when: rf.when });
   if (!uses("team")) f.team = "";
   if (!uses("dates") && r !== "week") { f.from = "2000-01-01"; f.to = "2100-12-31"; }
@@ -118,6 +119,11 @@ async function newReport(req, res, scope, boards) {
       prob: (x) => (rf.prob === "Bounced" ? /^Bounced/.test(x.why) : rf.prob === "spam" ? /spam/i.test(x.why) : !/^Bounced|spam/i.test(x.why || "")) };
     for (const k of Object.keys(keep)) if (rf[k]) data = { ...data, rows: data.rows.filter(keep[k]) };
   }
+  if (data && data.rows && data.cols && data.cols.some((c) => c[2] === "act")) {   // action buttons: only where this person may go
+    const mineB = new Set((scope.coached || []).map(Number));
+    const ok = (h, row) => scope.all ? true : h.startsWith("/reports") || (h.startsWith("/checkin/") && mineB.has(Number(row.board_id)));
+    data = { ...data, rows: data.rows.map((row) => (row.act && !ok(row.act[1], row) ? { ...row, act: null } : row)) };
+  }
   if (q) {   // search: keep rows where any column mentions it
     const needle = q.toLowerCase(), has = (o) => Object.values(o).some((v) => v != null && typeof v !== "object" && String(v).toLowerCase().includes(needle));
     if (data.rows && !data.grid) data = { ...data, rows: data.rows.filter(has) };
@@ -134,6 +140,7 @@ async function newReport(req, res, scope, boards) {
     return res.send(buf);
   }
   if (!req.query.csv && !req.query.pdf) { const keep = new URLSearchParams(); for (const k of KEEP) if (req.query[k] && k !== "r") keep.set(k, String(req.query[k])); keep.set("r", r); prefs(req.user.id, keep.toString()).catch(() => {}); }
+  if ((req.query.csv || req.query.pdf) && data.cols) data = { ...data, cols: data.cols.filter((c) => c[2] !== "act") };   // exports: no action buttons
   if (req.query.csv && data.cols) {
     const q = (x) => `"${String(x == null ? "" : x instanceof Date ? x.toISOString() : x).replace(/"/g, '""')}"`;
     const lines = [data.cols.map((c) => q(c[1])).join(",")].concat(data.rows.map((row) => data.cols.map((c) => q(c[2] === "dt" || c[2] === "date" ? (row[c[0]] ? require("../time").fmtDateTime(row[c[0]]) : "") : row[c[0]])).join(",")));

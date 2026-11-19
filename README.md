@@ -341,6 +341,13 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.52** Reports step 5, Sessions: Fill & capacity / Upcoming as a capacity table (date, session, board, location,
+  capacity, claimed, available, % full bar, status from each board's thresholds or 50% / 90%, waitlist, attendance
+  status Complete / Pending (n not recorded) / Upcoming / No claims, and an action: Manage for admins, Record attendance
+  for admins and that board's coaches; exports leave actions out) with a Show filter (Upcoming, Past, Low enrollment,
+  Nearly full, Full, Over capacity, Waitlisted, Attendance pending). Weekly roster: a table per session (☐ · athlete ·
+  team · notes) with blank sign-in rows, capacity line, waitlist; the same layout in the PDF; prints one session block
+  per piece.
 - **v0.51** Reports step 4, Participation: Claims by person (total, upcoming, attended, no-shows, attendance %, waitlisted,
   last and next session); claim statuses Active / Past / Waitlisted / Released (canceled by the family) / Canceled by admin
   (from the activity log; older cancellations with no record stay "Canceled"); Attendance by session (expected, attended,
