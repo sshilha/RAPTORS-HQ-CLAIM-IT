@@ -3399,3 +3399,8 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
   .r-chips a { min-height: 38px; display: inline-flex; align-items: center; }
 }
 @media (max-width: 760px) { select { min-height: 40px; } details > summary { min-height: 36px; display: flex; align-items: center; } }
+/* report tables: numbers (and their headings) centered, text left */
+.r-table th.r-num, .r-table td.r-num, .r-table th.num, .r-table td.num { text-align: center !important; }
+.r-table td.r-num .r-pct { margin: 0 auto; align-items: center; } .r-table td.r-num .r-pct i { align-self: stretch; }
+.r-table th.r-num.sort-th::after { position: absolute; }   /* the sort arrow hangs beside the heading, so the heading centers over its numbers */
+@media (max-width: 760px) { table.cards td.r-num { justify-content: flex-start; text-align: left !important; } table.cards td.r-num .r-pct { margin: 0; } }

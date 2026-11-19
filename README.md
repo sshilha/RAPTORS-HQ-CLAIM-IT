@@ -341,6 +341,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.57.1** Report tables: numbers, percentages and their headings centered (text stays left); the sort arrow no longer
+  shifts number headings; PDFs center number columns too.
 - **v0.57** Reports steps 10–13: My Schedule calendar (List | Calendar, month grid with ‹ ›, chips by status, dots on
   phones); signed change columns (+8% / −10.1%, +0.39; green better, red worse; plain numbers in CSV); readable testing-day
   headings on Improvement; blank number cells aligned; person view tables full width; phone fixes (assessment filters,
