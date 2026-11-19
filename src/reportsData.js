@@ -6,6 +6,18 @@ const { slotName } = require("./time");
 const TZ = "America/Chicago";
 const span = (a, b) => [`(${a}::date)::timestamp AT TIME ZONE '${TZ}'`, `((${b}::date) + 1)::timestamp AT TIME ZONE '${TZ}'`];
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+// team limits (team managers): for boards with a limit, only athletes on those teams count. $n is the {board: [teams]} map.
+function teamCond(f, args, board, athlete) {
+  if (!f.teamsBy) return "";
+  args.push(JSON.stringify(f.teamsBy)); const n = args.length;
+  return ` AND (NOT ($${n}::jsonb ? (${board})::text) OR EXISTS (SELECT 1 FROM schedule_members tm WHERE tm.schedule_id = ${board} AND tm.athlete_id = ${athlete} AND ($${n}::jsonb -> (${board})::text) ? tm.group_name))`;
+}
+function memberCond(f, args, m) {   // for rows that are board memberships
+  if (!f.teamsBy) return "";
+  args.push(JSON.stringify(f.teamsBy)); const n = args.length;
+  return ` AND (NOT ($${n}::jsonb ? ${m}.schedule_id::text) OR ($${n}::jsonb -> ${m}.schedule_id::text) ? ${m}.group_name)`;
+}
+const teamAllowed = (f, boardId, team) => !f.teamsBy || !f.teamsBy[boardId] || f.teamsBy[boardId].includes(team);
 // the extra filters every session-based report shares: level (node ids, the level and everything inside it), location, weekdays
 function more(f, args) {
   const w = [];
@@ -19,7 +31,7 @@ function more(f, args) {
 
 // sessions in range, with their level path and counts
 async function sessions(f) {
-  const { boards, from, to, past = false } = f, [lo, hi] = span("$2", "$3"), args = [boards, from, to], x = more(f, args);
+  const { boards, from, to, past = false } = f, [lo, hi] = span("$2", "$3"), args = [boards, from, to], x = more(f, args), tj = teamCond(f, args, "i.schedule_id", "c.athlete_id");
   return (await query(`SELECT i.id, i.title, i.starts_at, i.ends_at, i.capacity, coalesce(nullif(i.location,''), sc.event_location) AS location, i.schedule_id AS board_id, sc.name AS board, sc.board_type, sc.question,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path,
@@ -27,7 +39,7 @@ async function sessions(f) {
       count(c.*) FILTER (WHERE c.status='canceled' AND c.rsvp IS NULL)::int AS canceled, sc.settings->'report' AS thresholds,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended)::int AS here, count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended = false)::int AS noshow,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended IS NULL)::int AS unmarked
-    FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id LEFT JOIN board_claims c ON c.item_id=i.id
+    FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id LEFT JOIN board_claims c ON c.item_id=i.id${tj}
     WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL AND i.starts_at IS NOT NULL AND i.starts_at >= ${lo} AND i.starts_at < ${hi} ${past ? "AND coalesce(i.ends_at, i.starts_at) < now()" : ""}${x}
     GROUP BY i.id, sc.name, sc.board_type, sc.event_location, sc.question, sc.settings ORDER BY i.starts_at, i.id`, args)).rows.map((s) => ({ ...s, session: [s.path, s.title && s.path ? s.title : ""].filter(Boolean).join(" › ") || s.title || "Session" }));
 }
@@ -36,7 +48,8 @@ async function claimsIn(f, { past = true, statuses = ["confirmed"] } = {}) {
   if (f.cstatus) statuses = statuses.includes(f.cstatus) || f.cstatus === "canceled" ? [f.cstatus] : statuses;   // Claim status filter
   const [lo, hi] = span("$2", "$3"), args = [f.boards, f.from, f.to, statuses];
   let x = more(f, args); if (f.team) { args.push(f.team); x += ` AND m.group_name = $${args.length}`; }
-  return (await query(`SELECT c.id, c.status, c.attended, c.walk_in, c.note, c.counts, c.added_by_admin, c.rsvp, a.id AS athlete_id, a.first_name, a.last_name, m.group_name AS team, i.id AS item_id, i.title, i.starts_at, i.ends_at,
+  x += teamCond(f, args, "i.schedule_id", "c.athlete_id");
+  return (await query(`SELECT c.id, c.status, c.attended, c.walk_in, c.note, c.counts, c.added_by_admin, c.rsvp, c.created_at, c.canceled_at, c.promoted_at, a.id AS athlete_id, a.first_name, a.last_name, m.group_name AS team, i.id AS item_id, i.title, i.starts_at, i.ends_at,
       sc.name AS board, sc.board_type, i.schedule_id AS board_id, coalesce(nullif(i.location,''), sc.event_location) AS location,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path
@@ -54,21 +67,54 @@ const REPEAT = 3;   // no-shows that count as "repeat"
 const stat = (c) => c.status === "canceled" ? "Canceled" : c.status === "waitlisted" ? "Waitlist" : c.board_type === "rsvp" ? "Going" : c.walk_in ? "Walk-in" : c.added_by_admin ? "Added by admin" : "Claimed";
 const att = (c) => c.status === "canceled" ? "" : c.attended == null ? "" : c.attended ? "Here" : "No-show";
 async function claimsAll(f) {
-  const rows = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).map((c) => ({ canceled_at: c.canceled_at, id: c.athlete_id, name: nm(c), team: c.team || "", session: [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session",
-    when: c.starts_at, board: c.board, location: c.location || "", status: stat(c), attended: att(c), note: c.note || "" }));
-  return { cols: [["name", "Name"], ["team", "Team"], ["session", "Session"], ["when", "When", "dt"], ["board", "Board"], ["location", "Location"], ["status", "Status"], ["attended", "Attended"], ["note", "Answer / note"]],
-    rows, link: (r) => `/admin/people/${r.id}`, note: "Every claim (and waitlist spot) in the range that matches the filters." };
+  const rows = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).filter((c) => c.board_type !== "rsvp" || f.cstatus).map((c) => ({ id: c.athlete_id, name: nm(c), team: c.team || "", board: c.board,
+    session: [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session", when: c.starts_at, location: c.location || "", status: stat(c), attended: att(c),
+    claimed: c.created_at, canceled: c.canceled_at, note: c.note || "" }));
+  return { cols: [["name", "Name"], ["team", "Team"], ["board", "Board"], ["session", "Level & session"], ["when", "When", "dt"], ["location", "Location"], ["status", "Status"], ["attended", "Attendance"], ["claimed", "Claimed on", "dt"], ["canceled", "Canceled on", "dt"], ["note", "Answer / note"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: f.cstatus === "canceled" ? "Canceled claims in the range (an RSVP \"Can't make it\" isn't a cancellation)." : "Every claim and waitlist spot in the range. Choose Claim status → Canceled to see cancellations." };
 }
 async function claimsByPerson(f) {
-  const by = new Map();
-  for (const c of await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })) {
-    const p = by.get(c.athlete_id) || { id: c.athlete_id, name: nm(c), team: c.team || "", claimed: 0, waitlisted: 0, here: 0, noshow: 0, next: null, last: null };
-    if (c.status === "waitlisted") p.waitlisted++; else p.claimed++; if (c.attended === true) p.here++; if (c.attended === false) p.noshow++;
-    const t = new Date(c.starts_at); if (t > new Date()) { if (!p.next || t < p.next) p.next = t; } else if (!p.last || t > p.last) p.last = t;
+  const by = new Map(), now = Date.now();
+  for (const c of (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).filter((x) => x.board_type !== "rsvp")) {
+    const p = by.get(c.athlete_id) || { id: c.athlete_id, name: nm(c), team: c.team || "", levels: new Map(), active: 0, waitlisted: 0, here: 0, noshow: 0, last: null, next: null };
+    if (c.status === "waitlisted") p.waitlisted++; else {
+      p.active++; const lv = (c.path || "").split(" › ").slice(0, 2).join(" › "); if (lv) p.levels.set(lv, (p.levels.get(lv) || 0) + 1);
+      const t = new Date(c.starts_at).getTime(), done = new Date(c.ends_at || c.starts_at).getTime() < now;
+      if (c.attended === true) { p.here++; if (!p.last || t > p.last) p.last = t; } if (c.attended === false) p.noshow++;
+      if (!done && t > now && (!p.next || t < p.next)) p.next = t;
+    }
     by.set(c.athlete_id, p);
   }
-  return { cols: [["name", "Name"], ["team", "Team"], ["claimed", "Claimed", "num"], ["waitlisted", "Waitlisted", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["last", "Last one", "dt"], ["next", "Next one", "dt"]],
-    rows: [...by.values()].sort((a, b) => a.name.localeCompare(b.name)), link: (r) => `/admin/people/${r.id}`, note: "Each person's claims in the range that match the filters." };
+  const rows = [...by.values()].map((p) => ({ id: p.id, name: p.name, team: p.team, level: [...p.levels].sort((a, b) => b[1] - a[1]).map(([k]) => k)[0] || "", active: p.active, waitlisted: p.waitlisted,
+    here: p.here, noshow: p.noshow, att: pct(p.here, p.here + p.noshow), last: p.last ? new Date(p.last) : null, next: p.next ? new Date(p.next) : null })).sort((a, b) => a.name.localeCompare(b.name));
+  return { cols: [["name", "Name"], ["team", "Team"], ["level", "Level"], ["active", "Active claims", "num"], ["waitlisted", "Waitlisted", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["att", "Attendance", "pct"], ["last", "Last attended", "dt"], ["next", "Next scheduled", "dt"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: "Each person's claims in the range (program and volunteer boards). Attendance = attended ÷ (attended + no-shows) on past sessions. Click a name for their full history." };
+}
+// ---------- one person, in detail (opened from a name) ----------
+async function personView(f, pid) {
+  const p = (await query(`SELECT id, first_name, last_name, team, kind FROM athletes WHERE id=$1`, [pid])).rows[0];
+  if (!p) return { person: null };
+  const all = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted", "canceled"] })).filter((c) => c.athlete_id === pid && c.board_type !== "rsvp" && !(c.status === "canceled" && c.rsvp));
+  const ob = [pid, f.boards];   // only boards (and teams) this viewer may see
+  const onBoards = (await query(`SELECT sc.id, sc.name, m.group_name FROM schedule_members m JOIN schedules sc ON sc.id=m.schedule_id WHERE m.athlete_id=$1 AND m.schedule_id = ANY($2)${memberCond(f, ob, "m")} ORDER BY sc.name`, ob)).rows;
+  if (f.scoped && !all.length && !onBoards.length) return { person: null };   // not someone on this person's boards
+  const now = Date.now(), done = (c) => new Date(c.ends_at || c.starts_at).getTime() < now, act = all.filter((c) => c.status === "confirmed");
+  const sess = (c) => [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session";
+  const past = act.filter(done), up = act.filter((c) => !done(c)), here = past.filter((c) => c.attended === true).length, ns = past.filter((c) => c.attended === false).length;
+  const canceled = all.filter((c) => c.status === "canceled"), waiting = all.filter((c) => c.status === "waitlisted"), moved = act.filter((c) => c.promoted_at);
+  const months = new Map(); for (const c of past) { const k = new Date(c.starts_at).toLocaleDateString("en-CA", { timeZone: TZ }).slice(0, 7), x = months.get(k) || { h: 0, n: 0 }; if (c.attended === true) x.h++; if (c.attended === false) x.n++; months.set(k, x); }
+  const row = (c) => ({ when: c.starts_at, board: c.board, session: sess(c), location: c.location || "", status: stat(c), attended: done(c) && c.status === "confirmed" ? (c.attended == null ? "Not recorded" : c.attended ? "Here" : "No-show") : "",
+    claimed: c.created_at, canceled: c.canceled_at, moved: c.promoted_at, note: c.note || "" });
+  const T = (cols, list, note) => ({ cols, rows: list.map(row), note });
+  return { person: p, boards: onBoards, kpis: [["Active claims", act.length], ["Completed", past.length], ["Upcoming", up.length], ["Attended", here], ["No-shows", ns], ["Attendance", pct(here, here + ns), "%"], ["Cancellations", canceled.length], ["Waitlisted", waiting.length]],
+    trend: [...months].sort().map(([k, x]) => ({ label: new Date(k + "-15T12:00:00").toLocaleDateString("en-US", { month: "short", year: "2-digit" }), value: pct(x.h, x.h + x.n) ?? 0 })),
+    upcoming: T([["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["location", "Location"]], up),
+    history: T([["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["attended", "Attendance"]], past.slice().reverse()),
+    canceled: T([["when", "Session date", "dt"], ["session", "Session"], ["board", "Board"], ["canceled", "Canceled on", "dt"], ["claimed", "Claimed on", "dt"]], canceled.slice().reverse()),
+    waitlist: T([["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["status", "Now"], ["moved", "Moved up on", "dt"]], [...waiting, ...moved]),
+    // the CSV / PDF: every claim
+    cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["location", "Location"], ["status", "Status"], ["attended", "Attendance"], ["claimed", "Claimed on", "dt"], ["canceled", "Canceled on", "dt"], ["note", "Answer / note"]],
+    rows: all.map(row), note: `${p.first_name} ${p.last_name || ""}: every claim in the range on the boards in view.` };
 }
 
 // ---------- Teams: participation grouped by team ----------
@@ -160,7 +206,7 @@ async function locations(f) {
 async function rsvpEvents(f) {
   const R = require("./rsvp"), rows = [];
   for (const s of (await sessions(f)).filter((x) => x.board_type === "rsvp")) {
-    const r = await R.summary(s.id); if (!r) continue;
+    const r = await R.summary(s.id); if (!r) continue; for (const k of ["going", "no", "none"]) r[k] = r[k].filter((p) => teamAllowed(f, s.board_id, p.group_name || p.team));
     const open = r.going.length + r.no.length + r.none.length, noShow = (await query(`SELECT count(*)::int AS n FROM board_claims WHERE item_id=$1 AND status='confirmed' AND attended = false`, [s.id])).rows[0].n;
     rows.push({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, open, answered: pct(r.going.length + r.no.length, open), going: r.going.length, no: r.no.length, none: r.none.length, noshow: noShow });
   }
@@ -171,7 +217,7 @@ async function rsvpEvents(f) {
 async function rsvpAnswers(f) {
   const R = require("./rsvp"), rows = [];
   for (const s of (await sessions(f)).filter((x) => x.board_type === "rsvp")) {
-    const r = await R.summary(s.id); if (!r) continue;
+    const r = await R.summary(s.id); if (!r) continue; for (const k of ["going", "no", "none"]) r[k] = r[k].filter((p) => teamAllowed(f, s.board_id, p.group_name || p.team));
     const att = new Map((await query(`SELECT athlete_id, attended FROM board_claims WHERE item_id=$1 AND status='confirmed'`, [s.id])).rows.map((x) => [x.athlete_id, x.attended]));
     for (const [list, label] of [[r.going, "Going"], [r.no, "Can't make it"], [r.none, "No answer"]]) for (const p of list) {
       if (f.team && (p.group_name || p.team) !== f.team) continue;
@@ -184,7 +230,7 @@ async function rsvpAnswers(f) {
 async function rsvpAthletes(f) {
   const R = require("./rsvp"), by = new Map();
   for (const s of (await sessions(f)).filter((x) => x.board_type === "rsvp")) {
-    const r = await R.summary(s.id); if (!r) continue;
+    const r = await R.summary(s.id); if (!r) continue; for (const k of ["going", "no", "none"]) r[k] = r[k].filter((p) => teamAllowed(f, s.board_id, p.group_name || p.team));
     for (const [list, k] of [[r.going, "going"], [r.no, "no"], [r.none, "none"]]) for (const p of list) {
       if (f.team && p.group_name !== f.team && p.team !== f.team) continue;
       const x = by.get(p.id) || { id: p.id, name: nm(p), team: p.group_name || p.team || "", events: 0, going: 0, no: 0, none: 0 }; x.events++; x[k]++; by.set(p.id, x);
@@ -196,13 +242,14 @@ async function rsvpAthletes(f) {
 }
 // ---------- Families ----------
 async function members(f) {
+  const margs = f.team ? [f.boards, f.team] : [f.boards];
   return (await query(`SELECT m.schedule_id AS board_id, sc.name AS board, sc.board_type, a.id, a.first_name, a.last_name, m.group_name AS team,
       ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id ORDER BY u.email) AS parents,
       (SELECT email FROM users WHERE id=a.self_user_id) AS own,
       (SELECT max(u.last_login_at) FROM users u WHERE u.id=a.self_user_id OR u.id IN (SELECT user_id FROM parent_athletes WHERE athlete_id=a.id)) AS signed_in,
       (SELECT count(*)::int FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE i.schedule_id=m.schedule_id AND c.athlete_id=a.id AND c.status<>'canceled') AS claims
     FROM schedule_members m JOIN schedules sc ON sc.id=m.schedule_id JOIN athletes a ON a.id=m.athlete_id
-    WHERE m.schedule_id = ANY($1) AND a.archived_at IS NULL ${f.team ? "AND m.group_name = $2" : ""} ORDER BY lower(a.last_name), lower(a.first_name)`, f.team ? [f.boards, f.team] : [f.boards])).rows;
+    WHERE m.schedule_id = ANY($1) AND a.archived_at IS NULL ${f.team ? "AND m.group_name = $2" : ""}${memberCond(f, margs, "m")} ORDER BY lower(a.last_name), lower(a.first_name)`, margs)).rows;
 }
 async function engagement(f) {
   const by = new Map();
@@ -222,7 +269,7 @@ async function notSignedUp(f) {
     link: (r) => `/admin/people/${r.id}`, note: "On a board's list with no claims on it at all: likely the families who need a personal reminder." };
 }
 async function volunteer(f, required) {
-  const [lo, hi] = span("$2", "$3"), volArgs = [f.boards, f.from, f.to], volX = more(f, volArgs);
+  const [lo, hi] = span("$2", "$3"), volArgs = [f.boards, f.from, f.to]; let volX = more(f, volArgs); volX += teamCond(f, volArgs, "i.schedule_id", "c.athlete_id");
   const claims = (await query(`SELECT c.athlete_id, c.attended, i.starts_at, i.ends_at, a.kind, a.first_name, a.last_name, a.self_user_id,
       (SELECT min(pa.user_id) FROM parent_athletes pa WHERE pa.athlete_id=a.id) AS parent_user
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id
@@ -266,7 +313,8 @@ async function weekSheet(f) {
   const list = await sessions({ ...f, from: start, to: end });
   for (const s of list) { const q = s.question || {}; s.showNotes = s.board_type === "rsvp" || !!(q.label && q.week); s.qLabel = s.board_type === "rsvp" ? "" : q.week ? q.label || "" : ""; }
   for (const s of list) s.people = (await query(`SELECT a.first_name, a.last_name, m.group_name AS team, c.note, c.status FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
-      LEFT JOIN schedule_members m ON m.schedule_id=$2 AND m.athlete_id=a.id WHERE c.item_id=$1 AND c.status IN ('confirmed','waitlisted') ORDER BY c.status, lower(a.last_name), lower(a.first_name)`, [s.id, s.board_id])).rows;
+      LEFT JOIN schedule_members m ON m.schedule_id=$2 AND m.athlete_id=a.id WHERE c.item_id=$1 AND c.status IN ('confirmed','waitlisted') ORDER BY c.status, lower(a.last_name), lower(a.first_name)`, [s.id, s.board_id])).rows
+      .filter((x) => teamAllowed(f, s.board_id, x.team));
   return { week: true, start, end, sessions: list };
 }
 
@@ -280,7 +328,7 @@ async function assessPair(f) {
   const ownA = new Map(da.drills.map((x) => [x.id, x])), ownB = new Map(db.drills.map((x) => [x.id, x]));
   const vals = async (d) => { const m = new Map(); for (const r of await A.results(d.id)) { const k = `${r.athlete_id}|${r.drill_id}`; if (!m.has(k)) m.set(k, []); m.get(k).push(r.value); } return m; };
   let [va, vb] = [await vals(da), await vals(db)];
-  if (f.scoped) { const ok = new Set((await query(`SELECT DISTINCT athlete_id FROM schedule_members WHERE schedule_id = ANY($1)`, [f.boards])).rows.map((r) => r.athlete_id));
+  if (f.scoped) { const ok = new Set((await query(`SELECT DISTINCT athlete_id FROM schedule_members m WHERE schedule_id = ANY($1)${f.teamsBy ? " AND (NOT ($2::jsonb ? m.schedule_id::text) OR ($2::jsonb -> m.schedule_id::text) ? m.group_name)" : ""}`, f.teamsBy ? [f.boards, JSON.stringify(f.teamsBy)] : [f.boards])).rows.map((r) => r.athlete_id));
     const keep = (m) => new Map([...m].filter(([k]) => ok.has(+k.split("|")[0]))); va = keep(va); vb = keep(vb); }   // only athletes on the boards in scope
   const ids = [...new Set([...va.keys(), ...vb.keys()].map((k) => +k.split("|")[0]))];
   const ppl0 = ids.length ? (await query(`SELECT a.id, a.first_name, a.last_name, a.birth_year, coalesce((SELECT m.group_name FROM schedule_members m WHERE m.athlete_id=a.id AND m.schedule_id=$2), a.team) AS team FROM athletes a WHERE a.id = ANY($1)`, [ids, db.board_id || da.board_id || 0])).rows : [];
@@ -347,7 +395,8 @@ async function assessScores(f) {
   const res = (await query(`SELECT r.day_id, r.athlete_id, r.drill_id, r.attempt, r.value, a.first_name, a.last_name, a.birth_year,
       coalesce((SELECT m.group_name FROM schedule_members m JOIN assess_days d ON d.id=r.day_id WHERE m.schedule_id=d.board_id AND m.athlete_id=a.id), a.team) AS team
     FROM assess_results r JOIN athletes a ON a.id=r.athlete_id WHERE r.day_id = ANY($1) AND r.drill_id = ANY($2)
-      ${f.scoped ? "AND EXISTS (SELECT 1 FROM schedule_members m WHERE m.athlete_id=a.id AND m.schedule_id = ANY($3))" : ""} ORDER BY r.attempt`, f.scoped ? [days.map((d) => d.id), ids, f.boards] : [days.map((d) => d.id), ids])).rows;
+      ${f.scoped ? `AND EXISTS (SELECT 1 FROM schedule_members m WHERE m.athlete_id=a.id AND m.schedule_id = ANY($3)${f.teamsBy ? " AND (NOT ($4::jsonb ? m.schedule_id::text) OR ($4::jsonb -> m.schedule_id::text) ? m.group_name)" : ""})` : ""} ORDER BY r.attempt`,
+      f.scoped ? [days.map((d) => d.id), ids, f.boards, ...(f.teamsBy ? [JSON.stringify(f.teamsBy)] : [])] : [days.map((d) => d.id), ids])).rows;
   const by = new Map();
   for (const r of res) {
     if (f.team && r.team !== f.team) continue;
@@ -498,4 +547,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

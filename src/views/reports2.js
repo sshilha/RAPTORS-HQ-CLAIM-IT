@@ -19,7 +19,7 @@ function reportNav(key, url, full = true, admin = true) {
 }
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/></svg>`;
 const DL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="15" height="15"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>`;
-const TITLES = { assessResults: "Assessment results", assessLeaders: "Assessment leaderboard", assessTeamBest: "Assessment best by team", assessRecords: "Assessment records", assessImprove: "Assessment improvement", assessAttend: "Improvement vs attendance", assessTeams: "Assessment team averages", person: "Claims by person", all: "All claims", overview: "Overview", attendance: "Attendance by athlete", noshows: "No-shows", unchecked: "Check-ins not done", fill: "Session fill", busiest: "Busiest times", waitlists: "Waitlists",
+const TITLES = { upcoming: "Upcoming sessions", notSignedIn: "Not signed in", assessResults: "Assessment results", assessLeaders: "Assessment leaderboard", assessTeamBest: "Assessment best by team", assessRecords: "Assessment records", assessImprove: "Assessment improvement", assessAttend: "Improvement vs attendance", assessTeams: "Assessment team averages", person: "Claims by person", all: "All claims", overview: "Overview", attendance: "Attendance by athlete", noshows: "No-shows", unchecked: "Check-ins not done", fill: "Session fill", busiest: "Busiest times", waitlists: "Waitlists",
   locations: "Locations", rsvp: "RSVP by event", rsvpAthletes: "RSVP by athlete", engagement: "Family engagement", notSignedUp: "On the list, not signed up", volunteer: "Volunteer hours by family", emails: "Email problems", week: "Week sheet" };
 function cell(v, kind) {
   if (v == null || v === "") return `<td class="r-muted" data-sort="">—</td>`;
@@ -28,10 +28,11 @@ function cell(v, kind) {
   if (kind === "date" || kind === "dt") { const d = new Date(v); return `<td class="r-muted" data-sort="${d.toISOString()}">${esc(kind === "dt" ? fmtDateTime(d) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }))}</td>`; }
   return `<td>${/^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never)$/.test(String(v)) ? `<span class="r-flag bad">${esc(v)}</span>` : /^(Done|Active)$/.test(String(v)) ? `<span class="r-flag ok">${esc(v)}</span>` : /^(Close|Signed in, no claims)$/.test(String(v)) || /Method changed/.test(String(v)) ? `<span class="r-flag mid">${esc(v)}</span>` : esc(String(v))}</td>`;
 }
-function table(d) {
+function table(d, url = null) {
+  const L = (row) => { const h = d.link && d.link(row); if (h && url && h.startsWith("/reports?")) return url(Object.fromEntries(new URLSearchParams(h.split("?")[1]))); return h; };
   if (!d.rows.length) return `<div class="d-empty"><b>Nothing to show for this board and date range.</b></div>`;
   return `<div class="table-wrap"><table class="r-table"><thead><tr>${d.cols.map((c) => `<th${c[2] === "num" || c[2] === "pct" ? ' class="r-num"' : ""}>${esc(c[1])}</th>`).join("")}</tr></thead><tbody>
-    ${d.rows.map((row) => `<tr>${d.cols.map((c, i) => i === 0 && d.link && d.link(row) ? cell(row[c[0]], c[2]).replace(/^<td([^>]*)>([\s\S]*)<\/td>$/, (m, at, inner) => `<td${at}><a href="${d.link(row)}"><b>${inner}</b></a></td>`) : cell(row[c[0]], c[2])).join("")}</tr>`).join("")}</tbody></table></div>`;
+    ${d.rows.map((row) => `<tr>${d.cols.map((c, i) => i === 0 && L(row) ? cell(row[c[0]], c[2]).replace(/^<td([^>]*)>([\s\S]*)<\/td>$/, (m, at, inner) => `<td${at}><a href="${L(row)}"><b>${inner}</b></a></td>`) : cell(row[c[0]], c[2])).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 function grid(d) {
   const DAYS = d.cols.slice(1).map((c) => c[0]);
@@ -61,7 +62,7 @@ function barChart(data, { unit = "", two = false, line = false, max = null, h = 
   const bars = data.map((d, i) => { const x = L + i * cw + cw * 0.18, w = cw * 0.64, v = d.value || 0, v2 = two ? d.value2 || 0 : 0, tip = `${d.label}: ${v}${unit}${two ? ` taken · ${v2} open` : ""}`;
     const lab = `<text x="${L + i * cw + cw / 2}" y="${H - B + 14}" text-anchor="middle" class="ch-x">${esc(String(d.label).length > 12 ? String(d.label).slice(0, 11) + "…" : d.label)}</text>`;
     if (line) return lab;
-    return `<g><title>${esc(tip)}</title><rect x="${x}" y="${y(v)}" width="${w}" height="${Math.max(0, y(0) - y(v))}" rx="3" fill="${CH.navy}"/>${two ? `<rect x="${x}" y="${y(v + v2)}" width="${w}" height="${Math.max(0, y(v) - y(v + v2))}" rx="3" fill="${CH.gray}"/>` : ""}${lab}</g>`; }).join("");
+    return `<g><title>${esc(tip)}</title><rect x="${x}" y="${y(v)}" width="${w}" height="${Math.max(0, y(0) - y(v))}" rx="3" fill="${CH.navy}"/><text x="${x + w / 2}" y="${y(v + (two ? v2 : 0)) - 4}" text-anchor="middle" class="ch-v">${v}${unit}</text>${two ? `<rect x="${x}" y="${y(v + v2)}" width="${w}" height="${Math.max(0, y(v) - y(v + v2))}" rx="3" fill="${CH.gray}"/>` : ""}${lab}</g>`; }).join("");
   const path = line ? `<polyline fill="none" stroke="${CH.lime}" stroke-width="3" points="${data.map((d, i) => `${L + i * cw + cw / 2},${y(d.value || 0)}`).join(" ")}"/>${data.map((d, i) => `<g><title>${esc(`${d.label}: ${d.value}${unit}`)}</title><circle cx="${L + i * cw + cw / 2}" cy="${y(d.value || 0)}" r="4.5" fill="${CH.navy}"/></g>`).join("")}` : "";
   return `<svg viewBox="0 0 ${W} ${H}" class="ch" role="img" aria-label="chart">${tick.map((t) => `<line x1="${L}" x2="${W}" y1="${y(t)}" y2="${y(t)}" stroke="#EEF1F5"/><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end" class="ch-y">${t}${unit}</text>`).join("")}${bars}${path}</svg>`;
 }
@@ -86,25 +87,24 @@ const IC2 = {
   bars: SV('<path d="M4 20V12M9 20V6M14 20v-9M19 20V4"/>'),
 };
 // the report sections (tabs) and their reports (chips under the tabs)
-const TABS = [["overview", "Overview", IC2.home, [["overview", ""]]], ["claims", "Claims", IC2.clip, [["person", "By person"], ["all", "All claims"]]],
-  ["sessions", "Sessions", IC2.cal, [["fill", "Fill & capacity"], ["busiest", "Busiest times"], ["locations", "Locations"]]],
-  ["attendance", "Attendance", IC2.users, [["attendance", "By athlete"], ["noshows", "No-shows"], ["unchecked", "Check-ins not done"]]],
-  ["teams", "Teams", IC2.users, [["teams", ""]]], ["volunteers", "Volunteers", IC2.hand, [["coverage", "Shift coverage"], ["volunteer", "Hours by family"]]],
-  ["waitlists", "Waitlists", IC2.list, [["waitlists", ""]]], ["families", "Families", IC2.fam, [["engagement", "Engagement"], ["notSignedUp", "Not signed up"]]],
+const TABS = [["overview", "Overview", IC2.home, [["overview", ""]]],
+  ["participation", "Participation", IC2.users, [["person", "Claims by person"], ["all", "All claims"], ["personView", ""], ["attendance", "Attendance"], ["noshows", "No-shows"], ["unchecked", "Not checked in"], ["teams", "Teams"], ["waitlists", "Waitlists"]]],
+  ["sessions", "Sessions", IC2.cal, [["fill", "Fill & capacity"], ["upcoming", "Upcoming"], ["busiest", "Busiest times"], ["locations", "Locations"], ["week", "Weekly Rosters"]]],
+  ["families", "Families", IC2.fam, [["engagement", "Engagement"], ["notSignedIn", "Not signed in"], ["notSignedUp", "No claims"], ["emails", "Communication issues"]]],
   ["assess", "Assessments", IC2.bars, [["assessResults", "Results"], ["assessLeaders", "Leaderboard"], ["assessTeamBest", "Best by team"], ["assessRecords", "Records"], ["assessImprove", "Improvement"], ["assessAttend", "vs attendance"], ["assessTeams", "Team improvement"]]],
-  ["comms", "Communications", IC2.mail, [["emails", ""]]], ["rsvp", "RSVP", IC2.calcheck, [["rsvp", "Events"], ["rsvpAnswers", "Answers"], ["rsvpAthletes", "Athletes"]]], ["week", "Weekly Rosters", IC2.doc, [["week", ""]]]];
+  ["more", "More Reports", IC2.list, [["rsvp", "RSVP events"], ["rsvpAnswers", "RSVP answers"], ["rsvpAthletes", "RSVP athletes"], ["coverage", "Shift coverage"], ["volunteer", "Volunteer hours"]]]];
 // which filters each report uses (the rest show disabled)
-const SESSIONS_R = ["rsvpAnswers", "overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "coverage", "volunteer", "rsvp", "rsvpAthletes", "week"];
+const SESSIONS_R = ["upcoming", "rsvpAnswers", "overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "coverage", "volunteer", "rsvp", "rsvpAthletes", "week"];
 const USES = { level: SESSIONS_R, loc: SESSIONS_R, days: SESSIONS_R, bt: ["overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "week"],
-  cs: ["person", "all"], at: ["person", "all", "attendance"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "engagement", "notSignedUp", "emails"], team: [...SESSIONS_R, "engagement", "notSignedUp"] };
+  cs: ["person", "all"], at: ["person", "all", "attendance"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "engagement", "notSignedUp", "emails"], team: [...SESSIONS_R, "engagement", "notSignedIn", "notSignedUp"] };
 
-function reportPage({ user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
+function reportPage({ pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
   const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const X = o.assess;
   const PAIR = ["assessImprove", "assessAttend", "assessTeams"].includes(r);
   const sIds = board ? String(board.id) : several ? several.map((b) => b.id).join(",") : "all";
   const state = { as: X && X.test ? X.test.id : "", da: X && PAIR ? X.a || "" : "", db: X && PAIR ? X.b || "" : "", how: X && X.how === "avg" ? "avg" : "",
-    qd: qd || "", stype: btype, cs: cstatus, at: astatus, when: rf.when || "", cap: rf.cap || "", cov: rf.cov || "", st: rf.st || "", prob: rf.prob || "", ans: rf.ans || "", dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd || allDates ? "" : from, to: qd || allDates ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
+    pid: r === "personView" ? pid : "", qd: qd || "", stype: btype, cs: cstatus, at: astatus, when: rf.when || "", cap: rf.cap || "", cov: rf.cov || "", st: rf.st || "", prob: rf.prob || "", ans: rf.ans || "", dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd || allDates ? "" : from, to: qd || allDates ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
   const url = (x) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ ...state, ...x }).filter(([, v]) => v !== "" && v != null))); return `/reports?${p}`; };
   const uses = (k) => (USES[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
   const off = (k) => (uses(k) ? "" : ` disabled title="Not used by this report"`);
@@ -132,7 +132,7 @@ function reportPage({ user, flash, admin, boards, board, several = null, qd = ""
         <button class="rf-apply" type="submit" form="rf">${IC2.check}Apply</button></span>
       <span class="rf-now">${allDates ? "All dates" : `${esc(fmtD(from))} – ${esc(fmtD(to))}`}${allDates ? "" : ` · <a href="${url({ qd: "", from: "", to: "" })}">All dates</a>`}</span></div>`;
   // ---- each report's own filters (a slim bar above the report) ----
-  const RFS = { person: ["cs", "at", "q"], all: ["cs", "at", "q"], fill: ["when", "cap", "q"], busiest: ["when"], locations: ["when"], attendance: ["at", "q"], noshows: ["q"], unchecked: ["q"],
+  const RFS = { upcoming: ["cap", "q"], notSignedIn: ["q"], person: ["cs", "at", "q"], all: ["cs", "at", "q"], fill: ["when", "cap", "q"], busiest: ["when"], locations: ["when"], attendance: ["at", "q"], noshows: ["q"], unchecked: ["q"],
     teams: ["q"], coverage: ["when", "cov", "q"], volunteer: ["q"], waitlists: ["q"], engagement: ["st", "q"], notSignedUp: ["q"], emails: ["prob", "q"], rsvp: ["q"], rsvpAnswers: ["ans", "q"], rsvpAthletes: ["q"], week: ["week", "wl", "blanks"] };
   const mine = /^assess/.test(r) ? ["assess", "q"] : RFS[r] || [];
   const small = (name, label, opts, cur) => `<label class="rb-f"><span>${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()">${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
@@ -164,12 +164,13 @@ function reportPage({ user, flash, admin, boards, board, several = null, qd = ""
     <details class="rf-body" open><summary class="rf-fold">${IC2.filter}Filters${(() => { const n = [o.level, team, o.location, btype, !allDates].filter(Boolean).length; return n ? ` <b>${n} on</b>` : ""; })()}${IC2.down}</summary>
       ${row1}<div class="rf-div"></div>${row2}</details></section>`;
   // ---- report navigation: only sections this person can use and that apply to the chosen boards ----
-  const showTab = (id) => id === "comms" ? admin : id === "volunteers" ? kinds.includes("volunteer") : id === "rsvp" ? kinds.includes("rsvp") : true;
+  const showSub = (k) => k === "emails" ? admin : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" || k === "volunteer" ? kinds.includes("volunteer") : true;
+  const showTab = (id) => (TABS.find((t) => t[0] === id) || [, , , []])[3].some(([k, l]) => !l || showSub(k));
   const curTab = TABS.find((t) => t[3].some(([k]) => k === r)) || TABS[0];
-  const RK = ["cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters
+  const RK = ["pid", "cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters
   const go = (k) => url({ r: k, v: "" }), goNew = (k) => url({ r: k, v: "", ...Object.fromEntries(RK.map((x) => [x, ""])) });
-  const tabs = `<nav class="rt-tabs" aria-label="Reports">${TABS.filter((t) => showTab(t[0]) || t === curTab).map(([id, label, icon, subs]) => `<a href="${id === curTab[0] ? go(subs[0][0]) : goNew(subs[0][0])}"${t0(id)}>${icon}<span>${label}</span></a>`).join("")}</nav>
-    ${curTab[3].length > 1 ? `<nav class="r-chips" aria-label="${esc(curTab[1])} reports">${curTab[3].map(([k, l]) => `<a href="${go(k)}"${k === r ? ' class="on" aria-current="page"' : ""}>${esc(l)}</a>`).join("")}</nav>` : ""}`;
+  const tabs = `<nav class="rt-tabs" aria-label="Reports">${TABS.filter((t) => showTab(t[0]) || t === curTab).map(([id, label, icon, subs]) => { const first = (subs.find(([k, l]) => l && showSub(k)) || subs[0])[0]; return `<a href="${id === curTab[0] ? go(first) : goNew(first)}"${t0(id)}>${icon}<span>${label}</span></a>`; }).join("")}</nav>
+    ${curTab[3].filter(([k, l]) => l && showSub(k)).length > 1 ? `<nav class="r-chips" aria-label="${esc(curTab[1])} reports">${curTab[3].filter(([k, l]) => l && showSub(k)).map(([k, l]) => `<a href="${go(k)}"${k === r ? ' class="on" aria-current="page"' : ""}>${esc(l)}</a>`).join("")}</nav>` : ""}`;
   function t0(id) { return id === curTab[0] ? ' class="on" aria-current="page"' : ""; }
   let body;
   if (r === "overview") {
@@ -198,8 +199,20 @@ function reportPage({ user, flash, admin, boards, board, several = null, qd = ""
         document.querySelectorAll(".na li").forEach(function (li) { li.hidden = !!b.dataset.na && li.dataset.k !== b.dataset.na; }); }); });</script>`;
   }
   else if (r === "week") body = weekSheet(data, o);
+  else if (r === "personView") {
+    const P = data.person;
+    body = !P ? `<div class="d-empty"><b>That person isn't in this report.</b> They may not be on the boards you can see, or the filters leave them out.</div>` : `
+      <div class="pv-hd"><a class="link-dark" href="${url({ r: "person", pid: "" })}">← Claims by person</a>
+        <h2>${esc(P.first_name)} ${esc(P.last_name || "")}</h2><p class="fine">${[P.team, ...data.boards.map((b) => b.name + (b.group_name ? ` (${b.group_name})` : ""))].filter(Boolean).map(esc).join(" · ") || "Not on a board in view"}${admin ? ` · <a href="/admin/people/${P.id}">Open in People</a>` : ""}</p></div>
+      <div class="kpis pv-k">${data.kpis.map(([l, v, u]) => `<div class="kpi"><span class="kpi-l">${esc(l)}</span><b>${v == null ? "—" : `${v}${u || ""}`}</b></div>`).join("")}</div>
+      <div class="db-grid"><section class="db-card"><h3>Attendance by month <span class="fine">% attended</span></h3>${barChart(data.trend, { unit: "%", max: 100 })}</section>
+        <section class="db-card"><h3>Upcoming <span class="fine">${data.upcoming.rows.length}</span></h3>${data.upcoming.rows.length ? table(data.upcoming) : `<p class="ch-empty">Nothing upcoming.</p>`}</section></div>
+      <section class="db-card"><h3>Attendance history <span class="fine">${data.history.rows.length} past sessions</span></h3>${data.history.rows.length ? table(data.history) : `<p class="ch-empty">No past sessions in this range.</p>`}</section>
+      <div class="db-grid"><section class="db-card"><h3>Cancellations <span class="fine">${data.canceled.rows.length}</span></h3>${data.canceled.rows.length ? table(data.canceled) : `<p class="ch-empty">No cancellations.</p>`}</section>
+        <section class="db-card"><h3>Waitlist activity <span class="fine">${data.waitlist.rows.length}</span></h3>${data.waitlist.rows.length ? table(data.waitlist) : `<p class="ch-empty">No waitlist activity.</p>`}</section></div>`;
+  }
   else body = `${r === "volunteer" && admin ? `<form method="post" action="${url({}).replace("/reports?", "/reports/volunteer-required?")}" class="r-req"><label>Hours each family needs <input type="number" name="hours" min="0" max="500" step="0.5" value="${required || ""}" placeholder="none"></label><button class="sb-btn" type="submit">Save</button><span class="fine">Leave empty for no requirement.</span></form>` : ""}
-    ${data.note ? `<p class="fine r-note2">${esc(data.note)}</p>` : ""}${data.grid ? grid(data) : table(data)}`;
+    ${data.note ? `<p class="fine r-note2">${esc(data.note)}</p>` : ""}${data.grid ? grid(data) : table(data, url)}`;
   return layout({ title: `Reports · ${TITLES[r] || ""}`, user, flash, admin, tab: "reports", dash: true,
     body: `<div class="d-wrap r-wrap ra-page${r === "week" ? " r-print" : ""}">${head}${panel}${tabs}<div class="r-sheet">${rbar}<div class="ra-dl">${data.cols || r === "week" || r === "overview" ? `<a class="rf-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="rf-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="rf-btn" onclick="window.print()">Print</button>` : ""}</div><section class="d-card r-card">${body}</section></div></div>
     <script>if (window.innerWidth <= 760) { var fb = document.querySelector(".rf-body"); if (fb) fb.open = false; }</script>` });

@@ -3306,3 +3306,6 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 /* Reports header sticks like other title bands; the filter panel slides under it */
 .ra-hd.page-band { z-index: 45; } .rf-panel { z-index: 1; } .rt-tabs.stuck { background: #F3F5F9; padding-top: 6px; }
 .ra-hd { padding: 12px 18px !important; border-radius: 14px; } .rf-panel { margin-top: 10px !important; } html.scrolled .ra-hd.page-band { border-radius: 0 0 14px 14px; }
+.pv-hd { margin: 0 0 12px; } .pv-hd h2 { margin: 6px 0 2px; font: 800 22px Inter, sans-serif; color: #0B1930; } .pv-k { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); } .pv-k .kpi b { font-size: 24px; }
+.ch-v { font: 700 11px Inter, sans-serif; fill: #0B1930; }
+.mg-b { border-bottom: 1px solid #EEF1F5; padding: 4px 0; } .mg-t { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 4px 0 6px 28px; }

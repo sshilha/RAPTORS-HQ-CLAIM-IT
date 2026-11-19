@@ -12,8 +12,9 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { rsvpAnswers: D.rsvpAnswers, teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
+const NEW = { upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement(f); return { ...d, rows: d.rows.filter((r) => r.status === "Never signed in"), note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
+  rsvpAnswers: D.rsvpAnswers, teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
 const isDay = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || "");
@@ -69,8 +70,9 @@ async function newReport(req, res, scope, boards) {
   const CS = { confirmed: "Active", waitlisted: "Waitlisted", canceled: "Canceled" }, cstatus = CS[req.query.cs] ? req.query.cs : "";
   const AT = { attended: "Attended", noshow: "No-show", unrecorded: "Unrecorded" }, astatus = AT[req.query.at] ? req.query.at : "";
   const kinds = [...new Set(boards.filter((b) => ids.includes(b.id)).map((b) => b.board_type || "training"))];
-  const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today, admin: !!scope.all, scoped: !scope.all };
-  const teams = (await query(`SELECT DISTINCT group_name FROM schedule_members WHERE schedule_id = ANY($1) AND group_name IS NOT NULL ORDER BY 1`, [ids])).rows.map((x) => x.group_name);
+  const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today, admin: !!scope.all, scoped: !scope.all,
+    teamsBy: Object.keys(scope.teamsBy || {}).length ? scope.teamsBy : null };   // per-board team limits (team managers)
+  const teams = (await query(`SELECT DISTINCT group_name FROM schedule_members m WHERE schedule_id = ANY($1) AND group_name IS NOT NULL${f.teamsBy ? " AND (NOT ($2::jsonb ? m.schedule_id::text) OR ($2::jsonb -> m.schedule_id::text) ? m.group_name)" : ""} ORDER BY 1`, f.teamsBy ? [ids, JSON.stringify(f.teamsBy)] : [ids])).rows.map((x) => x.group_name);
   // the fine filters: level (and everything inside it), location, weekdays, search
   const levelsAll = board ? (await query(`WITH RECURSIVE t AS (SELECT id, parent_id, name, name::text AS path, 0 AS d, sort FROM board_nodes WHERE schedule_id=$1 AND parent_id IS NULL
       UNION ALL SELECT n.id, n.parent_id, n.name, t.path || ' › ' || n.name, t.d + 1, n.sort FROM board_nodes n JOIN t ON n.parent_id=t.id) SELECT id, path, d FROM t ORDER BY path`, [board.id])).rows : [];
@@ -101,10 +103,10 @@ async function newReport(req, res, scope, boards) {
       bornFrom: yr(req.query.bf), bornTo: yr(req.query.bt) };
     f.assess = assess;
   }
-  let data = r === "overview" ? await D.dashboard(f) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
+  let data = r === "personView" ? await D.personView(f, int(req.query.pid)) : r === "overview" ? await D.dashboard(f) : r === "volunteer" ? await D.volunteer(f, required) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
   if (!scope.all && data && data.cols) {   // non-admins: no links into admin pages, no contact details
     const hide = new Set(["emails", "email", "addr"]);
-    data = { ...data, link: null, cols: data.cols.filter((c) => !hide.has(c[0])), rows: (data.rows || []).map((row) => { const o = { ...row }; for (const k of hide) delete o[k]; return o; }) };
+    const lk = data.link; data = { ...data, link: lk ? (row) => { const h = lk(row); return h && h.startsWith("/reports") ? h : null; } : null, cols: data.cols.filter((c) => !hide.has(c[0])), rows: (data.rows || []).map((row) => { const o = { ...row }; for (const k of hide) delete o[k]; return o; }) };
   }
   // the report's own row filters
   if (data && data.rows && !data.grid) {
@@ -133,7 +135,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, pid: int(req.query.pid) || "", board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 router.get("/", wrap(async (req, res) => {
@@ -142,8 +144,8 @@ router.get("/", wrap(async (req, res) => {
   req.user.can_reports = true;
   const boards = (await query(`SELECT id, name, archived_at, groups, board_type FROM schedules WHERE ${scope.all ? "TRUE" : "id = ANY($1)"} ORDER BY archived_at NULLS FIRST, name`, scope.all ? [] : [scope.boards])).rows;
   if (!boards.length) return go(res, "/dashboard", { err: "No boards to report on yet." });
-  if (!scope.teams.length && req.query.v && !req.query.r) return res.redirect(`/reports?${new URLSearchParams({ ...req.query, r: req.query.v === "all" ? "all" : "person", v: "" })}`);   // older links → the filterable claims reports
-  if (!scope.teams.length && (NEW[req.query.r] || (!req.query.v && !req.query.csv))) return newReport(req, res, scope, boards);   // Overview by default
+  if (req.query.v && !req.query.r) return res.redirect(`/reports?${new URLSearchParams({ ...req.query, r: req.query.v === "all" ? "all" : "person", v: "" })}`);   // older links → the filterable claims reports
+  return newReport(req, res, scope, boards);   // everyone: the reports, limited to their boards (and teams)
   if (req.query.s === "all") req.query.s = "";   // By person / All claims are for one board
   if (req.query.r === "all") req.query.v = "all";
   // open on the board asked for, or the one with the most recent claim

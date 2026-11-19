@@ -94,6 +94,9 @@ async function addToList(listId, ids) {
 }
 
 // Which boards (and teams) a user may see reports for. Admins: everything. Others: what they've been given.
+// Team managers: assigned per board, optionally limited to some of its teams (empty teams = all teams). Reports only.
+let mgrReady = null;
+function ensureManagers() { return mgrReady || (mgrReady = query(`CREATE TABLE IF NOT EXISTS board_managers (schedule_id INT NOT NULL, email TEXT NOT NULL, teams TEXT[] NOT NULL DEFAULT '{}', PRIMARY KEY (schedule_id, email))`).catch((e) => { mgrReady = null; throw e; })); }
 async function reportScope(user) {
   if (!user) return null;
   if (require("./auth").isAdmin(user)) return { all: true, boards: null, teams: [] };
@@ -103,10 +106,18 @@ async function reportScope(user) {
   let granted = [];
   if (a.mode === "coached") granted = coached;
   if (a.mode === "boards") granted = (a.boards || []).map(Number).filter(Boolean);
-  const boards = [...new Set([...coached, ...granted])];
-  // team limits apply only to boards granted that way; a coach's own boards are never limited
-  const teams = a.mode && a.mode !== "none" && !coached.length ? (a.teams || []).filter(Boolean) : [];
-  return boards.length ? { all: false, boards, teams, coach: coached.length > 0 } : null;
+  await ensureManagers();
+  const managed = (await query(`SELECT schedule_id, teams FROM board_managers WHERE lower(email)=lower($1)`, [user.email])).rows;
+  const boards = [...new Set([...coached, ...granted, ...managed.map((m) => m.schedule_id)])];
+  // per-board team limits: a manager limited to some teams, or Reports access limited to teams. A coach's own boards,
+  // or a board managed for all teams, are never limited.
+  const teamsBy = {};
+  const legacy = a.mode && a.mode !== "none" ? (a.teams || []).filter(Boolean) : [];
+  if (legacy.length) for (const b of granted) teamsBy[b] = legacy;
+  for (const m of managed) if ((m.teams || []).length) teamsBy[m.schedule_id] = [...new Set([...(teamsBy[m.schedule_id] || []), ...m.teams])];
+  for (const m of managed) if (!(m.teams || []).length) delete teamsBy[m.schedule_id];
+  for (const b of coached) delete teamsBy[b];
+  return boards.length ? { all: false, boards, teams: [], teamsBy, coach: coached.length > 0, manager: managed.length > 0 } : null;
 }
 
 // A person's status in People: what (if anything) needs attention
@@ -209,4 +220,4 @@ async function cleanupDelete(userIds, meId) {
   }
   return { deleted, archived };
 }
-module.exports = { cleanupList, cleanupKeep, cleanupDelete, mergePreview, merge, STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };
+module.exports = { ensureManagers, cleanupList, cleanupKeep, cleanupDelete, mergePreview, merge, STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };

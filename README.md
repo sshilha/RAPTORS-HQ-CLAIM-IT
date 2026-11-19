@@ -195,7 +195,10 @@ src/activity.js records each one (plus check-in taps, which have no message) wit
 about; claims and cancels from before it existed are filled in once at startup.
 
 ### 4.7a Reports: access and metric definitions
-**Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Others: the boards granted under
+**Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
+person → Team manager; table board_managers): the boards they manage, optionally limited per board to some teams (none
+ticked = all teams); reports only, no check-in or setup. With a team limit, every report counts only those teams'
+athletes and claims (session totals included), checked inside the queries. Others: the boards granted under
 People → Reports access (optionally limited to teams). One check (people.reportScope) decides the boards, and every
 report, chart, alert, search, CSV and PDF is computed only from them; board ids outside them are ignored. Emails is
 admin-only. Non-admins get no links into admin pages and no contact details (in the page, CSV and PDF). Assessment
@@ -338,6 +341,14 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.48** Reports step 1: Team Manager role (boards and optional teams, enforced in every report query); navigation
+  in six areas (Overview · Participation · Sessions · Families · Assessments · More Reports) with report chips and the
+  Upcoming and Not signed in shortcuts; old report addresses still work; Reports access limited to teams now gets the
+  full reports with the same team protection.
+- **v0.47** Reports → Claims: By person (level, active, waitlisted, attended, no-shows, attendance %, last attended,
+  next scheduled); All claims (board, level & session, claimed on, canceled on; Claim status → Canceled lists
+  cancellations); a person view from any name (their numbers, attendance by month, upcoming, attendance history,
+  cancellations, waitlist activity, boards; limited to the viewer's boards; PDF/CSV). Bar charts show their values.
 - **v0.46.2** Reports: the header sticks under the top bar like other screens, with the tabs and table headings
   below it (computers; phones keep one plain scroll).
 - **v0.46.1** Reports: filter panel at the app's standard sizes; Reset Filters and Save View buttons removed.
