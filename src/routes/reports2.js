@@ -147,7 +147,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, pid: int(req.query.pid) || "", coached: scope.all ? "all" : scope.coached || [], board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, famOK: !!req.famOK, pid: int(req.query.pid) || "", coached: scope.all ? "all" : scope.coached || [], board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 // remembered report + top filters, per person (re-checked against their permissions like any address)
@@ -158,15 +158,53 @@ async function prefs(uid, qs) {
   if (qs === null) return query(`DELETE FROM app_kv WHERE key=$1`, [`report_prefs:${uid}`]);
   return query(`INSERT INTO app_kv (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, [`report_prefs:${uid}`, JSON.stringify(qs)]);
 }
+async function viewPref(uid, v) {
+  await query(`CREATE TABLE IF NOT EXISTS app_kv (key TEXT PRIMARY KEY, value JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  if (v === undefined) { const r = (await query(`SELECT value FROM app_kv WHERE key=$1`, [`report_view:${uid}`])).rows[0]; return r ? r.value : null; }
+  return query(`INSERT INTO app_kv (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, [`report_view:${uid}`, JSON.stringify(v)]);
+}
+// ---------- My Family ----------
+async function familyReport(req, res, mgmt, fam) {
+  const FD = require("../familyData"), V = require("../views/family");
+  const r = V.SECTIONS.some(([k]) => k === req.query.r) ? req.query.r : "fOverview";
+  const ids = fam.map((p) => p.id), sel = ids.includes(int(req.query.a)) ? int(req.query.a) : "";   // only this person's own family
+  const scopeIds = sel ? [sel] : ids, all = await FD.claims(scopeIds);
+  const boards = [...new Map(all.map((c) => [c.board_id, { id: c.board_id, name: c.board }])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  const board = boards.some((b) => b.id === int(req.query.b)) ? int(req.query.b) : "";
+  const list = board ? all.filter((c) => c.board_id === board) : all;
+  const show = ["past", "waitlisted", "released", "all"].includes(req.query.show) ? req.query.show : "", whenF = req.query.when === "past" ? "past" : "";
+  const url = (o = {}) => { const q = { view: "family", r, a: sel, b: board, show: r === "fClaims" ? show : "", when: r === "fSchedule" ? whenF : "", ...o }; return `/reports?${new URLSearchParams(Object.entries(q).filter(([, v]) => v !== "" && v != null))}`; };
+  let data;
+  if (r === "fOverview") {
+    const athletes = fam.filter((p) => scopeIds.includes(p.id) && p.kind === "athlete").map((p) => p.id), prog = await FD.progress(athletes);
+    data = { upcoming: list.filter((c) => !c.past && c.status !== "canceled"), active: list.filter((c) => !c.past && c.status === "confirmed").length, waitlisted: list.filter((c) => !c.past && c.status === "waitlisted").length,
+      att: FD.attendance(list), prog, activity: FD.activity(list, prog, fam) };
+  } else if (r === "fClaims") data = list.filter(show === "past" ? (c) => c.past && c.status === "confirmed" : show === "waitlisted" ? (c) => c.status === "waitlisted" : show === "released" ? (c) => c.status === "canceled" : show === "all" ? () => true : (c) => !c.past && c.status !== "canceled");
+  else if (r === "fAttendance") data = FD.attendance(list);
+  else if (r === "fProgress") data = await FD.progress(fam.filter((p) => scopeIds.includes(p.id) && p.kind === "athlete").map((p) => p.id));
+  else data = whenF === "past" ? list.filter((c) => c.past && c.status === "confirmed").reverse() : list.filter((c) => !c.past && c.status !== "canceled");
+  if (req.query.csv && ["fClaims", "fAttendance", "fSchedule"].includes(r)) {
+    const rows = r === "fAttendance" ? data.history : data, cq = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const fmt = (t) => new Date(t).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+    const lines = [["Athlete", "Date / time", "Session", "Location", "Board", "Status", "Attendance"].map(cq).join(","), ...rows.map((c) => [c.who, fmt(c.starts_at), c.session, c.location, c.board, c.state, c.att].map(cq).join(","))];
+    res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="my-family-${r.slice(1).toLowerCase()}.csv"`);
+    return res.send("\ufeff" + lines.join("\r\n"));
+  }
+  res.send(V.familyPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), people: fam, sel, r, data, url, mgmt, boards, board, show, whenF }));
+}
 router.get("/", wrap(async (req, res, next) => {
   if (req.query.reset) { await prefs(req.user.id, null); return res.redirect(`/reports?r=${encodeURIComponent(String(req.query.r || "overview"))}`); }
-  if (!Object.keys(req.query).length) { const p = await prefs(req.user.id); if (p && typeof p === "string" && p.length) return res.redirect(`/reports?${p}`); }
+  if (!Object.keys(req.query).length && (await viewPref(req.user.id)) !== "family") { const p = await prefs(req.user.id); if (p && typeof p === "string" && p.length) return res.redirect(`/reports?${p}`); }
   next();
 }));
 router.get("/", wrap(async (req, res) => {
-  const scope = await PP.reportScope(req.user);
-  if (!scope) return go(res, "/dashboard", { err: "You don't have access to reports. Ask an admin if you need it." });
+  const scope = await PP.reportScope(req.user), fam = await require("../familyData").people(req.user);
+  if (!scope && !fam.length) return go(res, "/dashboard", { err: "You don't have access to reports. Ask an admin if you need it." });
   req.user.can_reports = true;
+  // My Family for parents / athletes; people with both views get a switch, and the last one they used is remembered
+  if (req.query.view === "family" || req.query.view === "mgmt") viewPref(req.user.id, req.query.view).catch(() => {});
+  req.famOK = fam.length > 0;
+  if (fam.length && (!scope || req.query.view === "family" || (!req.query.view && !req.query.r && (await viewPref(req.user.id)) === "family"))) return familyReport(req, res, !!scope, fam);
   const boards = (await query(`SELECT id, name, archived_at, groups, board_type FROM schedules WHERE ${scope.all ? "TRUE" : "id = ANY($1)"} ORDER BY archived_at NULLS FIRST, name`, scope.all ? [] : [scope.boards])).rows;
   if (!boards.length) return go(res, "/dashboard", { err: "No boards to report on yet." });
   if (req.query.v && !req.query.r) return res.redirect(`/reports?${new URLSearchParams({ ...req.query, r: req.query.v === "all" ? "all" : "person", v: "" })}`);   // older links → the filterable claims reports

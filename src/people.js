@@ -220,4 +220,5 @@ async function cleanupDelete(userIds, meId) {
   }
   return { deleted, archived };
 }
-module.exports = { ensureManagers, cleanupList, cleanupKeep, cleanupDelete, mergePreview, merge, STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };
+async function canReports(user) { return !!(await reportScope(user)) || (await require("./familyData").people(user)).length > 0; }
+module.exports = { canReports, ensureManagers, cleanupList, cleanupKeep, cleanupDelete, mergePreview, merge, STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };

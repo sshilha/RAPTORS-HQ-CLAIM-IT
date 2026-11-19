@@ -106,7 +106,7 @@ const SESSIONS_R = ["attSessions", "upcoming", "rsvpAnswers", "overview", "perso
 const USES = { level: SESSIONS_R, loc: SESSIONS_R, days: SESSIONS_R, bt: ["overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "week"],
   cs: ["person", "all"], at: ["person", "all", "attendance"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "emails"], team: [...SESSIONS_R, "engagement", "notSignedIn", "notSignedUp"] };
 
-function reportPage({ coached = [], pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
+function reportPage({ famOK = false, coached = [], pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
   const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const X = o.assess;
   const PAIR = ["assessImprove", "assessAttend", "assessTeams"].includes(r);
@@ -122,7 +122,8 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
   const boardLabel = board ? board.name : several ? `${several.length} boards` : "All Boards";
   const hidden = (skip) => Object.entries(state).filter(([k, v]) => v !== "" && v != null && !skip.includes(k)).map(([k, v]) => `<input type="hidden" name="${k}" value="${esc(String(v))}">`).join("");
   // ---- header ----
-  const head = `<section class="ra-hd"><span class="ra-tile">${IC2.chart}</span><div><h1>Reports &amp; Analytics</h1><p>Claim-It • Participation, Attendance &amp; Board Management</p></div></section>`;
+  const head = `<section class="ra-hd"><span class="ra-tile">${IC2.chart}</span><div><h1>Reports &amp; Analytics</h1><p>Claim-It • Participation, Attendance &amp; Board Management</p></div>
+    ${famOK ? `<nav class="ra-views" aria-label="Reports view"><a href="/reports?view=mgmt" class="on" aria-current="page">Management Reports</a><a href="/reports?view=family">My Family</a></nav>` : ""}</section>`;
   // ---- the filter panel ----
   const sel = (name, icon, label, opts, cur, extra = "") => `<label class="rf-f"><span class="rf-l">${icon}${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()"${extra}>${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
   const boardOpts = [["all", "All boards"], ...(several ? [[several.map((b) => b.id).join(","), `${several.length} boards selected`]] : []), ...boards.map((b) => [b.id, b.name + (b.archived_at ? " (archived)" : "")])];
@@ -282,4 +283,4 @@ function reportsPage({ user, flash, admin, boards, board, rows, people, teams, t
         : `<div class="d-empty"><b>No claims yet.</b></div>`)}
     </section></div></div>` });
 }
-module.exports = { reportsPage, reportPage, GROUPS, TITLES, USES };
+module.exports = { reportsPage, reportPage, GROUPS, TITLES, USES, barChart, IC2 };

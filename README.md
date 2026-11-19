@@ -341,6 +341,14 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.56** Reports step 9, My Family: parents, guardians and athletes get Reports (menu item for anyone with a linked
+  family or management reports). My Family: Overview (upcoming, claims, attendance, progress cards; upcoming sessions;
+  recent activity from real records), My Claims (Upcoming / Past / Waitlisted / Released / All; Release uses the existing
+  cancel action and its deadlines), My Attendance (attended, no-shows, not recorded, % once recorded, by month, history),
+  My Progress (shared testing days only; direction-aware; plain summary), My Schedule (upcoming / past by day, link to
+  Claim Boards); athlete and program filters; CSV. Family = the person's linked athletes with family access plus their
+  own record (same rule as My Claims), re-read on every request. People with both views get a Management / My Family
+  switch; the last one used is remembered (app_kv report_view:<user>). My Claims has "View My Reports".
 - **v0.55** Reports step 8, RSVP: Events with on the list, answered, response rate, going, can't make it, no answer
   (outstanding), came, follow-through (came ÷ (came + recorded no-shows) of those who said Going) and said going but
   didn't come, only after the event ("—" for upcoming events and when attendance isn't recorded); Answers with the
