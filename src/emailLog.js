@@ -9,13 +9,15 @@ function ensure() {
       status TEXT NOT NULL, error TEXT, resend_id TEXT, delivery TEXT, checked_at TIMESTAMPTZ)`);
     await query(`CREATE INDEX IF NOT EXISTS email_log_at ON email_log (at DESC)`);
     await query(`CREATE INDEX IF NOT EXISTS email_log_to ON email_log (lower(to_addr), at DESC)`);
+    await query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS board_id INT`);   // the board / session an email was about (claim emails, reminders)
+    await query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS item_id INT`);
   })().catch((e) => { ready = null; throw e; }));
 }
-async function log(recipients, { key = null, subject = "", status, error = null, resendId = null }) {
+async function log(recipients, { key = null, subject = "", status, error = null, resendId = null, ctx = null }) {
   try {
     await ensure();
     for (const to of [].concat(recipients).filter(Boolean))
-      await query(`INSERT INTO email_log (to_addr, email_key, subject, status, error, resend_id) VALUES ($1,$2,$3,$4,$5,$6)`, [String(to).toLowerCase(), key, String(subject).slice(0, 300), status, error ? String(error).slice(0, 500) : null, resendId]);
+      await query(`INSERT INTO email_log (to_addr, email_key, subject, status, error, resend_id, board_id, item_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [String(to).toLowerCase(), key, String(subject).slice(0, 300), status, error ? String(error).slice(0, 500) : null, resendId, ctx && ctx.boardId ? Number(ctx.boardId) : null, ctx && ctx.itemId ? Number(ctx.itemId) : null]);
     if (Math.random() < 0.002) await query(`DELETE FROM email_log WHERE at < now() - interval '1 year'`);
   } catch (e) { console.error("email log:", e.message); }   // logging must never stop an email
 }

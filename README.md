@@ -341,6 +341,12 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.53** Reports step 6, Families and Communications: Family engagement with summary cards (total athletes, active
+  accounts, never signed in, with / without claims, signed in in the last 30 days), a Show filter (never signed in, no
+  claims, active participants, inactive, no account) and a table without email lists (emails in the admin CSV only);
+  sign-in counts the athlete's own account or any linked parent/guardian's. Communication issues: person, address,
+  problem, times, last occurrence, related board, status (Open / Later email delivered), Fix address and View log.
+  email_log gains board_id and item_id (claim emails, waitlist and reminders, RSVP reminders; from this version on).
 - **v0.52** Reports step 5, Sessions: Fill & capacity / Upcoming as a capacity table (date, session, board, location,
   capacity, claimed, available, % full bar, status from each board's thresholds or 50% / 90%, waitlist, attendance
   status Complete / Pending (n not recorded) / Upcoming / No claims, and an action: Manage for admins, Record attendance

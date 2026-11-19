@@ -27,11 +27,12 @@ function cell(v, kind) {
   if (kind === "pct") return `<td data-sort="${v}"><span class="r-pct"><b>${v}%</b><i style="width:${Math.min(100, v)}%"></i></span></td>`;
   if (kind === "num") return `<td class="r-num" data-sort="${v}">${esc(String(v))}</td>`;
   if (kind === "date" || kind === "dt") { const d = new Date(v); return `<td class="r-muted" data-sort="${d.toISOString()}">${esc(kind === "dt" ? fmtDateTime(d) : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Chicago" }))}</td>`; }
-  return `<td>${/^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never|Full|Over capacity)$/.test(String(v)) ? `<span class="r-flag bad">${esc(v)}</span>` : /^(Done|Active|Past|Complete|Healthy)$/.test(String(v)) ? `<span class="r-flag ok">${esc(v)}</span>` : /^(Close|Signed in, no claims|Waitlisted|Released|Nearly full|Low)$/.test(String(v)) || /Method changed|Open spots|^Pending/.test(String(v)) ? `<span class="r-flag mid">${esc(v)}</span>` : esc(String(v))}</td>`;
+  return `<td>${/^(Repeat|Repeat no-shows|Behind|Never signed in|No account|Never|Full|Over capacity)$/.test(String(v)) ? `<span class="r-flag bad">${esc(v)}</span>` : /^(Done|Active|Past|Complete|Healthy|Signed in|Later email delivered)$/.test(String(v)) ? `<span class="r-flag ok">${esc(v)}</span>` : /^(Close|Signed in, no claims|Waitlisted|Released|Nearly full|Low|Open)$/.test(String(v)) || /Method changed|Open spots|^Pending/.test(String(v)) ? `<span class="r-flag mid">${esc(v)}</span>` : esc(String(v))}</td>`;
 }
-function table(d, url = null) {
+function table(d0, url = null) {
+  const d = { ...d0, cols: d0.cols.filter((c) => c[2] !== "csv") };
   const L = (row) => { const h = d.link && d.link(row); if (h && url && h.startsWith("/reports?")) return url(Object.fromEntries(new URLSearchParams(h.split("?")[1]))); return h; };
-  if (!d.rows.length) return `<div class="d-empty"><b>Nothing to show for this board and date range.</b></div>`;
+  if (!d.rows.length) return `<div class="d-empty"><b>Nothing matches these filters.</b> Try widening the dates or removing a filter.</div>`;
   return `<div class="table-wrap"><table class="r-table"><thead><tr>${d.cols.map((c) => `<th${c[2] === "num" || c[2] === "pct" ? ' class="r-num"' : ""}>${esc(c[1])}</th>`).join("")}</tr></thead><tbody>
     ${d.rows.map((row) => `<tr>${d.cols.map((c, i) => i === 0 && L(row) ? cell(row[c[0]], c[2]).replace(/^<td([^>]*)>([\s\S]*)<\/td>$/, (m, at, inner) => `<td${at}><a href="${L(row)}"><b>${inner}</b></a></td>`) : cell(row[c[0]], c[2])).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
@@ -111,7 +112,7 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
   const PAIR = ["assessImprove", "assessAttend", "assessTeams"].includes(r);
   const sIds = board ? String(board.id) : several ? several.map((b) => b.id).join(",") : "all";
   const state = { as: X && X.test ? X.test.id : "", da: X && PAIR ? X.a || "" : "", db: X && PAIR ? X.b || "" : "", how: X && X.how === "avg" ? "avg" : "",
-    pid: r === "personView" ? pid : "", qd: qd || "", stype: btype, cs: cstatus, at: astatus, when: rf.when || "", view: rf.view || "", cap: rf.cap || "", cov: rf.cov || "", st: rf.st || "", prob: rf.prob || "", ans: rf.ans || "", dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd || allDates ? "" : from, to: qd || allDates ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
+    pid: r === "personView" ? pid : "", qd: qd || "", stype: btype, cs: cstatus, at: astatus, when: rf.when || "", view: rf.view || "", fview: rf.fview || "", cap: rf.cap || "", cov: rf.cov || "", st: rf.st || "", prob: rf.prob || "", ans: rf.ans || "", dsel: X && !PAIR && X.dsel !== "all" ? X.dsel : "", drill: X && X.drill ? X.drill : "", top: X && r === "assessLeaders" && X.top !== 10 ? String(X.top) : "", bf: X && X.bornFrom || "", bt: X && X.bornTo || "", s: sIds, team, from: qd || allDates ? "" : from, to: qd || allDates ? "" : to, r, week: r === "week" ? week : "", level: o.level ? o.level.id : "", loc: o.location || "", days: (o.days || []).join(","), q: o.q || "", wl: r === "week" && o.wl === false ? "0" : "", blanks: r === "week" && o.blanks !== 3 ? o.blanks : "" };
   const url = (x) => { const p = new URLSearchParams(Object.fromEntries(Object.entries({ ...state, ...x }).filter(([, v]) => v !== "" && v != null))); return `/reports?${p}`; };
   const uses = (k) => (USES[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
   const off = (k) => (uses(k) ? "" : ` disabled title="Not used by this report"`);
@@ -128,11 +129,11 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
   const levelOpts = board && (o.levels || []).length ? [["", "All levels"], ...o.levels.map((n) => [n.id, "  ".repeat(n.d) + n.path])] : [["", board ? "No levels" : "All levels (pick one board)"]];
   // ---- each report's own filters (a slim bar above the report) ----
   const RFS = { attSessions: ["q"], upcoming: ["view", "q"], notSignedIn: ["q"], person: ["cs", "at", "q"], all: ["cs", "at", "q"], fill: ["view", "q"], busiest: ["when"], locations: ["when"], attendance: ["at", "q"], noshows: ["q"], unchecked: ["q"],
-    teams: ["q"], coverage: ["when", "cov", "q"], volunteer: ["q"], waitlists: ["q"], engagement: ["st", "q"], notSignedUp: ["q"], emails: ["prob", "q"], rsvp: ["q"], rsvpAnswers: ["ans", "q"], rsvpAthletes: ["q"], week: ["week", "wl", "blanks"] };
+    teams: ["q"], coverage: ["when", "cov", "q"], volunteer: ["q"], waitlists: ["q"], engagement: ["fview", "q"], notSignedUp: ["q"], emails: ["prob", "q"], rsvp: ["q"], rsvpAnswers: ["ans", "q"], rsvpAthletes: ["q"], week: ["week", "wl", "blanks"] };
   const mine = /^assess/.test(r) ? ["assess", "q"] : RFS[r] || [];
   const small = (name, label, opts, cur) => `<label class="rb-f"><span>${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()">${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
   const piece = { cs: () => small("cs", "Claim status", [["", "All claim statuses"], ...Object.entries(CS)], cstatus), at: () => small("at", "Attendance status", [["", "All attendance statuses"], ...Object.entries(AT)], astatus),
-    when: () => small("when", "When", [["", "Upcoming and past"], ...Object.entries(RF.when || {})], rf.when || ""), view: () => small("view", "Show", [["", "All sessions"], ...Object.entries(RF.view || {})], rf.view || ""), cap: () => small("cap", "Capacity", [["", "Any capacity"], ...Object.entries(RF.cap || {})], rf.cap || ""),
+    when: () => small("when", "When", [["", "Upcoming and past"], ...Object.entries(RF.when || {})], rf.when || ""), view: () => small("view", "Show", [["", "All sessions"], ...Object.entries(RF.view || {})], rf.view || ""), fview: () => small("fview", "Show", [["", "All families"], ...Object.entries(RF.fview || {})], rf.fview || ""), cap: () => small("cap", "Capacity", [["", "Any capacity"], ...Object.entries(RF.cap || {})], rf.cap || ""),
     cov: () => small("cov", "Coverage", [["", "Any coverage"], ...Object.entries(RF.cov || {})], rf.cov || ""), st: () => small("st", "Status", [["", "Any status"], ...Object.entries(RF.st || {})], rf.st || ""),
     prob: () => small("prob", "Problem", [["", "Any problem"], ...Object.entries(RF.prob || {})], rf.prob || ""), ans: () => small("ans", "Answer", [["", "Any answer"], ...Object.entries(RF.ans || {})], rf.ans || ""),
     q: () => `<label class="rf-search rb-q">${IC2.search}<input type="search" name="q" form="rf" value="${esc(o.q || "")}" placeholder="Search this report…" aria-label="Search this report"></label>`,
@@ -162,8 +163,8 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
     uses("loc") && (o.locations || []).length > 1 ? mini("loc", "Location", [["", "All locations"], ...(o.locations || []).map((l) => [l, l])], o.location || "") : "",
     uses("bt") ? mini("stype", "Session type", [["", "All session types"], ...Object.entries(BT).filter(([k]) => kinds.includes(k) || btype === k)], btype) : ""].filter(Boolean);
   const showCustom = !qd && !allDates;
-  const RLAB = { view: "Show", cs: "Claim status", at: "Attendance", when: "When", cap: "Capacity", cov: "Coverage", st: "Status", prob: "Problem", ans: "Answer", q: "Search" };
-  const RVAL = { view: RF.view || {}, cs: CS, at: AT, when: RF.when || {}, cap: RF.cap || {}, cov: RF.cov || {}, st: RF.st || {}, prob: RF.prob || {}, ans: RF.ans || {} };
+  const RLAB = { fview: "Show", view: "Show", cs: "Claim status", at: "Attendance", when: "When", cap: "Capacity", cov: "Coverage", st: "Status", prob: "Problem", ans: "Answer", q: "Search" };
+  const RVAL = { fview: RF.fview || {}, view: RF.view || {}, cs: CS, at: AT, when: RF.when || {}, cap: RF.cap || {}, cov: RF.cov || {}, st: RF.st || {}, prob: RF.prob || {}, ans: RF.ans || {} };
   const chipsOn = [
     (board || several) && ["s", `Board: ${board ? board.name : `${several.length} boards`}`],
     uses("team") && team && ["team", `Team: ${team}`],
@@ -172,7 +173,7 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
     ...Object.keys(RLAB).filter((k) => (state[k] || (k === "q" && o.q)) && (mine.includes(k))).map((k) => [k, `${RLAB[k]}: ${k === "q" ? `“${o.q}”` : (RVAL[k][state[k]] || state[k])}`]),
   ].filter(Boolean);
   const clearOne = (k) => url(k === "qd" ? { qd: "", from: "", to: "" } : k === "s" ? { s: "all", level: "" } : { [k]: "" });
-  const panel = `<form method="get" action="/reports" id="rf">${hidden(["s", "level", "team", "loc", "stype", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "when", "view", "cap", "cov", "st", "prob", "ans", "wl", "blanks", ...(qd ? [] : ["qd"])])}</form>
+  const panel = `<form method="get" action="/reports" id="rf">${hidden(["s", "level", "team", "loc", "stype", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "when", "view", "fview", "cap", "cov", "st", "prob", "ans", "wl", "blanks", ...(qd ? [] : ["qd"])])}</form>
     <section class="tb">
       <button type="button" class="tb-t" aria-expanded="true" onclick="var t = this.closest('.tb'), c = t.classList.toggle('tb-closed'); this.setAttribute('aria-expanded', String(!c));">${IC2.filter}Filters${chipsOn.length ? ` <b class="tb-n">${chipsOn.length}</b>` : ""}<span class="tb-car">${IC2.down}</span></button>
       ${mini("s", "Board", boardOpts, board ? board.id : several ? several.map((b) => b.id).join(",") : "all", ` onchange="var l = this.form.querySelector('[name=level]'); if (l) l.disabled = true; this.form.submit()"`).replace(' onchange="this.form.submit()"', "")}
@@ -187,7 +188,7 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
   const showSub = (k) => k === "emails" ? admin : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" || k === "volunteer" ? kinds.includes("volunteer") : true;
   const showTab = (id) => (TABS.find((t) => t[0] === id) || [, , , []])[3].some(([k, l]) => !l || showSub(k));
   const curTab = TABS.find((t) => t[3].some(([k]) => k === r)) || TABS[0];
-  const RK = ["view", "pid", "cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters
+  const RK = ["fview", "view", "pid", "cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters
   const go = (k) => url({ r: k, v: "" }), goNew = (k) => url({ r: k, v: "", ...Object.fromEntries(RK.map((x) => [x, ""])) });
   const tabs = `<nav class="rt-tabs" aria-label="Reports">${TABS.filter((t) => showTab(t[0]) || t === curTab).map(([id, label, icon, subs]) => { const first = (subs.find(([k, l]) => l && showSub(k)) || subs[0])[0]; return `<a href="${id === curTab[0] ? go(first) : goNew(first)}"${t0(id)}>${icon}<span>${label}</span></a>`; }).join("")}</nav>
     ${curTab[3].filter(([k, l]) => l && showSub(k)).length > 1 ? `<nav class="r-chips" aria-label="${esc(curTab[1])} reports">${curTab[3].filter(([k, l]) => l && showSub(k)).map(([k, l]) => `<a href="${go(k)}"${k === r ? ' class="on" aria-current="page"' : ""}>${esc(l)}</a>`).join("")}</nav>` : ""}`;
@@ -236,6 +237,7 @@ function reportPage({ coached = [], pid = "", user, flash, admin, boards, board,
         <section class="db-card"><h3>Waitlist activity <span class="fine">${data.waitlist.rows.length}</span></h3>${data.waitlist.rows.length ? table(data.waitlist) : `<p class="ch-empty">No waitlist activity.</p>`}</section></div>`;
   }
   else body = `${r === "volunteer" && admin ? `<form method="post" action="${url({}).replace("/reports?", "/reports/volunteer-required?")}" class="r-req"><label>Hours each family needs <input type="number" name="hours" min="0" max="500" step="0.5" value="${required || ""}" placeholder="none"></label><button class="sb-btn" type="submit">Save</button><span class="fine">Leave empty for no requirement.</span></form>` : ""}
+    ${data.summary ? `<div class="kpis pv-k">${data.summary.map(([l, v]) => `<div class="kpi"><span class="kpi-l">${esc(l)}</span><b>${v}</b></div>`).join("")}</div>` : ""}
     ${data.note ? `<p class="fine r-note2">${esc(data.note)}</p>` : ""}${data.grid ? grid(data) : table(data, url)}`;
   return layout({ title: `Reports · ${TITLES[r] || ""}`, user, flash, admin, tab: "reports", dash: true,
     body: `<div class="d-wrap r-wrap ra-page${r === "week" ? " r-print" : ""}">${head}${panel}${tabs}<div class="r-sheet">${rbar}<div class="ra-dl">${data.cols || r === "week" || r === "overview" ? `<a class="rf-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="rf-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="rf-btn" onclick="window.print()">Print</button>` : ""}</div><section class="d-card r-card">${body}</section></div></div>

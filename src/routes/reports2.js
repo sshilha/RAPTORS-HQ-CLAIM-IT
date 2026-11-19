@@ -13,7 +13,7 @@ router.use(auth.requireUser);
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
 const NEW = { attSessions: 1, upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement(f); return { ...d, rows: d.rows.filter((r) => r.status === "Never signed in"), note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
+const RUN = { attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement({ ...f, fview: "never" }); return { ...d, note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
   rsvpAnswers: D.rsvpAnswers, teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -82,12 +82,12 @@ async function newReport(req, res, scope, boards) {
   const location = locations.includes(req.query.loc) ? req.query.loc : "";
   const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
   const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
-  const RF = { view: { upcoming: "Upcoming", past: "Past", low: "Low enrollment", near: "Nearly full", full: "Full", over: "Over capacity", waitlisted: "Waitlisted", pending: "Attendance pending" }, when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
+  const RF = { fview: { never: "Never signed in", noclaims: "No claims", active: "Active participants", inactive: "Inactive", noaccount: "No account" }, view: { upcoming: "Upcoming", past: "Past", low: "Low enrollment", near: "Nearly full", full: "Full", over: "Over capacity", waitlisted: "Waitlisted", pending: "Attendance pending" }, when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
     cov: { "Needs people": "Needs people", Covered: "Covered" }, st: { "No account": "No account", "Never signed in": "Never signed in", "Signed in, no claims": "No claims", Active: "Active" },
     prob: { Bounced: "Bounced", spam: "Marked as spam", failed: "Failed" }, ans: { Going: "Going", "Can't make it": "Can't make it", "No answer": "No answer" } };
   const rf = Object.fromEntries(Object.keys(RF).map((k) => [k, RF[k][req.query[k]] ? req.query[k] : ""]));
   const U = require("../views/reports2").USES, uses = (k) => (U[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
-  f.view = rf.view;
+  f.view = rf.view; f.fview = rf.fview;
   Object.assign(f, { levels: uses("level") ? subtree : null, location: uses("loc") ? location : "", days: uses("days") ? days : [], btype: uses("bt") ? btype : "", cstatus, astatus, when: rf.when });
   if (!uses("team")) f.team = "";
   if (!uses("dates") && r !== "week") { f.from = "2000-01-01"; f.to = "2100-12-31"; }
@@ -115,7 +115,7 @@ async function newReport(req, res, scope, boards) {
   }
   // the report's own row filters
   if (data && data.rows && !data.grid) {
-    const keep = { cap: (x) => x.status === rf.cap, cov: (x) => x.status === rf.cov, st: (x) => x.status === rf.st, ans: (x) => x.answer === rf.ans,
+    const keep = { cap: (x) => x.status === rf.cap, cov: (x) => x.status === rf.cov, st: (x) => x.status === rf.st || x.account === rf.st, ans: (x) => x.answer === rf.ans,
       prob: (x) => (rf.prob === "Bounced" ? /^Bounced/.test(x.why) : rf.prob === "spam" ? /spam/i.test(x.why) : !/^Bounced|spam/i.test(x.why || "")) };
     for (const k of Object.keys(keep)) if (rf[k]) data = { ...data, rows: data.rows.filter(keep[k]) };
   }

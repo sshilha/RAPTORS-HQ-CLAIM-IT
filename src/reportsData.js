@@ -286,15 +286,23 @@ async function members(f) {
     WHERE m.schedule_id = ANY($1) AND a.archived_at IS NULL ${f.team ? "AND m.group_name = $2" : ""}${memberCond(f, margs, "m")} ORDER BY lower(a.last_name), lower(a.first_name)`, margs)).rows;
 }
 async function engagement(f) {
-  const by = new Map();
+  // "Signed in" means the athlete's own account or any linked parent/guardian account. Claims = active claims on the boards in view.
+  const by = new Map(), recent = Date.now() - 30 * 864e5;
   for (const m of await members(f)) {
     const x = by.get(m.id) || { id: m.id, name: nm(m), team: m.team || "", boards: [], claims: 0, signed_in: m.signed_in, emails: [...new Set([m.own, ...(m.parents || [])].filter(Boolean))].join(", ") };
     x.boards.push(m.board); x.claims += m.claims; by.set(m.id, x);
   }
-  const rows = [...by.values()].map((x) => ({ ...x, boards: x.boards.join(", "), status: !x.emails ? "No account" : !x.signed_in ? "Never signed in" : !x.claims ? "Signed in, no claims" : "Active" }))
-    .sort((a, b) => ["No account", "Never signed in", "Signed in, no claims", "Active"].indexOf(a.status) - ["No account", "Never signed in", "Signed in, no claims", "Active"].indexOf(b.status) || a.name.localeCompare(b.name));
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["status", "Status"], ["signed_in", "Last sign-in (them or family)", "date"], ["claims", "Claims", "num"], ["boards", "Boards"], ["emails", "Emails"]],
-    rows, link: (r) => `/admin/people/${r.id}`, note: "Everyone on the boards in scope. Download CSV for the emails to send a reminder." };
+  const all = [...by.values()].map((x) => { const acct = !!x.emails, signed = !!x.signed_in;
+    return { ...x, boards: x.boards.join(", "), account: !acct ? "No account" : signed ? "Signed in" : "Never signed in", status: !acct ? "No account" : !signed ? "Never signed in" : !x.claims ? "Signed in, no claims" : "Active",
+      inactive: acct && !x.claims && (!signed || new Date(x.signed_in).getTime() < recent), act: ["View", `/reports?r=personView&pid=${x.id}`] }; });
+  const V = { never: (x) => x.account === "Never signed in", noclaims: (x) => !x.claims, active: (x) => x.claims > 0, inactive: (x) => x.inactive, noaccount: (x) => x.account === "No account" };
+  const rows = (f.fview && V[f.fview] ? all.filter(V[f.fview]) : all).sort((a, b) => ["No account", "Never signed in", "Signed in, no claims", "Active"].indexOf(a.status) - ["No account", "Never signed in", "Signed in, no claims", "Active"].indexOf(b.status) || a.name.localeCompare(b.name));
+  const n = (fn) => all.filter(fn).length;
+  return { summary: [["Total athletes", all.length], ["Active accounts", n((x) => x.account === "Signed in")], ["Never signed in", n((x) => x.account === "Never signed in")],
+      ["With claims", n((x) => x.claims > 0)], ["Without claims", n((x) => !x.claims)], ["Signed in, last 30 days", n((x) => x.signed_in && new Date(x.signed_in).getTime() >= recent)]],
+    cols: [["name", "Athlete"], ["team", "Team"], ["account", "Account"], ["signed_in", "Last sign-in", "date"], ["claims", "Claims", "num"], ["boards", "Boards"], ["emails", "Emails", "csv"], ["act", "", "act"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`,
+    note: "Everyone on the boards in view. Account and last sign-in count the athlete's own sign-in or any linked parent/guardian's. Active = signed in with claims; Inactive = no claims and no sign-in in the last 30 days." };
 }
 async function notSignedUp(f) {
   const rows = (await members(f)).filter((m) => m.board_type !== "rsvp" && m.claims === 0);
@@ -333,13 +341,19 @@ async function emailProblems(f) {
   await require("./emailLog").ensure();
   const [lo, hi] = span("$1", "$2");
   const rows = (await query(`WITH bad AS (SELECT lower(e.to_addr) AS addr, count(*)::int AS n, max(e.at) AS last,
-        (array_agg(coalesce(CASE e.delivery WHEN 'bounced' THEN 'Bounced' WHEN 'complained' THEN 'Marked as spam' END, e.error, 'Failed') ORDER BY e.at DESC))[1] AS why
+        (array_agg(coalesce(CASE e.delivery WHEN 'bounced' THEN 'Bounced' WHEN 'complained' THEN 'Marked as spam' END, e.error, 'Failed') ORDER BY e.at DESC))[1] AS why,
+        (array_agg(e.board_id ORDER BY e.at DESC) FILTER (WHERE e.board_id IS NOT NULL))[1] AS board_id
       FROM email_log e WHERE (e.status='failed' OR e.delivery IN ('bounced','complained')) AND e.at >= ${lo} AND e.at < ${hi} GROUP BY lower(e.to_addr))
-    SELECT b.*, p.id AS person, p.name FROM bad b LEFT JOIN LATERAL (SELECT a.id, a.first_name || ' ' || coalesce(a.last_name,'') AS name FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id
+    SELECT b.*, p.id AS person, p.name, sc.name AS board,
+      EXISTS (SELECT 1 FROM email_log g WHERE lower(g.to_addr)=b.addr AND g.at > b.last AND g.delivery IN ('delivered','opened','clicked')) AS later_ok
+    FROM bad b LEFT JOIN schedules sc ON sc.id=b.board_id
+    LEFT JOIN LATERAL (SELECT a.id, a.first_name || ' ' || coalesce(a.last_name,'') AS name FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id
       WHERE (lower(u.email)=b.addr OR lower(a.email)=b.addr) AND a.archived_at IS NULL ORDER BY a.kind DESC LIMIT 1) p ON true ORDER BY b.last DESC`, [f.from, f.to])).rows;
-  return { cols: [["addr", "Email address"], ["name", "Person"], ["why", "Problem"], ["n", "Times", "num"], ["last", "Last", "dt"]],
-    rows: rows.map((r) => ({ ...r, id: r.person })), link: (r) => (r.id ? `/admin/people/${r.id}` : `/admin/email-log?q=${encodeURIComponent(r.addr)}`),
-    note: "Addresses that bounced, were marked as spam, or Resend refused, in the date range. Fix the address on the person's page. (Check delivery in the Email log first to catch recent bounces.)" };
+  return { cols: [["name", "Person"], ["addr", "Email address"], ["why", "Problem"], ["n", "Times", "num"], ["last", "Last occurrence", "dt"], ["board", "Related board"], ["status", "Status"], ["act", "", "act"], ["log", "", "act"]],
+    rows: rows.map((r) => ({ ...r, id: r.person, name: r.name || "(not in People)", board: r.board || "—", status: r.later_ok ? "Later email delivered" : "Open",
+      act: r.person ? ["Fix address", `/admin/people/${r.person}`] : null, log: ["View log", `/admin/email-log?q=${encodeURIComponent(r.addr)}`] })),
+    link: (r) => (r.id ? `/admin/people/${r.id}` : null),
+    note: "Addresses that bounced, were marked as spam, or Resend refused, in the date range. Related board = the board the latest problem email was about (recorded from this version on). Status turns to \"Later email delivered\" once a newer email reached them. Nothing changes an address automatically." };
 }
 // ---------- Week sheet ----------
 async function weekSheet(f) {

@@ -89,7 +89,7 @@ async function remind(itemId, only = null) {
         ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS parent_emails FROM athletes a WHERE a.id=$1`, [p.id])).rows[0];
     const to = [...new Set([a.self_email, ...(a.family_emails === false ? [] : a.parent_emails || [])].filter(Boolean))];
     if (!to.length) continue;
-    await require("./emailTemplates").send("rsvp_reminder", to, { person_first: a.first_name, person_name: `${a.first_name} ${a.last_name}`.trim(), board_name: b.name,
+    await require("./emailTemplates").send("rsvp_reminder", to, { _ctx: { boardId: b.id, itemId: it.id }, person_first: a.first_name, person_name: `${a.first_name} ${a.last_name}`.trim(), board_name: b.name,
       session: slotName(it), location: it.location || b.event_location || "", organizers: [b.contact_name, b.contact_info].filter(Boolean).join(", "), answer_link: `${base}/b/${b.id}?p=${a.id}#i${it.id}` });
     n++;
   }
