@@ -238,43 +238,49 @@ async function locations(f) {
 }
 // ---------- RSVP ----------
 async function rsvpEvents(f) {
-  const R = require("./rsvp"), rows = [];
+  // On the list = can answer (eligible). Response rate = answered ÷ on the list. Follow-through = of those who said Going,
+  // came ÷ (came + recorded no-shows) on past events; missing attendance never counts against anyone; future events show "—".
+  const R = require("./rsvp"), rows = [], now = Date.now();
   for (const s of (await sessions(f)).filter((x) => x.board_type === "rsvp")) {
     const r = await R.summary(s.id); if (!r) continue; for (const k of ["going", "no", "none"]) r[k] = r[k].filter((p) => teamAllowed(f, s.board_id, p.group_name || p.team));
-    const open = r.going.length + r.no.length + r.none.length, noShow = (await query(`SELECT count(*)::int AS n FROM board_claims WHERE item_id=$1 AND status='confirmed' AND attended = false`, [s.id])).rows[0].n;
-    rows.push({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, open, answered: pct(r.going.length + r.no.length, open), going: r.going.length, no: r.no.length, none: r.none.length, noshow: noShow });
+    const past = new Date(s.ends_at || s.starts_at).getTime() < now, list = r.going.length + r.no.length + r.none.length, ans = r.going.length + r.no.length;
+    const came = r.going.filter((p) => p.attended === true).length, ns = r.going.filter((p) => p.attended === false).length;
+    rows.push({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, list, answered: ans, rate: list ? pct(ans, list) : null, going: r.going.length, no: r.no.length, none: r.none.length,
+      came: past ? came : null, follow: past && came + ns ? pct(came, came + ns) : null, didnt: past ? ns : null, state: past ? "Past" : "Upcoming",
+      act: past ? ["Attendance", `/checkin/i/${s.id}`] : ["Event", `/admin/b/${s.board_id}/items/${s.id}/people`] });
   }
-  return { cols: [["when", "When", "dt"], ["session", "Event"], ["board", "Board"], ["open", "On the list", "num"], ["answered", "Answered", "pct"], ["going", "Going", "num"], ["no", "Can't", "num"], ["none", "No answer", "num"], ["noshow", "Said Going, didn't come", "num"]],
-    rows, link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "Each RSVP event in the range. \"Said Going, didn't come\" counts Going answers marked No-show at check-in." };
-}
-// one row per athlete per RSVP event: their answer (Going / Can't make it / No answer), note, and attendance
+  return { cols: [["when", "When", "dt"], ["session", "Event"], ["board", "Board"], ["list", "On the list", "num"], ["answered", "Answered", "num"], ["rate", "Response rate", "pct"], ["going", "Going", "num"], ["no", "Can't make it", "num"],
+      ["none", "No answer", "num"], ["came", "Came", "num"], ["follow", "Follow-through", "pct"], ["didnt", "Said going, didn't come", "num"], ["state", ""], ["act", "", "act"]],
+    rows, note: "On the list = who can answer. An answer isn't a claim or attendance: Came and Follow-through only appear after the event, from recorded attendance of those who said Going (not recorded never counts as not coming)." };
+}// one row per athlete per RSVP event: their answer (Going / Can't make it / No answer), note, and attendance
 async function rsvpAnswers(f) {
-  const R = require("./rsvp"), rows = [];
+  const R = require("./rsvp"), rows = [], now = Date.now();
   for (const s of (await sessions(f)).filter((x) => x.board_type === "rsvp")) {
-    const r = await R.summary(s.id); if (!r) continue; for (const k of ["going", "no", "none"]) r[k] = r[k].filter((p) => teamAllowed(f, s.board_id, p.group_name || p.team));
-    const att = new Map((await query(`SELECT athlete_id, attended FROM board_claims WHERE item_id=$1 AND status='confirmed'`, [s.id])).rows.map((x) => [x.athlete_id, x.attended]));
+    const r = await R.summary(s.id); if (!r) continue; const past = new Date(s.ends_at || s.starts_at).getTime() < now;
     for (const [list, label] of [[r.going, "Going"], [r.no, "Can't make it"], [r.none, "No answer"]]) for (const p of list) {
-      if (f.team && (p.group_name || p.team) !== f.team) continue;
-      const a = att.get(p.id); rows.push({ id: p.id, name: nm(p), team: p.group_name || p.team || "", session: s.session, when: s.starts_at, board: s.board, answer: label, note: p.note || "", attended: label === "Going" ? (a == null ? "" : a ? "Here" : "No-show") : "" });
+      if (!teamAllowed(f, s.board_id, p.group_name || p.team) || (f.team && (p.group_name || p.team) !== f.team)) continue;
+      rows.push({ id: p.id, name: nm(p), team: p.group_name || p.team || "", session: s.session, when: s.starts_at, board: s.board, answer: label, answered: p.answered_at || null, note: p.note || "",
+        attended: label !== "Going" ? "" : !past ? "Upcoming" : p.attended == null ? "Not recorded" : p.attended ? "Came" : "Didn't come" });
     }
   }
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["session", "Event"], ["when", "When", "dt"], ["board", "Board"], ["answer", "Answer"], ["note", "Note"], ["attended", "Attended"]],
-    rows: rows.sort((a, b) => new Date(a.when) - new Date(b.when) || a.name.localeCompare(b.name)), link: (r) => `/admin/people/${r.id}`, note: "Every athlete on the list for each RSVP event and their answer." };
-}
-async function rsvpAthletes(f) {
-  const R = require("./rsvp"), by = new Map();
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["session", "Event"], ["when", "When", "dt"], ["board", "Board"], ["answer", "Answer"], ["answered", "Answered on", "dt"], ["note", "Note"], ["attended", "Attendance"]],
+    rows: rows.sort((a, b) => new Date(a.when) - new Date(b.when) || a.name.localeCompare(b.name)), link: (r) => `/reports?r=personView&pid=${r.id}`,
+    note: "Every athlete on each RSVP event's list and their answer. Attendance shows only for those who said Going, and only after the event." };
+}async function rsvpAthletes(f) {
+  const R = require("./rsvp"), by = new Map(), now = Date.now();
   for (const s of (await sessions(f)).filter((x) => x.board_type === "rsvp")) {
-    const r = await R.summary(s.id); if (!r) continue; for (const k of ["going", "no", "none"]) r[k] = r[k].filter((p) => teamAllowed(f, s.board_id, p.group_name || p.team));
-    for (const [list, k] of [[r.going, "going"], [r.no, "no"], [r.none, "none"]]) for (const p of list) {
-      if (f.team && p.group_name !== f.team && p.team !== f.team) continue;
-      const x = by.get(p.id) || { id: p.id, name: nm(p), team: p.group_name || p.team || "", events: 0, going: 0, no: 0, none: 0 }; x.events++; x[k]++; by.set(p.id, x);
+    const r = await R.summary(s.id); if (!r) continue; const past = new Date(s.ends_at || s.starts_at).getTime() < now;
+    for (const [k, list] of [["going", r.going], ["no", r.no], ["none", r.none]]) for (const p of list) {
+      if (!teamAllowed(f, s.board_id, p.group_name || p.team) || (f.team && (p.group_name || p.team) !== f.team)) continue;
+      const x = by.get(p.id) || { id: p.id, name: nm(p), team: p.group_name || p.team || "", events: 0, going: 0, no: 0, none: 0, came: 0, ns: 0 };
+      x.events++; x[k]++; if (k === "going" && past) { if (p.attended === true) x.came++; if (p.attended === false) x.ns++; }
+      by.set(p.id, x);
     }
   }
-  const rows = [...by.values()].map((x) => ({ ...x, answered: pct(x.going + x.no, x.events) })).sort((a, b) => (a.answered ?? 101) - (b.answered ?? 101) || a.name.localeCompare(b.name));
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["events", "Events", "num"], ["answered", "Answered", "pct"], ["going", "Going", "num"], ["no", "Can't", "num"], ["none", "No answer", "num"]],
-    rows, link: (r) => `/admin/people/${r.id}`, note: "How often each athlete (or their family) answers. Lowest first." };
-}
-// ---------- Families ----------
+  const rows = [...by.values()].map((x) => ({ ...x, rate: pct(x.going + x.no, x.events), follow: x.came + x.ns ? pct(x.came, x.came + x.ns) : null })).sort((a, b) => a.name.localeCompare(b.name));
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["events", "Events on their list", "num"], ["rate", "Response rate", "pct"], ["going", "Going", "num"], ["no", "Can't make it", "num"], ["none", "No answer", "num"], ["came", "Came", "num"], ["ns", "Said going, didn't come", "num"], ["follow", "Follow-through", "pct"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: "Each athlete across the RSVP events in view. Follow-through = came ÷ (came + recorded no-shows) for events they said Going to, after the event." };
+}// ---------- Families ----------
 async function members(f) {
   const margs = f.team ? [f.boards, f.team] : [f.boards];
   return (await query(`SELECT m.schedule_id AS board_id, sc.name AS board, sc.board_type, a.id, a.first_name, a.last_name, m.group_name AS team,

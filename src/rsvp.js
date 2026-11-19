@@ -61,13 +61,13 @@ async function summary(itemId) {
   const eff = E.effective(chain);
   const people = (await query(`SELECT a.id, a.first_name, a.last_name, a.team, m.group_name, m.tags FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
     WHERE m.schedule_id=$1 AND a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name)`, [chain.board.id])).rows;
-  const ans = (await query(`SELECT DISTINCT ON (athlete_id) athlete_id, status, rsvp, note, created_at FROM board_claims
+  const ans = (await query(`SELECT DISTINCT ON (athlete_id) athlete_id, status, rsvp, note, created_at, coalesce(canceled_at, created_at) AS answered_at, attended FROM board_claims
     WHERE item_id=$1 AND (status='confirmed' OR (status='canceled' AND rsvp='no')) ORDER BY athlete_id, id DESC`, [itemId])).rows;
   const byId = new Map(ans.map((r) => [r.athlete_id, r]));
   const out = { going: [], no: [], none: [] };
   for (const p of people) {
     const a = byId.get(p.id);
-    if (a) { (a.status === "confirmed" ? out.going : out.no).push({ ...p, note: a.note }); continue; }
+    if (a) { (a.status === "confirmed" ? out.going : out.no).push({ ...p, note: a.note, answered_at: a.answered_at, attended: a.status === "confirmed" ? a.attended : null }); continue; }
     const ok = E.check(chain, eff, { athleteId: p.id, member: { group_name: p.group_name, tags: p.tags } });
     if (ok.ok || !ok.hidden) out.none.push(p);
   }

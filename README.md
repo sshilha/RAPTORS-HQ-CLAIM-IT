@@ -341,6 +341,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.55** Reports step 8, RSVP: Events with on the list, answered, response rate, going, can't make it, no answer
+  (outstanding), came, follow-through (came ÷ (came + recorded no-shows) of those who said Going) and said going but
+  didn't come, only after the event ("—" for upcoming events and when attendance isn't recorded); Answers with the
+  answer date and attendance (Came / Didn't come / Not recorded) for Going answers after the event; Athletes with
+  response rate and follow-through. Actions: Attendance (check-in) for admins and the board's coaches, Event for admins.
 - **v0.54** Reports step 7, Assessments: Progress (per athlete and drill: initial, latest, best with "Personal best",
   change in units and % where + is always better, number of tests, "More testing needed" with one test); an athlete
   progress view (a chart per drill, better direction and method, a plain progress sentence); Team progress (athletes
