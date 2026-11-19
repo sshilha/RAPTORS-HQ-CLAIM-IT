@@ -117,7 +117,7 @@ async function reportScope(user) {
   for (const m of managed) if ((m.teams || []).length) teamsBy[m.schedule_id] = [...new Set([...(teamsBy[m.schedule_id] || []), ...m.teams])];
   for (const m of managed) if (!(m.teams || []).length) delete teamsBy[m.schedule_id];
   for (const b of coached) delete teamsBy[b];
-  return boards.length ? { all: false, boards, teams: [], teamsBy, coach: coached.length > 0, manager: managed.length > 0 } : null;
+  return boards.length ? { all: false, boards, teams: [], teamsBy, coach: coached.length > 0, coached, manager: managed.length > 0 } : null;
 }
 
 // A person's status in People: what (if anything) needs attention

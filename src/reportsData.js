@@ -481,54 +481,68 @@ async function dashboard(f) {
   const work = all.filter((s) => s.board_type !== "rsvp"), up = work.filter((s) => !started(s)), past = work.filter(ended);
   const claims = await claimsIn(f, { past: false, statuses: ["confirmed"] }), cl = claims.filter((c) => c.board_type !== "rsvp");
   const sum = (xs, k) => xs.reduce((t, x) => t + (Number(x[k]) || 0), 0), open = (s) => (s.capacity ? Math.max(s.capacity - s.taken, 0) : 0);
-  const here = sum(past, "here"), ns = sum(past, "noshow"), vol = up.filter((s) => s.board_type === "volunteer");
-  const kinds = new Set(all.map((s) => s.board_type));
+  const here = sum(past, "here"), ns = sum(past, "noshow"), capUp = up.filter((s) => s.capacity), takenUp = sum(capUp.map((s) => ({ t: Math.min(s.taken, s.capacity) })), "t"), availUp = sum(capUp.map((s) => ({ o: open(s) })), "o");
+  const fmtD = (d) => new Date(d).toLocaleString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const awaiting = past.filter((s) => s.unmarked > 0).length, wlSessions = up.filter((s) => s.waitlisted > 0);
+  const attn = await attention(f, all);
   const kpis = [
-    ["claims", "Total claims", cl.length, "", "active claims", { r: "all" }],
-    ["people", "Unique participants", new Set(cl.map((c) => c.athlete_id)).size, "", "people with a claim", { r: "person" }],
-    ["att", "Attendance rate", pct(here, here + ns), "%", `${here} attended · ${ns} no-shows`, { r: "attendance" }],
-    ["upcoming", "Upcoming sessions", up.length, "", "not started yet", { r: "fill" }],
-    ["spots", "Available spots", sum(up.map((s) => ({ o: open(s) })), "o"), "", `of ${sum(up, "capacity")} upcoming`, { r: "fill" }],
-    ["wait", "Waitlisted", sum(up, "waitlisted"), "", "on upcoming sessions", { r: "waitlists" }],
-    ["noshow", "No-shows", ns, "", "on past sessions", { r: "noshows" }],
-    ...(kinds.has("volunteer") ? [["vol", "Unfilled volunteer spots", sum(vol.map((s) => ({ o: open(s) })), "o"), "", `${vol.filter((s) => open(s) > 0).length} shifts need people`, { r: "fill" }]] : []),
+    ["claims", "Active claims", cl.length, "", `${new Set(cl.map((c) => c.athlete_id)).size} unique participants`, { r: "all", cs: "confirmed" }],
+    ["upcoming", "Upcoming sessions", up.length, "", up.length ? `Next: ${fmtD(up[0].starts_at)}` : "None scheduled", { r: "upcoming" }],
+    ["capacity", "Capacity", capUp.length ? pct(takenUp, takenUp + availUp) : null, "%", capUp.length ? `${takenUp} claimed · ${availUp} available` : "No upcoming spots", { r: "upcoming" }],
+    ["att", "Attendance", here + ns ? pct(here, here + ns) : null, "%", here + ns ? `${awaiting} session${awaiting === 1 ? "" : "s"} awaiting check-in` : awaiting ? `No attendance recorded yet · ${awaiting} awaiting` : "No attendance recorded yet", { r: "attendance" }],
+    ["wait", "Waitlists", sum(up, "waitlisted"), "", `${wlSessions.length} session${wlSessions.length === 1 ? "" : "s"} with waitlists`, { r: "waitlists" }],
+    ["attn", "Needs attention", attn.filter((a) => a.sev >= 2).length, "", `${attn.filter((a) => a.sev === 3).length} high priority`, { anchor: "attention" }],
   ];
-  // charts
-  const wk = (d) => { const x = new Date(new Date(d).toLocaleString("en-US", { timeZone: "America/Chicago" })); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  // charts (only drawn when they have data)
+  const wk = (d) => { const x = new Date(new Date(d).toLocaleString("en-US", { timeZone: TZ })); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
   const lbl = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const byWeek = new Map(); for (const c of claims.filter((c) => c.board_type !== "rsvp")) { const k = wk(c.created_at || c.starts_at).getTime(); byWeek.set(k, (byWeek.get(k) || 0) + 1); }
+  const byWeek = new Map(); for (const c of cl) { const k = wk(c.created_at || c.starts_at).getTime(); byWeek.set(k, (byWeek.get(k) || 0) + 1); }
   const claimsOverTime = [...byWeek].sort((a, b) => a[0] - b[0]).slice(-16).map(([k, n]) => ({ label: lbl(new Date(k)), value: n }));
   const attW = new Map(); for (const s of past) { const k = wk(s.starts_at).getTime(), x = attW.get(k) || { h: 0, n: 0 }; x.h += s.here; x.n += s.noshow; attW.set(k, x); }
   const attendanceTrend = [...attW].sort((a, b) => a[0] - b[0]).slice(-16).filter(([, x]) => x.h + x.n).map(([k, x]) => ({ label: lbl(new Date(k)), value: pct(x.h, x.h + x.n) }));
   const grpCap = new Map(), multi = new Set(up.map((s) => s.board_id)).size > 1;
-  for (const s of up.filter((s) => s.capacity)) { const k = multi ? s.board : (s.path || "").split(" › ")[0] || s.board, x = grpCap.get(k) || { taken: 0, open: 0 }; x.taken += Math.min(s.taken, s.capacity); x.open += open(s); grpCap.set(k, x); }
+  for (const s of capUp) { const k = multi ? s.board : (s.path || "").split(" › ")[0] || s.board, x = grpCap.get(k) || { taken: 0, open: 0 }; x.taken += Math.min(s.taken, s.capacity); x.open += open(s); grpCap.set(k, x); }
   const capacity = [...grpCap].map(([label, x]) => ({ label, value: x.taken, value2: x.open })).slice(0, 12);
-  const teamMap = new Map(); for (const c of cl) { const k = c.team || "(no team)", x = teamMap.get(k) || { people: new Set(), n: 0 }; x.people.add(c.athlete_id); x.n++; teamMap.set(k, x); }
-  const teams = [...teamMap].map(([label, x]) => ({ label, value: x.people.size, value2: x.n })).sort((a, b) => b.value - a.value).slice(0, 12);
-  const utilization = multi || new Set(work.map((s) => s.board_id)).size > 1 ? [...new Map(up.filter((s) => s.capacity).map((s) => [s.board_id, s.board]))].map(([id, name]) => {
-    const xs = up.filter((s) => s.board_id === id && s.capacity); return { label: name, value: pct(sum(xs.map((s) => ({ t: Math.min(s.taken, s.capacity) })), "t"), sum(xs, "capacity")) }; }) : [];
+  // participation by team: athletes with a claim out of the team's roster (people on the boards in view)
+  const roster = new Map(); for (const m of await members(f)) { if (m.board_type === "rsvp") continue; const k = m.team || "(no team)"; if (!roster.has(k)) roster.set(k, new Set()); roster.get(k).add(m.id); }
+  const active = new Map(); for (const c of cl) { const k = c.team || "(no team)"; if (!active.has(k)) active.set(k, new Set()); active.get(k).add(c.athlete_id); }
+  const teams = [...roster].map(([label, ppl]) => { const n = [...(active.get(label) || [])].filter((id) => ppl.has(id)).length; return { label, value: pct(n, ppl.size), text: `${n} of ${ppl.size}` }; }).sort((a, b) => (b.value || 0) - (a.value || 0)).slice(0, 12);
+  const utilization = multi || new Set(work.map((s) => s.board_id)).size > 1 ? [...new Map(capUp.map((s) => [s.board_id, s.board]))].map(([id, name]) => {
+    const xs = capUp.filter((s) => s.board_id === id); return { label: name, value: pct(sum(xs.map((s) => ({ t: Math.min(s.taken, s.capacity) })), "t"), sum(xs, "capacity")) }; }) : [];
   const upcoming = up.slice(0, 8).map((s) => ({ ...s, open: open(s) }));
-  return { kpis, claimsOverTime, attendanceTrend, capacity, teams, utilization, upcoming, attention: await attention(f, all), kinds: [...kinds] };
+  return { kpis, claimsOverTime, attendanceTrend, capacity, teams, utilization, upcoming, attention: attn, kinds: [...new Set(all.map((s) => s.board_type))] };
 }
 // ---------- Needs attention ----------
 // Facts (no threshold needed): over capacity, open spots while people wait, past sessions with attendance not recorded,
 // upcoming volunteer shifts not covered, repeated no-shows (3+). Thresholds set per board (Board → Notifications →
 // Needs attention): low enrollment (under X% full within N days of the session) and near capacity (X% full or more).
 async function attention(f, all) {
-  const now = Date.now(), out = [], d = (s) => s.starts_at;
+  const now = Date.now(), out = [];
   for (const s of all.filter((x) => x.board_type !== "rsvp")) {
     const t = s.thresholds || {}, startsIn = (new Date(s.starts_at).getTime() - now) / 864e5, past = new Date(s.ends_at || s.starts_at).getTime() < now, fillP = s.capacity ? pct(s.taken, s.capacity) : null;
-    const add = (kind, sev, issue, count) => out.push({ kind, sev, issue, count, session: s.session, board: s.board, board_id: s.board_id, item_id: s.id, when: d(s) });
-    if (!past && s.capacity && s.taken > s.capacity) add("over", 3, "Over capacity", `${s.taken} / ${s.capacity}`);
-    if (!past && s.waitlisted && s.capacity && s.taken < s.capacity) add("waitopen", 3, "Open spots while people wait", `${s.capacity - s.taken} open · ${s.waitlisted} waiting`);
-    if (past && s.unmarked > 0) add("unrecorded", 2, "Attendance not recorded", `${s.unmarked} not checked in`);
-    if (!past && s.board_type === "volunteer" && s.capacity && s.taken < s.capacity && startsIn <= (Number(t.min_days) || 14)) add("vol", 2, "Volunteer shift needs people", `${s.capacity - s.taken} of ${s.capacity} open`);
-    if (!past && t.min_pct && s.capacity && startsIn >= 0 && startsIn <= (Number(t.min_days) || 0) && fillP < Number(t.min_pct)) add("low", 2, `Low enrollment (under ${t.min_pct}%)`, `${s.taken} / ${s.capacity}`);
-    if (!past && t.near_pct && s.capacity && fillP >= Number(t.near_pct) && s.taken <= s.capacity && s.taken < s.capacity) add("near", 1, `Nearly full (${t.near_pct}%+)`, `${s.taken} / ${s.capacity}`);
+    const add = (kind, sev, issue, count, action) => out.push({ kind, sev, issue, count, action, session: s.session, board: s.board, board_id: s.board_id, item_id: s.id, when: s.starts_at });
+    if (!past && s.capacity && s.taken > s.capacity) add("over", 3, "Over capacity", `${s.taken} / ${s.capacity}`, "session");
+    if (!past && s.waitlisted && s.capacity && s.taken < s.capacity) add("waitopen", 3, "Open spots while people wait", `${s.capacity - s.taken} open · ${s.waitlisted} waiting`, "waitlist");
+    if (past && s.unmarked > 0) add("unrecorded", 2, "Attendance not recorded", `${s.unmarked} not checked in`, "checkin");
+    if (!past && s.board_type === "volunteer" && s.capacity && s.taken < s.capacity && startsIn <= (Number(t.min_days) || 14)) add("vol", 2, "Volunteer shift needs people", `${s.capacity - s.taken} of ${s.capacity} open`, "session");
+    if (!past && t.min_pct && s.capacity && startsIn >= 0 && startsIn <= (Number(t.min_days) || 0) && fillP < Number(t.min_pct)) add("low", 2, `Low enrollment (under ${t.min_pct}%)`, `${s.taken} / ${s.capacity}`, "session");
+    if (!past && t.near_pct && s.capacity && fillP >= Number(t.near_pct) && s.taken < s.capacity) add("near", 2, `Nearly full (${t.near_pct}%+)`, `${s.taken} / ${s.capacity}`, "session");
   }
-  const ns = (await noshows(f)).rows.filter((r) => r.flag), seen = new Set();
-  for (const r of ns) { if (seen.has(r.id)) continue; seen.add(r.id); out.push({ kind: "noshows", sev: 1, issue: `Repeated no-shows (${REPEAT}+)`, count: `${r.total} no-shows`, session: r.name, board: "", athlete_id: r.id, when: r.when }); }
-  return out.sort((a, b) => b.sev - a.sev || new Date(a.when) - new Date(b.when)).slice(0, 40);
+  const seen = new Set();
+  for (const r of (await noshows(f)).rows.filter((r) => r.flag)) { if (seen.has(r.id)) continue; seen.add(r.id); out.push({ kind: "noshows", sev: 2, issue: `Repeated no-shows (${REPEAT}+)`, count: `${r.total} no-shows`, session: r.name, board: "", athlete_id: r.id, when: r.when, action: "person" }); }
+  // families never signed in (one item)
+  const never = (await engagement(f)).rows.filter((r) => r.status === "Never signed in");
+  if (never.length) out.push({ kind: "engage", sev: 2, issue: "Families never signed in", count: `${never.length} athlete${never.length === 1 ? "" : "s"}`, session: never.slice(0, 3).map((r) => r.name).join(", ") + (never.length > 3 ? "…" : ""), board: "", when: new Date(), action: "families" });
+  // email delivery problems in the last 30 days (admins only)
+  if (f.admin) { await require("./emailLog").ensure(); const n = (await query(`SELECT count(DISTINCT lower(to_addr))::int AS n FROM email_log WHERE (status='failed' OR delivery IN ('bounced','complained')) AND at > now() - interval '30 days'`)).rows[0].n;
+    if (n) out.push({ kind: "email", sev: 3, issue: "Email delivery problems", count: `${n} address${n === 1 ? "" : "es"}`, session: "Bounced, marked as spam or refused in the last 30 days", board: "", when: new Date(), action: "emails" }); }
+  // informational: the last 7 days
+  const recent = (await query(`SELECT count(*) FILTER (WHERE c.status='waitlisted' AND c.created_at > now() - interval '7 days')::int AS wl,
+      count(*) FILTER (WHERE c.status='canceled' AND c.rsvp IS NULL AND c.canceled_at > now() - interval '7 days')::int AS rel
+    FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id WHERE i.schedule_id = ANY($1) AND sc.board_type <> 'rsvp'${teamCond(f, [f.boards], "i.schedule_id", "c.athlete_id").replace(/\$2/g, "$2")}`, f.teamsBy ? [f.boards, JSON.stringify(f.teamsBy)] : [f.boards])).rows[0];
+  if (recent.wl) out.push({ kind: "newwait", sev: 1, issue: "New waitlist activity", count: `${recent.wl} in the last 7 days`, session: "", board: "", when: new Date(), action: "waitlists" });
+  if (recent.rel) out.push({ kind: "released", sev: 1, issue: "Released claims", count: `${recent.rel} in the last 7 days`, session: "", board: "", when: new Date(), action: "released" });
+  return out.sort((a, b) => b.sev - a.sev || new Date(a.when) - new Date(b.when)).slice(0, 60);
 }
 
 // ---------- Overview ----------

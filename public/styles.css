@@ -3337,3 +3337,9 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .rb-t { border: 0; background: none; padding: 0; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 760px) { .rb-t { cursor: pointer; flex: 1; min-height: 36px; } .rb-bar .tb-car { display: inline-flex; margin-left: auto; transition: transform .15s; } .rb-closed .tb-car { transform: rotate(-90deg); }
   .rb-bar.rb-closed > :not(.rb-t):not(.ic) { display: none !important; } }
+/* Overview v3 */
+.kpis.kp6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } .kp6 .kpi b { font-size: 26px; } .kp6 .kpi .fine { font-size: 12.5px; }
+.na-t td { vertical-align: middle; } .na-t tr[hidden] { display: none; } .na-act { padding: 5px 10px !important; font-size: 13px !important; white-space: nowrap; }
+.db-all { float: right; font-size: 13px; font-weight: 600; } .up-t .up-c { min-width: 150px; }
+@media (max-width: 1100px) { .kpis.kp6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .kpis.kp6 { grid-template-columns: 1fr 1fr; } }

@@ -341,6 +341,14 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.50** Reports step 3, Overview: six KPI cards that open their report filtered (Active claims + unique
+  participants · Upcoming sessions + next date · Capacity % + claimed/available · Attendance % + sessions awaiting
+  check-in · Waitlists + sessions with waitlists · Needs attention + high priority; "—" with a reason instead of a
+  misleading 0); Needs attention with High / Medium / Info and an action per item (Record attendance, View session,
+  Review waitlist, View person, View families, Review issues, View claims), role-aware (coaches: check-in on their
+  boards; team managers: report links); new alerts: email problems (admins), families never signed in, new waitlist
+  activity and released claims (7 days); team participation against the roster; compact upcoming-sessions table;
+  charts only when they have data.
 - **v0.49** Reports step 2: compact filter toolbar (Board · Team · Session dates: Today / This week / This month /
   Custom / All dates · More filters: Level, Location, Session type · Reset); active filters as removable chips (top and
   report filters); filters a report doesn't use are neither shown nor applied; the last report and top filters are

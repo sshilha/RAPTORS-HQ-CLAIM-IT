@@ -139,7 +139,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, pid: int(req.query.pid) || "", board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, pid: int(req.query.pid) || "", coached: scope.all ? "all" : scope.coached || [], board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 // remembered report + top filters, per person (re-checked against their permissions like any address)

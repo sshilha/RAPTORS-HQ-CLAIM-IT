@@ -98,7 +98,7 @@ const SESSIONS_R = ["upcoming", "rsvpAnswers", "overview", "person", "all", "att
 const USES = { level: SESSIONS_R, loc: SESSIONS_R, days: SESSIONS_R, bt: ["overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "week"],
   cs: ["person", "all"], at: ["person", "all", "attendance"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "emails"], team: [...SESSIONS_R, "engagement", "notSignedIn", "notSignedUp"] };
 
-function reportPage({ pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
+function reportPage({ coached = [], pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
   const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const X = o.assess;
   const PAIR = ["assessImprove", "assessAttend", "assessTeams"].includes(r);
@@ -188,28 +188,32 @@ function reportPage({ pid = "", user, flash, admin, boards, board, several = nul
   let body;
   if (r === "overview") {
     const D = data, fmt = (t) => new Date(t).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    const KIND = { over: "Over capacity", waitopen: "Open spots, people waiting", unrecorded: "Attendance not recorded", vol: "Volunteer coverage", low: "Low enrollment", near: "Nearly full", noshows: "Repeated no-shows" };
+    const canCheck = (bid) => coached === "all" || (coached || []).includes(Number(bid));
+    const ACT = (a) => ({ checkin: canCheck(a.board_id) ? ["Record attendance", `/checkin/i/${a.item_id}`] : ["View sessions", url({ r: "unchecked" })],
+      session: admin ? ["View session", `/admin/b/${a.board_id}/items/${a.item_id}/people`] : ["View sessions", url({ r: "upcoming", q: a.session })],
+      waitlist: admin ? ["Review waitlist", `/admin/b/${a.board_id}/items/${a.item_id}/people`] : ["Review waitlists", url({ r: "waitlists" })],
+      person: ["View person", url({ r: "personView", pid: a.athlete_id })], families: ["View families", url({ r: "notSignedIn" })], emails: ["Review issues", url({ r: "emails" })],
+      waitlists: ["Review waitlists", url({ r: "waitlists" })], released: ["View claims", url({ r: "all", cs: "canceled" })] }[a.action] || ["Open", url({ r: "overview" })]);
+    const PRI = { 3: ["High", "s3"], 2: ["Medium", "s2"], 1: ["Info", "s1"] };
+    const KIND = { over: "Over capacity", waitopen: "Open spots, people waiting", email: "Email problems", unrecorded: "Attendance not recorded", low: "Low enrollment", near: "Nearly full", vol: "Volunteer coverage", noshows: "Repeated no-shows", engage: "Never signed in", newwait: "New waitlist activity", released: "Released claims" };
     const types = [...new Set(D.attention.map((a) => a.kind))];
-    const attn = D.attention.length ? `<div class="na-f" role="group" aria-label="Show"><button type="button" class="on" data-na="">All (${D.attention.length})</button>${types.map((k) => `<button type="button" data-na="${k}">${esc(KIND[k])} (${D.attention.filter((a) => a.kind === k).length})</button>`).join("")}</div>
-      <ul class="na">${D.attention.map((a) => { const href = a.athlete_id ? (admin ? `/admin/people/${a.athlete_id}` : url({ r: "noshows", q: a.session })) : a.kind === "unrecorded" ? `/checkin/i/${a.item_id}` : admin ? `/admin/b/${a.board_id}/items/${a.item_id}/people` : url({ r: "fill" });
-        return `<li data-k="${a.kind}"><span class="na-sev s${a.sev}" aria-label="${a.sev === 3 ? "High" : a.sev === 2 ? "Medium" : "Low"} priority">${a.sev === 3 ? "High" : a.sev === 2 ? "Medium" : "Low"}</span><a href="${href}"><b>${esc(a.issue)}</b><span>${esc([a.session, a.board].filter(Boolean).join(" · "))}</span></a><span class="na-w">${esc(fmt(a.when))}</span><span class="na-c">${esc(a.count)}</span></li>`; }).join("")}</ul>`
+    const attn = D.attention.length ? `<div class="na-f" role="group" aria-label="Show"><button type="button" class="on" data-na="">All (${D.attention.length})</button>${[3, 2, 1].filter((p) => D.attention.some((a) => a.sev === p)).map((p) => `<button type="button" data-sev="${p}">${PRI[p][0]} (${D.attention.filter((a) => a.sev === p).length})</button>`).join("")}${types.map((k) => `<button type="button" data-na="${k}">${esc(KIND[k] || k)} (${D.attention.filter((a) => a.kind === k).length})</button>`).join("")}</div>
+      <div class="table-wrap"><table class="r-table na-t" data-nosort><thead><tr><th>Priority</th><th>Issue</th><th>Board</th><th>Session / person</th><th>Date</th><th></th></tr></thead><tbody>
+      ${D.attention.map((a) => { const [al, ah] = ACT(a); return `<tr data-k="${a.kind}" data-s="${a.sev}"><td><span class="na-sev ${PRI[a.sev][1]}">${PRI[a.sev][0]}</span></td><td><b>${esc(a.issue)}</b><span class="em-why">${esc(a.count)}</span></td><td>${esc(a.board || "—")}</td><td>${esc(a.session || "—")}</td><td class="r-muted">${a.kind === "engage" || a.kind === "email" || a.kind === "newwait" || a.kind === "released" ? "—" : esc(fmt(a.when))}</td><td><a class="rf-btn na-act" href="${ah}">${esc(al)}</a></td></tr>`; }).join("")}</tbody></table></div>`
       : `<p class="na-none">✓ Nothing needs attention for these filters.</p>`;
-    body = `<div class="kpis">${D.kpis.map(([k, label, v, unit, sub, link]) => `<a class="kpi" href="${url(link)}"><span class="kpi-l">${esc(label)}</span><b>${v == null ? "—" : `${v}${unit}`}</b><span class="fine">${esc(sub)}</span></a>`).join("")}</div>
-      <section class="db-card db-attn"><h3>Needs attention</h3>${attn}<p class="fine">Low-enrollment and nearly-full alerts use each board's own thresholds (Board → Notifications → Needs attention); boards without them only show the other alerts.</p></section>
-      <div class="db-grid">
-        <section class="db-card"><h3>Claims over time <span class="fine">by week claimed</span></h3>${barChart(D.claimsOverTime)}</section>
-        <section class="db-card"><h3>Session capacity <span class="fine">upcoming · <i class="lg navy"></i> taken <i class="lg gray"></i> open</span></h3>${barChart(D.capacity, { two: true })}</section>
-        <section class="db-card"><h3>Attendance trend <span class="fine">% attended, by week</span></h3>${barChart(D.attendanceTrend, { unit: "%", line: true, max: 100 })}</section>
-        <section class="db-card"><h3>Participation by team <span class="fine">people with a claim</span></h3>${barChart(D.teams)}</section>
-      </div>
-      <div class="db-grid">
-        <section class="db-card"><h3>Upcoming sessions</h3>${D.upcoming.length ? `<ul class="up">${D.upcoming.map((s) => { const [st, cls] = STATUS(s.taken, s.capacity);
-          return `<li><span class="up-w">${esc(fmt(s.starts_at))}</span><span class="up-n"><b>${esc(s.session)}</b><span class="fine">${esc(s.board)}${s.location ? ` · ${esc(s.location)}` : ""}</span></span>
-            <span class="up-c"><span class="cap"><i class="${cls}" style="width:${s.capacity ? Math.min(100, (s.taken / s.capacity) * 100) : 0}%"></i></span><span class="fine">${s.taken}${s.capacity ? ` / ${s.capacity}` : ""} · <b class="st-${cls}">${st}</b>${s.waitlisted ? ` · ${s.waitlisted} waiting` : ""}</span></span></li>`; }).join("")}</ul><a class="link-dark" href="${url({ r: "fill" })}">All sessions →</a>` : `<p class="ch-empty">No upcoming sessions in this range.</p>`}</section>
-        ${D.utilization.length ? `<section class="db-card"><h3>Board utilization <span class="fine">upcoming spots taken</span></h3>${hBars(D.utilization)}</section>` : ""}
-      </div>
+    const charts = [D.claimsOverTime.length && `<section class="db-card"><h3>Claims over time <span class="fine">by week claimed · <i class="lg navy"></i> claims</span></h3>${barChart(D.claimsOverTime)}</section>`,
+      D.capacity.length && `<section class="db-card"><h3>Session capacity <span class="fine">upcoming · <i class="lg navy"></i> claimed <i class="lg gray"></i> available</span></h3>${barChart(D.capacity, { two: true })}</section>`,
+      D.attendanceTrend.length && `<section class="db-card"><h3>Attendance trend <span class="fine">% attended, by week (recorded sessions only)</span></h3>${barChart(D.attendanceTrend, { unit: "%", line: true, max: 100 })}</section>`,
+      D.teams.length && `<section class="db-card"><h3>Participation by team <span class="fine">athletes with a claim, out of the team's roster</span></h3>${hBars(D.teams.map((t) => ({ label: `${t.label} · ${t.text}`, value: t.value })))}</section>`,
+      D.utilization.length && `<section class="db-card"><h3>Board utilization <span class="fine">upcoming spots taken</span></h3>${hBars(D.utilization)}</section>`].filter(Boolean);
+    const upRows = D.upcoming.map((s) => { const [st, cls] = STATUS(s.taken, s.capacity), act = admin ? ["Manage", `/admin/b/${s.board_id}/items/${s.id}/people`] : canCheck(s.board_id) ? ["Check-in", `/checkin/i/${s.id}`] : null;
+      return `<tr><td class="r-muted">${esc(fmt(s.starts_at))}</td><td><b>${esc(s.session)}</b></td><td>${esc(s.board)}</td><td><span class="up-c"><span class="cap"><i class="${cls}" style="width:${s.capacity ? Math.min(100, (s.taken / s.capacity) * 100) : 0}%"></i></span><span class="fine">${s.taken}${s.capacity ? ` / ${s.capacity}` : ""}${s.waitlisted ? ` · ${s.waitlisted} waiting` : ""}</span></span></td><td><b class="st-${cls}">${st}</b></td><td>${act ? `<a class="rf-btn na-act" href="${act[1]}">${act[0]}</a>` : ""}</td></tr>`; }).join("");
+    body = `<div class="kpis kp6">${D.kpis.map(([k, label, v, unit, sub, link]) => `<a class="kpi" href="${link.anchor ? "#" + link.anchor : url(link)}"><span class="kpi-l">${esc(label)}</span><b>${v == null ? "—" : `${v}${unit}`}</b><span class="fine">${esc(sub)}</span></a>`).join("")}</div>
+      <section class="db-card db-attn" id="attention"><h3>Needs attention</h3>${attn}<p class="fine">Low-enrollment and nearly-full alerts use each board's own thresholds (Board → Notifications → Needs attention).</p></section>
+      <section class="db-card"><h3>Upcoming sessions <a class="link-dark db-all" href="${url({ r: "upcoming" })}">View all sessions →</a></h3>${upRows ? `<div class="table-wrap"><table class="r-table up-t" data-nosort><thead><tr><th>Date / time</th><th>Session</th><th>Board</th><th>Claims / capacity</th><th>Status</th><th></th></tr></thead><tbody>${upRows}</tbody></table></div>` : `<p class="ch-empty">No upcoming sessions for these filters.</p>`}</section>
+      ${charts.length ? `<div class="db-grid">${charts.join("")}</div>` : `<p class="ch-empty">Charts appear once there's activity for these filters.</p>`}
       <script>document.querySelectorAll(".na-f button").forEach(function (b) { b.addEventListener("click", function () { document.querySelectorAll(".na-f button").forEach(function (x) { x.classList.toggle("on", x === b); });
-        document.querySelectorAll(".na li").forEach(function (li) { li.hidden = !!b.dataset.na && li.dataset.k !== b.dataset.na; }); }); });</script>`;
+        document.querySelectorAll(".na-t tbody tr").forEach(function (tr) { tr.hidden = (b.dataset.na && tr.dataset.k !== b.dataset.na) || (b.dataset.sev && tr.dataset.s !== b.dataset.sev); }); }); });</script>`;
   }
   else if (r === "week") body = weekSheet(data, o);
   else if (r === "personView") {
