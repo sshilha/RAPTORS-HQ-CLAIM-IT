@@ -341,6 +341,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.49** Reports step 2: compact filter toolbar (Board · Team · Session dates: Today / This week / This month /
+  Custom / All dates · More filters: Level, Location, Session type · Reset); active filters as removable chips (top and
+  report filters); filters a report doesn't use are neither shown nor applied; the last report and top filters are
+  remembered per person (app_kv report_prefs:<user>, re-checked against permissions; Reset clears them); on phones
+  the toolbar and the report filters fold behind a button with a count. npm run check opens /reports?r=overview.
 - **v0.48** Reports step 1: Team Manager role (boards and optional teams, enforced in every report query); navigation
   in six areas (Overview · Participation · Sessions · Families · Assessments · More Reports) with report chips and the
   Upcoming and Not signed in shortcuts; old report addresses still work; Reports access limited to teams now gets the

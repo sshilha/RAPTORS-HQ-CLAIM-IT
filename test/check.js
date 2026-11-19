@@ -28,7 +28,7 @@ async function main() {
       ["People", "/admin/people"], ["Import", "/admin/people/import"], ["Clean up", "/admin/people/cleanup"], ["Communication", "/admin/people/communication"],
       ["Requests", "/admin/requests"], ["Accounts", "/admin/settings/app?part=accounts"], ["Administrators", "/admin/settings/app?part=admins"], ["Sign-in activity", "/admin/signins"],
       ["Sign in as", "/admin/settings/app?part=shadow"], ["Locations", "/admin/settings/app?part=places"], ["Wording", "/admin/settings/app?part=labels"],
-      ["Pictures", "/admin/settings/app?part=pictures"], ["Old data", "/admin/settings/app?part=olddata"], ["Check-in", "/checkin"], ["Reports", "/reports"]];
+      ["Pictures", "/admin/settings/app?part=pictures"], ["Old data", "/admin/settings/app?part=olddata"], ["Check-in", "/checkin"], ["Reports", "/reports?r=overview"]];
     if (board) pages.push(["Board setup", `/admin/setup?s=${board.id}`], ["Board details", `/admin/setup?s=${board.id}&tab=details`], ["Access & people", `/admin/members?s=${board.id}`],
       ["Board defaults", `/admin/setup/schedule?s=${board.id}`], ["Notifications", `/admin/setup/notifications?s=${board.id}`], ["Sign-up page (preview)", `/b/${board.id}?preview=1`],
       ["Duplicate", `/admin/setup/schedules/${board.id}/copy`]);

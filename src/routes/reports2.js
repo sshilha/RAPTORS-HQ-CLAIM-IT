@@ -86,7 +86,10 @@ async function newReport(req, res, scope, boards) {
     cov: { "Needs people": "Needs people", Covered: "Covered" }, st: { "No account": "No account", "Never signed in": "Never signed in", "Signed in, no claims": "No claims", Active: "Active" },
     prob: { Bounced: "Bounced", spam: "Marked as spam", failed: "Failed" }, ans: { Going: "Going", "Can't make it": "Can't make it", "No answer": "No answer" } };
   const rf = Object.fromEntries(Object.keys(RF).map((k) => [k, RF[k][req.query[k]] ? req.query[k] : ""]));
-  Object.assign(f, { levels: subtree, location, days, btype, cstatus, astatus, when: rf.when });
+  const U = require("../views/reports2").USES, uses = (k) => (U[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
+  Object.assign(f, { levels: uses("level") ? subtree : null, location: uses("loc") ? location : "", days: uses("days") ? days : [], btype: uses("bt") ? btype : "", cstatus, astatus, when: rf.when });
+  if (!uses("team")) f.team = "";
+  if (!uses("dates") && r !== "week") { f.from = "2000-01-01"; f.to = "2100-12-31"; }
   // assessments: which test, which two days, best or average
   let assess = null;
   if (/^assess/.test(r)) {
@@ -129,6 +132,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "application/pdf").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : several ? "several-boards" : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.pdf"`);
     return res.send(buf);
   }
+  if (!req.query.csv && !req.query.pdf) { const keep = new URLSearchParams(); for (const k of KEEP) if (req.query[k] && k !== "r") keep.set(k, String(req.query[k])); keep.set("r", r); prefs(req.user.id, keep.toString()).catch(() => {}); }
   if (req.query.csv && data.cols) {
     const q = (x) => `"${String(x == null ? "" : x instanceof Date ? x.toISOString() : x).replace(/"/g, '""')}"`;
     const lines = [data.cols.map((c) => q(c[1])).join(",")].concat(data.rows.map((row) => data.cols.map((c) => q(c[2] === "dt" || c[2] === "date" ? (row[c[0]] ? require("../time").fmtDateTime(row[c[0]]) : "") : row[c[0]])).join(",")));
@@ -138,6 +142,19 @@ async function newReport(req, res, scope, boards) {
   res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, pid: int(req.query.pid) || "", board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
+// remembered report + top filters, per person (re-checked against their permissions like any address)
+const KEEP = ["r", "s", "team", "level", "loc", "stype", "qd", "from", "to"];
+async function prefs(uid, qs) {
+  await query(`CREATE TABLE IF NOT EXISTS app_kv (key TEXT PRIMARY KEY, value JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  if (qs === undefined) { const r = (await query(`SELECT value FROM app_kv WHERE key=$1`, [`report_prefs:${uid}`])).rows[0]; return r ? r.value : null; }
+  if (qs === null) return query(`DELETE FROM app_kv WHERE key=$1`, [`report_prefs:${uid}`]);
+  return query(`INSERT INTO app_kv (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, [`report_prefs:${uid}`, JSON.stringify(qs)]);
+}
+router.get("/", wrap(async (req, res, next) => {
+  if (req.query.reset) { await prefs(req.user.id, null); return res.redirect(`/reports?r=${encodeURIComponent(String(req.query.r || "overview"))}`); }
+  if (!Object.keys(req.query).length) { const p = await prefs(req.user.id); if (p && typeof p === "string" && p.length) return res.redirect(`/reports?${p}`); }
+  next();
+}));
 router.get("/", wrap(async (req, res) => {
   const scope = await PP.reportScope(req.user);
   if (!scope) return go(res, "/dashboard", { err: "You don't have access to reports. Ask an admin if you need it." });

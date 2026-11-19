@@ -96,7 +96,7 @@ const TABS = [["overview", "Overview", IC2.home, [["overview", ""]]],
 // which filters each report uses (the rest show disabled)
 const SESSIONS_R = ["upcoming", "rsvpAnswers", "overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "coverage", "volunteer", "rsvp", "rsvpAthletes", "week"];
 const USES = { level: SESSIONS_R, loc: SESSIONS_R, days: SESSIONS_R, bt: ["overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "week"],
-  cs: ["person", "all"], at: ["person", "all", "attendance"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "engagement", "notSignedUp", "emails"], team: [...SESSIONS_R, "engagement", "notSignedIn", "notSignedUp"] };
+  cs: ["person", "all"], at: ["person", "all", "attendance"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "emails"], team: [...SESSIONS_R, "engagement", "notSignedIn", "notSignedUp"] };
 
 function reportPage({ pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
   const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -119,18 +119,6 @@ function reportPage({ pid = "", user, flash, admin, boards, board, several = nul
   const sel = (name, icon, label, opts, cur, extra = "") => `<label class="rf-f"><span class="rf-l">${icon}${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()"${extra}>${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
   const boardOpts = [["all", "All boards"], ...(several ? [[several.map((b) => b.id).join(","), `${several.length} boards selected`]] : []), ...boards.map((b) => [b.id, b.name + (b.archived_at ? " (archived)" : "")])];
   const levelOpts = board && (o.levels || []).length ? [["", "All levels"], ...o.levels.map((n) => [n.id, "  ".repeat(n.d) + n.path])] : [["", board ? "No levels" : "All levels (pick one board)"]];
-  const row1 = `<div class="rf-row rf-r1">
-      ${sel("s", IC2.layers, "Boards", boardOpts, board ? board.id : several ? several.map((b) => b.id).join(",") : "all")}
-      ${sel("level", IC2.stack, "Level", levelOpts, o.level ? o.level.id : "", uses("level") && board && (o.levels || []).length ? "" : ` disabled title="${board ? "Not used by this report" : "Pick one board to filter by level"}"`)}
-      ${sel("team", IC2.users, "Team", [["", "All teams"], ...teams.map((t) => [t, t])], team || "", off("team"))}
-      ${sel("loc", IC2.pin, "Location", [["", "All locations"], ...(o.locations || []).map((l) => [l, l])], o.location || "", off("loc"))}
-      ${sel("stype", IC2.cal, "Session Type", [["", "All session types"], ...Object.entries(BT).filter(([k]) => kinds.includes(k) || btype === k)], btype, off("bt"))}</div>`;
-  const showCustom = !qd && !allDates;
-  const row2 = `<div class="rf-row rf-r2${uses("dates") ? "" : " rf-off"}"><span class="rf-l rf-lb">${IC2.cal}Dates</span>
-      <span class="rf-pills">${Object.entries(QD).map(([k, l]) => `<a href="${url({ qd: k, from: "", to: "" })}"${qd === k ? ' class="on" aria-current="true"' : ""}>${l}</a>`).join("")}<a href="#" class="${showCustom ? "on" : ""}" onclick="document.getElementById('rfc').hidden = false; [].forEach.call(this.parentNode.children, function (a) { a.classList.remove('on'); }); this.classList.add('on'); document.querySelector('#rfc input').focus(); return false;">Custom</a></span>
-      <span class="rf-custom" id="rfc"${showCustom ? "" : " hidden"}><label class="rf-dl">From<input type="date" class="rf-date" name="from" form="rf" value="${showCustom ? esc(from) : ""}"></label><label class="rf-dl">To<input type="date" class="rf-date" name="to" form="rf" value="${showCustom ? esc(to) : ""}"></label>
-        <button class="rf-apply" type="submit" form="rf">${IC2.check}Apply</button></span>
-      <span class="rf-now">${allDates ? "All dates" : `${esc(fmtD(from))} – ${esc(fmtD(to))}`}${allDates ? "" : ` · <a href="${url({ qd: "", from: "", to: "" })}">All dates</a>`}</span></div>`;
   // ---- each report's own filters (a slim bar above the report) ----
   const RFS = { upcoming: ["cap", "q"], notSignedIn: ["q"], person: ["cs", "at", "q"], all: ["cs", "at", "q"], fill: ["when", "cap", "q"], busiest: ["when"], locations: ["when"], attendance: ["at", "q"], noshows: ["q"], unchecked: ["q"],
     teams: ["q"], coverage: ["when", "cov", "q"], volunteer: ["q"], waitlists: ["q"], engagement: ["st", "q"], notSignedUp: ["q"], emails: ["prob", "q"], rsvp: ["q"], rsvpAnswers: ["ans", "q"], rsvpAthletes: ["q"], week: ["week", "wl", "blanks"] };
@@ -157,12 +145,37 @@ function reportPage({ pid = "", user, flash, admin, boards, board, several = nul
       <label class="r-f">Count<select name="how" form="rf" onchange="this.form.submit()"><option value="best">Best try</option><option value="avg"${X.how === "avg" ? " selected" : ""}>Average of tries</option></select></label>` : `<span class="fine">No assessments yet: App Settings → People → Assessments.</span>`}
       ${X.tests.length && r === "assessLeaders" ? `<label class="r-f">Top<select name="top" form="rf" onchange="this.form.submit()">${[[5, "5"], [10, "10"], [25, "25"], [0, "Everyone"]].map(([v, l]) => `<option value="${v}"${X.top === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
       ${X.tests.length ? `<label class="r-f r-born">Born<input name="bf" form="rf" inputmode="numeric" maxlength="4" placeholder="from" value="${esc(X.bornFrom || "")}" onchange="this.form.submit()">–<input name="bt" form="rf" inputmode="numeric" maxlength="4" placeholder="to" value="${esc(X.bornTo || "")}" onchange="this.form.submit()"></label>` : ""}</div>` : ""}`;
-  const rbar = mine.length ? `<div class="rb-bar">${IC2.filter}<span class="rb-t">${esc((TABS.find((t) => t[3].some(([k]) => k === r)) || [, ""])[1])} filters</span>${mine.map((k) => piece[k]()).join("")}</div>` : "";
-  const panel = `<section class="rf-panel"><form method="get" action="/reports" id="rf" onsubmit="var d = this.querySelectorAll('input[name=d]'), on = [].filter.call(document.querySelectorAll('input[name=d][form=rf]'), function (x) { return x.checked; }); if (on.length === 7) [].forEach.call(document.querySelectorAll('input[name=d][form=rf]'), function (x) { x.disabled = true; });">${hidden(["s", "level", "team", "loc", "stype", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "when", "cap", "cov", "st", "prob", "ans", "wl", "blanks", ...(qd ? [] : ["qd"])]).replace(/<input type="hidden" name="(qd)"[^>]*>/, (m) => m)}</form>
-    <div class="rf-top"><span class="rf-h">${IC2.filter}<h2>Report Filters</h2><span>Refine the data across all reports</span></span>
-</div>
-    <details class="rf-body" open><summary class="rf-fold">${IC2.filter}Filters${(() => { const n = [o.level, team, o.location, btype, !allDates].filter(Boolean).length; return n ? ` <b>${n} on</b>` : ""; })()}${IC2.down}</summary>
-      ${row1}<div class="rf-div"></div>${row2}</details></section>`;
+  const rbOn = mine.filter((k) => k === "q" ? o.q : state[k]).length;
+  const rbar = mine.length ? `<div class="rb-bar">${IC2.filter}<button type="button" class="rb-t" onclick="this.closest('.rb-bar').classList.toggle('rb-closed')">${esc((TABS.find((t) => t[3].some(([k]) => k === r)) || [, ""])[1])} filters${rbOn ? ` <b class="tb-n">${rbOn}</b>` : ""}<span class="tb-car">${IC2.down}</span></button>${mine.map((k) => piece[k]()).join("")}</div>` : "";
+  // ---- the compact filter toolbar: Board · Team · Dates · More filters · Reset, then the active filters as chips ----
+  const mini = (name, label, opts, cur, attrs = "") => `<label class="tb-f"><span>${label}</span><span class="rf-sel"><select name="${name}" form="rf" onchange="this.form.submit()"${attrs}>${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
+  const dateWord = r === "emails" ? "Email dates" : "Session dates";
+  const moreN = [uses("level") && o.level, uses("loc") && o.location, uses("bt") && btype].filter(Boolean).length;
+  const moreItems = [uses("level") && board && (o.levels || []).length ? mini("level", "Level", levelOpts, o.level ? o.level.id : "") : uses("level") ? `<p class="fine tb-hint">Pick one board to filter by level.</p>` : "",
+    uses("loc") && (o.locations || []).length > 1 ? mini("loc", "Location", [["", "All locations"], ...(o.locations || []).map((l) => [l, l])], o.location || "") : "",
+    uses("bt") ? mini("stype", "Session type", [["", "All session types"], ...Object.entries(BT).filter(([k]) => kinds.includes(k) || btype === k)], btype) : ""].filter(Boolean);
+  const showCustom = !qd && !allDates;
+  const RLAB = { cs: "Claim status", at: "Attendance", when: "When", cap: "Capacity", cov: "Coverage", st: "Status", prob: "Problem", ans: "Answer", q: "Search" };
+  const RVAL = { cs: CS, at: AT, when: RF.when || {}, cap: RF.cap || {}, cov: RF.cov || {}, st: RF.st || {}, prob: RF.prob || {}, ans: RF.ans || {} };
+  const chipsOn = [
+    (board || several) && ["s", `Board: ${board ? board.name : `${several.length} boards`}`],
+    uses("team") && team && ["team", `Team: ${team}`],
+    uses("dates") && !allDates && ["qd", `${dateWord}: ${qd ? QD[qd] : `${fmtD(from)} – ${fmtD(to)}`}`],
+    uses("level") && o.level && ["level", `Level: ${o.level.path}`], uses("loc") && o.location && ["loc", `Location: ${o.location}`], uses("bt") && btype && ["stype", `Session type: ${BT[btype]}`],
+    ...Object.keys(RLAB).filter((k) => (state[k] || (k === "q" && o.q)) && (mine.includes(k))).map((k) => [k, `${RLAB[k]}: ${k === "q" ? `“${o.q}”` : (RVAL[k][state[k]] || state[k])}`]),
+  ].filter(Boolean);
+  const clearOne = (k) => url(k === "qd" ? { qd: "", from: "", to: "" } : k === "s" ? { s: "all", level: "" } : { [k]: "" });
+  const panel = `<form method="get" action="/reports" id="rf">${hidden(["s", "level", "team", "loc", "stype", "cs", "at", "q", "days", "from", "to", "week", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "when", "cap", "cov", "st", "prob", "ans", "wl", "blanks", ...(qd ? [] : ["qd"])])}</form>
+    <section class="tb">
+      <button type="button" class="tb-t" aria-expanded="true" onclick="var t = this.closest('.tb'), c = t.classList.toggle('tb-closed'); this.setAttribute('aria-expanded', String(!c));">${IC2.filter}Filters${chipsOn.length ? ` <b class="tb-n">${chipsOn.length}</b>` : ""}<span class="tb-car">${IC2.down}</span></button>
+      ${mini("s", "Board", boardOpts, board ? board.id : several ? several.map((b) => b.id).join(",") : "all", ` onchange="var l = this.form.querySelector('[name=level]'); if (l) l.disabled = true; this.form.submit()"`).replace(' onchange="this.form.submit()"', "")}
+      ${uses("team") ? mini("team", "Team", [["", "All teams"], ...teams.map((t) => [t, t])], team || "") : ""}
+      ${uses("dates") ? `<span class="tb-d"><span class="tb-dl">${IC2.cal}${dateWord}</span><span class="rf-pills">${Object.entries(QD).map(([k, l]) => `<a href="${url({ qd: k, from: "", to: "" })}"${qd === k ? ' class="on" aria-current="true"' : ""}>${l}</a>`).join("")}<a href="#" class="${showCustom ? "on" : ""}" onclick="document.getElementById('rfc').hidden = false; [].forEach.call(this.parentNode.children, function (a) { a.classList.remove('on'); }); this.classList.add('on'); document.querySelector('#rfc input').focus(); return false;">Custom</a><a href="${url({ qd: "", from: "", to: "" })}"${allDates ? ' class="on" aria-current="true"' : ""}>All dates</a></span>
+        <span class="rf-custom" id="rfc"${showCustom ? "" : " hidden"}><input type="date" class="rf-date" name="from" form="rf" value="${showCustom ? esc(from) : ""}" aria-label="From"><span class="fine">to</span><input type="date" class="rf-date" name="to" form="rf" value="${showCustom ? esc(to) : ""}" aria-label="To"><button class="rf-apply" type="submit" form="rf">${IC2.check}Apply</button></span></span>` : ""}
+      ${moreItems.length ? `<details class="tb-more"${moreN ? "" : ""}><summary class="rf-btn">More filters${moreN ? ` <b class="tb-n">${moreN}</b>` : ""}${IC2.down}</summary><div class="tb-drawer">${moreItems.join("")}</div></details>` : ""}
+      ${chipsOn.length ? `<a class="tb-reset" href="/reports?reset=1&r=${esc(r)}">${IC2.reset}Reset</a>` : ""}
+    </section>
+    ${chipsOn.length ? `<div class="tb-chips" aria-label="Active filters">${chipsOn.map(([k, l]) => `<a class="tb-chip" href="${clearOne(k)}" title="Remove this filter">${esc(l)} <span aria-hidden="true">✕</span></a>`).join("")}</div>` : ""}`;
   // ---- report navigation: only sections this person can use and that apply to the chosen boards ----
   const showSub = (k) => k === "emails" ? admin : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" || k === "volunteer" ? kinds.includes("volunteer") : true;
   const showTab = (id) => (TABS.find((t) => t[0] === id) || [, , , []])[3].some(([k, l]) => !l || showSub(k));
@@ -215,7 +228,7 @@ function reportPage({ pid = "", user, flash, admin, boards, board, several = nul
     ${data.note ? `<p class="fine r-note2">${esc(data.note)}</p>` : ""}${data.grid ? grid(data) : table(data, url)}`;
   return layout({ title: `Reports · ${TITLES[r] || ""}`, user, flash, admin, tab: "reports", dash: true,
     body: `<div class="d-wrap r-wrap ra-page${r === "week" ? " r-print" : ""}">${head}${panel}${tabs}<div class="r-sheet">${rbar}<div class="ra-dl">${data.cols || r === "week" || r === "overview" ? `<a class="rf-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="rf-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="rf-btn" onclick="window.print()">Print</button>` : ""}</div><section class="d-card r-card">${body}</section></div></div>
-    <script>if (window.innerWidth <= 760) { var fb = document.querySelector(".rf-body"); if (fb) fb.open = false; }</script>` });
+    <script>if (window.innerWidth <= 760) { var tb = document.querySelector(".tb"); if (tb) { tb.classList.add("tb-closed"); tb.querySelector(".tb-t").setAttribute("aria-expanded", "false"); } var rb = document.querySelector(".rb-bar"); if (rb) rb.classList.add("rb-closed"); }</script>` });
 }
 
 function reportsPage({ user, flash, admin, boards, board, rows, people, teams, teamFilter, view, limitedTo }) {
@@ -246,4 +259,4 @@ function reportsPage({ user, flash, admin, boards, board, rows, people, teams, t
         : `<div class="d-empty"><b>No claims yet.</b></div>`)}
     </section></div></div>` });
 }
-module.exports = { reportsPage, reportPage, GROUPS, TITLES };
+module.exports = { reportsPage, reportPage, GROUPS, TITLES, USES };
