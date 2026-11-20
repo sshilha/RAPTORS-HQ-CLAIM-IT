@@ -341,6 +341,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.59** Reports layout like the board screens: navy band (title, what's in view, Filters · PDF · CSV · Print,
+  Management / My Family switch); categories in the attached gray bar; reports as folder tabs; the Filters panel (board,
+  team, dates, level, location, session type, Clear all, Done) is closed until opened, slides down under the gray bar and
+  stays open while you change filters (remembered per tab); each report's own filters are the card's first row. My Family
+  uses the same layout. Phones: categories and reports become the usual dropdowns.
 - **v0.58** Reports → Participation → Limits: each athlete against every per-person limit that applies to them (board
   and levels): limit, used (claimed + waitlisted, not canceled), left, extras (past a full limit via a last-minute open
   spot; don't count) and status (At limit / n left / Not started / Over limit). Uses the engine's own per-person view,

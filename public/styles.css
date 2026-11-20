@@ -3404,3 +3404,21 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 .r-table td.r-num .r-pct { margin: 0 auto; align-items: center; } .r-table td.r-num .r-pct i { align-self: stretch; }
 .r-table th.r-num.sort-th::after { position: absolute; }   /* the sort arrow hangs beside the heading, so the heading centers over its numbers */
 @media (max-width: 760px) { table.cards td.r-num { justify-content: flex-start; text-align: left !important; } table.cards td.r-num .r-pct { margin: 0; } }
+/* ===== Reports: board-style layout ===== */
+.rb2 .r-bh { margin-bottom: 0; } .r-tile { display: grid; place-items: center; background: #16294d; color: #8DDC32; } .r-tile .ic { width: 22px; height: 22px; }
+.r-bh .bh2-acts { align-items: center; } .r-ftoggle.on { background: #8DDC32; border-color: #8DDC32; color: #0B1930; } .r-ftoggle .ic { width: 15px; height: 15px; }
+.r-bh .ra-views { margin-left: 4px; } .r-bh .ra-views a { padding: 5px 10px; }
+.r-fpanel { margin: 10px 0 0; padding: 14px 16px; background: #fff; border: 1px solid #E3E8F0; border-bottom: 3px solid #8DDC32; border-radius: 14px; display: flex; flex-direction: column; gap: 12px; }
+.r-fpanel[hidden] { display: none; } .r-fgrid { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; } .r-fgrid .tb-f { flex: 0 1 230px; }
+.r-fdates { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; } .r-fdates .tb-dl { flex-basis: 100%; } .r-fdates .rf-pills a { padding: 6px 11px; font-size: 13.5px; }
+.r-fdates .rf-custom { display: inline-flex; gap: 6px; align-items: center; } .r-fdates .rf-custom[hidden] { display: none; } .r-fdates .rf-date { height: 36px; width: 145px; font-size: 14px; } .r-fdates .rf-apply { height: 36px; font-size: 14px; padding: 0 12px; }
+.r-fact { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #EEF1F5; padding-top: 10px; } .r-fact .tb-reset { margin: 0; }
+.r-sheet2 { margin-top: 14px; } .r-folders { margin-bottom: -1px; } .rb2 .r-card { border-top-left-radius: 0; }
+.rc-f { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid #EEF1F5; }
+.rc-f .rb-q { flex: 1 1 260px; } .rc-f .r-filters { border: 0; padding: 0; margin: 0; background: transparent; flex: 1 1 100%; }
+@media (max-width: 760px) { .r-bh .bh2-acts { flex-wrap: wrap; } .r-bh .ra-views { width: 100%; margin: 4px 0 0; } .r-fgrid .tb-f { flex: 1 1 100%; } .r-fgrid .tb-f select, .r-fdates .rf-date { font-size: 16px; height: 42px; }
+  .r-fdates .rf-pills { overflow-x: auto; flex-wrap: nowrap; max-width: 100%; } .rc-f .rb-f, .rc-f .rb-q { flex: 1 1 100%; } .rc-f select, .rc-f input { font-size: 16px; min-height: 42px; }
+  .rc-f .r-filters { display: flex; flex-direction: column; gap: 10px; } .rc-f .r-filters .r-f { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 4px; } .rc-f .r-filters select, .rc-f .r-filters input { width: 100% !important; } }
+@media print { .r-fpanel, .r-cats, .r-folders, .rc-f, .r-bh .bh2-acts { display: none !important; } }
+.fm-f .tb-f { flex: 0 1 220px; } .rb2 .fm-card { border-top-left-radius: 14px; } .fm-f .fm-mode { margin-left: auto; }
+@media (max-width: 760px) { .fm-f .tb-f { flex: 1 1 100%; } .fm-f .fm-mode { margin-left: 0; } }

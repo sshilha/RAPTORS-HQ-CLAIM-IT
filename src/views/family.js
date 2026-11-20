@@ -9,20 +9,22 @@ const tag = (s) => `<span class="fm-tag fm-${s.replace(/[^a-z]/gi, "").toLowerCa
 
 function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, boards = [], board = "", show = "", whenF = "", mode = "", month = "" }) {
   const byId = new Map(people.map((p) => [p.id, p]));
-  const head = `<section class="ra-hd"><span class="ra-tile">${IC2.chart}</span><div><h1>Reports &amp; Analytics</h1><p>Claim-It • Participation, Attendance &amp; Board Management</p></div>
-      ${mgmt ? `<nav class="ra-views" aria-label="Reports view"><a href="/reports?view=mgmt">Management Reports</a><a href="${url({})}" class="on" aria-current="page">My Family</a></nav>` : ""}</section>`;
-  const sub = `<div class="fm-hd"><h2>My Family</h2><p>Your athletes, sessions, attendance, and progress.</p></div>`;
-  const tabs = `<nav class="rt-tabs" aria-label="My Family">${SECTIONS.map(([k, l, ic]) => `<a href="${url({ r: k, show: "", when: "" })}"${k === r ? ' class="on" aria-current="page"' : ""}>${ic}<span>${l}</span></a>`).join("")}</nav>`;
+  const csvBtn = ["fClaims", "fAttendance", "fSchedule"].includes(r) ? `<a class="sb-btn" href="${url({ csv: "1" })}">⬇ CSV</a>` : "";
+  const head = `<section class="bh2 r-bh"><div class="bh2-l"><span class="bh2-tile r-tile">${IC2.chart}</span>
+      <div><div class="bh2-t"><h1>My Family</h1></div><span class="bh2-meta">Your athletes, sessions, attendance, and progress</span></div></div>
+    <div class="bh2-acts">${csvBtn}${mgmt ? `<nav class="ra-views" aria-label="Reports view"><a href="/reports?view=mgmt">Management</a><a href="${url({})}" class="on" aria-current="page">My Family</a></nav>` : ""}</div></section>`;
+  const sub = "";
+  const tabs = `<nav class="bh2-tabs board-tabs r-cats" aria-label="My Family">${SECTIONS.map(([k, l, ic]) => `<a href="${url({ r: k, show: "", when: "", mode: "", m: "" })}"${k === r ? ' aria-current="page"' : ""}>${ic}${l}</a>`).join("")}</nav>`;
   // simple filters: athlete, program, and the section's own choice
   const pick = (name, label, opts, cur) => `<label class="tb-f"><span>${label}</span><span class="rf-sel"><select name="${name}" onchange="this.form.submit()">${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(cur) === String(v) ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>${IC2.down}</span></label>`;
   const hidden = (o) => Object.entries(o).filter(([, v]) => v !== "" && v != null).map(([k, v]) => `<input type="hidden" name="${k}" value="${esc(String(v))}">`).join("");
-  const filters = `<form method="get" action="/reports" class="tb fm-tb">${hidden({ view: "family", r })}
+  const filters = `<form method="get" action="/reports" class="rc-f fm-f">${hidden({ view: "family", r })}
       ${people.length > 1 ? pick("a", "Athlete", [["", "All my athletes"], ...people.map((p) => [p.id, p.you ? `${p.first_name} (you)` : p.first_name])], sel || "") : `<span class="fm-one">${esc(people[0] ? people[0].first_name : "")}</span>`}
       ${r !== "fProgress" && boards.length > 1 ? pick("b", "Program", [["", "All programs"], ...boards.map((b) => [b.id, b.name])], board) : hidden({ b: board })}
       ${r === "fClaims" ? pick("show", "Show", [["", "Upcoming & waitlisted"], ["past", "Past"], ["waitlisted", "Waitlisted"], ["released", "Released"], ["all", "All"]], show) : ""}
       ${r === "fSchedule" && !mode ? pick("when", "When", [["", "Upcoming"], ["past", "Past"]], whenF) : ""}
       ${r === "fSchedule" ? `<span class="fm-mode" role="group" aria-label="View"><a href="${url({ mode: "", m: "" })}"${mode ? "" : ' class="on" aria-current="true"'}>List</a><a href="${url({ mode: "cal", when: "" })}"${mode ? ' class="on" aria-current="true"' : ""}>Calendar</a></span>` : ""}</form>`;
-  const csv = ["fClaims", "fAttendance", "fSchedule"].includes(r) ? `<div class="ra-dl"><a class="rf-btn" href="${url({ csv: "1" })}">⬇ CSV</a></div>` : "";
+  const csv = "";
   let body = "";
   const empty = (t, more = "") => `<div class="d-empty"><b>${t}</b>${more ? ` ${more}` : ""}</div>`;
   const card = (c, actions = true) => `<div class="fm-c"><div class="fm-cd"><b>${esc(when(c.starts_at))}</b>${tag(c.state)}${c.att ? tag(c.att) : ""}</div>
@@ -81,6 +83,6 @@ function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, board
        <p class="fine"><a class="link-dark" href="/dashboard">Find more sessions on Claim Boards →</a></p>`;
   }
   return layout({ title: "Reports · My Family", user, flash, admin, tab: "reports", dash: true,
-    body: `<div class="d-wrap r-wrap ra-page fm-page">${head}${sub}${tabs}${people.length ? filters : ""}<div class="r-sheet">${csv}<section class="d-card r-card">${body}</section></div></div>` });
+    body: `<div class="d-wrap r-wrap ra-page rb2 fm-page">${head}${tabs}<div class="r-sheet2"><section class="d-card r-card fm-card">${people.length ? filters : ""}${body}</section></div></div>` });
 }
 module.exports = { familyPage, SECTIONS };

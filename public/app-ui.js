@@ -56,7 +56,7 @@
     [/^\/admin\/setup\/schedules\/\d+\/copy/, ["band", ".cp-gbar"]],                              // Duplicate
     [/^\/admin\/(setup\/?$|setup\/schedule(\?|$)|setup\/notifications|members|b\/)/, ["band", ".board-tabs", ".sub-tabs"]],   // a board's screens
     [/^\/(admin\/(people|requests|signins|activity|email-log|online|settings\/app)|shadow)/, ["band", ".app-tabs", ".sub-tabs", "head"]],   // other App Settings
-    [/^\/reports/, ["band", ".rt-tabs", "head"]],                                        // Reports
+    [/^\/reports/, ["band", ".r-cats", "head"]],                                        // Reports
     [/^\/checkin\/i\//, ["band", ".ck-gbar", ".ck-listbar"]],                                       // a session's check-in
     [/^\/checkin/, ["band", ".ck-gbar"]],                                                          // Check-in day
     [/^\/dashboard/, ["band", ".d-filt"]],                                                         // My Claims

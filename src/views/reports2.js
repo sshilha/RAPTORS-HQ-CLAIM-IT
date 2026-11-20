@@ -251,9 +251,39 @@ function reportPage({ famOK = false, coached = [], pid = "", user, flash, admin,
   else body = `${r === "volunteer" && admin ? `<form method="post" action="${url({}).replace("/reports?", "/reports/volunteer-required?")}" class="r-req"><label>Hours each family needs <input type="number" name="hours" min="0" max="500" step="0.5" value="${required || ""}" placeholder="none"></label><button class="sb-btn" type="submit">Save</button><span class="fine">Leave empty for no requirement.</span></form>` : ""}
     ${data.summary ? `<div class="kpis pv-k">${data.summary.map(([l, v]) => `<div class="kpi"><span class="kpi-l">${esc(l)}</span><b>${v}</b></div>`).join("")}</div>` : ""}
     ${data.note ? `<p class="fine r-note2">${esc(data.note)}</p>` : ""}${data.grid ? grid(data) : table(data, url)}`;
+  // ---- the board-style layout: navy band · gray category bar · Filters panel (closed) · folder tabs · card ----
+  const GLOBAL = new Set(["s", "team", "qd", "level", "loc", "stype"]);
+  const onG = chipsOn.filter(([k]) => GLOBAL.has(k));
+  const meta = [board ? board.name : several ? `${several.length} boards` : "All boards", ...onG.filter(([k]) => k !== "s").map(([, l]) => l), uses("dates") && allDates ? "All dates" : ""].filter(Boolean).join(" · ");
+  const nOn = onG.length;
+  const band = `<section class="bh2 r-bh"><div class="bh2-l"><span class="bh2-tile r-tile">${IC2.chart}</span>
+      <div><div class="bh2-t"><h1>Reports &amp; Analytics</h1></div><span class="bh2-meta">${esc(meta)}</span></div></div>
+    <div class="bh2-acts">
+      <button type="button" class="sb-btn r-ftoggle" aria-expanded="false" aria-controls="rfp">${IC2.filter}Filters${nOn ? ` <b class="tb-n">${nOn}</b>` : ""}</button>
+      ${data.cols || r === "week" || r === "overview" ? `<a class="sb-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="sb-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="sb-btn" onclick="window.print()">Print</button>` : ""}
+      ${famOK ? `<nav class="ra-views" aria-label="Reports view"><a href="/reports?view=mgmt" class="on" aria-current="page">Management</a><a href="/reports?view=family">My Family</a></nav>` : ""}</div></section>`;
+  const cats = `<nav class="bh2-tabs board-tabs r-cats" aria-label="Report categories">${TABS.filter((t) => showTab(t[0]) || t === curTab).map(([id, label, icon, subs]) => { const first = (subs.find(([k, l]) => l && showSub(k)) || subs[0])[0];
+      return `<a href="${id === curTab[0] ? go(first) : goNew(first)}"${id === curTab[0] ? ' aria-current="page"' : ""}>${icon}${label}</a>`; }).join("")}</nav>`;
+  const subsShown = curTab[3].filter(([k, l]) => l && showSub(k));
+  const folders = subsShown.length > 1 ? `<nav class="sub-tabs bd-subs r-folders" aria-label="${esc(curTab[1])} reports">${subsShown.map(([k, l]) => `<a href="${go(k)}"${k === r ? ' aria-current="page"' : ""}>${esc(l)}</a>`).join("")}</nav>` : "";
+  const rfForm = (panel.match(/<form method="get" action="\/reports" id="rf">[\s\S]*?<\/form>/) || [""])[0];
+  const fpanel = `<section class="r-fpanel" id="rfp" hidden aria-label="Report filters">
+      <div class="r-fgrid">
+        ${mini("s", "Board", boardOpts, board ? board.id : several ? several.map((b) => b.id).join(",") : "all", ` onchange="var l = this.form.querySelector('[name=level]'); if (l) l.disabled = true; this.form.submit()"`).replace(' onchange="this.form.submit()"', "")}
+        ${uses("team") ? mini("team", "Team", [["", "All teams"], ...teams.map((t) => [t, t])], team || "") : ""}
+        ${moreItems.join("")}
+      </div>
+      ${uses("dates") ? `<div class="r-fdates"><span class="tb-dl">${IC2.cal}${dateWord}</span><span class="rf-pills">${Object.entries(QD).map(([k, l]) => `<a href="${url({ qd: k, from: "", to: "" })}"${qd === k ? ' class="on" aria-current="true"' : ""}>${l}</a>`).join("")}<a href="#" class="${showCustom ? "on" : ""}" onclick="document.getElementById('rfc').hidden = false; [].forEach.call(this.parentNode.children, function (a) { a.classList.remove('on'); }); this.classList.add('on'); document.querySelector('#rfc input').focus(); return false;">Custom</a><a href="${url({ qd: "", from: "", to: "" })}"${allDates ? ' class="on" aria-current="true"' : ""}>All dates</a></span>
+        <span class="rf-custom" id="rfc"${showCustom ? "" : " hidden"}><input type="date" class="rf-date" name="from" form="rf" value="${showCustom ? esc(from) : ""}" aria-label="From"><span class="fine">to</span><input type="date" class="rf-date" name="to" form="rf" value="${showCustom ? esc(to) : ""}" aria-label="To"><button class="rf-apply" type="submit" form="rf">${IC2.check}Apply</button></span></div>` : ""}
+      <div class="r-fact">${nOn ? `<a class="tb-reset" href="/reports?reset=1&r=${esc(r)}">${IC2.reset}Clear all filters</a>` : `<span class="fine">Filters apply to every report.</span>`}<button type="button" class="sb-btn" onclick="document.querySelector('.r-ftoggle').click()">Done</button></div></section>`;
+  // the report's own filters: the card's first row
+  const cardRow = mine.length ? `<div class="rc-f">${mine.map((k) => piece[k]()).join("")}</div>` : "";
   return layout({ title: `Reports · ${TITLES[r] || ""}`, user, flash, admin, tab: "reports", dash: true,
-    body: `<div class="d-wrap r-wrap ra-page${r === "week" ? " r-print" : ""}">${head}${panel}${tabs}<div class="r-sheet">${rbar}<div class="ra-dl">${data.cols || r === "week" || r === "overview" ? `<a class="rf-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="rf-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="rf-btn" onclick="window.print()">Print</button>` : ""}</div><section class="d-card r-card">${body}</section></div></div>
-    <script>if (window.innerWidth <= 760) { var tb = document.querySelector(".tb"); if (tb) { tb.classList.add("tb-closed"); tb.querySelector(".tb-t").setAttribute("aria-expanded", "false"); } var rb = document.querySelector(".rb-bar"); if (rb) rb.classList.add("rb-closed"); }</script>` });
+    body: `<div class="d-wrap r-wrap ra-page rb2${r === "week" ? " r-print" : ""}">${band}${cats}${fpanel}${rfForm}<div class="r-sheet2">${folders}<section class="d-card r-card">${cardRow}${body}</section></div></div>
+    <script>(function () { var b = document.querySelector(".r-ftoggle"), p = document.getElementById("rfp"); if (!b || !p) return;
+      function set(open) { p.hidden = !open; b.setAttribute("aria-expanded", String(open)); b.classList.toggle("on", open); try { sessionStorage.setItem("rfOpen", open ? "1" : "0"); } catch (e) {} }
+      try { if (sessionStorage.getItem("rfOpen") === "1") set(true); } catch (e) {}
+      b.addEventListener("click", function () { set(p.hidden); }); })();</script>` });
 }
 
 function reportsPage({ user, flash, admin, boards, board, rows, people, teams, teamFilter, view, limitedTo }) {
