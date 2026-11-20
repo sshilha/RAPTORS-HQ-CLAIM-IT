@@ -341,6 +341,10 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.64** "More Reports" becomes RSVP (shown only with RSVP boards in view): one report, Group by Event | Athlete | Answer
+  (Answer filter in the Answer view). Shift coverage joins Volunteer hours as Families → Volunteers: Group by Family (hours
+  toward the requirement) | Shift (needed, claimed, open, coverage). Old addresses (rsvpAnswers, rsvpAthletes, coverage)
+  redirect. Categories: Overview · Participation · Sessions · Families · Assessments · RSVP.
 - **v0.63** Assessments simplified to Results · Progress · Leaderboard · Teams. Progress: Compare First → latest (adds
   sessions attended on the linked program between each athlete's first and latest test) or Two testing days (From / To,
   sessions attended, association note). Leaderboard: Rank by Best score / Most improved / Records. Teams: Show Best &

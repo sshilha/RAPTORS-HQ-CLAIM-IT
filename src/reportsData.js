@@ -155,7 +155,8 @@ async function coverage(f) {
   return { cols: [["when", "When", "dt"], ["session", "Shift"], ["board", "Board"], ["capacity", "Needed", "num"], ["taken", "Claimed", "num"], ["open", "Open", "num"], ["cov", "Coverage", "pct"], ["status", "Status"]],
     rows: rows.map((s) => ({ id: s.id, board_id: s.board_id, when: s.starts_at, session: s.session, board: s.board, capacity: s.capacity, taken: s.taken, open: s.capacity ? Math.max(s.capacity - s.taken, 0) : null,
       cov: s.capacity ? pct(Math.min(s.taken, s.capacity), s.capacity) : null, status: new Date(s.starts_at).getTime() < now ? "Past" : !s.capacity ? "No limit" : s.taken >= s.capacity ? "Covered" : "Needs people" })),
-    link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "Shifts on volunteer boards in the range. Claimed means signed up, not completed; completed hours are under Volunteer hours." };
+    link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: rows.length ? "Shifts on volunteer boards in the range. Claimed means signed up, not completed; completed hours are under Group by: Family."
+      : "None of the boards in view is a volunteer board, or it has no shifts in the date range. Coverage comes from sessions on volunteer boards (board type: Volunteer)." };
 }
 
 // ---------- Attendance ----------
