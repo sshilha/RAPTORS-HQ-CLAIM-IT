@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { limits: 1, assessProgress: 1, assessTeamProgress: 1, assessAthlete: 1, attSessions: 1, upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { limits: D.limits, assessProgress: D.assessProgress, assessTeamProgress: D.assessTeamProgress, attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement({ ...f, fview: "never" }); return { ...d, note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
+const NEW = { claims: 1, attend: 1, limits: 1, assessProgress: 1, assessTeamProgress: 1, assessAthlete: 1, attSessions: 1, upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { claims: D.claimsView, attend: D.attendView, limits: D.limits, assessProgress: D.assessProgress, assessTeamProgress: D.assessTeamProgress, attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement({ ...f, fview: "never" }); return { ...d, note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
   rsvpAnswers: D.rsvpAnswers, teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.assessLeaders, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: D.rsvpEvents, rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -42,7 +42,10 @@ router.post("/views/:id(\\d+)/delete", wrap(async (req, res) => {
   go(res, `/reports?${String(req.body.back || "").replace(/^\?/, "")}`, v ? { ok: `Deleted "${v.name}".` } : { err: "Not found." });
 }));
 const ADMIN_ONLY = { emails: 1 };   // reports only admins can open (every view, CSV and PDF)
+const MERGED = { person: { r: "claims", group: "person" }, all: { r: "claims", group: "claim" }, attendance: { r: "attend", group: "athlete" },
+  attSessions: { r: "attend", group: "session" }, noshows: { r: "attend", group: "athlete", ashow: "noshow" }, unchecked: { r: "attend", group: "session", ashow: "unrec" } };
 async function newReport(req, res, scope, boards) {
+  if (MERGED[req.query.r]) return res.redirect(`/reports?${new URLSearchParams({ ...req.query, ...MERGED[req.query.r] })}`);
   let r = NEW[req.query.r] ? req.query.r : "overview";
   if (ADMIN_ONLY[r] && !scope.all) r = "overview";
   // boards: All, one, or several, and never anything outside this person's boards
@@ -82,12 +85,14 @@ async function newReport(req, res, scope, boards) {
   const location = locations.includes(req.query.loc) ? req.query.loc : "";
   const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
   const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
-  const RF = { lview: { at: "At limit", left: "Has spots left", none: "Not started", over: "Over limit" }, fview: { never: "Never signed in", noclaims: "No claims", active: "Active participants", inactive: "Inactive", noaccount: "No account" }, view: { upcoming: "Upcoming", past: "Past", low: "Low enrollment", near: "Nearly full", full: "Full", over: "Over capacity", waitlisted: "Waitlisted", pending: "Attendance pending" }, when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
+  const RF = { group: r === "claims" ? { person: "Person", claim: "Claim" } : { athlete: "Athlete", session: "Session" }, ashow: { noshow: "No-shows", repeat: "Repeat no-shows (3+)", unrec: "Not recorded" }, lview: { at: "At limit", left: "Has spots left", none: "Not started", over: "Over limit" }, fview: { never: "Never signed in", noclaims: "No claims", active: "Active participants", inactive: "Inactive", noaccount: "No account" }, view: { upcoming: "Upcoming", past: "Past", low: "Low enrollment", near: "Nearly full", full: "Full", over: "Over capacity", waitlisted: "Waitlisted", pending: "Attendance pending" }, when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
     cov: { "Needs people": "Needs people", Covered: "Covered" }, st: { "No account": "No account", "Never signed in": "Never signed in", "Signed in, no claims": "No claims", Active: "Active" },
     prob: { Bounced: "Bounced", spam: "Marked as spam", failed: "Failed" }, ans: { Going: "Going", "Can't make it": "Can't make it", "No answer": "No answer" } };
   const rf = Object.fromEntries(Object.keys(RF).map((k) => [k, RF[k][req.query[k]] ? req.query[k] : ""]));
   const U = require("../views/reports2").USES, uses = (k) => (U[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
-  f.view = rf.view; f.fview = rf.fview; f.lview = rf.lview;
+  f.view = rf.view; f.fview = rf.fview; f.lview = rf.lview; f.group = rf.group; f.ashow = rf.ashow;
+  const whoOpts = r === "claims" ? await D.claimPeople(f) : [];
+  f.who = whoOpts.some(([id]) => id === int(req.query.who)) ? int(req.query.who) : null;   // only someone in view
   Object.assign(f, { levels: uses("level") ? subtree : null, location: uses("loc") ? location : "", days: uses("days") ? days : [], btype: uses("bt") ? btype : "", cstatus, astatus, when: rf.when });
   if (!uses("team")) f.team = "";
   if (!uses("dates") && r !== "week") { f.from = "2000-01-01"; f.to = "2100-12-31"; }
@@ -147,7 +152,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, famOK: !!req.famOK, pid: int(req.query.pid) || "", coached: scope.all ? "all" : scope.coached || [], board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, whoOpts, who: f.who || "", famOK: !!req.famOK, pid: int(req.query.pid) || "", coached: scope.all ? "all" : scope.coached || [], board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 // remembered report + top filters, per person (re-checked against their permissions like any address)

@@ -3422,3 +3422,4 @@ tr.act-bad td { background: #fff7f7; } .act-more { text-align: center; margin: 1
 @media print { .r-fpanel, .r-cats, .r-folders, .rc-f, .r-bh .bh2-acts { display: none !important; } }
 .fm-f .tb-f { flex: 0 1 220px; } .rb2 .fm-card { border-top-left-radius: 14px; } .fm-f .fm-mode { margin-left: auto; }
 @media (max-width: 760px) { .fm-f .tb-f { flex: 1 1 100%; } .fm-f .fm-mode { margin-left: 0; } }
+.rc-grp .fm-mode { align-self: flex-start; height: 36px; } .rc-grp .fm-mode a { padding: 6px 14px; } .rc-f .rc-grp { flex: none; min-width: 0; }

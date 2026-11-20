@@ -49,6 +49,7 @@ async function claimsIn(f, { past = true, statuses = ["confirmed"] } = {}) {
   const [lo, hi] = span("$2", "$3"), args = [f.boards, f.from, f.to, statuses];
   let x = more(f, args); if (f.team) { args.push(f.team); x += ` AND m.group_name = $${args.length}`; }
   x += teamCond(f, args, "i.schedule_id", "c.athlete_id");
+  if (f.who) { args.push(Number(f.who)); x += ` AND c.athlete_id = $${args.length}`; }   // Claims: one person
   return (await query(`SELECT c.id, c.status, c.attended, c.walk_in, c.note, c.counts, c.added_by_admin, c.rsvp, c.created_at, c.canceled_at, c.promoted_at, a.id AS athlete_id, a.first_name, a.last_name, m.group_name AS team, i.id AS item_id, i.title, i.starts_at, i.ends_at,
       sc.name AS board, sc.board_type, i.schedule_id AS board_id, coalesce(nullif(i.location,''), sc.event_location) AS location,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
@@ -705,6 +706,39 @@ async function limits(f) {
       : "None of the boards in view have a per-person limit. Set one in Board setup (on the board or on a level) and it shows here." };
 }
 
+
+// ---------- Participation: one Claims report (group by person or by claim) ----------
+async function claimsView(f) { return f.group === "claim" ? claimsAll(f) : claimsByPerson(f); }
+async function claimPeople(f) {   // who has claims in view (for the Person filter)
+  const seen = new Map(); for (const c of await claimsIn({ ...f, who: null }, { past: false, statuses: ["confirmed", "waitlisted"] })) if (c.board_type !== "rsvp") seen.set(c.athlete_id, nm(c));
+  return [...seen].sort((a, b) => a[1].localeCompare(b[1]));
+}
+// ---------- Participation: one Attendance report (group by athlete or session; show all / no-shows / repeat / not recorded) ----------
+async function attendView(f) {
+  const show = f.ashow || "", bySession = f.group === "session" && show !== "repeat";
+  if (bySession) {
+    const d = await attendanceSessions(f);
+    const coaches = new Map((await query(`SELECT schedule_id, string_agg(coalesce(nullif(trim(a.first_name || ' ' || coalesce(a.last_name,'')), ''), sc.email), ', ' ORDER BY sc.email) AS who
+      FROM schedule_coaches sc LEFT JOIN athletes a ON lower(a.email)=lower(sc.email) AND a.archived_at IS NULL WHERE sc.schedule_id = ANY($1) GROUP BY schedule_id`, [f.boards])).rows.map((r) => [r.schedule_id, r.who]));
+    let rows = d.rows.map((r) => ({ ...r, coaches: coaches.get(r.board_id) || "" }));
+    if (show === "noshow") rows = rows.filter((r) => r.noshow > 0);
+    if (show === "unrec") rows = rows.filter((r) => r.unmarked > 0);
+    const cols = show === "unrec" ? [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["claimed", "Expected", "num"], ["unmarked", "Not recorded", "num"], ["done", "Recorded", "pct"], ["coaches", "Coaches"]] : d.cols;
+    return { ...d, cols, rows, note: show === "unrec" ? "Past sessions with attendance still to record, and who coaches them. Click a date to record attendance." : show === "noshow" ? "Past sessions where someone was marked No-show." : d.note };
+  }
+  const d = await attendance(f);
+  let rows = d.rows;
+  if (show === "noshow" || show === "repeat") {
+    const dates = new Map(); for (const c of (await claimsIn(f, { past: true, statuses: ["confirmed"] })).filter((c) => c.attended === false)) { if (!dates.has(c.athlete_id)) dates.set(c.athlete_id, []); dates.get(c.athlete_id).push(c.starts_at); }
+    const fmt = (t) => new Date(t).toLocaleDateString("en-US", { timeZone: TZ, month: "short", day: "numeric" });
+    rows = rows.filter((r) => r.noshow >= (show === "repeat" ? REPEAT : 1)).map((r) => ({ ...r, nsdates: (dates.get(r.id) || []).sort((a, b) => new Date(b) - new Date(a)).map(fmt).join(", ") })).sort((a, b) => b.noshow - a.noshow || a.name.localeCompare(b.name));
+  }
+  if (show === "unrec") rows = rows.filter((r) => r.unmarked > 0).sort((a, b) => b.unmarked - a.unmarked);
+  const cols = d.cols.map((c) => (c[0] === "unmarked" ? ["unmarked", "Not recorded", "num"] : c));
+  if (show === "noshow" || show === "repeat") cols.splice(cols.findIndex((c) => c[0] === "pct") + 1, 0, ["nsdates", "No-show dates"]);
+  return { ...d, cols, rows, note: show === "repeat" ? `Athletes with ${REPEAT} or more no-shows in the range.` : show === "noshow" ? "Athletes with at least one no-show in the range, most first." : show === "unrec" ? "Athletes with past sessions whose attendance isn't recorded yet." : d.note };
+}
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -721,4 +755,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

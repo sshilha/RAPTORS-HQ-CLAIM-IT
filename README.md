@@ -341,6 +341,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.60** Participation simplified to Claims · Attendance · Teams · Limits · Waitlists. Claims: Group by Person | Claim,
+  a Person filter (anyone with claims in view), claim status, attendance status, search; names open the person's history.
+  Attendance: Group by Athlete | Session and Show: all / No-shows (with no-show dates) / Repeat no-shows (3+) / Not recorded
+  (sessions to check in, with coaches and Record attendance). Old report addresses (person, all, attendance, attSessions,
+  noshows, unchecked) redirect to the matching view, exports included.
 - **v0.59** Reports layout like the board screens: navy band (title, what's in view, Filters · PDF · CSV · Print,
   Management / My Family switch); categories in the attached gray bar; reports as folder tabs; the Filters panel (board,
   team, dates, level, location, session type, Clear all, Done) is closed until opened, slides down under the gray bar and
