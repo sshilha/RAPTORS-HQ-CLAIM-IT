@@ -341,6 +341,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.62** Families simplified to Families · Volunteer hours · Communication issues. Families: Group by Athlete | Family
+  (siblings who share the same linked parent account(s) are one family, named by the parent in People, otherwise "Family
+  of …"), Show (never signed in, no claims, active, inactive, no account) applied per athlete or per family; family
+  summary cards; emails only in the admin CSV. Volunteer hours moved here from More Reports. Old addresses (notSignedIn,
+  notSignedUp) redirect to the matching Show option.
 - **v0.61** Sessions simplified to Sessions · Weekly Rosters. Sessions: Group by Session | Location | Day & time, with Show
   (Upcoming, Past, Low enrollment, Nearly full, Full, Over capacity, Waitlisted, Attendance pending) applied before grouping;
   opens on All sessions. Location adds capacity, claimed, % full and waitlisted. Old addresses (fill, upcoming, busiest,

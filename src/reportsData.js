@@ -301,13 +301,31 @@ async function engagement(f) {
   // "Signed in" means the athlete's own account or any linked parent/guardian account. Claims = active claims on the boards in view.
   const by = new Map(), recent = Date.now() - 30 * 864e5;
   for (const m of await members(f)) {
-    const x = by.get(m.id) || { id: m.id, name: nm(m), team: m.team || "", boards: [], claims: 0, signed_in: m.signed_in, emails: [...new Set([m.own, ...(m.parents || [])].filter(Boolean))].join(", ") };
+    const x = by.get(m.id) || { id: m.id, name: nm(m), first: m.first_name, team: m.team || "", boards: [], claims: 0, signed_in: m.signed_in, parents: m.parents || [], own: m.own, emails: [...new Set([m.own, ...(m.parents || [])].filter(Boolean))].join(", ") };
     x.boards.push(m.board); x.claims += m.claims; by.set(m.id, x);
   }
   const all = [...by.values()].map((x) => { const acct = !!x.emails, signed = !!x.signed_in;
     return { ...x, boards: x.boards.join(", "), account: !acct ? "No account" : signed ? "Signed in" : "Never signed in", status: !acct ? "No account" : !signed ? "Never signed in" : !x.claims ? "Signed in, no claims" : "Active",
       inactive: acct && !x.claims && (!signed || new Date(x.signed_in).getTime() < recent), act: ["View", `/reports?r=personView&pid=${x.id}`] }; });
   const V = { never: (x) => x.account === "Never signed in", noclaims: (x) => !x.claims, active: (x) => x.claims > 0, inactive: (x) => x.inactive, noaccount: (x) => x.account === "No account" };
+  if (f.group === "family") {   // siblings who share the same linked parent account(s) form one family
+    const fams = new Map();
+    for (const x of all) { const k = x.parents.length ? x.parents.slice().sort().join("|") : `self:${x.id}`; if (!fams.has(k)) fams.set(k, { key: k, parents: x.parents, kids: [] }); fams.get(k).kids.push(x); }
+    const pe = [...new Set([...fams.values()].flatMap((g) => g.parents))].map((e) => e.toLowerCase());
+    const names = new Map(pe.length ? (await query(`SELECT lower(u.email) AS e, a.first_name || ' ' || coalesce(a.last_name,'') AS n FROM users u JOIN athletes a ON a.self_user_id=u.id AND a.archived_at IS NULL WHERE lower(u.email) = ANY($1)`, [pe])).rows.map((r) => [r.e, r.n.trim()]) : []);
+    const famRows = [...fams.values()].map((g) => { const kids = g.kids.sort((a, b) => a.name.localeCompare(b.name)), signed = kids.map((k) => k.signed_in).filter(Boolean).sort().pop() || null, acct = kids.some((k) => k.emails);
+      const who = g.parents.map((e) => names.get(e.toLowerCase())).filter(Boolean);
+      const claims = kids.reduce((t, k) => t + k.claims, 0);
+      return { id: kids[0].id, family: who.length ? who.join(" & ") : `Family of ${kids.map((k) => k.first).join(" & ")}`, athletes: kids.map((k) => k.name).join(", "), n: kids.length,
+        account: !acct ? "No account" : signed ? "Signed in" : "Never signed in", signed_in: signed, claims, boards: [...new Set(kids.flatMap((k) => k.boards.split(", ")))].join(", "),
+        emails: [...new Set(kids.flatMap((k) => (k.emails ? k.emails.split(", ") : [])))].join(", "), inactive: acct && !claims && (!signed || new Date(signed).getTime() < recent) }; });
+    const fr = (f.fview && V[f.fview] ? famRows.filter(V[f.fview]) : famRows).sort((a, b) => ["No account", "Never signed in", "Signed in"].indexOf(a.account) - ["No account", "Never signed in", "Signed in"].indexOf(b.account) || a.family.localeCompare(b.family));
+    const nn = (fn) => famRows.filter(fn).length;
+    return { summary: [["Families", famRows.length], ["Signed in", nn((x) => x.account === "Signed in")], ["Never signed in", nn((x) => x.account === "Never signed in")], ["No account", nn((x) => x.account === "No account")], ["With claims", nn((x) => x.claims > 0)], ["Without claims", nn((x) => !x.claims)]],
+      cols: [["family", "Family"], ["athletes", "Athletes"], ["n", "Count", "num"], ["account", "Account"], ["signed_in", "Last sign-in", "date"], ["claims", "Claims", "num"], ["boards", "Boards"], ["emails", "Emails", "csv"]],
+      rows: fr.map(({ n, ...r }) => ({ ...r, n })), link: (r) => `/reports?r=personView&pid=${r.id}`,
+      note: "Siblings who share the same parent/guardian account(s) are one family. Account and last sign-in count any linked parent's or the athletes' own sign-ins; Claims adds up the family's active claims." };
+  }
   const rows = (f.fview && V[f.fview] ? all.filter(V[f.fview]) : all).sort((a, b) => ["No account", "Never signed in", "Signed in, no claims", "Active"].indexOf(a.status) - ["No account", "Never signed in", "Signed in, no claims", "Active"].indexOf(b.status) || a.name.localeCompare(b.name));
   const n = (fn) => all.filter(fn).length;
   return { summary: [["Total athletes", all.length], ["Active accounts", n((x) => x.account === "Signed in")], ["Never signed in", n((x) => x.account === "Never signed in")],
