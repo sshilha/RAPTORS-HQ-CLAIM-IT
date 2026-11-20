@@ -653,7 +653,7 @@ async function assessProgress(f) {
     let best = first; for (const r of x.list) if (better2(r.dr, best.score, r.score)) best = r;
     const ch = x.list.length > 1 ? S.A.change(first.score, last.score, last.dr) : { diff: null, pct: null };
     rows.push({ id: x.athlete_id, name: x.name, team: x.team, drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), better: dr.better === "higher" ? "Higher" : "Lower",
-      initial: first.score, latest: last.score, best: best.score, pb: x.list.length > 1 && best === last ? "Personal best" : "", diff: ch.diff, pct: ch.pct, tests: x.list.length,
+      initial: first.score, latest: last.score, best: best.score, pb: x.list.length > 1 && best === last ? "Personal best" : "", diff: ch.diff, pct: ch.pct, tests: x.list.length, fromDay: first.dayDate, toDay: last.dayDate,
       verdict: x.list.length < 2 ? "More testing needed" : ch.diff > 0 ? "Improved" : ch.diff < 0 ? "Declined" : "Same" });
   }
   rows.sort((a, b) => a.name.localeCompare(b.name) || a.drill.localeCompare(b.drill));
@@ -775,6 +775,30 @@ async function sessView(f) {
   return { ...g, note: "The sessions that match Show, by weekday and start time: how full they are (darker = fuller; the small number is how many sessions)." };
 }
 
+
+// ---------- Assessments: four reports (Results · Progress · Leaderboard · Teams) ----------
+// Progress: compare first → latest test (default) or two chosen testing days; adds sessions attended on the linked program.
+async function progressV(f) {
+  if (f.cmp === "days") {
+    const d = await assessImprove(f); if (!d.rows || !d.cols || d.cols[0][0] === "msg") return d;
+    const at = await assessAttend(f), byId = new Map((at.rows || []).map((r) => [r.id, r.sessions]));
+    const cols = [...d.cols]; if ((at.rows || []).length && /linked program/.test(at.note || "")) { const k = cols.findIndex((c) => c[0] === "pct"); cols.splice(k >= 0 ? k + 1 : cols.length, 0, ["sessions", "Sessions attended", "num"]); }
+    return { ...d, cols, rows: d.rows.map((r) => ({ ...r, sessions: byId.get(r.id) ?? null })), note: [d.note, at.note && /linked program/.test(at.note) ? at.note : ""].filter(Boolean).join(" ") };
+  }
+  const d = await assessProgress(f); if (!d.rows || !d.rows.length || d.cols[0][0] === "msg") return d;
+  const boards = [...new Set(((f.assess || {}).days || []).map((x) => x.board_id).filter(Boolean))];
+  if (!boards.length) return d;
+  const ids = [...new Set(d.rows.map((r) => r.id))];
+  const att = (await query(`SELECT c.athlete_id, i.starts_at FROM board_claims c JOIN board_items i ON i.id=c.item_id
+    WHERE i.schedule_id = ANY($1) AND c.athlete_id = ANY($2) AND c.status='confirmed' AND c.attended`, [boards, ids])).rows;
+  const day = (x) => String(x && x.toISOString ? x.toISOString() : x).slice(0, 10);
+  const rows = d.rows.map((r) => ({ ...r, sessions: r.tests > 1 ? att.filter((a) => a.athlete_id === r.id && day(a.starts_at) >= day(r.fromDay) && day(a.starts_at) <= day(r.toDay)).length : null }));
+  const cols = [...d.cols]; cols.splice(cols.findIndex((c) => c[0] === "tests") + 1, 0, ["sessions", "Sessions attended", "num"]);
+  return { ...d, cols, rows, note: `${d.note} Sessions attended = attended sessions on the linked program between each athlete's first and latest test; it shows an association, not proof that attendance caused the change.` };
+}
+async function leadersV(f) { return (f.assess || {}).rank === "records" ? assessRecords(f) : assessLeaders(f); }
+async function teamV(f) { return f.tshow === "improve" ? (f.cmp === "days" ? assessTeams(f) : assessTeamProgress(f)) : assessTeamBest(f); }
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -791,4 +815,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { progressV, leadersV, teamV, sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

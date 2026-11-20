@@ -341,6 +341,11 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.63** Assessments simplified to Results · Progress · Leaderboard · Teams. Progress: Compare First → latest (adds
+  sessions attended on the linked program between each athlete's first and latest test) or Two testing days (From / To,
+  sessions attended, association note). Leaderboard: Rank by Best score / Most improved / Records. Teams: Show Best &
+  averages / Improvement (first → latest or two days). Old addresses (assessImprove, assessAttend, assessRecords,
+  assessTeamBest, assessTeamProgress, assessTeams) redirect to the matching view.
 - **v0.62.1** Families → Volunteer hours always shows (it used to hide when no volunteer board was in view), with a note
   explaining when there's nothing to count.
 - **v0.62** Families simplified to Families · Volunteer hours · Communication issues. Families: Group by Athlete | Family
