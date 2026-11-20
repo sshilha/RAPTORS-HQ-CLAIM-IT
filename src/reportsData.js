@@ -364,7 +364,9 @@ async function volunteer(f, required) {
   }
   rows.sort((a, b) => a.hours - b.hours || a.family.localeCompare(b.family));
   return { cols: [["family", "Family"], ["who", "Who volunteered"], ["shifts", "Shifts", "num"], ["hours", "Hours", "num"], ...(required ? [["status", `Status (need ${required})`]] : []), ["email", "Email"]],
-    rows, note: "Volunteer-board shifts in the date range (no-shows don't count). Families are grouped by the parent/guardian account." };
+    rows, note: rows.length ? "Volunteer-board shifts in the date range (no-shows don't count). Families are grouped by the parent/guardian account."
+      : (await query(`SELECT 1 FROM schedules WHERE id = ANY($1) AND board_type='volunteer' LIMIT 1`, [f.boards])).rows.length ? "No volunteer shifts claimed in the date range yet."
+      : "None of the boards in view is a volunteer board, so there are no volunteer hours to count. Hours come from claims on volunteer boards (board type: Volunteer); pick All boards or a volunteer board." };
 }
 // ---------- Emails ----------
 async function emailProblems(f) {

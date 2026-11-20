@@ -191,7 +191,7 @@ function reportPage({ whoOpts = [], who = "", famOK = false, coached = [], pid =
     </section>
     ${chipsOn.length ? `<div class="tb-chips" aria-label="Active filters">${chipsOn.map(([k, l]) => `<a class="tb-chip" href="${clearOne(k)}" title="Remove this filter">${esc(l)} <span aria-hidden="true">✕</span></a>`).join("")}</div>` : ""}`;
   // ---- report navigation: only sections this person can use and that apply to the chosen boards ----
-  const showSub = (k) => k === "emails" ? admin : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" || k === "volunteer" ? kinds.includes("volunteer") : true;
+  const showSub = (k) => k === "emails" ? admin : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" ? kinds.includes("volunteer") : true;   // Volunteer hours always shows under Families
   const showTab = (id) => (TABS.find((t) => t[0] === id) || [, , , []])[3].some(([k, l]) => !l || showSub(k));
   const curTab = TABS.find((t) => t[3].some(([k]) => k === r)) || TABS[0];
   const RK = ["group", "ashow", "who", "lview", "rank", "fview", "view", "pid", "cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters

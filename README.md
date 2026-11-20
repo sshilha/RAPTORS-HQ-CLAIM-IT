@@ -341,6 +341,8 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.62.1** Families → Volunteer hours always shows (it used to hide when no volunteer board was in view), with a note
+  explaining when there's nothing to count.
 - **v0.62** Families simplified to Families · Volunteer hours · Communication issues. Families: Group by Athlete | Family
   (siblings who share the same linked parent account(s) are one family, named by the parent in People, otherwise "Family
   of …"), Show (never signed in, no claims, active, inactive, no account) applied per athlete or per family; family
