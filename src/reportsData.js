@@ -208,8 +208,8 @@ async function fill(f) {
       ["fill", "% full", "pct"], ["status", "Status"], ["waitlisted", "Waitlist", "num"], ["attend", "Attendance"], ["act", "", "act"]],
     rows: shown, note: "Capacity counts spots taken (walk-ins and extra spots don't). Low / Nearly full use each board's thresholds when set (Board → Notifications), otherwise under 50% / 90%+. Sort any column." };
 }
-async function busiest(f) {
-  const rows = (await sessions(f)).filter((s) => s.board_type !== "rsvp" && s.capacity);
+async function busiest(f, list = null) {
+  const rows = (list || (await sessions(f))).filter((s) => s.board_type !== "rsvp" && s.capacity);
   const cell = new Map(); let hours = new Set();
   for (const s of rows) {
     const d = new Date(new Date(s.starts_at).toLocaleString("en-US", { timeZone: TZ })), k = `${d.getDay()}|${d.getHours()}`;
@@ -227,12 +227,17 @@ async function waitlists(f) {
       .sort((a, b) => (b.flag ? 1 : 0) - (a.flag ? 1 : 0) || b.waitlisted - a.waitlisted),
     link: (r) => `/admin/b/${r.board_id}/items/${r.id}/people`, note: "Sessions with people waiting. Sessions with open spots while people wait are listed first; moving someone up follows each board's waitlist rules (nothing changes automatically here)." };
 }
-async function locations(f) {
+async function locations(f, list = null) {
   const by = new Map();
-  for (const s of await sessions(f)) {
+  for (const s of list || (await sessions(f))) {
     const h = s.ends_at ? (new Date(s.ends_at) - new Date(s.starts_at)) / 3600e3 : 0, k = s.location || "(no location)";
-    const r = by.get(k) || { location: k, sessions: 0, hours: 0, claimedH: 0, hereH: 0 }; r.sessions++; r.hours += h; r.claimedH += h * s.claimed; r.hereH += h * s.here; by.set(k, r);
+    const r = by.get(k) || { location: k, sessions: 0, cap: 0, taken: 0, waiting: 0, hours: 0, claimedH: 0, hereH: 0 }; r.sessions++; r.hours += h; r.claimedH += h * s.claimed; r.hereH += h * s.here;
+    if (s.capacity) { r.cap += s.capacity; r.taken += Math.min(s.taken, s.capacity); } r.waiting += s.waitlisted || 0; by.set(k, r);
   }
+  if (list) { const r1 = (x) => Math.round(x * 10) / 10;
+    return { cols: [["location", "Location"], ["sessions", "Sessions", "num"], ["cap", "Capacity", "num"], ["taken", "Claimed", "num"], ["fill", "% full", "pct"], ["waiting", "Waitlisted", "num"], ["hours", "Hours scheduled", "num"], ["claimedH", "Person-hours claimed", "num"], ["hereH", "Person-hours attended", "num"]],
+      rows: [...by.values()].map((r) => ({ ...r, fill: r.cap ? pct(r.taken, r.cap) : null, hours: r1(r.hours), claimedH: r1(r.claimedH), hereH: r1(r.hereH) })).sort((a, b) => b.sessions - a.sessions),
+      note: "The sessions that match Show, totaled per location. % full = spots taken ÷ capacity; person-hours attended counts recorded attendance." }; }
   const r1 = (x) => Math.round(x * 10) / 10;
   return { cols: [["location", "Location"], ["sessions", "Sessions", "num"], ["hours", "Hours scheduled", "num"], ["claimedH", "Person-hours claimed", "num"], ["hereH", "Person-hours attended", "num"]],
     rows: [...by.values()].map((r) => ({ ...r, hours: r1(r.hours), claimedH: r1(r.claimedH), hereH: r1(r.hereH) })).sort((a, b) => b.hours - a.hours), note: "Hours booked at each place in the range, and how much they were used (one person for one hour = 1)." };
@@ -739,6 +744,17 @@ async function attendView(f) {
   return { ...d, cols, rows, note: show === "repeat" ? `Athletes with ${REPEAT} or more no-shows in the range.` : show === "noshow" ? "Athletes with at least one no-show in the range, most first." : show === "unrec" ? "Athletes with past sessions whose attendance isn't recorded yet." : d.note };
 }
 
+
+// ---------- Sessions: one report (group by session, location, or day & time; Show applies first) ----------
+async function sessView(f) {
+  const base = await fill(f);                                   // Show (f.view) is applied here
+  if (f.group !== "location" && f.group !== "time") return base;
+  const keep = new Set(base.rows.map((r) => r.id)), list = (await sessions(f)).filter((s) => keep.has(s.id));
+  if (f.group === "location") return locations(f, list);
+  const g = await busiest(f, list);
+  return { ...g, note: "The sessions that match Show, by weekday and start time: how full they are (darker = fuller; the small number is how many sessions)." };
+}
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -755,4 +771,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

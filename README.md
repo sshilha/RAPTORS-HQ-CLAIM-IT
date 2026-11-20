@@ -341,6 +341,10 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.61** Sessions simplified to Sessions · Weekly Rosters. Sessions: Group by Session | Location | Day & time, with Show
+  (Upcoming, Past, Low enrollment, Nearly full, Full, Over capacity, Waitlisted, Attendance pending) applied before grouping;
+  opens on All sessions. Location adds capacity, claimed, % full and waitlisted. Old addresses (fill, upcoming, busiest,
+  locations) redirect to the matching view.
 - **v0.60** Participation simplified to Claims · Attendance · Teams · Limits · Waitlists. Claims: Group by Person | Claim,
   a Person filter (anyone with claims in view), claim status, attendance status, search; names open the person's history.
   Attendance: Group by Athlete | Session and Show: all / No-shows (with no-show dates) / Repeat no-shows (3+) / Not recorded
