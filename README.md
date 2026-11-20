@@ -341,6 +341,10 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.58** Reports → Participation → Limits: each athlete against every per-person limit that applies to them (board
+  and levels): limit, used (claimed + waitlisted, not canceled), left, extras (past a full limit via a last-minute open
+  spot; don't count) and status (At limit / n left / Not started / Over limit). Uses the engine's own per-person view,
+  so the numbers match what families see when signing up. Show filter, team filter and team-manager limits, CSV/PDF.
 - **v0.57.1** Report tables: numbers, percentages and their headings centered (text stays left); the sort arrow no longer
   shifts number headings; PDFs center number columns too.
 - **v0.57** Reports steps 10–13: My Schedule calendar (List | Calendar, month grid with ‹ ›, chips by status, dots on

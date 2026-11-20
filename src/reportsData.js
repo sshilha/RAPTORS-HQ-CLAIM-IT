@@ -663,6 +663,48 @@ async function assessTeamProgress(f) {
     rows, note: "Change = each athlete's first to most recent testing day (only athletes tested at least twice), positive = better. Athletes tested once count as tested but can't show improvement yet." };
 }
 
+
+// ---------- Limits: each athlete's sign-ups against each per-person limit (board and levels) ----------
+// Uses the engine's own view of each athlete (the same numbers families see on the sign-up page): which limits apply
+// to them, how many claims count toward each (claimed + waitlisted, not canceled), and what's left. Extras = spots taken
+// past a reached limit using a last-minute open spot (they don't count). Over = more counting claims than the limit
+// (only possible through admin adds).
+async function limits(f) {
+  const E = require("./engine"), rows = [];
+  const boards = (await query(`SELECT id, name, settings FROM schedules WHERE id = ANY($1) AND board_type <> 'rsvp' AND archived_at IS NULL ORDER BY name`, [f.boards])).rows;
+  let anyLimit = false;
+  for (const b of boards) {
+    const nodeLimits = (await query(`SELECT 1 FROM board_nodes WHERE schedule_id=$1 AND settings->>'limit' IS NOT NULL LIMIT 1`, [b.id])).rows.length;
+    if (!(b.settings && b.settings.limit != null) && !nodeLimits) continue;
+    anyLimit = true;
+    // everyone on the board's list (team filter and team limits apply), plus anyone with claims there
+    const args = [b.id]; let x = ""; if (f.team) { args.push(f.team); x += ` AND m.group_name = $${args.length}`; } x += memberCond(f, args, "m");
+    const people = (await query(`SELECT a.id, a.first_name, a.last_name, m.group_name, m.tags FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
+      WHERE m.schedule_id=$1 AND a.archived_at IS NULL${x}
+      UNION SELECT a.id, a.first_name, a.last_name, NULL, NULL FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN athletes a ON a.id=c.athlete_id
+      WHERE i.schedule_id=$1 AND c.status <> 'canceled' AND a.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM schedule_members m2 WHERE m2.schedule_id=$1 AND m2.athlete_id=a.id)${f.team || f.teamsBy ? " AND false" : ""}`, args)).rows;
+    for (const p of people) {
+      const v = await E.personView(b.id, { athleteId: p.id, userId: null, member: p.group_name != null || p.tags ? { group_name: p.group_name, tags: p.tags } : null }, new Date(), { preview: true });
+      if (!v) continue;
+      const chainOf = new Map(v.items.map((r) => [r.item.id, new Set((r.chain || []).map((n) => n.id))]));
+      for (const L of v.limits) {
+        const inL = (c) => L.kind === "board" || (chainOf.get(c.item_id) || new Set()).has(L.id);
+        const extras = v.mine.filter((c) => !c.counts && inL(c)).length;
+        const node = v.nodes.find((n) => n.id === L.id);
+        const path = L.kind === "board" ? `${b.name} (whole board)` : (() => { const out = []; let n = node; while (n) { out.unshift(n.name); n = v.nodes.find((y) => y.id === n.parent_id); } return out.join(" › "); })();
+        rows.push({ id: p.id, name: nm(p), team: p.group_name || "", board: b.name, scope: path, limit: L.limit, used: L.used, left: L.left, extras,
+          status: L.used > L.limit ? "Over limit" : L.used >= L.limit ? "At limit" : L.used === 0 ? "Not started" : `${L.left} left` });
+      }
+    }
+  }
+  const V = { at: (r) => r.status === "At limit", left: (r) => /left$/.test(r.status), none: (r) => r.status === "Not started", over: (r) => r.status === "Over limit" };
+  const shown = (f.lview && V[f.lview] ? rows.filter(V[f.lview]) : rows).sort((a, b) => a.name.localeCompare(b.name) || a.board.localeCompare(b.board) || a.scope.localeCompare(b.scope));
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["board", "Board"], ["scope", "Limit on"], ["limit", "Limit", "num"], ["used", "Used", "num"], ["left", "Left", "num"], ["extras", "Extras", "num"], ["status", "Status"]],
+    rows: shown, link: (r) => `/reports?r=personView&pid=${r.id}`,
+    note: anyLimit ? "Each athlete against every per-person limit that applies to them (set in Board setup on the board or a level). Used = claimed + waitlisted spots (canceled ones don't count), the same count families see when signing up. Extras = spots taken past a full limit using a last-minute open spot; they don't count. Dates don't apply: limits count every session on the board or level."
+      : "None of the boards in view have a per-person limit. Set one in Board setup (on the board or on a level) and it shows here." };
+}
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -679,4 +721,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
