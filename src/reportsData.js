@@ -711,7 +711,8 @@ async function limits(f) {
       UNION SELECT a.id, a.first_name, a.last_name, NULL, NULL FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN athletes a ON a.id=c.athlete_id
       WHERE i.schedule_id=$1 AND c.status <> 'canceled' AND a.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM schedule_members m2 WHERE m2.schedule_id=$1 AND m2.athlete_id=a.id)${f.team || f.teamsBy ? " AND false" : ""}`, args)).rows;
     for (const p of people) {
-      const v = await E.personView(b.id, { athleteId: p.id, userId: null, member: p.group_name != null || p.tags ? { group_name: p.group_name, tags: p.tags } : null }, new Date(), { preview: true });
+      // judged as their family signed in (boards open to signed-in families would otherwise hide every session, and level limits with them)
+      const v = await E.personView(b.id, { athleteId: p.id, userId: -1, member: p.group_name != null || p.tags ? { group_name: p.group_name, tags: p.tags } : null }, new Date(), { preview: true });
       if (!v) continue;
       const chainOf = new Map(v.items.map((r) => [r.item.id, new Set((r.chain || []).map((n) => n.id))]));
       for (const L of v.limits) {
@@ -744,7 +745,7 @@ async function attendView(f) {
   const show = f.ashow || "", bySession = f.group === "session" && show !== "repeat";
   if (bySession) {
     const d = await attendanceSessions(f);
-    const coaches = new Map((await query(`SELECT schedule_id, string_agg(coalesce(nullif(trim(a.first_name || ' ' || coalesce(a.last_name,'')), ''), sc.email), ', ' ORDER BY sc.email) AS who
+    const coaches = new Map((await query(`SELECT schedule_id, string_agg(coalesce(nullif(trim(a.first_name || ' ' || coalesce(a.last_name,'')), ''), ${f.admin ? "sc.email" : "'(coach not in People)'"}), ', ' ORDER BY sc.email) AS who
       FROM schedule_coaches sc LEFT JOIN athletes a ON lower(a.email)=lower(sc.email) AND a.archived_at IS NULL WHERE sc.schedule_id = ANY($1) GROUP BY schedule_id`, [f.boards])).rows.map((r) => [r.schedule_id, r.who]));
     let rows = d.rows.map((r) => ({ ...r, coaches: coaches.get(r.board_id) || "" }));
     if (show === "noshow") rows = rows.filter((r) => r.noshow > 0);

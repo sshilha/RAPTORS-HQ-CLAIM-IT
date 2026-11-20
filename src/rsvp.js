@@ -68,7 +68,8 @@ async function summary(itemId) {
   for (const p of people) {
     const a = byId.get(p.id);
     if (a) { (a.status === "confirmed" ? out.going : out.no).push({ ...p, note: a.note, answered_at: a.answered_at, attended: a.status === "confirmed" ? a.attended : null }); continue; }
-    const ok = E.check(chain, eff, { athleteId: p.id, member: { group_name: p.group_name, tags: p.tags } });
+    const at = chain.item.starts_at && new Date(chain.item.starts_at) < new Date() ? new Date(new Date(chain.item.starts_at).getTime() - 60e3) : new Date();
+    const ok = E.check(chain, eff, { athleteId: p.id, member: { group_name: p.group_name, tags: p.tags } }, at);
     if (ok.ok || !ok.hidden) out.none.push(p);
   }
   // people who answered but aren't on the board's list anymore still show under their answer

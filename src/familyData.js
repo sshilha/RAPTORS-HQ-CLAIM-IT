@@ -78,7 +78,7 @@ function activity(list, prog, people) {
   }
   const seen = new Set();
   for (const p of prog) { const k = `${p.athlete_id}|${p.assessment}|${String(p.latestDay)}`; if (seen.has(k)) continue; seen.add(k);
-    if (new Date(p.latestDay).getTime() >= Date.now() - 30 * 864e5) out.push({ at: p.latestDay, text: `${name.get(p.athlete_id) || "Your athlete"}'s ${p.assessment} results are available`, sub: "My Progress" }); }
+    if (new Date(p.latestDay).getTime() >= Date.now() - 30 * 864e5) out.push({ at: p.latestDay, text: `${name.get(p.athlete_id) || "Your athlete"}'s ${p.assessment} results are available`, sub: "Assessments" }); }
   return out.sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 8);
 }
 

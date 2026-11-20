@@ -4,7 +4,7 @@ const R = require("./reports2"), IC2 = R.IC2;
 const TZ = "America/Chicago";
 const when = (t) => new Date(t).toLocaleString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const day = (t) => new Date(t).toLocaleDateString("en-US", { timeZone: TZ, weekday: "long", month: "long", day: "numeric" });
-const SECTIONS = [["fOverview", "Overview", IC2.home], ["fClaims", "My Claims", IC2.clip], ["fAttendance", "My Attendance", IC2.users], ["fProgress", "My Progress", IC2.bars], ["fSchedule", "My Schedule", IC2.cal]];
+const SECTIONS = [["fOverview", "Overview", IC2.home], ["fClaims", "My Claims", IC2.clip], ["fAttendance", "My Attendance", IC2.users], ["fProgress", "Assessments", IC2.bars], ["fSchedule", "My Schedule", IC2.cal]];
 const tag = (s) => `<span class="fm-tag fm-${s.replace(/[^a-z]/gi, "").toLowerCase()}">${esc(s)}</span>`;
 
 function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, boards = [], board = "", show = "", whenF = "", mode = "", month = "" }) {
@@ -36,7 +36,7 @@ function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, board
     const kp = [["Upcoming sessions", D.upcoming.length, D.upcoming[0] ? `Next: ${when(D.upcoming[0].starts_at)}` : "Nothing upcoming", url({ r: "fSchedule" })],
       ["My claims", D.active, `${D.waitlisted} waitlisted`, url({ r: "fClaims" })],
       ["Attendance", D.att.rate == null ? "—" : `${D.att.rate}%`, D.att.rate == null ? (D.att.total ? "Not recorded yet" : "No past sessions yet") : `${D.att.here} attended`, url({ r: "fAttendance" })],
-      ["Progress", D.prog.length ? D.prog.filter((p) => p.tests > 1 && /^Improved/.test(p.summary)).length : "—", D.prog.length ? `drills improved · ${D.prog.length} results` : "No shared results yet", url({ r: "fProgress" })]];
+      ["Assessments", D.prog.length ? D.prog.filter((p) => p.tests > 1 && /^Improved/.test(p.summary)).length : "—", D.prog.length ? `drills improved · ${D.prog.length} results` : "No shared results yet", url({ r: "fProgress" })]];
     body = `<div class="kpis fm-k">${kp.map(([l, v, s, h]) => `<a class="kpi" href="${h}"><span class="kpi-l">${esc(l)}</span><b>${esc(String(v))}</b><span class="fine">${esc(s)}</span></a>`).join("")}</div>
       <div class="db-grid"><section class="db-card"><h3>Upcoming sessions <a class="link-dark db-all" href="${url({ r: "fSchedule" })}">My Schedule →</a></h3>${D.upcoming.length ? D.upcoming.slice(0, 5).map((c) => card(c, false)).join("") : `<p class="ch-empty">Nothing upcoming. <a href="/dashboard">Find sessions on Claim Boards →</a></p>`}</section>
         <section class="db-card"><h3>Recent activity</h3>${D.activity.length ? `<ul class="fm-act-l">${D.activity.map((x) => `<li><b>${esc(x.text)}</b><span class="fine">${esc(x.sub || "")} · ${esc(new Date(x.at).toLocaleDateString("en-US", { timeZone: TZ, month: "short", day: "numeric" }))}</span></li>`).join("")}</ul>` : `<p class="ch-empty">Nothing in the last two weeks.</p>`}</section></div>`;
