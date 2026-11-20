@@ -11,7 +11,7 @@ const router = express.Router();
 const AHead = async () => { const AH = require("../views/apphead"), c = await AH.counts(); return (o = {}) => AH.appHeader({ c, ...o }); };
 router.use(auth.requireAdmin);
 const clean = (x, n) => str(x).replace(/\s+/g, " ").slice(0, n);
-const ROLES = ["parent", "coach", "volunteer"];
+const ROLES = ["parent", "coach", "manager", "volunteer"];
 
 // Everyone, with what they're connected to
 async function directory() {
@@ -326,12 +326,15 @@ router.get("/:id", wrap(async (req, res) => {
   const athletes = p.kind === "adult" ? (await query(`SELECT id, first_name, last_name, team FROM athletes WHERE kind='athlete' AND archived_at IS NULL ORDER BY lower(last_name), lower(first_name)`)).rows : [];
   const allBoards = (await query(`SELECT id, name FROM schedules WHERE archived_at IS NULL ORDER BY name`)).rows;
   const coaching = p.email ? (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [p.email])).rows.map((r) => r.schedule_id) : [];
+  await PP.ensureManagers();
+  const managing = p.email ? (await query(`SELECT schedule_id, teams FROM board_managers WHERE lower(email)=lower($1)`, [p.email])).rows : [];
+  const boardTeams = Object.fromEntries((await query(`SELECT schedule_id, array_agg(DISTINCT group_name ORDER BY group_name) AS t FROM schedule_members WHERE group_name IS NOT NULL GROUP BY 1`)).rows.map((r) => [r.schedule_id, r.t]));
   const mine = (await query(`SELECT l.* FROM people_list_members m JOIN people_lists l ON l.id=m.list_id WHERE m.athlete_id=$1 ORDER BY lower(l.name)`, [id])).rows;
   const acct = p.self_user_id ? (await query(`SELECT * FROM users WHERE id=$1`, [p.self_user_id])).rows[0] : null;
   const history = acct || p.email ? (await query(`SELECT * FROM login_events WHERE user_id=$1 OR (user_id IS NULL AND lower(identity)=lower($2)) ORDER BY at DESC LIMIT 25`, [acct ? acct.id : 0, p.email || ""])).rows : [];
   const allTeams = [...new Set((await query(`SELECT unnest(groups) AS g FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.g))].sort();
   p.assessDays = (await require("../assess").daysFor([p.id])).get(p.id) || [];
-  res.send(v.personPage({ head: await AHead(), user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
+  res.send(v.personPage({ managing, boardTeams, head: await AHead(), user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
 }));
 
 router.post("/:id", wrap(async (req, res) => {
@@ -448,6 +451,18 @@ router.post("/:id/signin-code", wrap(async (req, res) => {
   go(res, `/admin/people/${id}#signin`, { ok: `Sign-in code for ${p.email}: ${code.slice(0, 3)} ${code.slice(3)}. Have them go to the sign-in page → "Have a code from an admin?" It works once and expires in 15 minutes.` });
 }));
 
+// Team manager: which boards (and which of each board's teams; none ticked = all) they see in Reports
+router.post("/:id/managing", wrap(async (req, res) => {
+  const id = int(req.params.id), p = (await query(`SELECT * FROM athletes WHERE id=$1`, [id])).rows[0];
+  if (!p || !p.email) return go(res, `/admin/people/${id}#manager`, { err: "Add this person's email first." });
+  await PP.ensureManagers();
+  const pick = [].concat(req.body.mboards || []).map(int).filter(Boolean), email = auth.normalizeEmail(p.email);
+  await query(`DELETE FROM board_managers WHERE lower(email)=lower($1)`, [email]);
+  for (const b of pick) await query(`INSERT INTO board_managers (schedule_id, email, teams) VALUES ($1,$2,$3)`, [b, email, [].concat(req.body[`teams_${b}`] || []).map(String).filter(Boolean)]);
+  if (pick.length) { await auth.findOrCreateUser(email); if (!(p.roles || []).includes("manager")) await query(`UPDATE athletes SET roles=array_append(roles,'manager') WHERE id=$1`, [id]); }
+  else await query(`UPDATE athletes SET roles=array_remove(roles,'manager') WHERE id=$1`, [id]);
+  go(res, `/admin/people/${id}#manager`, { ok: pick.length ? `Team manager on ${pick.length} board${pick.length === 1 ? "" : "s"}. They see those boards (and teams) in Reports.` : "Not a team manager on any board." });
+}));
 // Coach: which boards they can take attendance on
 router.post("/:id/coaching", wrap(async (req, res) => {
   const id = int(req.params.id);

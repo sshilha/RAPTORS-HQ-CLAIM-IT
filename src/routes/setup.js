@@ -68,6 +68,15 @@ router.get("/notifications", wrap(async (req, res) => {
         <p class="fine">${rh > 0 ? `${sc.board_type === "rsvp" ? `${due} ${due === 1 ? "answer" : "answers"} of Going will get a reminder. People who answer inside that window don't get one (they just answered).` : `${due} upcoming claim${due === 1 ? "" : "s"} will get a reminder. People who claim inside that window don't get one (they just signed up).`}` : "No reminders for this board."}</p></section>
       ${sc.board_type === "rsvp" ? `<section class="nt-sec"><h3>Reminder to answer</h3><p class="fine">Two days before each event, everyone on the list who hasn't answered yet gets the <b>Please RSVP</b> email (with their parents/guardians, if family emails are on), once. You can also use <b>Remind them</b> on an event's People page anytime.</p>
         <label class="radio-row nt-sw"><input type="checkbox" name="rsvp_nudge" value="1"${n.rsvp_nudge !== false ? " checked" : ""}> <span><b>Remind those who haven't answered, 2 days before</b></span></label></section>` : ""}
+      ${sc.board_type === "rsvp" ? "" : `<section class="nt-sec"><h3>Open leftover spots email</h3>
+        <label class="radio-row nt-sw"><input type="checkbox" name="leftover_email" value="1"${n.leftover_email !== false ? " checked" : ""}> <span><b>Tell everyone with an account when leftover spots open</b><span class="fine"> Sent when a session's "open leftover spots" time comes and it still has open spots (held overnight until 7 AM), so families know they can claim past their limit. Only sessions with that setting (in Board defaults or on a level); nothing is sent when there are no open spots.</span></span></label>
+        <label class="radio-row nt-sw"><input type="checkbox" name="leftover_morning" value="1"${n.leftover_morning !== false ? " checked" : ""}> <span><b>Also send the morning of the session</b><span class="fine"> 7 AM that day, if spots are still open. A session that opens the same morning gets just one email.</span></span></label></section>`}
+      ${sc.board_type === "rsvp" ? "" : (() => { const t = ((sc.settings || {}).report) || {}; return `<section class="nt-sec"><h3>Needs attention (Reports)</h3>
+        <p class="fine">Flags sessions on Reports → Overview. Leave a box empty for no alert of that kind. Over capacity, open spots while people wait, attendance not recorded and repeated no-shows are always flagged.</p>
+        <div class="nt-thr"><label>Low enrollment: under <input type="number" name="min_pct" min="1" max="100" value="${t.min_pct || ""}" aria-label="Low enrollment percent">% full</label>
+          <label>within <input type="number" name="min_days" min="0" max="60" value="${t.min_days || ""}" aria-label="Days before the session"> days of the session</label>
+          <label>Nearly full: at <input type="number" name="near_pct" min="1" max="100" value="${t.near_pct || ""}" aria-label="Nearly full percent">% or more</label></div>
+        ${sc.board_type === "volunteer" ? `<p class="fine">Volunteer shifts with open spots are flagged within the "within … days" above (14 days if empty).</p>` : ""}</section>`; })()}
       <section class="nt-sec"${sc.board_type === "rsvp" ? " hidden" : ""}><h3>Claim emails</h3><p class="fine">Turn off any this board shouldn't send. Their wording is in App Settings → People → <a href="/admin/people/communication">Communication</a>.</p>
         ${NOTE_KEYS.map(([k, t, d]) => `<label class="radio-row nt-sw"><input type="checkbox" name="${k}" value="1"${n[k] !== false ? " checked" : ""}> <span><b>${t}</b><span class="fine">${d}</span></span></label>`).join("")}
         <p class="fine">Public-link confirmations always send, because they carry the visitor's private cancel link.</p></section>
@@ -78,8 +87,10 @@ router.post("/notifications", wrap(async (req, res) => {
   const sc = await SC.get(int(req.query.s)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
   const rh = REMIND.map((r) => r[0]).includes(Number(req.body.reminder_hours)) ? Number(req.body.reminder_hours) : 24;
   const notify = { reminder_hours: rh, ...Object.fromEntries(NOTE_KEYS.map(([k]) => [k, sc.board_type === "rsvp" ? (((sc.settings || {}).notify || {})[k] !== false) : req.body[k] === "1"])),
-    ...(sc.board_type === "rsvp" ? { rsvp_nudge: req.body.rsvp_nudge === "1" } : {}) };
-  await query(`UPDATE schedules SET settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('notify', $2::jsonb) WHERE id=$1`, [sc.id, JSON.stringify(notify)]);
+    ...(sc.board_type === "rsvp" ? { rsvp_nudge: req.body.rsvp_nudge === "1" } : { leftover_email: req.body.leftover_email === "1", leftover_morning: req.body.leftover_morning === "1" }) };
+  const num = (v, lo, hi) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
+  const report = sc.board_type === "rsvp" ? ((sc.settings || {}).report || null) : { min_pct: num(req.body.min_pct, 1, 100), min_days: num(req.body.min_days, 0, 60), near_pct: num(req.body.near_pct, 1, 100) };
+  await query(`UPDATE schedules SET settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('notify', $2::jsonb, 'report', $3::jsonb) WHERE id=$1`, [sc.id, JSON.stringify(notify), JSON.stringify(report)]);
   go(res, `/admin/setup/notifications?s=${sc.id}`, { ok: "Saved this board's notifications." });
 }));
 router.get(["/schedule", "/schedule/more", "/schedule/archive"], wrap(async (req, res) => {

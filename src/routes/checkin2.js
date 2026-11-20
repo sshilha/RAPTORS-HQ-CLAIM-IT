@@ -14,7 +14,7 @@ router.use(auth.requireUser);
 router.use(wrap(async (req, res, next) => {
   req.boards = await A.boardsFor(req.user);
   if (!req.boards.length) return res.status(403).send(require("../views/layout").errorPage("Check-in is for admins and coaches.", { user: req.user }));
-  req.user.can_reports = !!(await require("../people").reportScope(req.user));
+  req.user.can_reports = await require("../people").canReports(req.user);
   next();
 }));
 const isDate = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || "");

@@ -194,6 +194,38 @@ kind, dates; Download CSV. Kept a year. How it works: every change ends in a con
 src/activity.js records each one (plus check-in taps, which have no message) with the board, person and session it was
 about; claims and cancels from before it existed are filled in once at startup.
 
+### 4.7a Reports: access and metric definitions
+**Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
+person → Team manager; table board_managers): the boards they manage, optionally limited per board to some teams (none
+ticked = all teams); reports only, no check-in or setup. With a team limit, every report counts only those teams'
+athletes and claims (session totals included), checked inside the queries. Others: the boards granted under
+People → Reports access (optionally limited to teams). One check (people.reportScope) decides the boards, and every
+report, chart, alert, search, CSV and PDF is computed only from them; board ids outside them are ignored. Emails is
+admin-only. Non-admins get no links into admin pages and no contact details (in the page, CSV and PDF). Assessment
+reports only include athletes on the user's boards.
+**Definitions** (within the active filters: boards, dates, level, team, location, weekdays):
+- Active claim = status confirmed. Takes a spot = active and counts (walk-ins and extra spots don't).
+- Waitlist entry = status waitlisted (position = order added). Canceled = status canceled, not an RSVP "no"
+  (an RSVP "Can't make it" is stored as a canceled claim with rsvp='no').
+- Attended / No-show / Unrecorded = attended true / false / empty, past sessions only.
+- Attendance rate = attended ÷ (attended + no-shows); unrecorded and future sessions don't count.
+- Unique participants = distinct athlete ids (no double counting across boards).
+- Available spots = Σ max(capacity − spots taken, 0) over upcoming sessions. RSVP boards are left out of claim and
+  capacity numbers.
+**Needs attention** (Overview): always flags over capacity, open spots while people wait, attendance not recorded,
+volunteer shifts not covered, repeated no-shows (3+). Low enrollment (under X% within N days) and nearly full (X%+) use
+each board's thresholds: Board → Notifications → Needs attention (no defaults).
+**Layout** (Reports & Analytics): a slim navy header; the **Report Filters** panel applies to every report: Boards (one,
+several or all) · Level (one board) · Team · Location · Session Type (board type: Programs / Volunteer / RSVP), and Dates
+(Today · This week · This month · Custom with typed From–To; nothing picked = all dates). (Saved views remain in the code, report_views, but have no button.) Each report has its own
+filter bar: Claims (claim status, attendance status, search) · Sessions (when, capacity, search) · Attendance
+(attendance status, search) · Volunteers (when, coverage, search) · Families (status, search) · Communications
+(problem, search) · RSVP Answers (answer, search) · Assessments (assessment, testing day, drill, count, top, born,
+search) · Weekly Rosters (week of, waitlist, blank lines); others have search. Report filters reset when switching to
+another section and stay within a section; the top filters carry everywhere. Tabs: Overview · Claims · Sessions ·
+Attendance · Teams · Volunteers (volunteer boards) · Waitlists · Families · Assessments · Communications (admins) ·
+RSVP (RSVP boards) · Weekly Rosters. Phones: the top filters fold behind "Filters"; tabs scroll.
+
 ### 4.7b Email log, On now, and who's engaged on a board
 - **Email log** (App Settings → People → Email log): every email the app tried to send: to whom, which email, the subject,
   and the result: Sent, Failed (with Resend's reason in plain words), Held (Sign in as), or Not sent (no email service).
@@ -309,6 +341,125 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.64** "More Reports" becomes RSVP (shown only with RSVP boards in view): one report, Group by Event | Athlete | Answer
+  (Answer filter in the Answer view). Shift coverage joins Volunteer hours as Families → Volunteers: Group by Family (hours
+  toward the requirement) | Shift (needed, claimed, open, coverage). Old addresses (rsvpAnswers, rsvpAthletes, coverage)
+  redirect. Categories: Overview · Participation · Sessions · Families · Assessments · RSVP.
+- **v0.63** Assessments simplified to Results · Progress · Leaderboard · Teams. Progress: Compare First → latest (adds
+  sessions attended on the linked program between each athlete's first and latest test) or Two testing days (From / To,
+  sessions attended, association note). Leaderboard: Rank by Best score / Most improved / Records. Teams: Show Best &
+  averages / Improvement (first → latest or two days). Old addresses (assessImprove, assessAttend, assessRecords,
+  assessTeamBest, assessTeamProgress, assessTeams) redirect to the matching view.
+- **v0.62.1** Families → Volunteer hours always shows (it used to hide when no volunteer board was in view), with a note
+  explaining when there's nothing to count.
+- **v0.62** Families simplified to Families · Volunteer hours · Communication issues. Families: Group by Athlete | Family
+  (siblings who share the same linked parent account(s) are one family, named by the parent in People, otherwise "Family
+  of …"), Show (never signed in, no claims, active, inactive, no account) applied per athlete or per family; family
+  summary cards; emails only in the admin CSV. Volunteer hours moved here from More Reports. Old addresses (notSignedIn,
+  notSignedUp) redirect to the matching Show option.
+- **v0.61** Sessions simplified to Sessions · Weekly Rosters. Sessions: Group by Session | Location | Day & time, with Show
+  (Upcoming, Past, Low enrollment, Nearly full, Full, Over capacity, Waitlisted, Attendance pending) applied before grouping;
+  opens on All sessions. Location adds capacity, claimed, % full and waitlisted. Old addresses (fill, upcoming, busiest,
+  locations) redirect to the matching view.
+- **v0.60** Participation simplified to Claims · Attendance · Teams · Limits · Waitlists. Claims: Group by Person | Claim,
+  a Person filter (anyone with claims in view), claim status, attendance status, search; names open the person's history.
+  Attendance: Group by Athlete | Session and Show: all / No-shows (with no-show dates) / Repeat no-shows (3+) / Not recorded
+  (sessions to check in, with coaches and Record attendance). Old report addresses (person, all, attendance, attSessions,
+  noshows, unchecked) redirect to the matching view, exports included.
+- **v0.59** Reports layout like the board screens: navy band (title, what's in view, Filters · PDF · CSV · Print,
+  Management / My Family switch); categories in the attached gray bar; reports as folder tabs; the Filters panel (board,
+  team, dates, level, location, session type, Clear all, Done) is closed until opened, slides down under the gray bar and
+  stays open while you change filters (remembered per tab); each report's own filters are the card's first row. My Family
+  uses the same layout. Phones: categories and reports become the usual dropdowns.
+- **v0.58** Reports → Participation → Limits: each athlete against every per-person limit that applies to them (board
+  and levels): limit, used (claimed + waitlisted, not canceled), left, extras (past a full limit via a last-minute open
+  spot; don't count) and status (At limit / n left / Not started / Over limit). Uses the engine's own per-person view,
+  so the numbers match what families see when signing up. Show filter, team filter and team-manager limits, CSV/PDF.
+- **v0.57.1** Report tables: numbers, percentages and their headings centered (text stays left); the sort arrow no longer
+  shifts number headings; PDFs center number columns too.
+- **v0.57** Reports steps 10–13: My Schedule calendar (List | Calendar, month grid with ‹ ›, chips by status, dots on
+  phones); signed change columns (+8% / −10.1%, +0.39; green better, red worse; plain numbers in CSV); readable testing-day
+  headings on Improvement; blank number cells aligned; person view tables full width; phone fixes (assessment filters,
+  12px minimum text, fingertip-size buttons, tabs, chips, dropdowns, toggles). Audited: all 34 reports × one board / all
+  boards × admin, coach, team manager (no bad values, every row matches its headings, CSV columns match the page, every
+  PDF opens); 86-screen phone audit (no zoom inputs, tiny text, sideways scrolling, overlaps or errors).
+  Known limits: emails before v0.53 have no related board; "Released" needs an activity record (older cancellations show
+  "Canceled"); parents filter by athlete and program (no date range).
+- **v0.56** Reports step 9, My Family: parents, guardians and athletes get Reports (menu item for anyone with a linked
+  family or management reports). My Family: Overview (upcoming, claims, attendance, progress cards; upcoming sessions;
+  recent activity from real records), My Claims (Upcoming / Past / Waitlisted / Released / All; Release uses the existing
+  cancel action and its deadlines), My Attendance (attended, no-shows, not recorded, % once recorded, by month, history),
+  My Progress (shared testing days only; direction-aware; plain summary), My Schedule (upcoming / past by day, link to
+  Claim Boards); athlete and program filters; CSV. Family = the person's linked athletes with family access plus their
+  own record (same rule as My Claims), re-read on every request. People with both views get a Management / My Family
+  switch; the last one used is remembered (app_kv report_view:<user>). My Claims has "View My Reports".
+- **v0.55** Reports step 8, RSVP: Events with on the list, answered, response rate, going, can't make it, no answer
+  (outstanding), came, follow-through (came ÷ (came + recorded no-shows) of those who said Going) and said going but
+  didn't come, only after the event ("—" for upcoming events and when attendance isn't recorded); Answers with the
+  answer date and attendance (Came / Didn't come / Not recorded) for Going answers after the event; Athletes with
+  response rate and follow-through. Actions: Attendance (check-in) for admins and the board's coaches, Event for admins.
+- **v0.54** Reports step 7, Assessments: Progress (per athlete and drill: initial, latest, best with "Personal best",
+  change in units and % where + is always better, number of tests, "More testing needed" with one test); an athlete
+  progress view (a chart per drill, better direction and method, a plain progress sentence); Team progress (athletes
+  tested, with 2+ tests, average change and %, share improved); Leaderboard "Rank by: Most improved"; vs attendance
+  worded as an association. All limited to athletes on the viewer's boards (and teams).
+- **v0.53** Reports step 6, Families and Communications: Family engagement with summary cards (total athletes, active
+  accounts, never signed in, with / without claims, signed in in the last 30 days), a Show filter (never signed in, no
+  claims, active participants, inactive, no account) and a table without email lists (emails in the admin CSV only);
+  sign-in counts the athlete's own account or any linked parent/guardian's. Communication issues: person, address,
+  problem, times, last occurrence, related board, status (Open / Later email delivered), Fix address and View log.
+  email_log gains board_id and item_id (claim emails, waitlist and reminders, RSVP reminders; from this version on).
+- **v0.52** Reports step 5, Sessions: Fill & capacity / Upcoming as a capacity table (date, session, board, location,
+  capacity, claimed, available, % full bar, status from each board's thresholds or 50% / 90%, waitlist, attendance
+  status Complete / Pending (n not recorded) / Upcoming / No claims, and an action: Manage for admins, Record attendance
+  for admins and that board's coaches; exports leave actions out) with a Show filter (Upcoming, Past, Low enrollment,
+  Nearly full, Full, Over capacity, Waitlisted, Attendance pending). Weekly roster: a table per session (☐ · athlete ·
+  team · notes) with blank sign-in rows, capacity line, waitlist; the same layout in the PDF; prints one session block
+  per piece.
+- **v0.51** Reports step 4, Participation: Claims by person (total, upcoming, attended, no-shows, attendance %, waitlisted,
+  last and next session); claim statuses Active / Past / Waitlisted / Released (canceled by the family) / Canceled by admin
+  (from the activity log; older cancellations with no record stay "Canceled"); Attendance by session (expected, attended,
+  no-shows, not recorded, recorded %, attendance %; date opens check-in for admins and the board's coaches); Teams against
+  the roster (participation, claims per participant, attendance, upcoming participation); Waitlists (capacity, claimed,
+  waitlisted, available; "Open spots while people wait" first).
+- **v0.50** Reports step 3, Overview: six KPI cards that open their report filtered (Active claims + unique
+  participants · Upcoming sessions + next date · Capacity % + claimed/available · Attendance % + sessions awaiting
+  check-in · Waitlists + sessions with waitlists · Needs attention + high priority; "—" with a reason instead of a
+  misleading 0); Needs attention with High / Medium / Info and an action per item (Record attendance, View session,
+  Review waitlist, View person, View families, Review issues, View claims), role-aware (coaches: check-in on their
+  boards; team managers: report links); new alerts: email problems (admins), families never signed in, new waitlist
+  activity and released claims (7 days); team participation against the roster; compact upcoming-sessions table;
+  charts only when they have data.
+- **v0.49** Reports step 2: compact filter toolbar (Board · Team · Session dates: Today / This week / This month /
+  Custom / All dates · More filters: Level, Location, Session type · Reset); active filters as removable chips (top and
+  report filters); filters a report doesn't use are neither shown nor applied; the last report and top filters are
+  remembered per person (app_kv report_prefs:<user>, re-checked against permissions; Reset clears them); on phones
+  the toolbar and the report filters fold behind a button with a count. npm run check opens /reports?r=overview.
+- **v0.48** Reports step 1: Team Manager role (boards and optional teams, enforced in every report query); navigation
+  in six areas (Overview · Participation · Sessions · Families · Assessments · More Reports) with report chips and the
+  Upcoming and Not signed in shortcuts; old report addresses still work; Reports access limited to teams now gets the
+  full reports with the same team protection.
+- **v0.47** Reports → Claims: By person (level, active, waitlisted, attended, no-shows, attendance %, last attended,
+  next scheduled); All claims (board, level & session, claimed on, canceled on; Claim status → Canceled lists
+  cancellations); a person view from any name (their numbers, attendance by month, upcoming, attendance history,
+  cancellations, waitlist activity, boards; limited to the viewer's boards; PDF/CSV). Bar charts show their values.
+- **v0.46.2** Reports: the header sticks under the top bar like other screens, with the tabs and table headings
+  below it (computers; phones keep one plain scroll).
+- **v0.46.1** Reports: filter panel at the app's standard sizes; Reset Filters and Save View buttons removed.
+- **v0.46** Reports: slim header; top filters (boards, level, team, location, session type, dates: today / this week /
+  this month / custom; default all dates) and a filter bar per report (statuses, when, capacity, coverage, family
+  status, email problem, RSVP answer, search); new RSVP Answers report.
+- **v0.45** Reports & Analytics redesign: navy header with logo, period and boards; Report Filters panel (three rows,
+  Reset, Save View); icon tabs incl. new Teams, Volunteers (Shift coverage) and Waitlists; Session Type, Claim Status
+  and Attendance Status filters.
+- **v0.44** Reports, phase 1: coaches get Reports for their boards automatically; Emails admin-only; assessments,
+  links and contact details scoped by permission; capacity counts only spots taken; toolbar with several boards and
+  quick dates; new Overview (KPI cards that drill down, claims over time, capacity, attendance trend, team
+  participation, upcoming sessions, board utilization, Needs attention with per-board thresholds).
+- **v0.43** Assessment reports: Results (every try), Leaderboard (best by drill, top 5/10/25/all), Best by team (team
+  best, average, median), Records (record holder, and the average by kind of day), plus Improvement / vs attendance /
+  Team improvement. Filters: assessment, testing day (all / all of a kind / one), drill, best or average, top, born
+  from–to, team, search. Each athlete counts once per drill (their best across the chosen days).
 - **v0.42.11** "📏 Add assessment data" on People (each athlete), a board's Access & people (each athlete) and an
   athlete's page: only the testing days that apply to them (a program they're on, no program, or where they have
   scores); one day opens score entry on that athlete with their scores filled in, several show a short list; Back

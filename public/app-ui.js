@@ -56,7 +56,7 @@
     [/^\/admin\/setup\/schedules\/\d+\/copy/, ["band", ".cp-gbar"]],                              // Duplicate
     [/^\/admin\/(setup\/?$|setup\/schedule(\?|$)|setup\/notifications|members|b\/)/, ["band", ".board-tabs", ".sub-tabs"]],   // a board's screens
     [/^\/(admin\/(people|requests|signins|activity|email-log|online|settings\/app)|shadow)/, ["band", ".app-tabs", ".sub-tabs", "head"]],   // other App Settings
-    [/^\/reports/, ["band", ".r-gbar", ".sub-tabs", "head"]],                                        // Reports
+    [/^\/reports/, ["band", ".r-cats", "head"]],                                        // Reports
     [/^\/checkin\/i\//, ["band", ".ck-gbar", ".ck-listbar"]],                                       // a session's check-in
     [/^\/checkin/, ["band", ".ck-gbar"]],                                                          // Check-in day
     [/^\/dashboard/, ["band", ".d-filt"]],                                                         // My Claims
@@ -65,7 +65,7 @@
   ];
   var PHONE_KEEP = {};   // phones: nothing sticks (one plain scroll is far easier with a thumb)
   var plan = (SCREENS.filter(function (r) { return r[0].test(path); })[0] || [0, ["band"]])[1];
-  var bandEl = [].slice.call(document.querySelectorAll(".bh2")).filter(function (e) { return !e.closest("header, dialog"); })[0];
+  var bandEl = [].slice.call(document.querySelectorAll(".bh2, .ra-hd")).filter(function (e) { return !e.closest("header, dialog"); })[0];
   if (bandEl) bandEl.classList.add("page-band");
   if (plan.indexOf(".dir-filters-bar") >= 0) document.documentElement.classList.add("stick-filters");   // People: its toolbar lets the filters row through
   function pieces(sel) {
@@ -171,7 +171,7 @@
   }
   if (PHONE) {
     [].forEach.call(document.querySelectorAll(".act-f, .dir-filters-bar, .r-filters"), function (f) {
-      if (f.closest(".flt") || f.closest("dialog")) return;
+      if (f.closest(".flt") || f.closest("dialog") || f.closest(".rf-panel")) return;   // the Reports filter panel folds itself
       var d = document.createElement("details"), sm = document.createElement("summary"), n = activeCount(f);
       d.className = "flt"; sm.innerHTML = '<span class="flt-ic" aria-hidden="true">⚙</span> Filters' + (n ? ' <b class="flt-n">' + n + ' on</b>' : "") + '<span class="flt-car" aria-hidden="true">▾</span>';
       d.appendChild(sm); f.parentNode.insertBefore(d, f); d.appendChild(f);

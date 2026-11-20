@@ -3,7 +3,7 @@ const { esc } = require("./layout");
 const { page } = require("./admin");
 const PP = require("../people");
 
-const ROLE = { parent: "Parent/guardian", coach: "Coach", volunteer: "Volunteer / outside" };
+const ROLE = { parent: "Parent/guardian", coach: "Coach", manager: "Team manager", volunteer: "Volunteer / outside" };
 const chips = (list, cls = "chip-s") => (list || []).filter(Boolean).map((x) => `<span class="${cls}">${esc(x)}</span>`).join("");
 const kindTag = (p) => p.kind === "adult"
   ? (() => { const rs = [...new Set([...((p.kids || []).length ? ["parent"] : []), ...(p.roles || [])])];
@@ -127,7 +127,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
     </script>` });
 }
 
-function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [], acct = null, history = [], head = null }) {
+function personPage({ managing = [], boardTeams = {}, user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [], acct = null, history = [], head = null }) {
   const ra = p.report_access || {}, mode = ra.mode || "none";
   const name = PP.display(p);
   return page({ title: name, tab: "people", user, flash, xwide: true,
@@ -170,6 +170,14 @@ function personPage({ user, flash, p, boards, claimedElsewhere, parents, kids, a
         <p class="fine">Boards this person takes attendance on. They sign in with ${p.email ? `<b>${esc(p.email)}</b>` : "their email (add one first)"} and see Check-in.</p>
         <form method="post" action="/admin/people/${p.id}/coaching" class="stack">
           ${allBoards.map((b) => `<label class="radio-row"><input type="checkbox" name="boards" value="${b.id}"${coaching.includes(b.id) ? " checked" : ""}${p.email ? "" : " disabled"}> ${esc(b.name)}</label>`).join("") || `<p class="muted small">No boards yet.</p>`}
+          ${p.email && allBoards.length ? `<div class="q-actions"><button class="btn-small" type="submit">Save</button></div>` : ""}
+        </form></section>` : ""}
+      ${p.kind === "adult" ? `<section class="panel side-card" id="manager"><h2>Team manager</h2>
+        <p class="fine">Boards (and teams) this person manages. They see those boards in Reports, only for the teams you tick (none ticked = all teams). No check-in or setup access.</p>
+        <form method="post" action="/admin/people/${p.id}/managing" class="stack">
+          ${allBoards.map((b) => { const m = managing.find((x) => x.schedule_id === b.id), teams = boardTeams[b.id] || [];
+            return `<div class="mg-b"><label class="radio-row"><input type="checkbox" name="mboards" value="${b.id}"${m ? " checked" : ""}${p.email ? "" : " disabled"} onchange="this.closest('.mg-b').querySelector('.mg-t') && (this.closest('.mg-b').querySelector('.mg-t').hidden = !this.checked)"> ${esc(b.name)}</label>
+              ${teams.length ? `<div class="mg-t"${m ? "" : " hidden"}><span class="fine">Teams:</span>${teams.map((t) => `<label class="radio-row"><input type="checkbox" name="teams_${b.id}" value="${esc(t)}"${m && (m.teams || []).includes(t) ? " checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}</div>`; }).join("") || `<p class="muted small">No boards yet.</p>`}
           ${p.email && allBoards.length ? `<div class="q-actions"><button class="btn-small" type="submit">Save</button></div>` : ""}
         </form></section>` : ""}
       ${p.kind === "athlete" ? `<section class="panel side-card" id="self"><h2>Own sign-in &amp; family sharing</h2>

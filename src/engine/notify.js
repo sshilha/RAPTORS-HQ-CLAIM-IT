@@ -22,7 +22,7 @@ async function claimVars(d) {
   const base = process.env.APP_URL || "", cancel = d.cancel_token && d.share_code ? `${base}/s/${d.share_code}/cancel/${d.cancel_token}` : "";
   return { person_first: d.first_name, person_name: [d.first_name, d.last_name].filter(Boolean).join(" "), board_name: d.board_name, session: slotName(d),
     location: d.location || d.event_location || "", organizers: [d.contact_name, d.contact_info].filter(Boolean).join(", "), my_claims_link: `${base}/dashboard`,
-    manage_link: cancel || `${base}/dashboard`, ...(await require("../calendar").links(d.id, d)) };
+    manage_link: cancel || `${base}/dashboard`, ...(await require("../calendar").links(d.id, d)), _ctx: { boardId: d.schedule_id || d.board_id, itemId: d.item_id } };
 }
 // the board's Notifications switches (each claim email on unless turned off)
 const on = (d, k) => { const n = (d.board_settings && d.board_settings.notify) || {}; return n[k] !== false; };

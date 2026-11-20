@@ -123,6 +123,7 @@ function homePage({ top = null, user, flash, claims, boards, extra, admin, coach
     body: `
     <div class="d-wrap">
       ${top ? `<section class="bh2 mc-head"><div class="bh2-l"><span class="bh2-tile dash-tile">${IC.cal}</span>
+        <a class="rf-btn mc-rep" href="/reports?view=family"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>View My Reports</a>
         <div><div class="bh2-t"><h1>My Claims</h1></div><span class="bh2-meta">${esc(top.name)} · ${top.upcoming ? `${top.upcoming} upcoming claim${top.upcoming === 1 ? "" : "s"}${nextTxt ? ` · next: ${esc(nextTxt)}` : ""}` : "nothing claimed yet"}</span></div></div></section>
       <div class="mc-underline"></div>` : ""}
       ${alertRows ? `<div class="d-alerts">${alertRows}</div>` : ""}

@@ -33,7 +33,7 @@ router.get("/", wrap(async (req, res) => {
   // an athlete who signs in themselves: their family, and (18+) what that family can see
   const myFamily = person && person.kind === "athlete" ? (await query(`SELECT coalesce(nullif(trim(p.first_name||' '||p.last_name),''), u.email) AS name FROM parent_athletes pa JOIN users u ON u.id=pa.user_id
       LEFT JOIN athletes p ON p.self_user_id=u.id WHERE pa.athlete_id=$1 ORDER BY 1`, [person.id])).rows.map((r) => r.name) : [];
-  req.user.can_reports = !!scope;
+  req.user.can_reports = !!scope || (await require("../familyData").people(req.user)).length > 0;
   res.send(v.accountPage({ user: req.user, flash: flashFrom(req), u, person, kids, coaching, scope, reportBoards, requests, admin: auth.isAdmin(req.user),
     myFamily, canShare: PP.isAdultAge(person), sms: SMS.enabled(), tab: String(req.query.tab || ""), sub: String(req.query.sub || ""), pendingPhone: req.query.phone || null, devCode: req.query.dc || null }));
 }));

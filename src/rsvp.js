@@ -61,14 +61,15 @@ async function summary(itemId) {
   const eff = E.effective(chain);
   const people = (await query(`SELECT a.id, a.first_name, a.last_name, a.team, m.group_name, m.tags FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
     WHERE m.schedule_id=$1 AND a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name)`, [chain.board.id])).rows;
-  const ans = (await query(`SELECT DISTINCT ON (athlete_id) athlete_id, status, rsvp, note, created_at FROM board_claims
+  const ans = (await query(`SELECT DISTINCT ON (athlete_id) athlete_id, status, rsvp, note, created_at, coalesce(canceled_at, created_at) AS answered_at, attended FROM board_claims
     WHERE item_id=$1 AND (status='confirmed' OR (status='canceled' AND rsvp='no')) ORDER BY athlete_id, id DESC`, [itemId])).rows;
   const byId = new Map(ans.map((r) => [r.athlete_id, r]));
   const out = { going: [], no: [], none: [] };
   for (const p of people) {
     const a = byId.get(p.id);
-    if (a) { (a.status === "confirmed" ? out.going : out.no).push({ ...p, note: a.note }); continue; }
-    const ok = E.check(chain, eff, { athleteId: p.id, member: { group_name: p.group_name, tags: p.tags } });
+    if (a) { (a.status === "confirmed" ? out.going : out.no).push({ ...p, note: a.note, answered_at: a.answered_at, attended: a.status === "confirmed" ? a.attended : null }); continue; }
+    const at = chain.item.starts_at && new Date(chain.item.starts_at) < new Date() ? new Date(new Date(chain.item.starts_at).getTime() - 60e3) : new Date();
+    const ok = E.check(chain, eff, { athleteId: p.id, member: { group_name: p.group_name, tags: p.tags } }, at);
     if (ok.ok || !ok.hidden) out.none.push(p);
   }
   // people who answered but aren't on the board's list anymore still show under their answer
@@ -89,7 +90,7 @@ async function remind(itemId, only = null) {
         ARRAY(SELECT u.email FROM parent_athletes pa JOIN users u ON u.id=pa.user_id WHERE pa.athlete_id=a.id) AS parent_emails FROM athletes a WHERE a.id=$1`, [p.id])).rows[0];
     const to = [...new Set([a.self_email, ...(a.family_emails === false ? [] : a.parent_emails || [])].filter(Boolean))];
     if (!to.length) continue;
-    await require("./emailTemplates").send("rsvp_reminder", to, { person_first: a.first_name, person_name: `${a.first_name} ${a.last_name}`.trim(), board_name: b.name,
+    await require("./emailTemplates").send("rsvp_reminder", to, { _ctx: { boardId: b.id, itemId: it.id }, person_first: a.first_name, person_name: `${a.first_name} ${a.last_name}`.trim(), board_name: b.name,
       session: slotName(it), location: it.location || b.event_location || "", organizers: [b.contact_name, b.contact_info].filter(Boolean).join(", "), answer_link: `${base}/b/${b.id}?p=${a.id}#i${it.id}` });
     n++;
   }

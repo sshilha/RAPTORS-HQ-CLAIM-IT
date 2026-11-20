@@ -41,7 +41,7 @@ async function boardsFor(user, people) {
 }
 
 router.get("/dashboard", wrap(async (req, res) => {
-  req.user.can_reports = !!(await PP.reportScope(req.user));
+  req.user.can_reports = await PP.canReports(req.user);
   const people = await myPeople(req.user);
   const family = [...people.kids, ...(people.me ? [people.me] : [])];
   const ids = family.map((p) => p.id);
@@ -138,7 +138,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   if (!pid && req.cookies && req.cookies[ck]) { const c = req.cookies[ck] === "me" ? "me" : int(req.cookies[ck]); if (fits(c)) pid = c; }   // who they picked last time
   if (!pid && entry.who.length === 1) pid = entry.who[0].id || "me";
   const viewMode0 = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
-  if (!pid) { req.user.can_reports = !!(await PP.reportScope(req.user));
+  if (!pid) { req.user.can_reports = await PP.canReports(req.user);
     return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0, filters: {}, admin: auth.isAdmin(req.user) })); }
   res.cookie(ck, String(pid), { maxAge: 180 * 864e5, sameSite: "lax" });
   if (pid === "me") {   // claiming for themselves: make sure they have a record
@@ -150,7 +150,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   const view = await E.personView(sid, await asPerson(req.user, sid, pid));
   const viewMode = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
   if (req.query.v) res.cookie("ci_view", viewMode, { maxAge: 365 * 864e5, sameSite: "lax" });
-  req.user.can_reports = !!(await PP.reportScope(req.user));
+  req.user.can_reports = await PP.canReports(req.user);
   const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [sid])).rows[0];
   const filters = { act: str(req.query.act), grp: str(req.query.grp), show: ["open", "mine"].includes(req.query.show) ? req.query.show : "" };
   // Group by activity (default) or day; remembered like List/Calendar

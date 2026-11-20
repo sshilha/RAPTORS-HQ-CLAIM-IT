@@ -167,6 +167,7 @@ async function useToken(purpose, t) {
 async function sendInvite(req, userId) {
   const { sendEmail, shell } = require("./email"); const { APP_URL, LABELS } = require("./config");
   const u = (await query(`UPDATE users SET invited_at=now(), setup_required=true WHERE id=$1 RETURNING *`, [userId])).rows[0];
+  await require("./notices").markWelcomed(userId).catch(() => {});   // the Invitation is this account's welcome
   await query(`UPDATE auth_codes SET used_at=now() WHERE user_id=$1 AND purpose='invite' AND used_at IS NULL`, [userId]);   // only the newest invite works
   const t = await issueToken(userId, "invite", null, 7 * 24 * 60);
   const link = `${APP_URL || `${req.protocol}://${req.get("host")}`}/invite?token=${encodeURIComponent(t)}`;

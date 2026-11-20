@@ -2,7 +2,7 @@ const { esc, layout } = require("./layout");
 const A = require("../accounts");
 const { fmtDateTime } = require("../time");
 
-const ROLE = { parent: "Parent/guardian", coach: "Coach", volunteer: "Volunteer / outside participant" };
+const ROLE = { parent: "Parent/guardian", coach: "Coach", manager: "Team manager", volunteer: "Volunteer / outside participant" };
 // a Change row's form: its main button and Cancel share one right-aligned row (Cancel first), like every other form
 const CANCEL = `<button type="button" class="link-dark a-cancel" onclick="var c=this.closest('.a-rowcard'); c.classList.remove('editing'); c.querySelectorAll('form').forEach(function(f){f.reset();});">Cancel</button>`;
 function withCancel(body) {
