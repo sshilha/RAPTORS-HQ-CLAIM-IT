@@ -23,6 +23,7 @@ function ensure() {
     await query(`ALTER TABLE claim_questions ADD COLUMN IF NOT EXISTS parent_when TEXT`);   // …the parent's answer includes this key
     await query(`CREATE TABLE IF NOT EXISTS claim_answers (claim_id INT NOT NULL, question_id INT NOT NULL, value TEXT, answered_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (claim_id, question_id))`);
     await query(`CREATE TABLE IF NOT EXISTS helper_notices (item_id INT PRIMARY KEY, sent_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+    await query(`CREATE TABLE IF NOT EXISTS helper_coach_notices (item_id INT PRIMARY KEY, sent_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   })().catch((e) => { ready = null; throw e; }));
 }
 // The board's original single question (schedules.question, answered into the claim's note) becomes a Short answer
@@ -142,6 +143,8 @@ async function syncHelpers(claimId) {
     const title = String(w.r.label || "Helper for {athlete}").replace(/\{athlete\}/g, `${c.first_name} ${c.last_name || ""}`.trim()).slice(0, 120);
     await query(`INSERT INTO board_items (schedule_id, node_id, title, starts_at, ends_at, capacity, location, settings) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [c.schedule_id, Number(w.r.node), title, c.starts_at, c.ends_at, Math.max(1, Number(w.r.spots) || 1), c.location, JSON.stringify({ helper_claim: claimId, helper_rule: w.key })]);
+    const N = require("./engine/notify"), d = await N.details(claimId);
+    if (d) await require("./emailTemplates").send("helper_requested", N.to(d, null), { ...(await N.claimVars(d)), helper_spot: title }).catch((e) => console.error("helper_requested:", e.message));
   }
   for (const h of have) if (!want.some((w) => w.key === h.settings.helper_rule)) await closeHelper(h, c);
 }
@@ -216,4 +219,27 @@ async function notifyHelpers(now = new Date()) {
   }
   return n;
 }
-module.exports = { tree, moveBoardQuestions, ensure, KINDS, opts, forItem, mapFor, fromBody, clean, save, show, answersFor, fields, afterClaim, afterCancel, syncHelpers, notifyHelpers };
+async function remindCoaches(now = new Date()) {
+  await ensure();
+  const hour = Number(now.toLocaleString("en-US", { timeZone: TZ, hour: "numeric", hour12: false })) % 24; if (hour < 7 || hour >= 21) return 0;
+  const open = (await query(`SELECT i.id, i.title, i.starts_at, i.schedule_id, sc.name AS board, sc.contact_info FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
+    WHERE i.canceled_at IS NULL AND i.settings ? 'helper_claim' AND i.starts_at > $1 AND i.starts_at <= $1::timestamptz + interval '24 hours' AND sc.archived_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM helper_coach_notices n WHERE n.item_id=i.id)
+      AND (SELECT count(*) FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') < i.capacity ORDER BY i.starts_at`, [now])).rows;
+  if (!open.length) return 0;
+  for (const s of open) await query(`INSERT INTO helper_coach_notices (item_id) VALUES ($1) ON CONFLICT DO NOTHING`, [s.id]);   // mark first: never twice
+  const byEmail = new Map();
+  for (const s of open) {
+    let to = (await query(`SELECT email FROM schedule_coaches WHERE schedule_id=$1`, [s.schedule_id])).rows.map((r) => r.email);
+    if (!to.length && /@/.test(s.contact_info || "")) to = [(String(s.contact_info).match(/\S+@\S+\.\S+/) || [])[0]].filter(Boolean);   // no coaches: the organizer contact
+    for (const e of to) { const k = e.toLowerCase(); if (!byEmail.has(k)) byEmail.set(k, []); byEmail.get(k).push(s); }
+  }
+  const when = (t) => new Date(t).toLocaleString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const { APP_URL } = require("./config"); let n = 0;
+  for (const [e, list] of byEmail) {
+    const vars = { count_text: `${list.length} helper spot${list.length === 1 ? "" : "s"}`, first_spot: list[0].title, sessions: list.map((s) => `• ${when(s.starts_at)} · ${s.title} (${s.board})`).join("\n"), reports_link: `${APP_URL || ""}/reports?view=mgmt&r=overview` };
+    try { await require("./emailTemplates").send("helper_unfilled", e, vars); n++; } catch (err) { console.error("helper_unfilled:", err.message); }
+  }
+  return n;
+}
+module.exports = { remindCoaches, tree, moveBoardQuestions, ensure, KINDS, opts, forItem, mapFor, fromBody, clean, save, show, answersFor, fields, afterClaim, afterCancel, syncHelpers, notifyHelpers };

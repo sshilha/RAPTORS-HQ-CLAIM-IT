@@ -347,6 +347,13 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.69.4** Two more helper-spot emails. "Helper requested": when an answer opens a helper spot, the person helped
+  (or their family) hears the request went out and that they'll be emailed when someone signs up. "Helper spot still
+  open": 24 hours before a helper spot's session, if no one has taken it, the board's coaches (or its organizer contact
+  when it has none) get the list of open spots with a link to Reports; once per spot, batched per coach, not 9 PM–7 AM.
+- **v0.69.3** Question answers line up: each radio or checkbox sits on the same line as its label, stacked and
+  left-aligned, with no box around the question and follow-ups indented (the app's general form styles no longer
+  stretch them), in the Claim window, Change answers and admin Add someone.
 - **v0.69.2** Questions are asked when someone taps Claim: a session with questions shows just a Claim button, which
   opens a "Claim this spot" window for that session with its questions (and follow-ups), Cancel and Claim (or Join
   waitlist). Sessions without questions still claim in one tap. A person's own helper spots no longer show on their
