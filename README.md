@@ -347,6 +347,14 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.69.2** Questions are asked when someone taps Claim: a session with questions shows just a Claim button, which
+  opens a "Claim this spot" window for that session with its questions (and follow-ups), Cancel and Claim (or Join
+  waitlist). Sessions without questions still claim in one tap. A person's own helper spots no longer show on their
+  sign-up page.
+- **v0.69.1** Questions page clean-up: a "How questions work" guide at the top, Add a question first, then Your
+  questions grouped by "Asked on: …" with each card tagged Question or Follow-up question and labeled Answers and Rules;
+  help text under every field ("Ask on" is now "Where to ask it", with an example); rules read "When someone answers
+  … → …"; Edit and Remove sit side by side on every screen size.
 - **v0.69** Follow-up questions (cascading rules). New rule action "Ask a follow-up question" on Pick one, Pick any and
   Yes / No answers: a question of any type asked right under its question only when that answer is picked; follow-ups can
   have their own rules and follow-ups (up to 6 levels). Required follow-ups are required only when showing; hidden ones

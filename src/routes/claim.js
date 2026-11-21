@@ -164,6 +164,8 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   const group = ["activity", "day"].includes(req.query.g) ? req.query.g : req.cookies && req.cookies.ci_group === "day" ? "day" : "activity";
   if (req.query.g) res.cookie("ci_group", group, { maxAge: 365 * 864e5, sameSite: "lax" });
   const rsvp = require("../rsvp").isRsvp(entry.board) ? { answers: await require("../rsvp").answersFor(sid, person.id), counts: await require("../rsvp").countsFor(sid) } : null;
+  if (view && person) { const own = new Set((await query(`SELECT i.id FROM board_items i WHERE (i.settings->>'helper_claim')::int IN (SELECT id FROM board_claims WHERE athlete_id=$1 AND status<>'canceled')`, [person.id])).rows.map((r) => r.id));
+    if (own.size) view.items = view.items.filter((r) => !own.has(r.item.id)); }   // your own helper spots aren't for you
   res.send(v.boardPage({ qmap: view ? await require("../questions").mapFor((view.board || {}).id || 0, (view.items || []).map((r) => r.item.id)) : {}, rsvp, user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, group, admin: auth.isAdmin(req.user),
     month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: /^\d{4}-\d{2}-\d{2}$/.test(str(req.query.d)) ? str(req.query.d) : null }));
 }));

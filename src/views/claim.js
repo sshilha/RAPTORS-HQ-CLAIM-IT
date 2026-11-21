@@ -203,9 +203,9 @@ function boardPage({ qmap = {}, user, flash, board, person, who: people, view, m
     const last = w[w.length - 1]; return last.mode === "signed_in" ? "Anyone with an account" : last.mode === "list" ? "Everyone on the list" : `Only ${[...(last.groups || []), ...(last.tags || [])].join(", ")}`; };
   const going = (r) => { const g = r.going || []; if (!g.length) return ""; const mode = board.family_names || "initial"; if (mode === "off") return `${g.length} going`;
     return `Going: ${g.map((x) => mode === "full" ? `${x.first_name} ${x.last_name}` : `${x.first_name} ${(x.last_name || "").slice(0, 1)}.`).join(", ")}`; };
-  const claimForm = (r, big = false) => preview ? `<button type="button" class="b-claim${big ? " big" : ""}" disabled title="Preview only: claiming is off here">${r.full ? "Join waitlist" : "Claim"}</button>` : guest ? `<button type="button" class="b-claim${big ? " big" : ""}" data-guest="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>` : `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
+  const claimForm = (r, big = false) => preview ? `<button type="button" class="b-claim${big ? " big" : ""}" disabled title="Preview only: claiming is off here">${r.full ? "Join waitlist" : "Claim"}</button>` : guest ? `<button type="button" class="b-claim${big ? " big" : ""}" data-guest="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>` : qmap[r.item.id] ? `<button type="button" class="b-claim${big ? " big" : ""}" data-qclaim="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>`
+    : `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
       ${q.label ? `<input name="note" maxlength="120"${q.required ? " required" : ""} placeholder="${esc(q.label)}${q.required ? "" : " (optional)"}" aria-label="${esc(q.label)}">` : ""}
-      ${qmap[r.item.id] ? require("../questions").fields(qmap[r.item.id], { compact: true, esc }) : ""}
       <button class="b-claim${big ? " big" : ""}" type="submit">${r.full ? "Join waitlist" : "Claim"}</button></form>`;
   const cancelForm = (r) => `<form method="post" action="/claims/${r.mine.id}/cancel" class="b-cancelf" onsubmit="return confirm('Cancel this spot for ${esc((person.self_user_id ? "yourself" : person.first_name).replace(/'/g, ""))}? It will open for someone else.')">
       <input type="hidden" name="back" value="${esc(back)}"><button type="submit">Cancel</button></form>`;
@@ -388,6 +388,19 @@ function boardPage({ qmap = {}, user, flash, board, person, who: people, view, m
       window.addEventListener("beforeunload", function () { try { sessionStorage.setItem(key, String(box.scrollTop)); } catch (e) {} });
     })();</script>
     ${dialogs}
+    ${!guest && !preview && person && Object.keys(qmap).length ? `<dialog class="b-dlg" id="q-claim"><div class="b-dlg-h"><span class="b-dlg-t"><b>Claim this spot</b><small class="qc-what"></small></span><button type="button" class="dlg-x qc-x" aria-label="Close">×</button></div>
+      <form method="post" action="/b/${board.id}/claim" class="b-dlg-b a-form qc-form"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item"><input type="hidden" name="back" value="${esc(back)}">
+        <p class="qc-for">For <b>${esc(Name)}</b>. Please answer before claiming.</p>
+        ${q.label ? `<label><span>${esc(q.label)}${q.required ? "" : ` <span class="opt">(optional)</span>`}</span><input name="note" maxlength="120"${q.required ? " required" : ""}></label>` : ""}
+        <div class="qc-q"></div>${Object.entries(qmap).map(([id, qs]) => `<template id="qq-${id}">${require("../questions").fields(qs, { esc })}</template>`).join("")}
+        <div class="b-dlg-act"><button type="button" class="b-cancelf-btn qc-x">Cancel</button><button class="b-claim big qc-go" type="submit">Claim</button></div></form></dialog>
+      <script>(function () { var d = document.getElementById("q-claim"); if (!d) return; var f = d.querySelector("form");
+        document.addEventListener("click", function (e) { var b = e.target.closest("[data-qclaim]"); if (!b) return;
+          f.item.value = b.dataset.qclaim; d.querySelector(".qc-what").textContent = b.dataset.what; d.querySelector(".qc-go").textContent = b.textContent.trim();
+          var t = document.getElementById("qq-" + b.dataset.qclaim); d.querySelector(".qc-q").innerHTML = t ? t.innerHTML : ""; if (window.cqSync) window.cqSync(d);
+          d.showModal(); var first = d.querySelector(".qc-q input, .qc-q select"); if (first) first.focus(); });
+        [].forEach.call(d.querySelectorAll(".qc-x"), function (x) { x.addEventListener("click", function () { d.close(); }); });
+        d.addEventListener("click", function (e) { if (e.target === d) d.close(); }); })();</script>` : ""}
     ${guest ? `<dialog class="b-dlg" id="guest-claim"><div class="b-dlg-h"><span class="b-dlg-t"><b>Claim this spot</b><small class="gc-what"></small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
       <form method="post" action="${basePath}/claim" class="b-dlg-b a-form gc-form"><input type="hidden" name="item"><input type="hidden" name="back" value="${esc(back)}">
         <div class="a-row"><label>First name<input name="first_name" required maxlength="40" autocomplete="given-name"></label><label>Last name<input name="last_name" required maxlength="40" autocomplete="family-name"></label></div>
