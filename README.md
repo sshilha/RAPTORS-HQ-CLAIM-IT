@@ -194,6 +194,12 @@ kind, dates; Download CSV. Kept a year. How it works: every change ends in a con
 src/activity.js records each one (plus check-in taps, which have no message) with the board, person and session it was
 about; claims and cancels from before it existed are filled in once at startup.
 
+### 4.7 Report tests
+`npm run test:reports` checks every report for every role without a browser. Add to `.env`:
+`TEST_DATABASE_URL=postgres://…/claimit_test`, an empty database used only for this (create it once, e.g. `createdb
+claimit_test`). The test refuses to run on a database with real data; re-running clears and rebuilds only its own test
+data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database) and `npm run check` (pages) before a deploy.
+
 ### 4.7a Reports: access and metric definitions
 **Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
 person → Team manager; table board_managers): the boards they manage, optionally limited per board to some teams (none
@@ -341,6 +347,41 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.68** Claim questions and answer rules (src/questions.js; Board → Questions tab). Questions on the whole board or a
+  level (that level's sessions and below): Pick one, Pick any, Yes / No, Short answer, Number; required or optional; shown
+  on rosters/Check-in and the weekly roster. Asked on the sign-up page, the public link and admin Add someone (admins
+  answer required ones too; Override keeps whatever was answered). Answers per claim (claim_answers); families change them
+  on My Claims. Rules on Pick-one and Yes/No answers: Open a helper spot (a linked one-session spot in another level at the
+  same time and place, claimable by whoever that level allows, outside limits, not for the person it helps; closes when
+  the claim is canceled or the answer changes; whoever can take it is emailed, batched, held 9 PM–7 AM), Email someone
+  (coaches, organizer, an address), Add a tag. New emails: Helper spots open, Helper found, Still looking, Helper spot no
+  longer needed, An answer to know about. Reports → Participation → Answers (with counts per answer); Needs attention
+  "Helper still needed" within 3 days; helper spots kept out of low-enrollment and nearly-full alerts. The board's
+  original question (Board defaults → Question) is unchanged. Tests: `npm run test:questions` (13 checks).
+- **v0.67.1** Open leftover spots emails are per family: a family sees only sessions where at least one of their athletes
+  could still sign up (not already claimed or waitlisted, and allowed on that board); a parent's own adult record counts
+  only on volunteer boards. Nothing left for a family = no email. Accounts with no athletes (admins, coaches) get the
+  whole list. The spot count in the subject matches what's listed.
+- **v0.67** Open leftover spots now sends twice per session, each only while spots are open: "Spots open" when the
+  session's leftover window opens (checked every 15 minutes, held from 9 PM to 7 AM), and "Today" at 7 AM the morning of
+  the session. Same-day openings fold into that morning's email (one email, not two); several sessions are batched per
+  family. Board → Notifications: the main switch plus "Also send the morning of the session" (both on by default). New
+  template "Open leftover spots (morning of the session)".
+- **v0.66** Two automatic emails (src/notices.js, run by the 15-minute reminders job). Welcome: every new account gets
+  "New: sign up for Raptors training in Claim It" once (sign-in steps, signing up, releasing a spot, View My Reports);
+  admin invites send the Invitation instead, which now carries the same welcome plus Set up my account. Accounts that
+  existed before v0.66 are marked as welcomed (users.welcome_emailed_at). Open leftover spots: a morning summary (from
+  7 AM Chicago) to everyone with an account listing sessions whose "open leftover spots" time has come and that still
+  have open spots (claimable past a reached limit); only sessions with that setting; nothing when no spots are open; each
+  session announced once (leftover_notices); per-board switch under Board → Notifications (on by default). New templates
+  "Welcome (new account)" and "Open leftover spots (morning summary)" are editable with the others.
+- **v0.65** Report tests in the project: `npm run test:reports` (test/reports.test.js + test/seed-reports.js) builds its own
+  test data in an empty database (TEST_DATABASE_URL in .env; it refuses any database with real data) and checks every
+  report for admin, coach, team manager and parent (loads, layout, no broken values), CSV headings vs the page, no emails
+  for non-admins, what each role may see, every old report address, and key numbers against the database (341 checks).
+  Fixes it found: the Limits report now applies level limits on boards open to signed-in families (it showed only the
+  board-wide limit there); Attendance → Not recorded shows a coach's email only to admins. RSVP eligibility for past
+  events is judged as of just before the event. My Family: "My Progress" renamed "Assessments".
 - **v0.64** "More Reports" becomes RSVP (shown only with RSVP boards in view): one report, Group by Event | Athlete | Answer
   (Answer filter in the Answer view). Shift coverage joins Volunteer hours as Families → Volunteers: Group by Family (hours
   toward the requirement) | Shift (needed, claimed, open, coverage). Old addresses (rsvpAnswers, rsvpAthletes, coverage)

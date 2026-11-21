@@ -344,7 +344,11 @@ router.get("/:sid/items/:iid/people", wrap(async (req, res) => {
     [[...inIds, ...onBoard.map((p) => p.id)]])).rows;
   const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "setup" });
   const rsvp = sc.board_type === "rsvp" ? await require("../rsvp").summary(it.id) : null;
-  res.send(require("../views/board").spotPeoplePage({ rsvp, head, user: req.user, flash: flashFrom(req), sc, it, path: chain ? chain.nodes.map((n) => n.name) : [], people, onBoard, everyone }));
+  const Qm = require("../questions"), qs = await Qm.forItem(it.id), ans = await Qm.answersFor(people.map((p) => p.id));
+  const helpers = {}; for (const h of (await query(`SELECT i.id, i.title, (i.settings->>'helper_claim')::int AS for_claim, (SELECT string_agg(a.first_name || ' ' || coalesce(a.last_name,''), ', ') FROM board_claims c JOIN athletes a ON a.id=c.athlete_id WHERE c.item_id=i.id AND c.status='confirmed') AS who
+      FROM board_items i WHERE i.canceled_at IS NULL AND (i.settings->>'helper_claim')::int = ANY($1)`, [people.map((p) => p.id)])).rows) (helpers[h.for_claim] = helpers[h.for_claim] || []).push(h);
+  const helpedBy = it.settings && it.settings.helper_claim ? (await query(`SELECT a.first_name, a.last_name, i.starts_at FROM board_claims c JOIN athletes a ON a.id=c.athlete_id JOIN board_items i ON i.id=c.item_id WHERE c.id=$1`, [Number(it.settings.helper_claim)])).rows[0] : null;
+  res.send(require("../views/board").spotPeoplePage({ rsvp, head, user: req.user, flash: flashFrom(req), sc, it, path: chain ? chain.nodes.map((n) => n.name) : [], people, onBoard, everyone, qs, ans, helpers, helpedBy }));
 }));
 router.post("/:sid/items/:iid/people/add", wrap(async (req, res) => {
   const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
@@ -354,12 +358,14 @@ router.post("/:sid/items/:iid/people/add", wrap(async (req, res) => {
   const note = str(req.body.note).slice(0, 120) || null, email = req.body.email === "1", override = req.body.override === "1";
   let c;
   try {
-    c = await E.claim({ itemId: it.id, athleteId: aid, userId: req.user.id, note });
+    c = await E.claim({ itemId: it.id, athleteId: aid, userId: req.user.id, note, answers: require("../questions").fromBody(req.body) });
   } catch (e) {
     if (!(e instanceof E.ClaimError)) throw e;
     if (!override) return go(res, back, { err: `${p.first_name} ${p.last_name} can't be added: ${e.message} Check "Override the rules" to add them anyway.` });
     if ((await query(`SELECT 1 FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status<>'canceled'`, [it.id, aid])).rowCount) return go(res, back, { err: `${p.first_name} is already in this spot.` });
     c = (await query(`INSERT INTO board_claims (item_id, athlete_id, booked_by, status, counts, note, override) VALUES ($1,$2,$3,'confirmed',true,$4,true) RETURNING *`, [it.id, aid, req.user.id, note])).rows[0];
+    { const Qm = require("../questions"), qs = await Qm.forItem(it.id); let cl = {}; try { cl = Qm.clean(qs, Qm.fromBody(req.body)); } catch (e) { cl = {}; }   // override: keep whatever was answered
+      await Qm.save(c.id, cl); Qm.afterClaim(c.id).catch((e) => console.error("claim rules:", e.message)); }
   }
   // Override means "put them in the spot": a full spot's waitlist doesn't apply
   if (override && c.status === "waitlisted") c = (await query(`UPDATE board_claims SET status='confirmed', counts=true, override=true WHERE id=$1 RETURNING *`, [c.id])).rows[0];

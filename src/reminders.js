@@ -26,6 +26,7 @@ async function run() {
       try { const k = await require("./rsvp").nudge(); if (k) console.log(`[reminders] reminded ${k} to RSVP`); n += k; } catch (e) { console.error("rsvp reminders:", e.message); }
       try { const k = await require("./notices").welcome(); if (k) console.log(`[reminders] welcomed ${k} new account${k === 1 ? "" : "s"}`); n += k; } catch (e) { console.error("welcome emails:", e.message); }
       try { const k = await require("./notices").leftoverDigest(); if (k) console.log(`[reminders] open-spots summary to ${k}`); n += k; } catch (e) { console.error("open spots summary:", e.message); }
+      try { const k = await require("./questions").notifyHelpers(); if (k) console.log(`[reminders] helper spots: emailed ${k}`); n += k; } catch (e) { console.error("helper spots:", e.message); }
       return n;
     } finally { await c.query(`SELECT pg_advisory_unlock(724311)`); }
   } catch (e) { console.error("reminders:", e.message); return 0; } finally { c.release(); }

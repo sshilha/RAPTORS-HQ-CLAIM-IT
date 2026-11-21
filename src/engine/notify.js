@@ -47,4 +47,4 @@ async function reminder(claimId) {
   const d = await details(claimId); if (!d || d.status !== "confirmed") return;
   await T("claim_reminder", to(d, null), await claimVars(d));
 }
-module.exports = { claimed, canceled, reminder, details };
+module.exports = { details, to, claimVars, claimed, canceled, reminder, details };

@@ -82,6 +82,8 @@ router.get("/i/:id", wrap(async (req, res) => {
   const others = (await query(`SELECT id, first_name, last_name, kind FROM athletes WHERE archived_at IS NULL AND id <> ALL($1) ORDER BY lower(last_name), lower(first_name) LIMIT 800`,
     [[...onIds, ...board.map((p) => p.id)]])).rows;
   const rsvp = it.board_type === "rsvp" ? await require("../rsvp").summary(it.id) : null;   // RSVP: who's going, who can't, who hasn't answered
+  { const A = await require("../questions").answersFor(people.map((p) => p.id));   // claim answers set to show on rosters
+    for (const p of people) p.answers = (A[p.id] || []).filter((a) => (a.q.show || {}).roster !== false); }
   res.send(v.rosterPage({ rsvp, sub: ["roster", "waitlist", "walkin"].includes(req.query.sub) ? req.query.sub : "roster", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people, board, others }));
 }));
 

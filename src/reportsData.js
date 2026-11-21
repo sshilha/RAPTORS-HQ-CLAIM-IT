@@ -32,7 +32,7 @@ function more(f, args) {
 // sessions in range, with their level path and counts
 async function sessions(f) {
   const { boards, from, to, past = false } = f, [lo, hi] = span("$2", "$3"), args = [boards, from, to], x = more(f, args), tj = teamCond(f, args, "i.schedule_id", "c.athlete_id");
-  return (await query(`SELECT i.id, i.title, i.starts_at, i.ends_at, i.capacity, coalesce(nullif(i.location,''), sc.event_location) AS location, i.schedule_id AS board_id, sc.name AS board, sc.board_type, sc.question,
+  return (await query(`SELECT (i.settings ? 'helper_claim') AS helper, i.id, i.title, i.starts_at, i.ends_at, i.capacity, coalesce(nullif(i.location,''), sc.event_location) AS location, i.schedule_id AS board_id, sc.name AS board, sc.board_type, sc.question,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path,
       count(c.*) FILTER (WHERE c.status='confirmed')::int AS claimed, count(c.*) FILTER (WHERE c.status='confirmed' AND c.counts)::int AS taken, count(c.*) FILTER (WHERE c.status='waitlisted')::int AS waitlisted,
@@ -393,9 +393,11 @@ async function weekSheet(f) {
   const start = f.weekFrom, end = new Date(new Date(start + "T12:00:00").getTime() + 6 * 864e5).toISOString().slice(0, 10);
   const list = await sessions({ ...f, from: start, to: end });
   for (const s of list) { const q = s.question || {}; s.showNotes = s.board_type === "rsvp" || !!(q.label && q.week); s.qLabel = s.board_type === "rsvp" ? "" : q.week ? q.label || "" : ""; }
-  for (const s of list) s.people = (await query(`SELECT a.first_name, a.last_name, m.group_name AS team, c.note, c.status FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
+  for (const s of list) s.people = (await query(`SELECT c.id AS claim_id, a.first_name, a.last_name, m.group_name AS team, c.note, c.status FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
       LEFT JOIN schedule_members m ON m.schedule_id=$2 AND m.athlete_id=a.id WHERE c.item_id=$1 AND c.status IN ('confirmed','waitlisted') ORDER BY c.status, lower(a.last_name), lower(a.first_name)`, [s.id, s.board_id])).rows
       .filter((x) => teamAllowed(f, s.board_id, x.team));
+  for (const s of list) { const A = await require("./questions").answersFor(s.people.map((x) => x.claim_id).filter(Boolean));
+      for (const x of s.people) { const extra = (A[x.claim_id] || []).filter((q) => (q.q.show || {}).week !== false).map((q) => `${q.q.label} ${q.text}`); if (extra.length) { x.note = [x.note, ...extra].filter(Boolean).join(" · "); s.showNotes = true; } } }
   return { week: true, start, end, sessions: list };
 }
 
@@ -615,8 +617,9 @@ async function attention(f, all) {
     if (!past && s.waitlisted && s.capacity && s.taken < s.capacity) add("waitopen", 3, "Open spots while people wait", `${s.capacity - s.taken} open · ${s.waitlisted} waiting`, "waitlist");
     if (past && s.unmarked > 0) add("unrecorded", 2, "Attendance not recorded", `${s.unmarked} not checked in`, "checkin");
     if (!past && s.board_type === "volunteer" && s.capacity && s.taken < s.capacity && startsIn <= (Number(t.min_days) || 14)) add("vol", 2, "Volunteer shift needs people", `${s.capacity - s.taken} of ${s.capacity} open`, "session");
-    if (!past && t.min_pct && s.capacity && startsIn >= 0 && startsIn <= (Number(t.min_days) || 0) && fillP < Number(t.min_pct)) add("low", 2, `Low enrollment (under ${t.min_pct}%)`, `${s.taken} / ${s.capacity}`, "session");
-    if (!past && t.near_pct && s.capacity && fillP >= Number(t.near_pct) && s.taken < s.capacity) add("near", 2, `Nearly full (${t.near_pct}%+)`, `${s.taken} / ${s.capacity}`, "session");
+    if (!past && s.helper && s.taken < s.capacity && startsIn <= 3) add("helper", 2, "Helper still needed", `${s.capacity - s.taken} of ${s.capacity} open`, "session");
+    if (!past && !s.helper && t.min_pct && s.capacity && startsIn >= 0 && startsIn <= (Number(t.min_days) || 0) && fillP < Number(t.min_pct)) add("low", 2, `Low enrollment (under ${t.min_pct}%)`, `${s.taken} / ${s.capacity}`, "session");
+    if (!past && !s.helper && t.near_pct && s.capacity && fillP >= Number(t.near_pct) && s.taken < s.capacity) add("near", 2, `Nearly full (${t.near_pct}%+)`, `${s.taken} / ${s.capacity}`, "session");
   }
   const seen = new Set();
   for (const r of (await noshows(f)).rows.filter((r) => r.flag)) { if (seen.has(r.id)) continue; seen.add(r.id); out.push({ kind: "noshows", sev: 2, issue: `Repeated no-shows (${REPEAT}+)`, count: `${r.total} no-shows`, session: r.name, board: "", athlete_id: r.id, when: r.when, action: "person" }); }
@@ -801,6 +804,27 @@ async function progressV(f) {
 async function leadersV(f) { return (f.assess || {}).rank === "records" ? assessRecords(f) : assessLeaders(f); }
 async function teamV(f) { return f.tshow === "improve" ? (f.cmp === "days" ? assessTeams(f) : assessTeamProgress(f)) : assessTeamBest(f); }
 
+
+// ---------- Participation → Answers: claim-question answers, with counts for one question ----------
+async function answersReport(f) {
+  const Qm = require("./questions"); await Qm.ensure();
+  const cl = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })), A = await Qm.answersFor(cl.map((c) => c.id)), rows = [];
+  for (const c of cl) for (const a of A[c.id] || []) {
+    if (f.qq && a.q.id !== Number(f.qq)) continue;
+    rows.push({ id: c.athlete_id, name: nm(c), team: c.team || "", board: c.board, session: [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session", when: c.starts_at, question: a.q.label, answer: a.text, status: stat(c) });
+  }
+  rows.sort((a, b) => new Date(a.when) - new Date(b.when) || a.name.localeCompare(b.name));
+  let summary = null;
+  if (f.qq) { const q = (await query(`SELECT * FROM claim_questions WHERE id=$1`, [Number(f.qq)])).rows[0];
+    if (q && /choice|multi|yesno/.test(q.kind)) summary = [["Answered", rows.length], ...Qm.opts(q).map((o) => [o.label, rows.filter((r) => r.answer.split(", ").includes(o.label)).length])]; }
+  return { summary, cols: [["name", "Athlete"], ["team", "Team"], ["question", "Question"], ["answer", "Answer"], ["session", "Session"], ["when", "When", "dt"], ["board", "Board"], ["status", "Status"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: "Answers to the questions people answer when they claim (Board → Questions). Pick a question to count its answers." };
+}
+async function questionList(f) {   // the questions on the boards in view (for the Answers filter)
+  await require("./questions").ensure();
+  return (await query(`SELECT q.id, q.label, s.name AS board FROM claim_questions q JOIN schedules s ON s.id=q.schedule_id WHERE q.schedule_id = ANY($1) AND q.archived_at IS NULL ORDER BY s.name, q.sort, q.id`, [f.boards])).rows;
+}
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -817,4 +841,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { progressV, leadersV, teamV, sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { answersReport, questionList, progressV, leadersV, teamV, sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

@@ -22,7 +22,7 @@ router.get("/:code", wrap(async (req, res, next) => {
   const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [board.id])).rows[0];
   const mode = ["list", "cal"].includes(req.query.v) ? req.query.v : "list";
   const group = req.query.g === "day" ? "day" : "activity";
-  res.send(v.boardPage({ user: null, flash: flashFrom(req), board, person: null, who: [], view, mode, span, group, guest: { code: req.params.code },
+  res.send(v.boardPage({ qmap: view ? await require("../questions").mapFor((view.board || {}).id || 0, (view.items || []).map((r) => r.item.id)) : {}, user: null, flash: flashFrom(req), board, person: null, who: [], view, mode, span, group, guest: { code: req.params.code },
     filters: { act: str(req.query.act), grp: str(req.query.grp), show: req.query.show === "open" ? "open" : "" },
     month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: null }));
 }));
@@ -42,7 +42,7 @@ router.post("/:code/claim", wrap(async (req, res, next) => {
   if (!p) p = (await query(`INSERT INTO athletes (kind, first_name, last_name, email, roles) VALUES ('adult',$1,$2,$3,'{volunteer}') RETURNING *`, [first, last, email])).rows[0];
   else if (!p.first_name && !p.last_name) await query(`UPDATE athletes SET first_name=$2, last_name=$3 WHERE id=$1`, [p.id, first, last]);
   try {
-    const c = await E.claim({ itemId: item.id, athleteId: p.id, userId: null, note: b.note, member: null });
+    const c = await E.claim({ itemId: item.id, athleteId: p.id, userId: null, note: b.note, member: null, answers: require("../questions").fromBody(b) });
     const t = crypto.randomBytes(24).toString("base64url");
     await query(`UPDATE board_claims SET cancel_token=$2 WHERE id=$1`, [c.id, t]);
     const cancelUrl = `${base(req)}/s/${req.params.code}/cancel/${t}`;

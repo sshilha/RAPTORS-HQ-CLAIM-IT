@@ -1,6 +1,6 @@
 {
   "name": "raptors-claim-it",
-  "version": "0.67.1",
+  "version": "0.68.0",
   "private": true,
   "description": "Raptors Claim It: sign-ups for Chippewa Valley Raptors training, shifts, and events",
   "main": "server.js",
@@ -11,7 +11,8 @@
     "db": "docker compose up -d db",
     "test": "node --env-file=.env test/engine.test.js",
     "check": "node --env-file=.env test/check.js",
-    "test:reports": "node --env-file=.env test/reports.test.js"
+    "test:reports": "node --env-file=.env test/reports.test.js",
+    "test:questions": "node --env-file=.env test/questions.test.js"
   },
   "engines": {
     "node": ">=20"

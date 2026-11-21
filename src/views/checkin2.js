@@ -51,7 +51,7 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
   const row = (p) => `<li class="ck-p" data-claim="${p.id}" data-state="${p.attended === true ? "here" : p.attended === false ? "noshow" : ""}">
       <span class="ck-name"><b>${esc(p.first_name)} ${esc(p.last_name)}</b>
         <small>${[p.group_name, p.walk_in ? "Walk-in" : "", p.counts === false && !p.walk_in && !rsvp ? "Extra spot" : "", p.status === "waitlisted" ? "Waitlist" : ""].filter(Boolean).map(esc).join(" · ")}</small>
-        ${q.label && p.note ? `<small class="ck-ans">${esc(q.label)}: ${esc(p.note)}</small>` : rsvp && p.note ? `<small class="ck-ans">“${esc(p.note)}”</small>` : ""}</span>
+        ${q.label && p.note ? `<small class="ck-ans">${esc(q.label)}: ${esc(p.note)}</small>` : rsvp && p.note ? `<small class="ck-ans">“${esc(p.note)}”</small>` : ""}${(p.answers || []).map((a) => `<small class="ck-ans">${esc(a.q.label)}: <b>${esc(a.text)}</b></small>`).join("")}</span>
       <form method="post" action="/checkin/i/${it.id}/mark" class="ck-btns"><input type="hidden" name="claim" value="${p.id}">
         <button name="state" value="here" class="ck-here" type="submit" aria-label="Here"${ro ? " disabled" : ""}>✓ Here</button>
         <button name="state" value="noshow" class="ck-no" type="submit" aria-label="No-show"${ro ? " disabled" : ""}>✗ No-show</button></form></li>`;
