@@ -53,11 +53,13 @@ function homePage({ top = null, user, flash, claims, boards, extra, admin, coach
   const detailDialogs = [];
   const details = (c) => {
     const q = (c.board && c.board.question) || {}, names = (c.board && c.board.family_names) || "initial";
-    const showAnswer = (g) => q.label && g.note && (admin || q.public !== false || familyIds.has(g.athlete_id));
+    const shown = (g) => [...(q.label && g.note && (admin || q.public !== false || familyIds.has(g.athlete_id)) ? [g.note] : []),
+      ...(g.answers || []).filter((a) => admin || (a.q.show || {}).public || familyIds.has(g.athlete_id)).map((a) => a.text)].join(" · ");
+    const showAnswer = (g) => !!shown(g);
     const nm = (g) => (admin || names === "full" || familyIds.has(g.athlete_id)) ? `${g.first_name} ${g.last_name}` : `${g.first_name} ${(g.last_name || "").slice(0, 1)}.`;
     const conf = c.going.filter((g) => g.status === "confirmed"), wl = c.going.filter((g) => g.status === "waitlisted");
     const hidden = names === "off" && !admin;
-    const list = (arr) => `<ul class="dt-list">${arr.map((g) => `<li${familyIds.has(g.athlete_id) ? ' class="me"' : ""}><b>${esc(hidden && !familyIds.has(g.athlete_id) ? "Someone" : nm(g))}</b>${showAnswer(g) ? `<span>${esc(g.note)}</span>` : ""}</li>`).join("")}</ul>`;
+    const list = (arr) => `<ul class="dt-list">${arr.map((g) => `<li${familyIds.has(g.athlete_id) ? ' class="me"' : ""}><b>${esc(hidden && !familyIds.has(g.athlete_id) ? "Someone" : nm(g))}</b>${showAnswer(g) ? `<span>${esc(shown(g))}</span>` : ""}</li>`).join("")}</ul>`;
     detailDialogs.push(`<dialog class="b-dlg" id="dt${c.id}"><div class="b-dlg-h"><span class="b-dlg-t"><b>${esc(c.path ? c.path.split(" › ").slice(-1)[0] : c.board_name)}</b><small>${esc([c.board_name, ...(c.path ? c.path.split(" › ").slice(0, -1) : [])].join(" • "))}</small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
       <div class="b-dlg-b"><dl class="b-facts"><div><dt>When</dt><dd>${esc(slotName(c))}</dd></div>
         ${c.location || (c.board && c.board.event_location) ? `<div><dt>Where</dt><dd>${P.link(c.location || c.board.event_location)}</dd></div>` : ""}
@@ -406,7 +408,7 @@ function boardPage({ qmap = {}, user, flash, board, person, who: people, view, m
         document.addEventListener("click", function (e) { var b = e.target.closest("[data-guest]"); if (!b) return;
           document.querySelectorAll("dialog[open]").forEach(function (d) { if (d !== gd) d.close(); });
           gf.item.value = b.dataset.guest; gd.querySelector(".gc-what").textContent = b.dataset.what;
-          var gt = document.getElementById("gq-" + b.dataset.guest), gs = gd.querySelector(".gc-q"); if (gs) gs.innerHTML = gt ? gt.innerHTML : ""; gd.showModal(); (gf.first_name.value ? gf.querySelector("[name=note]") || gf.email : gf.first_name).focus(); });
+          var gt = document.getElementById("gq-" + b.dataset.guest), gs = gd.querySelector(".gc-q"); if (gs) gs.innerHTML = gt ? gt.innerHTML : ""; if (window.cqSync) window.cqSync(gd); gd.showModal(); (gf.first_name.value ? gf.querySelector("[name=note]") || gf.email : gf.first_name).focus(); });
         gd.querySelector(".gc-x").addEventListener("click", function () { gd.close(); });
         gf.addEventListener("submit", function () { if (window.SHADOW_GUEST) return; try { localStorage.setItem("ci-guest", JSON.stringify({ first_name: gf.first_name.value, last_name: gf.last_name.value, email: gf.email.value })); } catch (e) {} });
       }

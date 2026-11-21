@@ -97,6 +97,7 @@ async function start() {
   await require("./accounts").migrate(); // passwords, codes, family requests
   { const n = await require("./engine").recountClaims(); if (n) console.log(`Recounted claims: ${n} fixed`); }
   await require("./locations").migrate(); // saved places (names from older lists, addresses added in ⚙ App)
+  await require("./questions").ensure(); await require("./questions").moveBoardQuestions(); // claim questions; each board's original question moves to its Questions tab
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => console.log(`${require("./config").LABELS.app_name} running on port ${PORT}`));

@@ -397,7 +397,7 @@ async function weekSheet(f) {
       LEFT JOIN schedule_members m ON m.schedule_id=$2 AND m.athlete_id=a.id WHERE c.item_id=$1 AND c.status IN ('confirmed','waitlisted') ORDER BY c.status, lower(a.last_name), lower(a.first_name)`, [s.id, s.board_id])).rows
       .filter((x) => teamAllowed(f, s.board_id, x.team));
   for (const s of list) { const A = await require("./questions").answersFor(s.people.map((x) => x.claim_id).filter(Boolean));
-      for (const x of s.people) { const extra = (A[x.claim_id] || []).filter((q) => (q.q.show || {}).week !== false).map((q) => `${q.q.label} ${q.text}`); if (extra.length) { x.note = [x.note, ...extra].filter(Boolean).join(" · "); s.showNotes = true; } } }
+      for (const x of s.people) { const extra = (A[x.claim_id] || []).filter((q) => (q.q.show || {}).week !== false).map((q) => `${q.q.label} ${q.text}`); if (extra.length) { x.note = [s.qLabel || s.board_type === "rsvp" ? x.note : null, ...extra].filter(Boolean).join(" · "); s.showNotes = true; } } }
   return { week: true, start, end, sessions: list };
 }
 

@@ -347,6 +347,18 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.69** Follow-up questions (cascading rules). New rule action "Ask a follow-up question" on Pick one, Pick any and
+  Yes / No answers: a question of any type asked right under its question only when that answer is picked; follow-ups can
+  have their own rules and follow-ups (up to 6 levels). Required follow-ups are required only when showing; hidden ones
+  are ignored; changing an answer clears follow-ups that no longer apply (and their rules' effects, e.g. a helper spot
+  closes). Works on the sign-up page, the public link, admin Add someone and Change answers (public/app-ui.js shows and
+  hides them). Questions tab nests follow-ups under the answer that asks them; moving a question moves its follow-ups;
+  removing a question or one of its answers removes the follow-ups below. Questions test: 17 checks.
+- **v0.68.1** One place for questions: at startup, each board's original question (Board defaults → Question) moves to
+  its Questions tab as a Short answer question with the same settings and every past answer (copied from the claim note;
+  the original is kept in settings.legacy_question). Board defaults now points to the Questions tab (RSVP boards keep
+  the original question). New option per question: Show answers to other families (in a session's Details; families
+  always see their own). The weekly roster no longer repeats a moved answer.
 - **v0.68** Claim questions and answer rules (src/questions.js; Board → Questions tab). Questions on the whole board or a
   level (that level's sessions and below): Pick one, Pick any, Yes / No, Short answer, Number; required or optional; shown
   on rosters/Check-in and the weekly roster. Asked on the sign-up page, the public link and admin Add someone (admins
@@ -357,7 +369,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
   (coaches, organizer, an address), Add a tag. New emails: Helper spots open, Helper found, Still looking, Helper spot no
   longer needed, An answer to know about. Reports → Participation → Answers (with counts per answer); Needs attention
   "Helper still needed" within 3 days; helper spots kept out of low-enrollment and nearly-full alerts. The board's
-  original question (Board defaults → Question) is unchanged. Tests: `npm run test:questions` (13 checks).
+  original question (Board defaults → Question) is unchanged. Tests: `npm run test:questions` (17 checks).
 - **v0.67.1** Open leftover spots emails are per family: a family sees only sessions where at least one of their athletes
   could still sign up (not already claimed or waitlisted, and allowed on that board); a parent's own adult record counts
   only on volunteer boards. Nothing left for a family = no email. Accounts with no athletes (admins, coaches) get the

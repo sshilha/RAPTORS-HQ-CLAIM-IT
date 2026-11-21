@@ -19,9 +19,39 @@ function ensure() {
     await query(`CREATE TABLE IF NOT EXISTS claim_questions (id SERIAL PRIMARY KEY, schedule_id INT NOT NULL, node_id INT, sort INT NOT NULL DEFAULT 0,
       label TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'choice', options JSONB NOT NULL DEFAULT '[]', required BOOLEAN NOT NULL DEFAULT true,
       show JSONB NOT NULL DEFAULT '{"roster": true, "week": true}', rules JSONB NOT NULL DEFAULT '[]', archived_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+    await query(`ALTER TABLE claim_questions ADD COLUMN IF NOT EXISTS parent_id INT`);      // follow-up: asked only when…
+    await query(`ALTER TABLE claim_questions ADD COLUMN IF NOT EXISTS parent_when TEXT`);   // …the parent's answer includes this key
     await query(`CREATE TABLE IF NOT EXISTS claim_answers (claim_id INT NOT NULL, question_id INT NOT NULL, value TEXT, answered_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (claim_id, question_id))`);
     await query(`CREATE TABLE IF NOT EXISTS helper_notices (item_id INT PRIMARY KEY, sent_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   })().catch((e) => { ready = null; throw e; }));
+}
+// The board's original single question (schedules.question, answered into the claim's note) becomes a Short answer
+// question on the Questions tab, with its settings and every past answer. RSVP boards keep theirs (no Questions tab).
+// Runs only at app startup (src/app.js), never in the middle of a claim; the original question still works until then.
+// The original is kept in settings.legacy_question for the record; the claim notes are left as they were.
+async function moveBoardQuestions() {
+  const boards = (await query(`SELECT id, question FROM schedules WHERE coalesce(board_type,'training') <> 'rsvp' AND coalesce(question->>'label','') <> ''`)).rows;
+  for (const b of boards) {
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      const q = b.question, qid = (await c.query(`INSERT INTO claim_questions (schedule_id, node_id, sort, label, kind, options, required, show) VALUES ($1,NULL,-1,$2,'text','[]',$3,$4) RETURNING id`,
+        [b.id, String(q.label).slice(0, 160), !!q.required, JSON.stringify({ roster: true, week: !!q.week, public: q.public !== false })])).rows[0].id;
+      await c.query(`INSERT INTO claim_answers (claim_id, question_id, value, answered_at) SELECT c.id, $2, left(trim(c.note), 200), c.created_at FROM board_claims c JOIN board_items i ON i.id=c.item_id
+        WHERE i.schedule_id=$1 AND coalesce(trim(c.note),'') <> '' ON CONFLICT DO NOTHING`, [b.id, qid]);
+      await c.query(`UPDATE schedules SET question=NULL, settings = coalesce(settings,'{}'::jsonb) || jsonb_build_object('legacy_question', $2::jsonb, 'legacy_question_id', $3::int) WHERE id=$1`, [b.id, JSON.stringify(q), qid]);
+      await c.query("COMMIT");
+      console.log(`[questions] moved "${q.label}" on board ${b.id} to the Questions tab`);
+    } catch (e) { await c.query("ROLLBACK"); console.error("moving a board question:", e.message); } finally { c.release(); }
+  }
+}
+// questions in asking order: each question followed by its follow-ups (depth-first); orphans (parent removed) dropped
+function tree(qs) {
+  const kids = new Map(), ids = new Set(qs.map((q) => q.id)), out = [];
+  for (const q of qs) if (q.parent_id && ids.has(q.parent_id)) { if (!kids.has(q.parent_id)) kids.set(q.parent_id, []); kids.get(q.parent_id).push(q); }
+  const walk = (q, depth) => { if (depth > 6) return; out.push(Object.assign(q, { depth })); for (const k of kids.get(q.id) || []) walk(k, depth + 1); };
+  for (const q of qs) if (!q.parent_id) walk(q, 0);
+  return out;
 }
 const opts = (q) => (q.kind === "yesno" ? [{ key: "yes", label: "Yes" }, { key: "no", label: "No" }] : (q.options || []).map((o, i) => (typeof o === "string" ? { key: `o${i}`, label: o } : o)));
 // the questions a session asks (board-wide first, then each level from the top down)
@@ -31,7 +61,7 @@ async function forItem(itemId, db = { query }) {
   const chain = []; let n = it.node_id;
   while (n) { const r = (await db.query(`SELECT id, parent_id FROM board_nodes WHERE id=$1`, [n])).rows[0]; if (!r) break; chain.unshift(r.id); n = r.parent_id; }
   const qs = (await db.query(`SELECT * FROM claim_questions WHERE schedule_id=$1 AND archived_at IS NULL AND (node_id IS NULL OR node_id = ANY($2)) ORDER BY sort, id`, [it.schedule_id, chain])).rows;
-  return qs.sort((a, b) => (a.node_id ? chain.indexOf(a.node_id) + 1 : 0) - (b.node_id ? chain.indexOf(b.node_id) + 1 : 0) || a.sort - b.sort || a.id - b.id);
+  return tree(qs.sort((a, b) => (a.node_id ? chain.indexOf(a.node_id) + 1 : 0) - (b.node_id ? chain.indexOf(b.node_id) + 1 : 0) || a.sort - b.sort || a.id - b.id));
 }
 // questions for many sessions of one board at once: { itemId: [questions] } (empty when the board has none)
 async function mapFor(boardId, itemIds) {
@@ -41,7 +71,7 @@ async function mapFor(boardId, itemIds) {
   const items = (await query(`SELECT id, node_id FROM board_items WHERE id = ANY($1)`, [itemIds])).rows, out = {};
   for (const it of items) { const chain = []; let n = nodes.get(it.node_id); while (n) { chain.unshift(n.id); n = nodes.get(n.parent_id); }
     const mine = qs.filter((q) => !q.node_id || chain.includes(q.node_id)).sort((a, b) => (a.node_id ? chain.indexOf(a.node_id) + 1 : 0) - (b.node_id ? chain.indexOf(b.node_id) + 1 : 0) || a.sort - b.sort || a.id - b.id);
-    if (mine.length) out[it.id] = mine; }
+    if (mine.length) out[it.id] = tree(mine.map((q) => ({ ...q }))); }
   return out;
 }
 // read answers out of a submitted form (fields q_<id>)
@@ -52,8 +82,10 @@ function fromBody(body = {}) {
 }
 // check and clean answers; throws a plain-language message for a missing or invalid required answer
 function clean(qs, answers = {}) {
-  const out = {};
+  const out = {}, live = new Set();
   for (const q of qs) {
+    if (q.parent_id) { if (!live.has(q.parent_id) || !String(out[q.parent_id] || "").split(",").includes(String(q.parent_when))) continue; }   // follow-up not showing
+    live.add(q.id);
     const raw = (answers[q.id] || answers[String(q.id)] || []).map((x) => String(x).trim()).filter(Boolean);
     let v = null;
     if (q.kind === "choice" || q.kind === "yesno") { const keys = opts(q).map((o) => o.key); v = raw.find((x) => keys.includes(x)) || null; }
@@ -65,7 +97,8 @@ function clean(qs, answers = {}) {
   }
   return out;
 }
-async function save(claimId, cleaned, db = { query }) {
+async function save(claimId, cleaned, db = { query }, qs = null) {
+  if (qs) { const drop = qs.map((q) => q.id).filter((id) => !(id in cleaned)); if (drop.length) await db.query(`DELETE FROM claim_answers WHERE claim_id=$1 AND question_id = ANY($2)`, [claimId, drop]); }
   for (const [qid, v] of Object.entries(cleaned)) await db.query(`INSERT INTO claim_answers (claim_id, question_id, value) VALUES ($1,$2,$3) ON CONFLICT (claim_id, question_id) DO UPDATE SET value=EXCLUDED.value, answered_at=now()`, [claimId, Number(qid), v]);
 }
 // how an answer reads
@@ -82,12 +115,13 @@ async function answersFor(claimIds) {   // { claimId: [{ q, value, text }] }
 }
 // form fields for a session's questions (names q_<id>)
 function fields(qs, { answers = {}, compact = false, esc = (x) => String(x) } = {}) {
-  return qs.map((q) => {
+  return tree(qs.map((q) => ({ ...q }))).map((q) => `<div class="cq-f${q.parent_id ? " cq-follow" : ""}" data-q="${q.id}"${q.parent_id ? ` data-parent="${q.parent_id}" data-when="${esc(q.parent_when)}" style="--d:${q.depth}"` : ""}>${field(q)}</div>`).join("");
+  function field(q) {
     const cur = String(answers[q.id] || ""), req = q.required ? " required" : "", lab = `${esc(q.label)}${q.required ? "" : ' <span class="opt">(optional)</span>'}`;
     if (q.kind === "choice" || q.kind === "yesno") return `<fieldset class="cq${compact ? " cq-c" : ""}"><legend>${lab}</legend>${opts(q).map((o) => `<label class="cq-o"><input type="radio" name="q_${q.id}" value="${esc(o.key)}"${cur === o.key ? " checked" : ""}${req}> ${esc(o.label)}</label>`).join("")}</fieldset>`;
     if (q.kind === "multi") return `<fieldset class="cq${compact ? " cq-c" : ""}"><legend>${lab}</legend>${opts(q).map((o) => `<label class="cq-o"><input type="checkbox" name="q_${q.id}" value="${esc(o.key)}"${cur.split(",").includes(o.key) ? " checked" : ""}> ${esc(o.label)}</label>`).join("")}</fieldset>`;
     return `<label class="cq${compact ? " cq-c" : ""}"><span>${lab}</span><input name="q_${q.id}" ${q.kind === "number" ? 'type="number" inputmode="decimal"' : 'maxlength="200"'} value="${esc(cur)}"${req}></label>`;
-  }).join("");
+  }
 }
 
 // ---------- rules ----------
@@ -182,4 +216,4 @@ async function notifyHelpers(now = new Date()) {
   }
   return n;
 }
-module.exports = { ensure, KINDS, opts, forItem, mapFor, fromBody, clean, save, show, answersFor, fields, afterClaim, afterCancel, syncHelpers, notifyHelpers };
+module.exports = { tree, moveBoardQuestions, ensure, KINDS, opts, forItem, mapFor, fromBody, clean, save, show, answersFor, fields, afterClaim, afterCancel, syncHelpers, notifyHelpers };

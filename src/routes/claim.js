@@ -79,10 +79,11 @@ router.get("/dashboard", wrap(async (req, res) => {
     for (const c of claims) { c.answers = A[c.id] || []; c.qs = qByBoard[c.item_id] || []; c.helpers = hs.filter((h) => h.for_claim === c.id); } }
   // for Details: everyone on each claimed spot (names + answers), and each board's sharing settings
   const itemIds = [...new Set(claims.map((c) => c.item_id))];
-  const goingAll = itemIds.length ? (await query(`SELECT c.item_id, c.status, c.note, c.athlete_id, a.first_name, a.last_name FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
+  const goingAll = itemIds.length ? (await query(`SELECT c.id, c.item_id, c.status, c.note, c.athlete_id, a.first_name, a.last_name FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
     WHERE c.item_id = ANY($1) AND c.status<>'canceled' ORDER BY c.status, c.created_at, c.id`, [itemIds])).rows : [];
   const boardInfo = itemIds.length ? (await query(`SELECT DISTINCT sc.id, sc.family_names, sc.question, sc.event_location FROM schedules sc JOIN board_items i ON i.schedule_id=sc.id WHERE i.id = ANY($1)`, [itemIds])).rows : [];
   const caps = itemIds.length ? (await query(`SELECT id, capacity FROM board_items WHERE id = ANY($1)`, [itemIds])).rows : [];
+  { const GA = await require("../questions").answersFor(goingAll.map((g) => g.id)); for (const g of goingAll) g.answers = GA[g.id] || []; }
   for (const c of claims) {
     c.going = goingAll.filter((g) => g.item_id === c.item_id);
     c.board = boardInfo.find((b) => b.id === c.schedule_id) || {};
@@ -214,8 +215,9 @@ router.post("/claims/:id/answers", wrap(async (req, res) => {
   if (!c || !mine.has(c.athlete_id) || c.status === "canceled") return go(res, "/dashboard", { err: "That claim isn't yours to change." });
   if (c.starts_at && new Date(c.starts_at) <= new Date()) return go(res, "/dashboard", { err: "That session has already started." });
   const Qm = require("../questions"); let cl;
-  try { cl = Qm.clean(await Qm.forItem(c.item_id), Qm.fromBody(req.body)); } catch (e) { return go(res, "/dashboard", { err: e.message }); }
-  await Qm.save(c.id, cl); await Qm.afterClaim(c.id);
+  const qs = await Qm.forItem(c.item_id);
+  try { cl = Qm.clean(qs, Qm.fromBody(req.body)); } catch (e) { return go(res, "/dashboard", { err: e.message }); }
+  await Qm.save(c.id, cl, undefined, qs); await Qm.afterClaim(c.id);   // answers to follow-ups no longer asked are cleared
   go(res, "/dashboard", { ok: "Answers saved." });
 }));
 router.post("/claims/:id/cancel", wrap(async (req, res) => {

@@ -63,6 +63,17 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     ok("answering 'I need a catcher' again opens a new spot", (await open(pc.id)).length === 1);
     await E.cancel({ claimId: pc.id, admin: true }); await wait(800);
     ok("the pitcher canceling closes the helper spot", (await open(pc.id)).length === 0);
+    // 8. follow-ups: "I have a catcher" → "Who is your catcher?" (required only when asked); cleared when the answer changes
+    const fq = (await query(`INSERT INTO claim_questions (schedule_id, node_id, parent_id, parent_when, label, kind, required) VALUES ($1,$2,$3,'o0','Who is your catcher?','text',true) RETURNING id`, [B, P, qid])).rows[0].id;
+    msg = ""; try { await E.claim({ itemId: ps, athleteId: D.A.Ava, userId: uid, member: ava, answers: { [qid]: ["o0"] } }); } catch (e) { msg = e.message; }
+    ok("a follow-up is required once its answer is picked", /Please answer: Who is your catcher/.test(msg), msg);
+    const c2 = await E.claim({ itemId: ps, athleteId: D.A.Ava, userId: uid, member: ava, answers: { [qid]: ["o1"], [fq]: ["ignored"] } }); await wait(800);
+    ok("a follow-up that isn't asked is ignored", !(await query(`SELECT 1 FROM claim_answers WHERE claim_id=$1 AND question_id=$2`, [c2.id, fq])).rowCount);
+    const qs2 = await Q.forItem(ps);
+    await Q.save(c2.id, Q.clean(qs2, { [qid]: ["o0"], [fq]: ["Kira"] }), undefined, qs2);
+    ok("answering the follow-up saves it", (await query(`SELECT value FROM claim_answers WHERE claim_id=$1 AND question_id=$2`, [c2.id, fq])).rows[0]?.value === "Kira");
+    await Q.save(c2.id, Q.clean(qs2, { [qid]: ["o1"] }), undefined, qs2);
+    ok("changing the answer clears the follow-up", !(await query(`SELECT 1 FROM claim_answers WHERE claim_id=$1 AND question_id=$2`, [c2.id, fq])).rowCount);
   } catch (e) { ok("test run", false, e.message); }
   finally { await pool.end().catch(() => {}); }
   const failed = results.filter((r) => !r.pass);

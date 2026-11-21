@@ -224,3 +224,26 @@
   }
   if (document.readyState === "complete") restore(); else window.addEventListener("load", restore);
 })();
+
+// Claim questions: show a follow-up only when its question's answer includes the trigger; hidden ones are disabled
+// (not required, not sent). Runs on load, on every change, and when a claim dialog fills in its questions.
+(function () {
+  function val(form, id) {
+    var out = []; [].forEach.call(form.querySelectorAll('[name="q_' + id + '"]'), function (el) {
+      if (el.disabled) return; if ((el.type === "radio" || el.type === "checkbox") ? el.checked : el.value.trim()) out.push(el.type === "radio" || el.type === "checkbox" ? el.value : el.value.trim()); });
+    return out;
+  }
+  function sync(root) {
+    [].forEach.call((root || document).querySelectorAll("form"), function (form) {
+      var list = form.querySelectorAll(".cq-f[data-parent]"); if (!list.length) return;
+      for (var pass = 0; pass < 7; pass++) [].forEach.call(list, function (f) {   // repeat so follow-ups of follow-ups settle
+        var parent = form.querySelector('.cq-f[data-q="' + f.dataset.parent + '"]');
+        var on = !!parent && !parent.hidden && val(form, f.dataset.parent).indexOf(f.dataset.when) >= 0;
+        f.hidden = !on; [].forEach.call(f.querySelectorAll("input, select, textarea"), function (el) { el.disabled = !on; });
+      });
+    });
+  }
+  window.cqSync = sync;
+  document.addEventListener("change", function (e) { if (e.target.closest && e.target.closest(".cq-f")) sync(e.target.form ? e.target.form.parentNode : document); });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { sync(); }); else sync();
+})();
