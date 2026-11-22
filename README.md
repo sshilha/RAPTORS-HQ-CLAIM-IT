@@ -347,6 +347,17 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.71** Assessment context. Drills get "What it measures" (assess_drills.description; shown to families). Admins
+  and coaches, on an athlete's assessment view in Reports: next testing day; per drill, on their latest testing day,
+  rank and share beaten in their age group, age-group and team averages, and the age group's top-quarter mark (or "in
+  the top quarter"); also in the CSV. Families (My Family → Assessments): next testing day for their programs, what each
+  drill measures, Personal best badges and a PB tag on their best-ever try; no ranks or other athletes' scores.
+- **v0.70** Assessments: new Reports → Assessments → Testing day (one testing day, the latest by default): summary cards
+  (athletes tested, drills, tries) and a card per drill with the best score and who set it, a bar chart of the top 10
+  (scaled from the weakest shown to the best) and average / median / tested; table for CSV and PDF. Group by Everyone /
+  Team / Age group on Testing day and Leaderboard (age group = the athlete's age group, or their age that year from the
+  birth year). My Family → Assessments shows every try per testing day under each drill, best try highlighted. Report
+  tests: 374 checks.
 - **v0.69.4** Two more helper-spot emails. "Helper requested": when an answer opens a helper spot, the person helped
   (or their family) hears the request went out and that they'll be emailed when someone signs up. "Helper spot still
   open": 24 hours before a helper spot's session, if no one has taken it, the board's coaches (or its organizer contact
@@ -405,7 +416,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 - **v0.65** Report tests in the project: `npm run test:reports` (test/reports.test.js + test/seed-reports.js) builds its own
   test data in an empty database (TEST_DATABASE_URL in .env; it refuses any database with real data) and checks every
   report for admin, coach, team manager and parent (loads, layout, no broken values), CSV headings vs the page, no emails
-  for non-admins, what each role may see, every old report address, and key numbers against the database (341 checks).
+  for non-admins, what each role may see, every old report address, and key numbers against the database (374 checks).
   Fixes it found: the Limits report now applies level limits on boards open to signed-in families (it showed only the
   board-wide limit there); Attendance → Not recorded shows a coach's email only to admins. RSVP eligibility for past
   events is judged as of just before the event. My Family: "My Progress" renamed "Assessments".

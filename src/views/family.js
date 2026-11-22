@@ -50,11 +50,15 @@ function familyPage({ user, flash, admin, people, sel, r, data, url, mgmt, board
         ${A.months.map((m) => `<tr><td>${esc(m.label)}</td><td class="num">${m.here}</td><td class="num">${m.ns}</td><td class="num">${m.nr}</td><td class="num">${m.rate == null ? "—" : m.rate + "%"}</td></tr>`).join("")}</tbody></table></div></section>
       <section class="db-card"><h3>Session history</h3><div class="fm-list">${A.history.map((c) => `<div class="fm-c fm-row"><span>${esc(when(c.starts_at))}</span><span>${esc(people.length > 1 ? c.who + " · " : "")}${esc(c.session)}</span>${tag(c.att)}</div>`).join("")}</div></section>`;
   } else if (r === "fProgress") {
-    body = !data.length ? empty("No shared assessment results yet.", "Results appear here once the club shares a testing day with families.") :
-      `<div class="db-grid">${data.map((p) => `<section class="db-card"><h3>${esc(p.drill)}${p.unit ? ` <span class="fine">(${esc(p.unit)})</span>` : ""}${p.pb ? ` <span class="pb">Personal best</span>` : ""}</h3>
+    const nx = (data.next || []).map((n) => `<div class="fm-next">📅 Next testing day: <b>${esc(n.assessment)} · ${esc(n.kind)}</b>, ${esc(new Date(String(n.day.toISOString ? n.day.toISOString() : n.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))}</div>`).join("");
+    body = !data.length ? `${nx}${empty("No shared assessment results yet.", "Results appear here once the club shares a testing day with families.")}` :
+      `${nx}<div class="db-grid">${data.map((p) => `<section class="db-card"><h3>${esc(p.drill)}${p.unit ? ` <span class="fine">(${esc(p.unit)})</span>` : ""}${p.pb ? ` <span class="pb">Personal best</span>` : ""}</h3>
+        ${p.desc ? `<p class="fm-desc">${esc(p.desc)}</p>` : ""}
         <p class="fine">${esc(people.length > 1 ? (byId.get(p.athlete_id) || {}).first_name + " · " : "")}${esc(p.assessment)} · ${p.better === "higher" ? "higher is better" : "lower is better"}</p>
         ${p.points.length > 1 ? R.barChart(p.points, { line: true }) : ""}
-        <p class="pv-sum">${esc(p.summary)}</p><p class="fine">First ${p.first} · Latest ${p.latest} · Best ${p.best} · ${p.tests} test${p.tests === 1 ? "" : "s"}</p></section>`).join("")}</div>`;
+        <p class="pv-sum">${esc(p.summary)}</p><p class="fine">First ${p.first} · Latest ${p.latest} · Best ${p.best} · ${p.tests} test${p.tests === 1 ? "" : "s"}</p>
+        ${(() => { const n = Math.max(1, ...(p.tries || []).map((d) => d.tries.length)), pbShown = new Set(); return (p.tries || []).length ? `<div class="table-wrap"><table class="r-table fm-tries" data-nosort><thead><tr><th>Tries</th>${[...Array(n)].map((_, i) => `<th>${i + 1}</th>`).join("")}<th>Best</th></tr></thead><tbody>
+          ${p.tries.map((d) => `<tr><td>${esc(d.label)}</td>${[...Array(n)].map((_, i) => { const v = d.tries[i]; return `<td class="r-num${v != null && v === d.best ? " fm-best" : ""}">${v == null ? "—" : v}${v != null && v === p.best && !pbShown.has(p) && pbShown.add(p) ? ` <span class="pb pb-s" title="Personal best">PB</span>` : ""}</td>`; }).join("")}<td class="r-num"><b>${d.best == null ? "—" : d.best}</b></td></tr>`).join("")}</tbody></table></div>` : ""; })()}</section>`).join("")}</div>`;
   } else if (r === "fSchedule" && mode === "cal") {
     // a month grid; each session is a chip linking to its card below
     const [y, mo] = month.split("-").map(Number), first = new Date(Date.UTC(y, mo - 1, 1)), daysIn = new Date(Date.UTC(y, mo, 0)).getUTCDate(), lead = first.getUTCDay();

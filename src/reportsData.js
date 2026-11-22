@@ -475,7 +475,7 @@ async function assessScores(f) {
   let drills = [...new Map([...own.values()].map((dr) => [dr.id, dr])).values()].sort((a, b) => (a.sort || 0) - (b.sort || 0));
   if (x.drill) drills = drills.filter((dr) => dr.id === Number(x.drill));
   const ids = drills.map((d) => d.id); if (!ids.length) return { rows: [], days, drills };
-  const res = (await query(`SELECT r.day_id, r.athlete_id, r.drill_id, r.attempt, r.value, a.first_name, a.last_name, a.birth_year,
+  const res = (await query(`SELECT r.day_id, r.athlete_id, r.drill_id, r.attempt, r.value, a.first_name, a.last_name, a.birth_year, a.age_group,
       coalesce((SELECT m.group_name FROM schedule_members m JOIN assess_days d ON d.id=r.day_id WHERE m.schedule_id=d.board_id AND m.athlete_id=a.id), a.team) AS team
     FROM assess_results r JOIN athletes a ON a.id=r.athlete_id WHERE r.day_id = ANY($1) AND r.drill_id = ANY($2)
       ${f.scoped ? `AND EXISTS (SELECT 1 FROM schedule_members m WHERE m.athlete_id=a.id AND m.schedule_id = ANY($3)${f.teamsBy ? " AND (NOT ($4::jsonb ? m.schedule_id::text) OR ($4::jsonb -> m.schedule_id::text) ? m.group_name)" : ""})` : ""} ORDER BY r.attempt`,
@@ -485,7 +485,7 @@ async function assessScores(f) {
     if (f.team && r.team !== f.team) continue;
     if (x.bornFrom && !(r.birth_year >= x.bornFrom)) continue; if (x.bornTo && !(r.birth_year <= x.bornTo)) continue;
     const k = `${r.athlete_id}|${r.day_id}|${r.drill_id}`;
-    if (!by.has(k)) by.set(k, { athlete_id: r.athlete_id, name: nm(r), team: r.team || "", born: r.birth_year, day_id: r.day_id, drill_id: r.drill_id, tries: [] });
+    if (!by.has(k)) by.set(k, { athlete_id: r.athlete_id, name: nm(r), team: r.team || "", born: r.birth_year, ageGroup: r.age_group || "", day_id: r.day_id, drill_id: r.drill_id, tries: [] });
     by.get(k).tries[r.attempt - 1] = Number(r.value);
   }
   const dayOf = new Map(days.map((d) => [d.id, d])), dl = (d) => `${d.kind} · ${new Date(String(d.day.toISOString ? d.day.toISOString() : d.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
@@ -517,16 +517,61 @@ async function assessLeaders(f) {
     return { cols: [["drill", "Drill"], ["rank", "#", "num"], ["name", "Athlete"], ["team", "Team"], ["born", "Born", "num"], ["from", "First", "num"], ["to", "Latest", "num"], ["score", "Improved %", "spct"], ["day", "Latest test"]],
       rows, note: `${top ? `Top ${top}` : "Everyone"} per drill by improvement from their first to their most recent testing day (athletes tested at least twice). Improvement isn't the only measure of progress; see Progress for each athlete.` };
   }
-  for (const dr of S.drills) {
+  const ag = (f.assess || {}).ag;
+  for (const dr of S.drills) for (const g of ag ? [...new Set(S.rows.filter((x) => x.drill_id === dr.id).map((x) => groupOf(x, ag)))].sort(groupSort) : [null]) {
     const best = new Map();   // each athlete's best across the chosen days
-    for (const r of S.rows.filter((x) => x.drill_id === dr.id && x.score != null)) { const cur = best.get(r.athlete_id); if (!cur || better(r.dr, r.score, cur.score) < 0) best.set(r.athlete_id, r); }   // keep the better one
+    for (const r of S.rows.filter((x) => x.drill_id === dr.id && x.score != null && (g == null || groupOf(x, ag) === g))) { const cur = best.get(r.athlete_id); if (!cur || better(r.dr, r.score, cur.score) < 0) best.set(r.athlete_id, r); }   // keep the better one
     const list = [...best.values()].sort((a, b) => better(dr, a.score, b.score)).slice(0, top || undefined);
     let rank = 0, last = null; list.forEach((r, i) => { if (r.score !== last) rank = i + 1; last = r.score;
-      rows.push({ id: r.athlete_id, drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), rank, name: r.name, team: r.team, born: r.born, score: r.score, day: r.dayLabel }); });
+      rows.push({ id: r.athlete_id, drill: dr.name + (dr.unit ? ` (${dr.unit})` : ""), group: g || "", rank, name: r.name, team: r.team, born: r.born, score: r.score, day: r.dayLabel }); });
   }
-  return { cols: [["drill", "Drill"], ["rank", "#", "num"], ["name", "Athlete"], ["team", "Team"], ["born", "Born", "num"], ["score", S.how === "avg" ? "Average" : "Best", "num"], ["day", "Set on"]],
+  return { cols: [["drill", "Drill"], ...(ag ? [["group", ag === "age" ? "Age group" : "Team"]] : []), ["rank", "#", "num"], ["name", "Athlete"], ["team", "Team"], ["born", "Born", "num"], ["score", S.how === "avg" ? "Average" : "Best", "num"], ["day", "Set on"]],
     rows, note: `${top ? `Top ${top}` : "Everyone"} per drill: each athlete's ${S.how === "avg" ? "best average" : "best try"} across the chosen testing days. Fastest times / highest marks first, by each drill's better direction; ties share a rank.` };
 }
+// ---------- Assessments → Testing day: one day's results, best per drill (overall, by team, or by age group) ----------
+// Age group: the athlete's age group (e.g. 12U) when set; otherwise their age that year from the birth year (e.g. 12U).
+function groupOf(r, by) {
+  if (by === "team") return r.team || "(no team)";
+  if (by === "age") { if (r.ageGroup) return r.ageGroup; const y = Number(String(r.dayDate && r.dayDate.toISOString ? r.dayDate.toISOString() : r.dayDate).slice(0, 4)); return r.born && y ? `${y - r.born}U` : "(no birth year)"; }
+  return "Everyone";
+}
+const groupSort = (a, b) => (parseInt(a, 10) || 999) - (parseInt(b, 10) || 999) || String(a).localeCompare(String(b));
+async function assessDay(f) {
+  const x = f.assess || {}; if (!x.test) return noTest;
+  const days = x.days || []; if (!days.length) return { cols: [["msg", ""]], rows: [], note: "No testing days for this assessment yet." };
+  const iso = (d) => String(d.day && d.day.toISOString ? d.day.toISOString() : d.day);
+  const pick = x.dsel && /^\d+$/.test(String(x.dsel)) ? days.find((d) => d.id === Number(x.dsel)) : null;   // one day: the one picked…
+  const pool = x.dsel && String(x.dsel).startsWith("k:") ? days.filter((d) => d.kind === String(x.dsel).slice(2)) : days;
+  const day = pick || [...pool].sort((a, b) => iso(b).localeCompare(iso(a)))[0];   // …or the latest of the days picked
+  const S = await assessScores({ ...f, assess: { ...x, dsel: String(day.id) } }); if (!S) return noTest;
+  const by = x.ag || "", esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const fmt = (v) => (v == null ? "—" : String(Math.round(v * 100) / 100));
+  const rows = [], cards = [];
+  for (const dr of S.drills) {
+    const list = S.rows.filter((r) => r.drill_id === dr.id && r.score != null), blocks = [];
+    for (const g of [...new Set(list.map((r) => groupOf(r, by)))].sort(groupSort)) {
+      const mine = list.filter((r) => groupOf(r, by) === g).sort((a, b) => better(dr, a.score, b.score)), v = mine.map((r) => r.score);
+      const avg = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null, srt = [...v].sort((a, b) => a - b), med = srt.length ? (srt.length % 2 ? srt[(srt.length - 1) / 2] : (srt[srt.length / 2 - 1] + srt[srt.length / 2]) / 2) : null;
+      const b0 = mine[0].score, ties = mine.filter((r) => r.score === b0);
+      rows.push({ drill: dr.name + unitOf(dr), group: g, n: mine.length, best: ties.map((r) => r.name).join(", "), score: b0, second: mine[1] ? `${mine[1].name} (${fmt(mine[1].score)})` : "", third: mine[2] ? `${mine[2].name} (${fmt(mine[2].score)})` : "", avg: avg == null ? null : Math.round(avg * 100) / 100, med });
+      // bars scaled across the scores shown: the best is a full bar, the weakest a short one (so small gaps in times show)
+      const shown = mine.slice(0, 10).map((r) => r.score), lo = shown[shown.length - 1];
+      const w = (s) => (b0 === lo ? 100 : Math.round(15 + 85 * Math.abs(s - lo) / Math.abs(b0 - lo)));
+      blocks.push(`<div class="ad-g">${by ? `<div class="ad-gh">${esc(g)} <span class="fine">· ${mine.length} tested</span></div>` : ""}
+        <div class="ad-win">🏆 <b>${esc(ties.map((r) => r.name).join(", "))}</b> <span class="ad-score">${fmt(b0)}${esc(unitOf(dr))}</span></div>
+        <ol class="ad-bars">${mine.slice(0, 10).map((r) => `<li class="${r.score === b0 ? "is-best" : ""}"><span class="ad-n">${esc(r.name)}</span><span class="ad-t"><span class="ad-f" style="width:${w(r.score)}%"></span></span><span class="ad-v">${fmt(r.score)}</span></li>`).join("")}</ol>
+        <p class="fine ad-stats">Average ${fmt(avg)} · Median ${fmt(med)}${by ? "" : ` · ${mine.length} tested`}${mine.length > 10 ? " · showing the top 10" : ""}</p></div>`);
+    }
+    if (blocks.length) cards.push(`<section class="ad-card"><h3>${esc(dr.name)}${dr.unit ? ` <span class="fine">(${esc(dr.unit)})</span>` : ""}</h3><p class="fine">${dr.better === "higher" ? "Higher is better" : "Lower is better"}${dr.method ? ` · 📏 ${esc(dr.method)}` : ""}</p>${blocks.join("")}</section>`);
+  }
+  const tested = new Set(S.rows.map((r) => r.athlete_id)).size, tries = S.rows.reduce((t, r) => t + r.tries.filter((v) => v != null).length, 0);
+  const label = S.rows[0] ? S.rows[0].dayLabel : day.kind;
+  return { summary: [["Testing day", esc(label)], ["Athletes tested", tested], ["Drills", S.drills.length], ["Tries recorded", tries]],
+    html: cards.length ? `<div class="ad-grid">${cards.join("")}</div>` : `<p class="muted">No scores on this testing day yet.</p>`,
+    cols: [["drill", "Drill"], ...(by ? [["group", by === "age" ? "Age group" : "Team"]] : []), ["n", "Tested", "num"], ["best", "Best"], ["score", S.how === "avg" ? "Best average" : "Best score", "num"], ["second", "2nd"], ["third", "3rd"], ["avg", "Average", "num"], ["med", "Median", "num"]],
+    rows, note: `${label}: the best ${S.how === "avg" ? "average of tries" : "try"} in each drill${by ? `, by ${by === "age" ? "age group" : "team"}` : ""}, judged by each drill's better direction. Pick another day under Testing day.` };
+}
+
 async function assessTeamBest(f) {
   const S = await assessScores(f); if (!S) return noTest;
   const rows = [];
@@ -669,14 +714,27 @@ async function assessAthlete(f, pid) {
   const mine = series(S).filter((x) => x.athlete_id === pid);
   const p = (await query(`SELECT id, first_name, last_name, team FROM athletes WHERE id=$1`, [pid])).rows[0];
   if (!p || !mine.length) return { person: null, empty: "No results for this athlete with these filters (or they're not on your boards)." };
-  const drillOf = new Map(S.drills.map((d) => [d.id, d]));
+  const drillOf = new Map(S.drills.map((d) => [d.id, d])), desc = await S.A.descriptions(mine.map((x) => x.drill_id));
+  const r2 = (v) => (v == null ? null : Math.round(v * 100) / 100), ord = (n) => `${n}${[, "st", "nd", "rd"][(n % 100 >> 3) ^ 1 && n % 10] || "th"}`;
+  // where they stand on their latest testing day: rank and share beaten in their age group, age-group and team averages, top-quarter mark
+  const standing = (x, dr) => {
+    const last = x.list[x.list.length - 1], me = S.rows.find((r) => r.athlete_id === pid && r.day_id === last.day_id && r.drill_id === x.drill_id) || last;
+    const sameDay = S.rows.filter((r) => r.drill_id === x.drill_id && r.day_id === me.day_id && r.score != null);
+    const grp = groupOf(me, "age"), peers = sameDay.filter((r) => groupOf(r, "age") === grp).sort((a, b) => better(dr, a.score, b.score)), team = sameDay.filter((r) => r.team && r.team === me.team);
+    const n = peers.length, rank = 1 + peers.filter((r) => better(dr, r.score, me.score) < 0).length, worse = peers.filter((r) => better(dr, me.score, r.score) < 0).length;
+    const avg = (xs) => (xs.length ? r2(xs.reduce((t, r) => t + r.score, 0) / xs.length) : null), cut = n ? peers[Math.max(0, Math.ceil(n * 0.25) - 1)] : null;
+    return { day: me.dayLabel, group: grp, n, rank, beat: n > 1 ? Math.round((worse / (n - 1)) * 100) : null, groupAvg: avg(peers), teamAvg: avg(team), team: me.team || "",
+      target: cut ? r2(cut.score) : null, inTop: cut ? better(dr, me.score, cut.score) <= 0 : false, rankText: n > 1 ? `${ord(rank)} of ${n} in ${grp}` : `Only one tested in ${grp}` };
+  };
   const drills = mine.map((x) => { const dr = drillOf.get(x.drill_id) || x.list[x.list.length - 1].dr, first = x.list[0], last = x.list[x.list.length - 1];
     let best = first; for (const r of x.list) if (better2(r.dr, best.score, r.score)) best = r;
     const ch = x.list.length > 1 ? S.A.change(first.score, last.score, last.dr) : null;
-    return { name: dr.name, unit: dr.unit || "", better: dr.better, method: dr.method || "", points: x.list.map((r) => ({ label: r.dayLabel, value: r.score })), initial: first.score, latest: last.score, best: best.score, pb: x.list.length > 1 && best === last,
+    return { desc: desc.get(x.drill_id) || "", st: standing(x, dr), name: dr.name, unit: dr.unit || "", better: dr.better, method: dr.method || "", points: x.list.map((r) => ({ label: r.dayLabel, value: r.score })), initial: first.score, latest: last.score, best: best.score, pb: x.list.length > 1 && best === last,
       summary: !ch ? "One testing day so far: more testing is needed to show improvement." : `${ch.diff > 0 ? "Improved" : ch.diff < 0 ? "Declined" : "No change"} by ${Math.abs(ch.diff)}${dr.unit ? " " + dr.unit : ""}${ch.pct != null ? ` (${Math.abs(ch.pct)}%)` : ""} since their first test.` }; });
-  return { person: p, test: f.assess.test.name, drills, cols: [["drill", "Drill"], ["initial", "Initial", "num"], ["latest", "Latest", "num"], ["best", "Best", "num"], ["summary", "Progress"]],
-    rows: drills.map((d) => ({ drill: d.name, initial: d.initial, latest: d.latest, best: d.best, summary: d.summary })), note: `${p.first_name} ${p.last_name || ""}: ${f.assess.test.name}.` };
+  const nx = await S.A.nextDay(f.assess.test.id);
+  return { person: p, test: f.assess.test.name, next: nx ? `${nx.kind} · ${new Date(String(nx.day.toISOString ? nx.day.toISOString() : nx.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}` : "",
+    drills, cols: [["drill", "Drill"], ["initial", "Initial", "num"], ["latest", "Latest", "num"], ["best", "Best", "num"], ["rank", "Age-group rank"], ["beat", "Better than", "pct"], ["gavg", "Age-group avg", "num"], ["tavg", "Team avg", "num"], ["target", "Top-quarter mark", "num"], ["summary", "Progress"]],
+    rows: drills.map((d) => ({ drill: d.name, initial: d.initial, latest: d.latest, best: d.best, rank: d.st.rankText, beat: d.st.beat, gavg: d.st.groupAvg, tavg: d.st.teamAvg, target: d.st.target, summary: d.summary })), note: `${p.first_name} ${p.last_name || ""}: ${f.assess.test.name}.` };
 }
 async function assessTeamProgress(f) {
   const S = await assessScores(f); if (!S) return noTest;
@@ -841,4 +899,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { answersReport, questionList, progressV, leadersV, teamV, sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { assessDay, answersReport, questionList, progressV, leadersV, teamV, sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

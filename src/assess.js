@@ -17,6 +17,7 @@ function ensure() {
     await query(`ALTER TABLE assess_drills ADD COLUMN IF NOT EXISTS retired_at TIMESTAMPTZ`);
     await query(`ALTER TABLE assess_drills ADD COLUMN IF NOT EXISTS method TEXT`);
     await query(`ALTER TABLE assess_drills ADD COLUMN IF NOT EXISTS method_note TEXT`);
+    await query(`ALTER TABLE assess_drills ADD COLUMN IF NOT EXISTS description TEXT`);   // what the drill measures (shown to families)
     // each testing day keeps its own copy of the drills (frozen once it has scores, so later edits don't rewrite the past)
     await query(`CREATE TABLE IF NOT EXISTS assess_day_drills (day_id INT NOT NULL REFERENCES assess_days(id) ON DELETE CASCADE, drill_id INT NOT NULL, name TEXT NOT NULL, unit TEXT,
       better TEXT NOT NULL DEFAULT 'lower', attempts INT NOT NULL DEFAULT 3, sort INT NOT NULL DEFAULT 0, PRIMARY KEY (day_id, drill_id))`);
@@ -142,4 +143,14 @@ function entryButton(athleteId, days, back, { small = false } = {}) {
   if (days.length === 1) return `<a class="${cls}" href="${href(days[0])}" title="${esc(`${days[0].assessment} · ${days[0].kind} · ${day(days[0])}`)}">📏 Add assessment data</a>`;
   return `<details class="ae-menu"><summary class="${cls}">📏 Add assessment data ▾</summary><div class="ae-list">${days.slice(0, 10).map((d) => `<a href="${href(d)}"><b>${esc(d.assessment)}</b><span>${esc(d.kind)} · ${esc(day(d))}</span></a>`).join("")}</div></details>`;
 }
-module.exports = { daysFor, entryButton, METHODS, METHOD_LIST, dayDrills, syncDays, logChange, hasScores, ensure, KINDS, list, get, day, roster, results, save, score, change, history };
+// the soonest future testing day of an assessment (optionally only days for these programs, or days not tied to one)
+async function nextDay(assessmentId, boards = null) {
+  await ensure();
+  return (await query(`SELECT id, day, kind, board_id FROM assess_days WHERE assessment_id=$1 AND day > (now() AT TIME ZONE 'America/Chicago')::date
+      ${boards ? "AND (board_id IS NULL OR board_id = ANY($2))" : ""} ORDER BY day LIMIT 1`, boards ? [assessmentId, boards] : [assessmentId])).rows[0] || null;
+}
+async function descriptions(ids) {   // drill id → what it measures
+  await ensure(); if (!ids.length) return new Map();
+  return new Map((await query(`SELECT id, description FROM assess_drills WHERE id = ANY($1) AND coalesce(description,'') <> ''`, [ids])).rows.map((r) => [r.id, r.description]));
+}
+module.exports = { nextDay, descriptions, daysFor, entryButton, METHODS, METHOD_LIST, dayDrills, syncDays, logChange, hasScores, ensure, KINDS, list, get, day, roster, results, save, score, change, history };
