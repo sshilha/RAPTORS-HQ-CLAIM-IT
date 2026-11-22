@@ -60,7 +60,8 @@ router.get("/", wrap(async (req, res) => {
   for (const s of all) { s.path = await pathOf(s.node_id); if (s.board_type === "rsvp" || await tracked(s.id)) sessions.push(s); else signups.push(s); }   // no attendance: sign-ups only   // RSVP events always: coaches see who's coming
   const days = (await query(`SELECT DISTINCT to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') AS d FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
     WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL AND i.starts_at IS NOT NULL AND sc.archived_at IS NULL ORDER BY d`, [req.boards])).rows.map((r) => r.d);
-  res.send(v.dayPage({ signups, showSignups: req.query.ro === "1", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
+  let ro = req.query.ro; if (ro === "0" || ro === "1") res.cookie("ck_ro", ro, { maxAge: 30 * 864e5, sameSite: "lax", httpOnly: true }); else ro = (req.cookies && req.cookies.ck_ro) || "0";
+  res.send(v.dayPage({ signups, showSignups: ro === "1", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
     prev: days.filter((d) => d < day).pop() || null, next: days.find((d) => d > day) || null }));
 }));
 

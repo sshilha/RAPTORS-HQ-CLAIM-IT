@@ -347,6 +347,9 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.72.1** Check-in has two tabs that always show, with counts: Attendance (sessions you check in, the default) and
+  Sign-ups only (sessions without attendance, opening the view-only roster). The choice is remembered; the header
+  counts follow the tab. Replaces the show/hide button.
 - **v0.72** Who's signed up, for sessions that don't take attendance. Check-in keeps listing only sessions with
   attendance (and RSVP events); when a day also has sessions without attendance, a "Show sign-up-only sessions (N)"
   button opens a Sign-ups only section (count signed up of capacity), and each opens a view-only roster (numbered names,
