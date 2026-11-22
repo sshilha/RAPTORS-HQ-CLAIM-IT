@@ -347,6 +347,12 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.72** Who's signed up, for sessions that don't take attendance. Check-in keeps listing only sessions with
+  attendance (and RSVP events); when a day also has sessions without attendance, a "Show sign-up-only sessions (N)"
+  button opens a Sign-ups only section (count signed up of capacity), and each opens a view-only roster (numbered names,
+  team, answers, waitlist; no Here / No-show). Reports → Sessions → Sign-ups: a card per session with who's signed up
+  and the waitlist, When (Today / Next 7 days / Dates in Filters) and Show (All / Without attendance only); CSV and PDF
+  one row per person; scoped like every report. Report tests: 396 checks.
 - **v0.71** Assessment context. Drills get "What it measures" (assess_drills.description; shown to families). Admins
   and coaches, on an athlete's assessment view in Reports: next testing day; per drill, on their latest testing day,
   rank and share beaten in their age group, age-group and team averages, and the age group's top-quarter mark (or "in
@@ -416,7 +422,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 - **v0.65** Report tests in the project: `npm run test:reports` (test/reports.test.js + test/seed-reports.js) builds its own
   test data in an empty database (TEST_DATABASE_URL in .env; it refuses any database with real data) and checks every
   report for admin, coach, team manager and parent (loads, layout, no broken values), CSV headings vs the page, no emails
-  for non-admins, what each role may see, every old report address, and key numbers against the database (374 checks).
+  for non-admins, what each role may see, every old report address, and key numbers against the database (396 checks).
   Fixes it found: the Limits report now applies level limits on boards open to signed-in families (it showed only the
   board-wide limit there); Attendance → Not recorded shows a coach's email only to admins. RSVP eligibility for past
   events is judged as of just before the event. My Family: "My Progress" renamed "Assessments".

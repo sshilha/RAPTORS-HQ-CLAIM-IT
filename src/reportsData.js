@@ -883,6 +883,38 @@ async function questionList(f) {   // the questions on the boards in view (for t
   return (await query(`SELECT q.id, q.label, s.name AS board FROM claim_questions q JOIN schedules s ON s.id=q.schedule_id WHERE q.schedule_id = ANY($1) AND q.archived_at IS NULL ORDER BY s.name, q.sort, q.id`, [f.boards])).rows;
 }
 
+// ---------- Sessions → Sign-ups: who's signed up, session by session (today, the next 7 days, or the dates above) ----------
+async function signupsReport(f) {
+  const E = require("./engine"), today = new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+  const plus = (d, n) => { const x = new Date(d + "T12:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  const win = f.sw === "today" ? { from: today, to: today } : f.sw === "range" ? { from: f.from, to: f.to } : { from: today, to: plus(today, 6) };
+  let list = (await sessions({ ...f, ...win })).filter((s) => s.board_type !== "rsvp");
+  for (const s of list) { const ch = await E.chainFor(s.id); s.tracked = ch ? E.effective(ch).attendance !== false : false; }
+  if (f.sshow === "notrack") list = list.filter((s) => !s.tracked);
+  list.sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+  const ppl = list.length ? (await query(`SELECT c.item_id, c.status, a.id, a.first_name, a.last_name, m.group_name AS team, i.schedule_id
+      FROM board_claims c JOIN athletes a ON a.id=c.athlete_id JOIN board_items i ON i.id=c.item_id LEFT JOIN schedule_members m ON m.schedule_id=i.schedule_id AND m.athlete_id=a.id
+      WHERE c.item_id = ANY($1) AND c.status IN ('confirmed','waitlisted') ORDER BY c.status, lower(a.last_name), lower(a.first_name)`, [list.map((s) => s.id)])).rows.filter((x) => teamAllowed(f, x.schedule_id, x.team)) : [];
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const when = (t) => new Date(t).toLocaleString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const rows = [], cards = [];
+  for (const s of list) {
+    const mine = ppl.filter((x) => x.item_id === s.id), conf = mine.filter((x) => x.status === "confirmed"), wl = mine.filter((x) => x.status === "waitlisted");
+    const name = [s.path, s.title && s.path ? s.title : ""].filter(Boolean).join(" › ") || s.title || "Session";
+    for (const x of mine) rows.push({ when: s.starts_at, session: name, board: s.board, attendance: s.tracked ? "Yes" : "No", name: nm(x), team: x.team || "", status: x.status === "waitlisted" ? "Waitlisted" : "Signed up" });
+    const li = (x, i) => `<li><span class="su-i">${i + 1}</span><b>${esc(nm(x))}</b>${x.team ? ` <small>${esc(x.team)}</small>` : ""}</li>`;
+    cards.push(`<section class="su-card"><div class="su-h"><b>${esc(when(s.starts_at))}</b><span>${esc(name)}</span><small>${esc([s.board, s.location].filter(Boolean).join(" · "))}${s.tracked ? "" : " · no attendance"}</small></div>
+      <div class="su-n"><b>${conf.length}</b> of ${s.capacity} signed up${wl.length ? ` · ${wl.length} waitlisted` : ""}</div>
+      ${conf.length ? `<ol class="su-l">${conf.map(li).join("")}</ol>` : `<p class="muted su-none">No one yet.</p>`}
+      ${wl.length ? `<div class="su-wh">Waitlist</div><ol class="su-l">${wl.map(li).join("")}</ol>` : ""}</section>`);
+  }
+  const signed = rows.filter((r) => r.status === "Signed up").length, waiting = rows.length - signed;
+  return { summary: [["Sessions", list.length], ["Signed up", signed], ["Waitlisted", waiting]],
+    html: cards.length ? `<div class="su-grid">${cards.join("")}</div>` : `<p class="muted">No sessions ${f.sw === "today" ? "today" : "in these dates"}${f.sshow === "notrack" ? " without attendance" : ""}.</p>`,
+    cols: [["when", "When", "dt"], ["session", "Session"], ["board", "Board"], ["attendance", "Attendance tracked"], ["name", "Name"], ["team", "Team"], ["status", "Status"]], rows,
+    note: `${f.sw === "today" ? "Today" : f.sw === "range" ? "The dates in Filters" : "The next 7 days"}: who's signed up for each session${f.sshow === "notrack" ? " that doesn't take attendance" : ""}. Weekly Rosters has the printable sign-in sheets.` };
+}
+
 // ---------- Overview ----------
 async function overview(f, required) {
   const [a, n, u, fl, rv, en, vo, em] = await Promise.all([attendance(f), noshows(f), unchecked(f), fill(f), rsvpEvents(f), engagement(f), volunteer(f, required), emailProblems(f)]);
@@ -899,4 +931,4 @@ async function overview(f, required) {
     ["volunteer", "Volunteer hours", Math.round(sum(vo.rows, "hours")), "", required ? `${vo.rows.filter((r) => r.status === "Done").length} of ${vo.rows.length} families done` : `${vo.rows.length} families`],
     ["emails", "Email problems", em.rows.length, "", "addresses to fix"]] };
 }
-module.exports = { assessDay, answersReport, questionList, progressV, leadersV, teamV, sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };
+module.exports = { signupsReport, assessDay, answersReport, questionList, progressV, leadersV, teamV, sessView, claimsView, claimPeople, attendView, limits, assessProgress, assessAthlete, assessTeamProgress, attendanceSessions, personView, rsvpAnswers, teamsReport, coverage, dashboard, attention, assessResults, assessLeaders, assessTeamBest, assessRecords, assessImprove, assessAttend, assessTeams, claimsAll, claimsByPerson, attendance, noshows, unchecked, fill, busiest, waitlists, locations, rsvpEvents, rsvpAthletes, engagement, notSignedUp, volunteer, emailProblems, weekSheet, overview, REPEAT };

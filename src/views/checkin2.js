@@ -8,10 +8,19 @@ const leaf = (p) => (p || "").split(" › ").pop();
 const crumb = (p) => (p || "").split(" › ").slice(0, -1).join(" • ");
 
 const CK_IC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg>`;
-function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, isToday, prev, next }) {
+function dayPage({ signups: allSignups = [], showSignups = false, user, flash, admin, day, sessions: allSessions, board = 0, isToday, prev, next }) {
   // boards with sessions this day become sub-tabs (only when there's more than one)
   const boards = [...new Map(allSessions.map((x) => [x.board_id, x.board_name])).entries()];
   const sessions = board && boards.some(([id]) => id === board) ? allSessions.filter((x) => x.board_id === board) : allSessions;
+  const signups = board ? allSignups.filter((x) => x.board_id === board) : allSignups;
+  // sessions without attendance: a button to show who's signed up (kept off the page until asked)
+  const roUrl = (on) => `/checkin?d=${day}${board ? `&b=${board}` : ""}${on ? "&ro=1" : ""}`;
+  const signupSec = !signups.length ? "" : `<div class="ck-ro-bar"><a class="sb-btn ck-ro-btn" href="${roUrl(!showSignups)}">${showSignups ? "Hide" : "Show"} sign-up-only sessions (${signups.length})</a><span class="fine">Sessions that don't take attendance: see who's signed up.</span></div>
+    ${showSignups ? `<section class="ck-bsec ck-ro" id="signups"><div class="ck-bhd"><span class="ck-btile">👀</span><div><b>Sign-ups only</b><span class="fine">Attendance isn't tracked for these: view who's signed up</span></div></div>
+      <div class="ck-list">${signups.map((s) => `<a class="ck-card" href="/checkin/i/${s.id}">
+        <span class="ck-time">${esc(timeRange(s.starts_at, s.ends_at))}</span>
+        <span class="ck-what"><b>${esc(leaf(s.path) || s.title || "Session")}</b><small>${esc([s.board_name, crumb(s.path), s.title && s.path ? s.title : ""].filter(Boolean).join(" • "))}</small>${where(s) ? `<small>${esc(where(s))}</small>` : ""}</span>
+        <span class="ck-nums"><b>${s.claimed}</b> of ${s.capacity} signed up</span><span class="ck-go">${R}</span></a>`).join("")}</div></section>` : ""}`;
   const tot = sessions.reduce((t, x) => ({ c: t.c + x.claimed, h: t.h + x.here }), { c: 0, h: 0 });
   const bq = board ? `&b=${board}` : "";
   return layout({ title: "Check-in", user, flash, admin, tab: "checkin", dash: true,
@@ -38,10 +47,28 @@ function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, is
         <span class="ck-nums">${s.rsvp ? `<b>${s.rsvp.going}</b> going · ${s.rsvp.no} can't make it · ${s.rsvp.none} no answer${s.here ? ` · <b>${s.here}</b> here` : ""}` : `<b>${s.here}</b> here · ${s.noshow ? `<b>${s.noshow}</b> no-show · ` : ""}${s.claimed} claimed`}
           <span class="ck-bar"><i style="width:${pct}%"></i></span></span>
         <span class="ck-go">${R}</span></a>`; }).join("")}</div></section>`; }).join("")
-      : `<div class="d-empty"><b>No sessions to check in ${isToday ? "today" : "this day"}.</b><span>${next ? `<a href="/checkin?d=${next}">Next: ${esc(dayLabel(next))}</a>` : prev ? `<a href="/checkin?d=${prev}">Last: ${esc(dayLabel(prev))}</a>` : "Sessions show here once a board you check in has them."}</span></div>`}
+      : signups.length ? "" : `<div class="d-empty"><b>No sessions to check in ${isToday ? "today" : "this day"}.</b><span>${next ? `<a href="/checkin?d=${next}">Next: ${esc(dayLabel(next))}</a>` : prev ? `<a href="/checkin?d=${prev}">Last: ${esc(dayLabel(prev))}</a>` : "Sessions show here once a board you check in has them."}</span></div>`}
+    ${!sessions.length && signups.length ? `<div class="d-empty"><b>No sessions to check in ${isToday ? "today" : "this day"}.</b><span>Some sessions don't take attendance; see who's signed up below.</span></div>` : ""}
+    ${signupSec}
     </div></div>` });
 }
 
+function signupsPage({ user, flash, admin, it, people }) {
+  const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
+  const day = it.starts_at ? new Date(it.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }) : "";
+  const row = (p, i) => `<li class="ck-su"><span class="ck-su-n">${i != null ? `<span class="ck-su-i">${i + 1}</span>` : ""}<b>${esc(p.first_name)} ${esc(p.last_name || "")}</b>${p.group_name ? ` <small>${esc(p.group_name)}</small>` : ""}</span>
+    ${(p.answers || []).map((a) => `<small class="ck-ans">${esc(a.q.label)}: <b>${esc(a.text)}</b></small>`).join("")}${it.question && it.question.label && p.note ? `<small class="ck-ans">${esc(it.question.label)}: ${esc(p.note)}</small>` : ""}</li>`;
+  return layout({ title: "Who's signed up", user, flash, admin, tab: "checkin", dash: true,
+    body: `<div class="d-wrap ck-wrap"><nav class="back-row"><a class="back-btn" href="/checkin?d=${day}&ro=1#signups">${L}Check-in</a></nav>
+    <section class="bh2 ck-hd"><div class="bh2-l"><div><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
+      <span class="bh2-meta">${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))} · ${esc(it.starts_at ? new Date(it.starts_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }) : "")} · ${esc(timeRange(it.starts_at, it.ends_at))}${it.location ? ` · ${esc(it.location)}` : ""}</span></div></div></section>
+    <div class="sub-body no-subs"><section class="d-card ck-su-card">
+      <p class="ck-su-note">Attendance isn't tracked for this session, so there's nothing to check in. This is who's signed up.</p>
+      <h3>Signed up <span class="fine">${conf.length} of ${it.capacity}</span></h3>
+      ${conf.length ? `<ol class="ck-su-list">${conf.map((p, i) => row(p, i)).join("")}</ol>` : `<p class="muted">No one has signed up yet.</p>`}
+      ${wl.length ? `<h3>Waitlist <span class="fine">${wl.length}</span></h3><ol class="ck-su-list">${wl.map((p, i) => row(p, i)).join("")}</ol>` : ""}
+    </section></div></div>` });
+}
 function rosterPage({ user, flash, admin, it, people, board, others, sub = "roster", rsvp = null }) {
   const lock = it.lock || { locked: false, until: null }, ro = lock.locked && !admin;   // read-only for coaches once it's closed
   const short = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -112,4 +139,4 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
     })();
     </script>` });
 }
-module.exports = { dayPage, rosterPage };
+module.exports = { signupsPage, dayPage, rosterPage };

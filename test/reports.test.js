@@ -20,8 +20,8 @@ const BAD = /\b(undefined|NaN|Invalid Date|\[object Object\])\b/;
 const text = (html) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 const heads = (html) => { const m = /<table class="r-table[^"]*"[^>]*>[\s\S]*?<thead>([\s\S]*?)<\/thead>/.exec(html); return m ? [...m[1].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((x) => text(x[1]).trim()).filter(Boolean) : []; };
 const REPORTS = ["overview", "claims", "claims&group=claim", "attend", "attend&group=session", "attend&ashow=noshow", "attend&group=session&ashow=unrec", "teams", "limits", "waitlists",
-  "sess", "sess&group=location", "sess&group=time", "week", "engagement", "engagement&group=family", "volunteer", "volunteer&group=shift", "emails",
-  "assessResults", "assessProgress", "assessProgress&cmp=days", "assessLeaders", "assessLeaders&rank=records", "assessTeam", "assessTeam&tshow=improve", "rsvp", "rsvp&group=athlete", "rsvp&group=answer"];
+  "sess", "signups", "signups&sshow=notrack&sw=today", "sess&group=location", "sess&group=time", "week", "engagement", "engagement&group=family", "volunteer", "volunteer&group=shift", "emails",
+  "assessResults", "assessDay", "assessDay&ag=age", "assessLeaders&ag=team", "assessProgress", "assessProgress&cmp=days", "assessLeaders", "assessLeaders&rank=records", "assessTeam", "assessTeam&tshow=improve", "rsvp", "rsvp&group=athlete", "rsvp&group=answer"];
 const OLD = { person: "r=claims", all: "group=claim", attendance: "r=attend", attSessions: "group=session", noshows: "ashow=noshow", unchecked: "ashow=unrec", fill: "r=sess", upcoming: "view=upcoming",
   busiest: "group=time", locations: "group=location", notSignedIn: "fview=never", notSignedUp: "fview=noclaims", rsvpAnswers: "group=answer", rsvpAthletes: "group=athlete", coverage: "group=shift",
   assessImprove: "cmp=days", assessAttend: "cmp=days", assessRecords: "rank=records", assessTeamBest: "r=assessTeam", assessTeamProgress: "tshow=improve", assessTeams: "cmp=days" };

@@ -56,11 +56,11 @@ router.get("/", wrap(async (req, res) => {
       AND to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') = $2
     GROUP BY i.id, sc.name, sc.board_type, sc.event_location ORDER BY i.starts_at, i.id`, [req.boards, day])).rows;
   for (const s of all) if (s.board_type === "rsvp") { const r = await require("../rsvp").summary(s.id); if (r) s.rsvp = { going: r.going.length, no: r.no.length, none: r.none.length }; }
-  const sessions = [];
-  for (const s of all) if (s.board_type === "rsvp" || await tracked(s.id)) { s.path = await pathOf(s.node_id); sessions.push(s); }   // RSVP events always: coaches see who's coming
+  const sessions = [], signups = [];
+  for (const s of all) { s.path = await pathOf(s.node_id); if (s.board_type === "rsvp" || await tracked(s.id)) sessions.push(s); else signups.push(s); }   // no attendance: sign-ups only   // RSVP events always: coaches see who's coming
   const days = (await query(`SELECT DISTINCT to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') AS d FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
     WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL AND i.starts_at IS NOT NULL AND sc.archived_at IS NULL ORDER BY d`, [req.boards])).rows.map((r) => r.d);
-  res.send(v.dayPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
+  res.send(v.dayPage({ signups, showSignups: req.query.ro === "1", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
     prev: days.filter((d) => d < day).pop() || null, next: days.find((d) => d > day) || null }));
 }));
 
@@ -75,6 +75,11 @@ router.get("/i/:id", wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id));
   if (!it) return go(res, "/checkin", { err: "That session isn't one you can check in." });
   const people = await roster(it.id);
+  if (it.board_type !== "rsvp" && !(await tracked(it.id))) {
+    const A = await require("../questions").answersFor(people.map((p) => p.id));
+    for (const p of people) p.answers = (A[p.id] || []).filter((a) => (a.q.show || {}).roster !== false);
+    return res.send(v.signupsPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people }));
+  }
   const onIds = new Set(people.map((p) => p.athlete_id));
   // walk-in choices: this board's list first, then everyone else in People
   const board = (await query(`SELECT a.id, a.first_name, a.last_name, m.group_name FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
