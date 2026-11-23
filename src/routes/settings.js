@@ -44,7 +44,8 @@ async function boardRows() {
 }
 
 router.get("/", wrap(async (req, res) => {
-  const rows = await boardRows();
+  const allow = req.access ? require("../gate").boardsAllowed(req.access) : null;   // not an administrator: only boards their roles open
+  const rows = (await boardRows()).filter((r) => !allow || allow.has(r.id));
   const active = rows.filter((r) => !r.archived_at);
   // Volunteers: different people signed up for upcoming shifts on volunteer boards
   const volIds = active.filter((r) => require("../views/setup").boardTypeOf(r) === "volunteer").map((r) => r.id);

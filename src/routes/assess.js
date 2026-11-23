@@ -11,10 +11,12 @@ const router = express.Router();
 const ARROW = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>`;
 const fmtDay = (d) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 const num = (v) => (v == null ? "" : String(Number(v)));
-async function canEnter(user, d) {
+// Enter scores (App Settings → Roles): View only to open, Full to save; on the testing day's linked board,
+// or, for a day with no board, an Everywhere role.
+async function canEnter(user, d, need = 1) {
   if (auth.isAdmin(user)) return true;
-  if (!d.board_id) return false;
-  return (await query(`SELECT 1 FROM schedule_coaches WHERE schedule_id=$1 AND lower(email)=lower($2)`, [d.board_id, user.email])).rowCount > 0;
+  const acc = await require("../roles").forUser(user);
+  return d.board_id ? acc.can("assess.scores", d.board_id, undefined, need) : acc.boards("assess.scores", need).all;
 }
 const head = async (active) => (await require("../views/apphead").head({ active }));
 
@@ -197,7 +199,7 @@ router.get("/assess/days/:id(\\d+)", auth.requireUser, wrap(async (req, res) => 
     })();</script>` }));
 }));
 router.post("/assess/days/:id(\\d+)/save", auth.requireUser, wrap(async (req, res) => {
-  const d = await A.day(int(req.params.id)); if (!d || !(await canEnter(req.user, d))) return res.status(403).json({ ok: false, err: "Not allowed." });
+  const d = await A.day(int(req.params.id)); if (!d || !(await canEnter(req.user, d, 2))) return res.status(403).json({ ok: false, err: "Not allowed." });
   const dr = d.drills.find((x) => x.id === int(req.body.drill)), t = int(req.body.attempt);
   if (!dr || !(t >= 1 && t <= dr.attempts)) return res.json({ ok: false, err: "Unknown drill or try." });
   try { await A.save(d.id, int(req.body.athlete), dr.id, t, str(req.body.value), req.user.id); } catch (e) { return res.json({ ok: false, err: e.message }); }

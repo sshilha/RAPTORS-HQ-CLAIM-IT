@@ -31,9 +31,12 @@ async function counts() {
   return r;
 }
 // For someone who isn't an administrator, only what their roles open: People (View People), Requests (approve), Roles.
-const MAY = { people: "people.person", requests: "people.invite", roles: "settings.roles" };
+const MAY = { people: "people.person", requests: "people.invite", roles: "settings.roles", assess: "assess.setup", communication: "comm.templates", emaillog: "comm.emaillog",
+  accounts: "accounts.settings", admins: "accounts.admins", online: "accounts.online", activity: "accounts.activity", signins: "accounts.signins", shadow: "accounts.signinas",
+  locations: "org.locations", wording: "org.wording", pictures: "org.pictures", olddata: "org.olddata" };
 function appHeader({ active = "people", c = {}, title = "App Settings", meta = "", actions = "", tools = "", acc = null } = {}) {
   const sub = active; active = ALIAS[active] || active;
+  acc = acc || require("../reqctx").access();
   const limited = acc && !acc.admin, may = (k) => !limited || (MAY[k] && acc.has(MAY[k]));
   const subs = (SUBS[active] || []).filter(([k]) => may(k));
   const tabs = limited ? TABS.filter(([k]) => (SUBS[k] || []).some(([sk]) => may(sk))).map((t) => { const first = (SUBS[t[0]] || []).find(([sk]) => may(sk)); return first ? [t[0], first[1], t[2], t[3]] : t; }) : TABS;

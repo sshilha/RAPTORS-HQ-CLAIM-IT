@@ -13,14 +13,28 @@ const REPORTS = [["overview", "Overview"], ["claims", "Claims"], ["attend", "Att
   ["sess", "Sessions"], ["signups", "Sign-ups"], ["week", "Weekly Rosters"], ["engagement", "Families"], ["volunteer", "Volunteers"], ["emails", "Communication issues"],
   ["assessResults", "Assessments: Results"], ["assessDay", "Assessments: Testing day"], ["assessProgress", "Assessments: Progress"], ["assessLeaders", "Assessments: Leaderboard"], ["assessTeam", "Assessments: Teams"], ["rsvp", "RSVP"]];
 const PERMS = [
+  ["Claim Boards", [["boards.create", "Create and import boards", "New boards, and importing a board from a file", "yn"],
+    ["board.setup", "Board setup", "Levels and sessions. View only, or Full to change them", "vf"], ["board.details", "Board details", "Name, dates, location, type and look, organizers", "vf"],
+    ["board.access", "Access & people", "Who's on the board, groups, tags, and roles on the board", "vf"], ["board.defaults", "Board defaults", "Rules, limits, attendance and other defaults", "vf"],
+    ["board.notify", "Notifications", "Reminders and notification emails for the board", "vf"], ["board.questions", "Questions", "Claim questions and their rules", "vf"],
+    ["board.publish", "Publish and unpublish", "", "yn"], ["board.export", "Export and QR code", "", "yn"], ["board.copy", "Copy a board", "", "yn"], ["board.archive", "Archive and delete boards", "", "yn"],
+    ["session.people", "A session's People page", "View who's on a session, or Full to add, remove and record RSVPs", "vf"], ["session.override", "Override the rules when adding someone", "Past limits, full sessions and closed sign-ups", "yn"]]],
   ["Family", [["family.signup", "Sign up for sessions", "Claim spots on Sign Up for Something", "yn"], ["family.release", "Release their spots", "Give a claimed spot back", "yn"],
     ["family.answers", "Change their answers", "Answers to claim questions, on My Claims", "yn"], ["family.reports", "My Family reports", "Schedule, claims, attendance and assessment results", "yn"]]],
   ["Check-in", [["checkin.attendance", "Attendance tab", "View only: see rosters. Full: record Here / No-show", "vf"], ["checkin.signups", "Sign-ups only tab", "Who's signed up for sessions without attendance", "yn"],
     ["checkin.markall", "Mark everyone here", "", "yn"], ["checkin.walkin", "Add walk-ins", "", "yn"], ["checkin.afterclose", "Change attendance after check-in closes", "", "yn"]]],
   ["Reports", [...REPORTS.map(([k, l]) => [`report.${k}`, l, "", "yn"]), ["reports.export", "Download CSV and PDF", "", "yn"], ["reports.contacts", "See email addresses and phone numbers", "In reports and exports", "yn"]]],
   ["People", [["people.person", "People list and person pages", "View only, or Full to edit details, family links, kind and archive", "vf"],
-    ["people.invite", "Invite people and approve account requests", "Invites, sign-in codes, account requests", "yn"], ["people.roles", "Assign roles", "Give people roles and boards", "yn"]]],
-  ["App settings", [["settings.roles", "Roles", "View only, or Full to create and edit roles", "vf"]]],
+    ["people.invite", "Invite people and approve account requests", "Invites, sign-in codes, account requests", "yn"], ["people.roles", "Assign roles", "Give people roles and boards", "yn"],
+    ["people.lists", "Lists", "Make lists and add people to them", "yn"], ["people.bulk", "Bulk actions", "Change many people at once", "yn"], ["people.import", "Import people", "", "yn"],
+    ["people.export", "Export people", "Download the People list", "yn"], ["people.merge", "Merge duplicates", "", "yn"], ["people.cleanup", "Clean up", "Old and unused records", "yn"]]],
+  ["Assessments", [["assess.setup", "Assessments, drills and testing days", "View only, or Full to change them", "vf"], ["assess.scores", "Enter scores", "View only, or Full to enter and change scores", "vf"],
+    ["assess.share", "Share testing days with families", "", "yn"]]],
+  ["Communication", [["comm.templates", "Email templates and branding", "View only, or Full to change them", "vf"], ["comm.test", "Send test emails", "", "yn"], ["comm.emaillog", "Email log", "Every email sent and what happened to it", "yn"]]],
+  ["Accounts", [["accounts.settings", "Account settings", "Sign-in and account options", "vf"], ["accounts.admins", "Administrators", "View only, or Full to add and remove administrators", "vf"],
+    ["settings.roles", "Roles", "View only, or Full to create and edit roles", "vf"], ["accounts.online", "On now", "", "yn"], ["accounts.activity", "Activity log", "", "yn"],
+    ["accounts.signins", "Sign-in activity", "", "yn"], ["accounts.signinas", "Sign in as someone", "See the app as another person", "yn"]]],
+  ["Organization", [["org.locations", "Locations", "Saved places", "vf"], ["org.wording", "Wording", "The app's labels and names", "vf"], ["org.pictures", "Pictures", "Logos and images", "vf"], ["org.olddata", "Old data", "Download or remove old records", "vf"]]],
 ];
 const KIND = Object.fromEntries(PERMS.flatMap(([, ps]) => ps.map((p) => [p[0], p[3]])));
 const ALL = Object.keys(KIND);
@@ -33,7 +47,7 @@ const staffReports = Object.fromEntries(REPORTS.filter(([k]) => k !== "emails").
 const famGrants = { "family.signup": "full", "family.release": "full", "family.answers": "full", "family.reports": "full" };
 const BUILTIN = [
   { key: "admin", name: "Administrator", scope: "everywhere", grants: FULL, locked: true, description: "Everything, everywhere. Can't be changed." },
-  { key: "coach", name: "Coach", scope: "board", grants: { "checkin.attendance": "full", "checkin.signups": "full", "checkin.markall": "full", "checkin.walkin": "full", ...staffReports, "reports.export": "full" }, description: "On the boards they coach: Check-in and Reports." },
+  { key: "coach", name: "Coach", scope: "board", grants: { "assess.scores": "full", "checkin.attendance": "full", "checkin.signups": "full", "checkin.markall": "full", "checkin.walkin": "full", ...staffReports, "reports.export": "full" }, description: "On the boards they coach: Check-in and Reports." },
   { key: "manager", name: "Team manager", scope: "board", grants: { ...staffReports, "reports.export": "full" }, description: "On the boards (and teams) they manage: Reports." },
   { key: "family", name: "Family", scope: "own", grants: famGrants, description: "Parents and guardians: sign up their athletes and see My Family." },
   { key: "athlete", name: "Athlete", scope: "own", grants: famGrants, description: "Athletes with their own sign-in: sign themselves up and see My Family." },
@@ -103,6 +117,11 @@ async function migrate() {
       AND ur.user_id IN (SELECT self_user_id FROM athletes WHERE self_user_id IS NOT NULL AND kind='athlete')`);   // athletes (not parents): Athlete instead of Family
     await give("family", `u.id IN (SELECT self_user_id FROM athletes WHERE self_user_id IS NOT NULL AND kind='adult' AND archived_at IS NULL) AND u.id IN (SELECT ur.user_id FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.key='family')`);
     await setFlag("roles_v2");
+  }
+  // 3. Claim Boards and App settings by function: coaches keep entering scores for their boards' testing days
+  if (!(await flag("roles_v3"))) {
+    await query(`UPDATE roles SET grants = coalesce(grants,'{}'::jsonb) || '{"assess.scores": "full"}'::jsonb WHERE key='coach'`);
+    await setFlag("roles_v3");
   }
 }
 

@@ -12,12 +12,18 @@ const AHead = async (req) => { const AH = require("../views/apphead"), c = await
 router.use(auth.requireUser);
 // People by permission (App Settings → Roles). Not listed here (lists, bulk, import, export, merge, communication, cleanup): administrators.
 const NEED = [["GET", /^\/(\d+)?$/, "people.person", 1], ["POST", /^\/\d+\/(invite|setup|signin-code)$/, "people.invite", 2], ["POST", /^\/\d+\/(roles|managing|coaching|reports)$/, "people.roles", 2],
-  ["POST", /^\/(\d+(\/(family|family\/remove|self|kind|archive))?)?$/, "people.person", 2]];
+  ["POST", /^\/(\d+(\/(family|family\/remove|self|kind|archive))?)?$/, "people.person", 2],
+  ["POST", /^\/(lists(\/\d+(\/delete)?)?|\d+\/lists)$/, "people.lists", 2], ["POST", /^\/bulk$/, "people.bulk", 2], ["GET", /^\/export\.csv$/, "people.export", 2],
+  ["*", /^\/import(\/.*)?$/, "people.import", 2], ["*", /^\/\d+\/merge$/, "people.merge", 2], ["*", /^\/cleanup$/, "people.cleanup", 2],
+  ["GET", /^\/communication(\/[a-z_]+)?$/, "comm.templates", 1], ["POST", /^\/communication\/[a-z_]+\/test$/, "comm.test", 2], ["POST", /^\/communication(\/.*)?$/, "comm.templates", 2]];
+const R0 = require("../roles");
 router.use(wrap(async (req, res, next) => {
-  const acc = await require("../roles").forUser(req.user); req.access = acc;
+  const acc = await R0.forUser(req.user); req.access = acc;
   if (acc.admin) return next();
-  const rule = NEED.find(([m, re]) => m === req.method && re.test(req.path));
-  if (rule && acc.has(rule[2], rule[3])) { req.peopleRO = !acc.has("people.person", 2); return next(); }
+  const rule = NEED.find(([m, re]) => (m === "*" || m === req.method) && re.test(req.path));
+  if (rule && acc.has(rule[2], rule[3])) { req.peopleRO = !acc.has("people.person", 2);
+    if (req.method === "GET" && R0.KIND[rule[2]] === "vf" && !acc.has(rule[2], 2)) Object.defineProperty(req.user, "_ro", { value: true, configurable: true });   // view only
+    return next(); }
   res.status(404).send("Not found");
 }));
 const clean = (x, n) => str(x).replace(/\s+/g, " ").slice(0, n);

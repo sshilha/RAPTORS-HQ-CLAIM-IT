@@ -32,9 +32,12 @@ app.use(async (req, res, next) => {
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use(require("./routes/auth"));
 // Every admin page knows which schedule you're working in (?s=, else your last one)
+app.use(require("./reqctx").middleware);   // the current visitor, for shared page pieces
+app.use("/admin", require("./gate").admin);   // which function each admin page needs (App Settings → Roles)
+app.use("/assess", require("./gate").scores);
 app.use("/admin", async (req, res, next) => {
   try {
-    if (req.user && auth.isAdmin(req.user)) { req.sched = await require("./schedules").current(req, res); req.user.sched = req.sched; }
+    if (req.user && (auth.isAdmin(req.user) || req.gatePassed)) { req.sched = await require("./schedules").current(req, res); req.user.sched = req.sched; }
     next();
   } catch (e) { next(e); }
 });

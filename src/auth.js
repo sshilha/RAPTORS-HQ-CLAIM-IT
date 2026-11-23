@@ -123,8 +123,8 @@ function isAdmin(user) {
   return !!user && (envAdmins().includes(user.email) || dbAdmins.has(user.email));
 }
 
-function requireAdmin(req, res, next) {
-  if (!isAdmin(req.user)) return res.status(404).send("Not found");
+function requireAdmin(req, res, next) {   // administrators, or someone the gate let in for this page (src/gate.js)
+  if (!isAdmin(req.user) && !req.gatePassed) return res.status(404).send("Not found");
   next();
 }
 

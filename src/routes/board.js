@@ -363,6 +363,7 @@ router.post("/:sid/items/:iid/people/add", wrap(async (req, res) => {
     if (!(e instanceof E.ClaimError)) throw e;
     if (!override) return go(res, back, { err: `${p.first_name} ${p.last_name} can't be added: ${e.message} Check "Override the rules" to add them anyway.` });
     if ((await query(`SELECT 1 FROM board_claims WHERE item_id=$1 AND athlete_id=$2 AND status<>'canceled'`, [it.id, aid])).rowCount) return go(res, back, { err: `${p.first_name} is already in this spot.` });
+    if (!auth.isAdmin(req.user) && !(req.access && req.access.can("session.override", it.schedule_id))) return go(res, back, { err: "Your role can't override the rules." });
     c = (await query(`INSERT INTO board_claims (item_id, athlete_id, booked_by, status, counts, note, override) VALUES ($1,$2,$3,'confirmed',true,$4,true) RETURNING *`, [it.id, aid, req.user.id, note])).rows[0];
     { const Qm = require("../questions"), qs = await Qm.forItem(it.id); let cl = {}; try { cl = Qm.clean(qs, Qm.fromBody(req.body)); } catch (e) { cl = {}; }   // override: keep whatever was answered
       await Qm.save(c.id, cl, undefined, qs); Qm.afterClaim(c.id).catch((e) => console.error("claim rules:", e.message)); }

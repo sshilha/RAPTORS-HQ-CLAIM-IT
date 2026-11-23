@@ -198,7 +198,7 @@ about; claims and cancels from before it existed are filled in once at startup.
 `npm run test:reports` checks every report for every role without a browser. Add to `.env`:
 `TEST_DATABASE_URL=postgres://…/claimit_test`, an empty database used only for this (create it once, e.g. `createdb
 claimit_test`). The test refuses to run on a database with real data; re-running clears and rebuilds only its own test
-data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database) and `npm run check` (pages) before a deploy.
+data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 43 checks, same test database) and `npm run check` (pages) before a deploy.
 
 ### 4.7a Reports: access and metric definitions
 **Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
@@ -347,6 +347,41 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.75** Roles, release 2 of 2: Claim Boards and App settings, function by function (69 functions in 9 areas).
+  Claim Boards: create and import boards; per board: Board setup, Board details, Access & people, Board defaults,
+  Notifications, Questions (each view or full), publish, export / QR, copy, archive and delete, a session's People page
+  (view or full), override the rules. People: lists, bulk, import, export, merge, clean up. Assessments: setup (view or
+  full), enter scores (view or full, per board: Coach keeps it), share. Communication: templates and branding (view or
+  full), test emails, email log. Accounts: settings, administrators, roles, on now, activity, sign-in activity, sign in
+  as (never as an administrator unless you are one). Organization: locations, wording, pictures, old data. One gate in
+  front of every admin page (src/gate.js) maps each address to its function, level and board; a board page without a
+  board allows Everywhere roles only; anything not mapped stays administrator-only. View only opens pages with a
+  banner and forms off; saves are refused. Claim Boards in the menu, the boards list and each board's tabs follow
+  the roles. New functions start as administrator-only (Coach also gets Enter scores, as before). Role tests: 43.
+- **v0.74** Roles, function by function (release 1 of 2). The role editor lists every function with No access / View
+  only / Full (or No / Yes), with All full / All view only / None per area: Family (sign up, release spots, change
+  answers, My Family), Check-in (Attendance tab view or record, Sign-ups only tab, Mark everyone here, walk-ins, change
+  after check-in closes), Reports (each of the 19 reports, download CSV/PDF, contact details), People (list and person
+  pages view or edit, invite and approve, assign roles), App settings (Roles view or edit). Role kinds: Everywhere, Per
+  board (given for chosen boards and maybe teams: on the person's page, or Board → Access & people → Roles on this
+  board; Coach = the board's coaches list, Team manager = Team manager cards, other roles in role_boards), Own family
+  or self (new Athlete role for athletes with their own sign-in; Family for parents and guardians). The upgrade keeps
+  everyone's access as it was (roles_v2): levels from the old permissions; custom coaching roles become per-board roles
+  on the boards they coached (and come off the coaches list); athletes move from Family to Athlete. Report boards
+  narrow to the roles that grant that report. Tests: `npm run test:roles` (26 checks).
+- **v0.73** Roles, phase 1 (src/roles.js; App Settings → Accounts & sign-in → Roles). A role is a set of permissions
+  with a reach: Everything, Boards they coach (board → Access & people), Boards and teams they manage (Team manager card),
+  or Their own family. People can have several roles; abilities add up. Permissions (server-enforced): Family (sign up
+  their family, My Family reports), Check-in (open / view rosters, record attendance), Reports (each category,
+  download CSV/PDF, contact details, email log), People (view incl. contact details, edit, invite and approve requests,
+  assign roles), App settings (create and edit roles). Built-in roles match the access before roles: Administrator
+  (locked; mirrored to Administrators; the last one can't be removed; ADMIN_EMAILS always admins), Coach, Team manager,
+  Family. First start assigns everyone (older Reports access grants become Team manager assignments); coaching a board
+  or managing teams brings Coach / Team manager unless a role already reaches those boards; a new sign-in linked to
+  athletes gets Family. App roles are required when adding a person with an email and when approving an account
+  request; each person's page has an App roles card; People shows role chips and "No app role". Without Record
+  attendance a roster is view only; without Edit people, People is view only. Board setup, sessions, assessments
+  setup, communication and app settings stay administrator-only (phase 2). Tests: `npm run test:roles` (19 checks).
 - **v0.72.1** Check-in has two tabs that always show, with counts: Attendance (sessions you check in, the default) and
   Sign-ups only (sessions without attendance, opening the view-only roster). The choice is remembered; the header
   counts follow the tab. Replaces the show/hide button.
