@@ -113,7 +113,9 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
     ...(admin ? [["/admin/settings", LABELS.schedules, DI.board, on === "boards"]] : []),
     ...(admin || coach ? [["/checkin", "Check-in", DI.check, on === "checkin"]] : []),
     ...(admin || user.can_reports ? [["/reports", "Reports", DI.report, on === "reports"]] : [])];
-  const role = admin ? "Administrator" : coach ? "Coach" : "Parent/Guardian Account";
+  const role = (user && user.role_names && user.role_names.length ? user.role_names.join(" · ") : admin ? "Administrator" : coach ? "Coach" : "No role yet");
+  // App Settings for anyone whose roles open part of it (the first part they can open)
+  const acc = user && user._access, setHref = admin ? "/admin/settings/app" : acc ? (acc.has("people.person") ? "/admin/people" : acc.has("people.invite") ? "/admin/requests" : acc.has("settings.roles") ? "/admin/roles" : "") : "";
   return `<header class="dh">
   <div class="dh-in">
     <a class="dh-logo" href="/dashboard"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
@@ -122,14 +124,14 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
       <details class="dh-acct"><summary>${DI.user}<span class="dh-who"><b>${esc(user.email)}</b><small>${role}</small></span>${DI.down}</summary>
         <div class="dh-menu">
           <a href="/account">${DI.user}My Account</a>
-          ${admin ? `<a href="/admin/settings/app">${DI.gear}App Settings</a>` : ""}
+          ${setHref ? `<a href="${setHref}">${DI.gear}App Settings</a>` : ""}
           <form method="post" action="/logout"><button type="submit" class="dh-signout">${DI.out}Sign Out</button></form></div></details>
     </div>
     <details class="dh-burger"><summary aria-label="Menu">${DI.menu}</summary>
       <div class="dh-sheet">
         <div class="dh-sheet-who">${DI.user}<span><b>${esc(user.email)}</b><small>${role}</small></span></div>
         ${items.map(([href, label, icon, on]) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${icon}${esc(label)}</a>`).join("")}
-        ${admin ? `<a href="/admin/settings/app">${DI.gear}App Settings</a>` : ""}
+        ${setHref ? `<a href="${setHref}">${DI.gear}App Settings</a>` : ""}
         <a href="/account">${DI.user}My Account</a>
         <form method="post" action="/logout"><button type="submit">Sign Out</button></form>
       </div></details>

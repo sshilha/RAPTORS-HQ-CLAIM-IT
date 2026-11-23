@@ -24,6 +24,7 @@ const SAME_WIDTH = ["members", "athletes", "groups", "activities", "schedule", "
 // pages with folder-style sub-tabs: everything after the tabs sits on the white sheet the tabs open onto
 const sheet = (body) => { const i = body.indexOf('<nav class="sub-tabs"'); if (i < 0) return body; const j = body.indexOf("</nav>", i) + 6;
   return `${body.slice(0, j)}<div class="sub-body">${body.slice(j)}</div>`; };
-const page = (opts) => layout({ ...opts, admin: true, wide: true, xwide: opts.xwide || SAME_WIDTH.includes(opts.tab), body: (opts.noBack ? "" : settingsNav(opts.tab, opts.user)) + sheet(opts.body) });
+const page = (opts) => layout({ ...opts, admin: true, wide: true, xwide: opts.xwide || SAME_WIDTH.includes(opts.tab),
+  body: (opts.noBack ? "" : settingsNav(opts.tab, opts.user)) + (opts.readOnly ? `<div class="ro-banner">👀 View only: your role can see this page but not change it.</div><fieldset class="ro-fs" disabled>${sheet(opts.body)}</fieldset>` : sheet(opts.body)) });
 
 module.exports = { page };

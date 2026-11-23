@@ -171,6 +171,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
 }));
 
 router.post("/b/:sid/claim", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.signup")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include signing up. Ask an admin if you need it." });
   const sid = int(req.params.sid), pid = int(req.body.p), itemId = int(req.body.item);
   const back = str(req.body.back).startsWith(`/b/${sid}`) ? str(req.body.back) : `/b/${sid}?p=${pid}`;
   const people = await myPeople(req.user);
@@ -188,6 +189,7 @@ router.post("/b/:sid/claim", wrap(async (req, res) => {
 
 // RSVP boards: Going / Can't make it, with an optional note (can be changed until the event starts)
 router.post("/b/:sid/rsvp", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.signup")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include signing up. Ask an admin if you need it." });
   const sid = int(req.params.sid), pid = int(req.body.p), itemId = int(req.body.item);
   const back = str(req.body.back).startsWith(`/b/${sid}`) ? str(req.body.back) : `/b/${sid}?p=${pid}`;
   const people = await myPeople(req.user);
@@ -212,6 +214,7 @@ router.get("/claims/:id/calendar", wrap(async (req, res) => {
 }));
 
 router.post("/claims/:id/answers", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.answers")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include changing answers. Ask an admin if you need it." });
   const id = int(req.params.id), people = await myPeople(req.user), mine = new Set([...people.kids.map((k) => k.id), ...(people.me ? [people.me.id] : [])]);
   const c = (await query(`SELECT c.*, i.starts_at FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE c.id=$1`, [id])).rows[0];
   if (!c || !mine.has(c.athlete_id) || c.status === "canceled") return go(res, "/dashboard", { err: "That claim isn't yours to change." });
@@ -223,6 +226,7 @@ router.post("/claims/:id/answers", wrap(async (req, res) => {
   go(res, "/dashboard", { ok: "Answers saved." });
 }));
 router.post("/claims/:id/cancel", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.release")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include releasing spots. Ask an admin if you need it." });
   const id = int(req.params.id);
   const back = str(req.body.back).startsWith("/") ? str(req.body.back) : "/dashboard";
   const c = (await query(`SELECT c.* FROM board_claims c WHERE c.id=$1`, [id])).rows[0];

@@ -37,7 +37,7 @@ function statusPill(p) {
   const k = PP.statusOf(p), d = k === "active" ? p.last_login_at : k === "invited" ? p.invited_at : null;
   return `<span class="st-pill ${TONE[k]}" title="${TIP[k]}">${PP.STATUS[k]}</span>${d ? `<span class="fine st-date">${shortDate(d)}</span>` : ""}`;
 }
-function directoryPage({ user, flash, people, total, f, teams, groups, lists = [], head = null, waiting = 0 }) {
+function directoryPage({ roleBoards = [], appRolesAll = [], readOnly = false, noRole = 0, user, flash, people, total, f, teams, groups, lists = [], head = null, waiting = 0 }) {
   const cur = lists.find((l) => l.id === f.list);
   const qs = (extra) => `/admin/people?${new URLSearchParams(Object.fromEntries(Object.entries({ ...f, ...extra }).filter(([, x]) => x)))}`;
   const listBar = `  ${cur ? `<div class="list-head"><b>${esc(cur.name)}</b> <span class="fine">${cur.n} ${cur.n === 1 ? "person" : "people"}</span>
@@ -63,8 +63,8 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
         <select name="role" aria-label="Role" onchange="this.form.submit()"><option value="">Any role</option>${Object.entries(ROLE).map(([k, l]) => `<option value="${k}"${f.role === k ? " selected" : ""}>${l}</option>`).join("")}</select>
         ${teams.length ? `<select name="team" aria-label="Current team" onchange="this.form.submit()"><option value="">Any team</option>${opt(teams, f.team)}</select>` : ""}
         ${f.q || f.kind || f.role || f.team || f.status || f.list ? `<a class="link-dark" href="/admin/people">Clear</a>` : ""}</form>`;
-  return page({ title: "People", tab: "people", user, flash, xwide: true,
-    body: `${head ? head({ active: "people" }) : ""}
+  return page({ readOnly, title: "People", tab: "people", user, flash, xwide: true,
+    body: `${noRole ? `<div class="ar-note">⚠ ${noRole} ${noRole === 1 ? "person has" : "people have"} no app role yet. <a class="link-dark" href="/admin/people?status=norole">Show them</a></div>` : ""}${head ? head({ active: "people" }) : ""}
     ${dl}
     ${waiting ? `<div class="req-note"><b>${waiting} request${waiting === 1 ? "" : "s"} waiting</b> <span>New accounts, family members to add, or changes people asked for.</span><a class="sb-btn primary" href="/admin/requests">Review</a></div>` : ""}
     <section class="panel">
@@ -85,9 +85,11 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
         <form method="post" action="/admin/people" class="grid-form ap-pane" data-ap="athlete"><input type="hidden" name="kind" value="athlete">
           ${fields({}, "athlete")}
           <div class="full"><label><span>Parent/guardian emails <span class="opt">(optional; they're added as parents)</span></span><input name="parent_emails" placeholder="e.g. mom@example.com, dad@example.com"></label></div>
+          <div class="full"><fieldset class="ar-fs"><legend>App roles <span class="opt">(required if they have an email: what they can see and do)</span></legend>${require("./roles").rolePick(appRolesAll || [], [], { boards: roleBoards, withTeams: false })}</fieldset></div>
           <div class="full ap-actions"><button class="btn-small" type="submit">Add athlete</button></div></form>
         <form method="post" action="/admin/people" class="grid-form ap-pane" data-ap="adult" hidden><input type="hidden" name="kind" value="adult">
           ${fields({}, "adult")}
+          <div class="full"><fieldset class="ar-fs"><legend>App roles <span class="opt">(required if they have an email: what they can see and do)</span></legend>${require("./roles").rolePick(appRolesAll || [], [], { boards: roleBoards, withTeams: false })}</fieldset></div>
           <div class="full ap-actions"><button class="btn-small" type="submit">Add adult</button></div></form>
       </div></details></div>
       ${listBar}
@@ -101,7 +103,7 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
           return `<tr>
           <td data-l=""><input type="checkbox" name="ids" value="${p.id}" form="bulk" aria-label="Check ${esc(PP.display(p))}"></td>
           <td data-l="Person"><a class="dir-name" href="/admin/people/${p.id}">${esc(PP.display(p))}</a>${p.jersey ? ` <span class="fine">#${esc(p.jersey)}</span>` : ""}
-            <div class="dir-sub">${kindTag(p)}${p.team ? `<span class="dir-team">${esc(p.team)}</span>` : ""}</div>${(p.assessDays || []).length ? `<div class="ae-row">${require("../assess").entryButton(p.id, p.assessDays, "/admin/people", { small: true })}</div>` : ""}</td>
+            <div class="dir-sub">${kindTag(p)}${p.team ? `<span class="dir-team">${esc(p.team)}</span>` : ""}${(p.app_roles || []).map((n) => `<span class="ar-chip">${esc(n)}</span>`).join("")}${p.needs_role ? `<span class="ar-chip ar-none">No app role</span>` : ""}</div>${(p.assessDays || []).length ? `<div class="ae-row">${require("../assess").entryButton(p.id, p.assessDays, "/admin/people", { small: true })}</div>` : ""}</td>
           <td data-l="Contact" class="dir-contact">${[p.email, p.phone].filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join("") || `<span class="fine">—</span>`}</td>
           <td data-l="Family" class="dir-family">${p.kind === "athlete" ? (p.parents.length ? `<span class="dir-lbl">Parents/guardians</span>${esc(p.parents.join(", "))}` : `<span class="fine">—</span>`) : (p.kids.length ? `<span class="dir-lbl">Kids</span>${esc(p.kids.join(", "))}` : `<span class="fine">—</span>`)}</td>
           <td data-l="Lists &amp; boards" class="dir-lists">${ls.length ? `<div class="dir-chips">${ls.slice(0, 3).map((n) => `<span class="dir-chip list" title="List">${esc(n)}</span>`).join("")}${more(ls)}</div>` : ""}
@@ -127,10 +129,10 @@ function directoryPage({ user, flash, people, total, f, teams, groups, lists = [
     </script>` });
 }
 
-function personPage({ managing = [], boardTeams = {}, user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [], acct = null, history = [], head = null }) {
+function personPage({ roleBoards = [], assigned = [], readOnly = false, appRoles = [], myRoles = [], canAssign = false, hasSignin = false, managing = [], boardTeams = {}, user, flash, p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine = [], lists = [], allTeams = [], acct = null, history = [], head = null }) {
   const ra = p.report_access || {}, mode = ra.mode || "none";
   const name = PP.display(p);
-  return page({ title: name, tab: "people", user, flash, xwide: true,
+  return page({ readOnly, title: name, tab: "people", user, flash, xwide: true,
     body: `<nav class="back-row"><a class="back-btn" href="/admin/people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>People</a></nav>${head ? head({ active: "people" }) : ""}<div class="sub-top"><h2>${esc(name)} <span class="h-sub">${p.kind === "adult" ? "Adult" : "Athlete"}</span></h2></div>
     <div class="board-cols"><div class="bc-left">
       <section class="panel"><h2>Details</h2>
@@ -172,6 +174,12 @@ function personPage({ managing = [], boardTeams = {}, user, flash, p, boards, cl
           ${allBoards.map((b) => `<label class="radio-row"><input type="checkbox" name="boards" value="${b.id}"${coaching.includes(b.id) ? " checked" : ""}${p.email ? "" : " disabled"}> ${esc(b.name)}</label>`).join("") || `<p class="muted small">No boards yet.</p>`}
           ${p.email && allBoards.length ? `<div class="q-actions"><button class="btn-small" type="submit">Save</button></div>` : ""}
         </form></section>` : ""}
+      <section class="panel side-card" id="roles"><h2>App roles</h2>
+        <p class="fine">What ${esc(p.first_name)} can see and do. Several roles add up (e.g. Coach and Family). Roles are set up in App Settings → Accounts &amp; sign-in → Roles.</p>
+        ${!hasSignin && !p.email ? `<p class="muted small">${p.kind === "athlete" ? "No sign-in: their parents' roles apply when they sign in." : "Add an email first; roles apply when they sign in."}</p>` : `
+        <form method="post" action="/admin/people/${p.id}/roles">${require("./roles").rolePick(appRoles, myRoles, { disabled: !canAssign, boards: roleBoards, assigned })}
+          ${canAssign ? `<div class="q-actions"><button class="btn-small" type="submit">Save roles</button></div>` : `<p class="fine">Your role can't change roles.</p>`}
+          ${!hasSignin ? `<p class="fine">They haven't signed in yet; these apply when they do.</p>` : ""}</form>`}</section>
       ${p.kind === "adult" ? `<section class="panel side-card" id="manager"><h2>Team manager</h2>
         <p class="fine">Boards (and teams) this person manages. They see those boards in Reports, only for the teams you tick (none ticked = all teams). No check-in or setup access.</p>
         <form method="post" action="/admin/people/${p.id}/managing" class="stack">

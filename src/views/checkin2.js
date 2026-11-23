@@ -70,8 +70,8 @@ function signupsPage({ user, flash, admin, it, people }) {
       ${wl.length ? `<h3>Waitlist <span class="fine">${wl.length}</span></h3><ol class="ck-su-list">${wl.map((p, i) => row(p, i)).join("")}</ol>` : ""}
     </section></div></div>` });
 }
-function rosterPage({ user, flash, admin, it, people, board, others, sub = "roster", rsvp = null }) {
-  const lock = it.lock || { locked: false, until: null }, ro = lock.locked && !admin;   // read-only for coaches once it's closed
+function rosterPage({ noMark = false, noMarkAll = false, noWalkin = false, user, flash, admin, it, people, board, others, sub = "roster", rsvp = null }) {
+  const lock = it.lock || { locked: false, until: null }, ro = noMark || (lock.locked && !admin);   // read-only: closed for coaches, or a role without Record attendance
   const short = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
   const q = it.question || {};
@@ -93,12 +93,13 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
     <nav class="bh2-tabs dash-tabs ck-gbar">
       <span class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> ${rsvp ? "going" : "claimed"}
         <span class="ck-bar-p"><i id="ck-pct" style="width:${conf.length ? Math.round(((here + no) / conf.length) * 100) : 0}%"></i></span></span>
-      ${lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
-      ${conf.length && !ro ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
+      ${noMark ? `<span class="ck-lock on">View only: your role can see this roster but not record attendance.</span>` : ""}
+      ${!noMark && lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
+      ${conf.length && !ro && !noMarkAll ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
     </nav>
     <div class="sub-body ck-sheet no-subs">
     <div class="ck-listbar"><h3>${rsvp ? "Going" : "Signed up"} <i class="sub-n">${conf.length}</i></h3>
-      ${ro ? "" : `<button type="button" class="sb-btn ck-addwalk" onclick="var w=document.getElementById('walkin'); w.hidden=!w.hidden; window.dispatchEvent(new Event('resize')); if (!w.hidden) { w.querySelector('select, input').focus(); }">+ Add walk-in</button>`}</div>
+      ${ro || noWalkin ? "" : `<button type="button" class="sb-btn ck-addwalk" onclick="var w=document.getElementById('walkin'); w.hidden=!w.hidden; window.dispatchEvent(new Event('resize')); if (!w.hidden) { w.querySelector('select, input').focus(); }">+ Add walk-in</button>`}</div>
         <section class="d-card ck-walk" id="walkin" hidden><h3>Add a walk-in</h3><p class="fine">Someone here who didn't claim? Add them. They're added to the list as here, and don't use a spot or count toward limits.</p>
       <form method="post" action="/checkin/i/${it.id}/walkin" class="a-form">
         <label>Pick someone<select name="athlete_id"><option value="">Choose…</option>

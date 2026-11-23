@@ -22,7 +22,7 @@ function needHelp(sc, L) {
 const STAGE = { claimed: ["Claimed", "ok"], opened: ["Opened the board", "mid"], signedin: ["Signed in, hasn't opened it", "low"], never: ["Never signed in", "bad"], noaccount: ["No account", "bad"] };
 function engCell(a) { const e = a.eng || {}, st = STAGE[e.stage] || STAGE.noaccount, d = (t) => t ? new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
   return `<td data-sort="${["claimed", "opened", "signedin", "never", "noaccount"].indexOf(e.stage)}"><span class="eng ${st[1]}">${e.stage === "claimed" ? `Claimed ${e.claims}` : st[0]}</span>${e.stage === "opened" ? `<span class="em-why">${d(e.opened_at)}</span>` : e.stage === "signedin" ? `<span class="em-why">last ${d(e.signed_in_at)}</span>` : e.stage === "noaccount" ? `<span class="em-why">no parent/guardian or own email</span>` : ""}</td>`; }
-function membersPage({ user, flash, sc, members, others, group, total, teams = "", head = "", sub = "people", addOpen = false, eng = null, stageF = "" }) {
+function membersPage({ rolesHtml = "", user, flash, sc, members, others, group, total, teams = "", head = "", sub = "people", addOpen = false, eng = null, stageF = "" }) {
   const L = SC.labels(sc);
   const groups = SC.groupsFor(sc);
   const tags = sc.tags || [];
@@ -41,7 +41,7 @@ function membersPage({ user, flash, sc, members, others, group, total, teams = "
     .replace('<section class="panel" id="presets">', `<section class="panel" id="presets" data-card="presets" data-order="5"${vis("presets")} data-title="${esc(L.group.one)} shortcuts" data-sum="Optional time-saver" data-sub="Pick several ${esc(L.group.many.toLowerCase())} at once">${ICO('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>')}`);
   return page({
     title: `${sc.name} ${L.group.many}, tags & ${L.participant.many.toLowerCase()}`, tab: "members", user, flash,
-    body: `${head}
+    body: `${head}${rolesHtml}
     <nav class="sub-tabs" aria-label="Access &amp; people">
       <a href="/admin/members?s=${sc.id}&sub=people"${sub === "people" ? ' aria-current="page"' : ""}>${esc(L.participant.many)} <i class="sub-n">${total}</i></a>
       <a href="/admin/members?s=${sc.id}&sub=groups"${sub === "groups" ? ' aria-current="page"' : ""}>${esc(L.group.many)} &amp; tags</a>

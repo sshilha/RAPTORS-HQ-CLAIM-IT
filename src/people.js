@@ -97,27 +97,22 @@ async function addToList(listId, ids) {
 // Team managers: assigned per board, optionally limited to some of its teams (empty teams = all teams). Reports only.
 let mgrReady = null;
 function ensureManagers() { return mgrReady || (mgrReady = query(`CREATE TABLE IF NOT EXISTS board_managers (schedule_id INT NOT NULL, email TEXT NOT NULL, teams TEXT[] NOT NULL DEFAULT '{}', PRIMARY KEY (schedule_id, email))`).catch((e) => { mgrReady = null; throw e; })); }
-async function reportScope(user) {
+// The reports a user may run, and on which boards and teams (App Settings → Roles: one permission per report).
+// With r: the boards for that report only. Without: every board where any report is allowed (for menus).
+const REPORT_OF = (r) => (r === "personView" ? "claims" : r === "assessAthlete" ? "assessProgress" : r);
+async function reportScope(user, r = null) {
   if (!user) return null;
-  if (require("./auth").isAdmin(user)) return { all: true, boards: null, teams: [] };
-  const p = (await query(`SELECT * FROM athletes WHERE kind='adult' AND (self_user_id=$1 OR lower(email)=lower($2)) AND archived_at IS NULL ORDER BY id LIMIT 1`, [user.id, user.email])).rows[0];
-  const a = (p && p.report_access) || {};
-  const coached = (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [user.email])).rows.map((r) => r.schedule_id);   // coaches: their boards, automatically
-  let granted = [];
-  if (a.mode === "coached") granted = coached;
-  if (a.mode === "boards") granted = (a.boards || []).map(Number).filter(Boolean);
-  await ensureManagers();
-  const managed = (await query(`SELECT schedule_id, teams FROM board_managers WHERE lower(email)=lower($1)`, [user.email])).rows;
-  const boards = [...new Set([...coached, ...granted, ...managed.map((m) => m.schedule_id)])];
-  // per-board team limits: a manager limited to some teams, or Reports access limited to teams. A coach's own boards,
-  // or a board managed for all teams, are never limited.
-  const teamsBy = {};
-  const legacy = a.mode && a.mode !== "none" ? (a.teams || []).filter(Boolean) : [];
-  if (legacy.length) for (const b of granted) teamsBy[b] = legacy;
-  for (const m of managed) if ((m.teams || []).length) teamsBy[m.schedule_id] = [...new Set([...(teamsBy[m.schedule_id] || []), ...m.teams])];
-  for (const m of managed) if (!(m.teams || []).length) delete teamsBy[m.schedule_id];
-  for (const b of coached) delete teamsBy[b];
-  return boards.length ? { all: false, boards, teams: [], teamsBy, coach: coached.length > 0, coached, manager: managed.length > 0 } : null;
+  const R = require("./roles"), acc = await R.forUser(user);
+  const allow = new Set(R.REPORTS.map(([k]) => k).filter((k) => acc.has(`report.${k}`))); if (!allow.size) return null;
+  const keys = r ? [REPORT_OF(r)].filter((k) => allow.has(k)) : [...allow];
+  let all = false; const map = new Map();
+  for (const k of keys) { const b = acc.boards(`report.${k}`); if (b.all) all = true;
+    for (const [id, t] of b.map) { const cur = map.get(id); map.set(id, t === null || cur === null ? null : [...new Set([...(cur || []), ...t])]); } }
+  if (!all && !map.size) return r ? { all: false, boards: [], teams: [], teamsBy: {}, coached: [], allow, cats: new Set(), can: {}, admin: acc.admin, none: true } : null;
+  const teamsBy = {}; if (!all) for (const [id, t] of map) if (t) teamsBy[id] = t;
+  const ck = acc.boards("checkin.attendance"), cats = new Set(Object.entries(R.REPORT_CATS).filter(([, ks]) => ks.some((k) => allow.has(k))).map(([c]) => c));
+  return { all, boards: all ? null : [...map.keys()], teams: [], teamsBy, coach: !!(ck.all || ck.map.size), coached: ck.all ? [] : [...ck.map.keys()], checkinAll: ck.all, manager: Object.keys(teamsBy).length > 0,
+    admin: acc.admin, allow, cats, can: { export: acc.has("reports.export"), contacts: acc.has("reports.contacts"), emaillog: allow.has("emails") } };
 }
 
 // A person's status in People: what (if anything) needs attention
@@ -220,5 +215,5 @@ async function cleanupDelete(userIds, meId) {
   }
   return { deleted, archived };
 }
-async function canReports(user) { return !!(await reportScope(user)) || (await require("./familyData").people(user)).length > 0; }
+async function canReports(user) { return !!(await reportScope(user)) || ((await require("./roles").forUser(user)).has("family.reports") && (await require("./familyData").people(user)).length > 0); }
 module.exports = { canReports, ensureManagers, cleanupList, cleanupKeep, cleanupDelete, mergePreview, merge, STATUS, statusOf, isAdultAge, migrate, ensureAdult, linkParent, display, lists, listNamed, addToList, reportScope };

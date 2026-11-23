@@ -6,13 +6,15 @@ const auth = require("./auth");
 const tracked = (row) => (row.s_attendance != null ? row.s_attendance : row.p_attendance != null ? row.p_attendance : !!row.board_track);
 
 // SQL pieces for "is this session tracked?" (needs s = training_sessions, p = programs, sc = schedules)
-async function boardsFor(user) {
+// Check-in: boards where their roles allow "Open Check-in" (App Settings → Roles)
+async function boardsFor(user) {   // boards where they may open either Check-in tab
   if (!user) return [];
-  if (auth.isAdmin(user)) return (await query(`SELECT id FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.id);
-  return (await query(`SELECT c.schedule_id AS id FROM schedule_coaches c JOIN schedules sc ON sc.id=c.schedule_id
-    WHERE c.email=$1 AND sc.archived_at IS NULL`, [user.email])).rows.map((r) => r.id);
+  const acc = await require("./roles").forUser(user), a = acc.boards("checkin.attendance"), s = acc.boards("checkin.signups");
+  const b = { all: a.all || s.all, map: new Map([...a.map, ...s.map]) };
+  if (b.all) return (await query(`SELECT id FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.id);
+  return b.map.size ? (await query(`SELECT id FROM schedules WHERE id = ANY($1) AND archived_at IS NULL`, [[...b.map.keys()]])).rows.map((r) => r.id) : [];
 }
-async function isCoach(user) {
-  return !!user && (await query(`SELECT 1 FROM schedule_coaches WHERE email=$1 LIMIT 1`, [user.email])).rowCount > 0;
+async function isCoach(user) {   // "may open Check-in somewhere" (the menu's Check-in link)
+  if (!user) return false; const acc = await require("./roles").forUser(user), a = acc.boards("checkin.attendance"), s = acc.boards("checkin.signups"); return a.all || s.all || a.map.size > 0 || s.map.size > 0;
 }
 module.exports = { tracked, boardsFor, isCoach };

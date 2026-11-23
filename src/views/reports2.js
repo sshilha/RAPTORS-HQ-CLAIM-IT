@@ -107,7 +107,7 @@ const SESSIONS_R = ["signups", "answers", "sess", "claims", "attend", "limits", 
 const USES = { level: SESSIONS_R, loc: SESSIONS_R, days: SESSIONS_R, bt: ["sess", "overview", "person", "all", "attendance", "noshows", "unchecked", "fill", "busiest", "locations", "waitlists", "teams", "week"],
   cs: ["claims"], at: ["claims"], dates: [...SESSIONS_R.filter((x) => x !== "week"), "emails"], team: [...SESSIONS_R, "engagement", "notSignedIn", "notSignedUp"] };
 
-function reportPage({ qOpts = [], qq = "", whoOpts = [], who = "", famOK = false, coached = [], pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
+function reportPage({ allowReports = null, allowCats = null, canExport = true, canEmails = null, qOpts = [], qq = "", whoOpts = [], who = "", famOK = false, coached = [], pid = "", user, flash, admin, boards, board, several = null, qd = "", QD = {}, allDates = true, custom = false, RF = {}, rf = {}, BT = {}, btype = "", CS = {}, cstatus = "", AT = {}, astatus = "", kinds = [], views = [], r, data, from, to, team, teams, required, week, opts = {}, filterText = "" }) {
   const o = opts, DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const X = o.assess;
   const PAIR = ["assessImprove", "assessAttend", "assessTeams"].includes(r) || (rf.cmp === "days" && (r === "assessProgress" || (r === "assessTeam" && rf.tshow === "improve")));
@@ -197,8 +197,10 @@ function reportPage({ qOpts = [], qq = "", whoOpts = [], who = "", famOK = false
     </section>
     ${chipsOn.length ? `<div class="tb-chips" aria-label="Active filters">${chipsOn.map(([k, l]) => `<a class="tb-chip" href="${clearOne(k)}" title="Remove this filter">${esc(l)} <span aria-hidden="true">✕</span></a>`).join("")}</div>` : ""}`;
   // ---- report navigation: only sections this person can use and that apply to the chosen boards ----
-  const showSub = (k) => k === "emails" ? admin : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" ? kinds.includes("volunteer") : true;   // Volunteer hours always shows under Families
-  const showTab = (id) => (TABS.find((t) => t[0] === id) || [, , , []])[3].some(([k, l]) => !l || showSub(k));
+  const CATOF = { overview: "overview", participation: "participation", sessions: "sessions", families: "families", assess: "assessments", more: "rsvp" };
+  const BASEK = (k) => (k === "personView" ? "claims" : k === "assessAthlete" ? "assessProgress" : k);
+  const showSub = (k) => allowReports && !allowReports.has(BASEK(k)) ? false : k === "emails" ? (canEmails == null ? admin : canEmails) : /^rsvp/.test(k) ? kinds.includes("rsvp") : k === "coverage" ? kinds.includes("volunteer") : true;   // Volunteer hours always shows under Families
+  const showTab = (id) => (!allowCats || allowCats.has(CATOF[id] || id)) && (TABS.find((t) => t[0] === id) || [, , , []])[3].some(([k, l]) => !l || showSub(k));
   const curTab = TABS.find((t) => t[3].some(([k]) => k === r)) || TABS[0];
   const RK = ["sw", "sshow", "ag", "qq", "cmp", "tshow", "group", "ashow", "who", "lview", "rank", "fview", "view", "pid", "cs", "at", "q", "when", "cap", "cov", "st", "prob", "ans", "as", "da", "db", "how", "dsel", "drill", "top", "bf", "bt", "wl", "blanks", "week"];   // a report's own filters
   const go = (k) => url({ r: k, v: "" }), goNew = (k) => url({ r: k, v: "", ...Object.fromEntries(RK.map((x) => [x, ""])) });
@@ -275,7 +277,7 @@ function reportPage({ qOpts = [], qq = "", whoOpts = [], who = "", famOK = false
       <div><div class="bh2-t"><h1>Reports &amp; Analytics</h1></div><span class="bh2-meta">${esc(meta)}</span></div></div>
     <div class="bh2-acts">
       <button type="button" class="sb-btn r-ftoggle" aria-expanded="false" aria-controls="rfp">${IC2.filter}Filters${nOn ? ` <b class="tb-n">${nOn}</b>` : ""}</button>
-      ${data.cols || r === "week" || r === "overview" ? `<a class="sb-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${data.cols ? `<a class="sb-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="sb-btn" onclick="window.print()">Print</button>` : ""}
+      ${canExport && (data.cols || r === "week" || r === "overview") ? `<a class="sb-btn" href="${url({ pdf: "1" })}">${DL}PDF</a>` : ""}${canExport && data.cols ? `<a class="sb-btn" href="${url({ csv: "1" })}">${DL}CSV</a>` : ""}${r === "week" || r === "overview" ? `<button type="button" class="sb-btn" onclick="window.print()">Print</button>` : ""}
       ${famOK ? `<nav class="ra-views" aria-label="Reports view"><a href="/reports?view=mgmt" class="on" aria-current="page">Management</a><a href="/reports?view=family">My Family</a></nav>` : ""}</div></section>`;
   const cats = `<nav class="bh2-tabs board-tabs r-cats" aria-label="Report categories">${TABS.filter((t) => showTab(t[0]) || t === curTab).map(([id, label, icon, subs]) => { const first = (subs.find(([k, l]) => l && showSub(k)) || subs[0])[0];
       return `<a href="${id === curTab[0] ? go(first) : goNew(first)}"${id === curTab[0] ? ' aria-current="page"' : ""}>${icon}${label}</a>`; }).join("")}</nav>`;
