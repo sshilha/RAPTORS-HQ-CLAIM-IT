@@ -347,6 +347,9 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.76.1** 👀 Preview is also in a role's edit form (under Save role), previewing the role as saved.
+- **v0.76.1** Preview is also in a role's edit form (it previews the role as saved). Role summaries say "Add family
+  members (request it / add directly)" instead of "(view only)".
 - **v0.76** More role controls. Record of changes: role edits (with each function's old → new level), role
   assignments and roles given when adding a person or approving a request go in Activity (new kind "Roles &
   permissions"). Preview a role (👀 Preview on each role card; per-board roles pick a board): see the app as that role,
