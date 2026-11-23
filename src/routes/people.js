@@ -102,6 +102,7 @@ router.post("/", wrap(async (req, res) => {
   if (kind === "athlete") for (const e of String(req.body.parent_emails || "").split(/[\s,;]+/).map(auth.normalizeEmail).filter(auth.isValidEmail)) await PP.linkParent(id, e);
   if (appRoles.length) await RR.setPersonRoles(id, appRoles);
   if (p.email) for (const b of pick.boards) if (b.boards.length) await RR.setBoardRoles(p.email, b.roleId, b.boards);
+  if (pick.any) require("../activity").record(req, { kind: "roles", summary: `Gave ${p.first_name} ${p.last_name} roles when adding them`, athleteId: id }).catch(() => {});
   go(res, `/admin/people/${id}`, { ok: `Added ${p.first_name} ${p.last_name}.` });
 }));
 // a person's app roles (what they can see and do)
@@ -110,6 +111,9 @@ router.post("/:id(\\d+)/roles", wrap(async (req, res) => {
   const p = (await query(`SELECT a.id, a.first_name, coalesce(u.email, a.email) AS email, a.self_user_id FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id WHERE a.id=$1`, [id])).rows[0]; if (!p) return go(res, "/admin/people", { err: "Not found." });
   if (!pick.any && (p.email || p.self_user_id)) return go(res, `/admin/people/${id}#roles`, { err: "Everyone with a sign-in needs at least one role." });
   try { await RR.setPersonRoles(id, pick.roles); if (p.email) for (const b of pick.boards) await RR.setBoardRoles(p.email, b.roleId, b.boards); } catch (e) { return go(res, `/admin/people/${id}#roles`, { err: e.message }); }
+  { const names = (await RR.list()).filter((r) => pick.roles.includes(r.id)).map((r) => r.name), all = await RR.list(), bn = new Map((await query(`SELECT id, name FROM schedules`)).rows.map((b) => [b.id, b.name]));
+    const per = pick.boards.filter((b) => b.boards.length).map((b) => `${(all.find((r) => r.id === b.roleId) || {}).name} on ${b.boards.map((x) => `${bn.get(x.id)}${x.teams.length ? ` (${x.teams.join(", ")})` : ""}`).join(", ")}`);
+    require("../activity").record(req, { kind: "roles", summary: `Set ${p.first_name}'s roles: ${[...names, ...per].join("; ") || "none"}`, athleteId: id }).catch(() => {}); }
   go(res, `/admin/people/${id}#roles`, { ok: `Saved ${p.first_name}'s roles.` });
 }));
 

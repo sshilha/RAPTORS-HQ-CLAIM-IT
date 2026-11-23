@@ -14,12 +14,14 @@ router.post("/roles", wrap(async (req, res) => {
   if (!sid || !email || !roleId) return go(res, `/admin/members?s=${sid}#board-roles`, { err: "Pick a person and a role." });
   const cur = (await R.assignmentsOf(email)).filter((a) => a.role.id === roleId && a.schedule_id !== sid).map((a) => ({ id: a.schedule_id, teams: a.teams }));
   await R.setBoardRoles(email, roleId, [...cur, { id: sid, teams: String(req.body.teams || "").split(",").map((t) => t.trim()).filter(Boolean) }]);
+require("../activity").record(req, { kind: "roles", summary: `Gave ${email} the role ${((await R.list()).find((r) => r.id === roleId) || {}).name} on board ${sid}`, boardId: sid }).catch(() => {});
   go(res, `/admin/members?s=${sid}#board-roles`, { ok: "Role added on this board." });
 }));
 router.post("/roles/remove", wrap(async (req, res) => {
   const sid = int(req.query.s), R = require("../roles"), email = String(req.body.email || "").trim().toLowerCase(), roleId = int(req.body.role);
   const keep = (await R.assignmentsOf(email)).filter((a) => a.role.id === roleId && a.schedule_id !== sid).map((a) => ({ id: a.schedule_id, teams: a.teams }));
   await R.setBoardRoles(email, roleId, keep);
+require("../activity").record(req, { kind: "roles", summary: `Removed ${email}'s role ${((await R.list()).find((r) => r.id === roleId) || {}).name} on board ${sid}`, boardId: sid }).catch(() => {});
   go(res, `/admin/members?s=${sid}#board-roles`, { ok: "Role removed on this board." });
 }));
 

@@ -18,9 +18,9 @@ const PERMS = [
     ["board.access", "Access & people", "Who's on the board, groups, tags, and roles on the board", "vf"], ["board.defaults", "Board defaults", "Rules, limits, attendance and other defaults", "vf"],
     ["board.notify", "Notifications", "Reminders and notification emails for the board", "vf"], ["board.questions", "Questions", "Claim questions and their rules", "vf"],
     ["board.publish", "Publish and unpublish", "", "yn"], ["board.export", "Export and QR code", "", "yn"], ["board.copy", "Copy a board", "", "yn"], ["board.archive", "Archive and delete boards", "", "yn"],
-    ["session.people", "A session's People page", "View who's on a session, or Full to add, remove and record RSVPs", "vf"], ["session.override", "Override the rules when adding someone", "Past limits, full sessions and closed sign-ups", "yn"]]],
+    ["session.people", "A session's People page", "View who's on a session, or Full to add, remove and record RSVPs", "vf"], ["session.waitlist", "Manage the waitlist", "Remove people from a session's waitlist (promotion happens on its own when a spot opens)", "yn"], ["session.override", "Override the rules when adding someone", "Past limits, full sessions and closed sign-ups", "yn"]]],
   ["Family", [["family.signup", "Sign up for sessions", "Claim spots on Sign Up for Something", "yn"], ["family.release", "Release their spots", "Give a claimed spot back", "yn"],
-    ["family.answers", "Change their answers", "Answers to claim questions, on My Claims", "yn"], ["family.reports", "My Family reports", "Schedule, claims, attendance and assessment results", "yn"]]],
+    ["family.answers", "Change their answers", "Answers to claim questions, on My Claims", "yn"], ["family.add", "Add family members", "Request it: an administrator approves. Add directly: added right away", "ra"], ["family.reports", "My Family reports", "Schedule, claims, attendance and assessment results", "yn"]]],
   ["Check-in", [["checkin.attendance", "Attendance tab", "View only: see rosters. Full: record Here / No-show", "vf"], ["checkin.signups", "Sign-ups only tab", "Who's signed up for sessions without attendance", "yn"],
     ["checkin.markall", "Mark everyone here", "", "yn"], ["checkin.walkin", "Add walk-ins", "", "yn"], ["checkin.afterclose", "Change attendance after check-in closes", "", "yn"]]],
   ["Reports", [...REPORTS.map(([k, l]) => [`report.${k}`, l, "", "yn"]), ["reports.export", "Download CSV and PDF", "", "yn"], ["reports.contacts", "See email addresses and phone numbers", "In reports and exports", "yn"]]],
@@ -29,7 +29,7 @@ const PERMS = [
     ["people.lists", "Lists", "Make lists and add people to them", "yn"], ["people.bulk", "Bulk actions", "Change many people at once", "yn"], ["people.import", "Import people", "", "yn"],
     ["people.export", "Export people", "Download the People list", "yn"], ["people.merge", "Merge duplicates", "", "yn"], ["people.cleanup", "Clean up", "Old and unused records", "yn"]]],
   ["Assessments", [["assess.setup", "Assessments, drills and testing days", "View only, or Full to change them", "vf"], ["assess.scores", "Enter scores", "View only, or Full to enter and change scores", "vf"],
-    ["assess.share", "Share testing days with families", "", "yn"]]],
+    ["assess.share", "Share testing days with families", "", "yn"], ["assess.allteams", "See every team's assessment results", "No: only the teams on their role (when teams are set on it)", "yn"]]],
   ["Communication", [["comm.templates", "Email templates and branding", "View only, or Full to change them", "vf"], ["comm.test", "Send test emails", "", "yn"], ["comm.emaillog", "Email log", "Every email sent and what happened to it", "yn"]]],
   ["Accounts", [["accounts.settings", "Account settings", "Sign-in and account options", "vf"], ["accounts.admins", "Administrators", "View only, or Full to add and remove administrators", "vf"],
     ["settings.roles", "Roles", "View only, or Full to create and edit roles", "vf"], ["accounts.online", "On now", "", "yn"], ["accounts.activity", "Activity log", "", "yn"],
@@ -40,11 +40,13 @@ const KIND = Object.fromEntries(PERMS.flatMap(([, ps]) => ps.map((p) => [p[0], p
 const ALL = Object.keys(KIND);
 const LV = { none: 0, view: 1, full: 2 };
 const FULL = Object.fromEntries(ALL.map((k) => [k, "full"]));
-const SCOPE = { everywhere: "Everywhere (all boards)", board: "Per board (given for specific boards, maybe some teams)", own: "Their own family or self" };
+const SCOPE = { everywhere: "Everywhere (all boards)", type: "All boards of a type (Program, Volunteer or RSVP)", board: "Per board (given for specific boards, maybe some teams)", own: "Their own family or self" };
+const BOARD_TYPES = { training: "Program boards", volunteer: "Volunteer boards", rsvp: "RSVP boards" };
+const NOTIFY = { claimed: "Someone claims or joins the waitlist", released: "Someone releases a spot", full: "A session fills up", opened: "Spots open up on a full session" };
 const REPORT_CATS = { overview: ["overview"], participation: ["claims", "attend", "teams", "limits", "answers", "waitlists"], sessions: ["sess", "signups", "week"],
   families: ["engagement", "volunteer", "emails"], assessments: ["assessResults", "assessDay", "assessProgress", "assessLeaders", "assessTeam"], rsvp: ["rsvp"] };
 const staffReports = Object.fromEntries(REPORTS.filter(([k]) => k !== "emails").map(([k]) => [`report.${k}`, "full"]));
-const famGrants = { "family.signup": "full", "family.release": "full", "family.answers": "full", "family.reports": "full" };
+const famGrants = { "family.signup": "full", "family.release": "full", "family.answers": "full", "family.add": "view", "family.reports": "full" };
 const BUILTIN = [
   { key: "admin", name: "Administrator", scope: "everywhere", grants: FULL, locked: true, description: "Everything, everywhere. Can't be changed." },
   { key: "coach", name: "Coach", scope: "board", grants: { "assess.scores": "full", "checkin.attendance": "full", "checkin.signups": "full", "checkin.markall": "full", "checkin.walkin": "full", ...staffReports, "reports.export": "full" }, description: "On the boards they coach: Check-in and Reports." },
@@ -59,6 +61,9 @@ function ensure() {
       perms TEXT[] NOT NULL DEFAULT '{}', locked BOOLEAN NOT NULL DEFAULT false, sort INT NOT NULL DEFAULT 0, archived_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
     await query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS scope TEXT`);
     await query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS grants JSONB`);
+    await query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS board_type TEXT`);   // scope "type": which kind of board
+    await query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS notify JSONB NOT NULL DEFAULT '{}'`);   // emails people with this role get
+    await query(`ALTER TABLE schedule_coaches ADD COLUMN IF NOT EXISTS teams TEXT[] NOT NULL DEFAULT '{}'`);   // a coach's teams on that board (optional)
     await query(`CREATE TABLE IF NOT EXISTS user_roles (user_id INT NOT NULL, role_id INT NOT NULL, assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (user_id, role_id))`);
     // per-board roles other than Coach (board coaches list) and Team manager (Team manager cards): who, which role, which board, which teams
     await query(`CREATE TABLE IF NOT EXISTS role_boards (email TEXT NOT NULL, role_id INT NOT NULL, schedule_id INT NOT NULL, teams TEXT[] NOT NULL DEFAULT '{}', PRIMARY KEY (email, role_id, schedule_id))`);
@@ -119,6 +124,10 @@ async function migrate() {
     await setFlag("roles_v2");
   }
   // 3. Claim Boards and App settings by function: coaches keep entering scores for their boards' testing days
+  if (!(await flag("roles_v4"))) {   // families and athletes keep requesting additions, as before
+    await query(`UPDATE roles SET grants = coalesce(grants,'{}'::jsonb) || '{"family.add": "view"}'::jsonb WHERE key IN ('family','athlete')`);
+    await setFlag("roles_v4");
+  }
   if (!(await flag("roles_v3"))) {
     await query(`UPDATE roles SET grants = coalesce(grants,'{}'::jsonb) || '{"assess.scores": "full"}'::jsonb WHERE key='coach'`);
     await setFlag("roles_v3");
@@ -134,7 +143,7 @@ async function assignmentsOf(email) {
   await ensure(); if (!email) return [];
   const roles = new Map((await query(`SELECT * FROM roles WHERE archived_at IS NULL AND scope='board'`)).rows.map((r) => [r.id, r])), byKey = (k) => [...roles.values()].find((r) => r.key === k);
   const out = [];
-  if (byKey("coach")) for (const b of (await query(`SELECT schedule_id FROM schedule_coaches WHERE lower(email)=lower($1)`, [email])).rows) out.push({ role: byKey("coach"), schedule_id: b.schedule_id, teams: [] });
+  if (byKey("coach")) for (const b of (await query(`SELECT schedule_id, teams FROM schedule_coaches WHERE lower(email)=lower($1)`, [email])).rows) out.push({ role: byKey("coach"), schedule_id: b.schedule_id, teams: b.teams || [] });
   if (byKey("manager")) for (const b of (await query(`SELECT schedule_id, teams FROM board_managers WHERE lower(email)=lower($1)`, [email])).rows) out.push({ role: byKey("manager"), schedule_id: b.schedule_id, teams: b.teams || [] });
   for (const b of (await query(`SELECT role_id, schedule_id, teams FROM role_boards WHERE lower(email)=lower($1)`, [email])).rows) if (roles.has(b.role_id)) out.push({ role: roles.get(b.role_id), schedule_id: b.schedule_id, teams: b.teams || [] });
   return out;
@@ -145,7 +154,12 @@ async function forUser(user) {
   if (user._access) return user._access;
   await ensure(); await settle(user);
   const admin = require("./auth").isAdmin(user);
-  const own = await rolesOf(user.id), asg = await assignmentsOf(user.email);
+  let own = await rolesOf(user.id), asg = await assignmentsOf(user.email);
+  if (user._preview) {   // previewing a role (App Settings → Roles → Preview): only that role, on the board picked
+    const r = (await query(`SELECT * FROM roles WHERE id=$1`, [user._preview.role])).rows[0];
+    own = r && r.scope !== "board" ? [r] : []; asg = r && r.scope === "board" && user._preview.board ? [{ role: r, schedule_id: Number(user._preview.board), teams: [] }] : [];
+  }
+  const types = new Map((await query(`SELECT id, coalesce(board_type,'training') AS t FROM schedules WHERE archived_at IS NULL`)).rows.map((b) => [b.id, b.t]));
   const roles = admin ? [{ key: "admin", name: "Administrator", scope: "everywhere", grants: FULL }, ...own.filter((r) => r.key !== "admin")] : own;
   const names = [...new Set([...roles.map((r) => r.name), ...asg.map((a) => a.role.name)])];
   const lv = (r, p) => LV[grantsOf(r)[p]] || 0;
@@ -153,13 +167,14 @@ async function forUser(user) {
   const boards = (perm, min = 1) => {
     const k = `${perm}|${min}`; if (cache.has(k)) return cache.get(k);
     const out = { all: roles.some((r) => r.scope === "everywhere" && lv(r, perm) >= min), map: new Map() };
+    for (const r of roles) if (r.scope === "type" && lv(r, perm) >= min) for (const [id, t] of types) if (t === (r.board_type || "training")) out.map.set(id, null);   // every board of that type
     for (const a of asg) if (lv(a.role, perm) >= min) { const cur = out.map.get(a.schedule_id), t = a.teams.length ? a.teams : null;
       out.map.set(a.schedule_id, t === null || cur === null ? null : [...new Set([...(cur || []), ...t])]); }
     cache.set(k, out); return out;
   };
   const level = (perm, boardId) => {
     let best = 0;
-    for (const r of roles) if (r.scope !== "board") best = Math.max(best, lv(r, perm));
+    for (const r of roles) if (r.scope === "everywhere" || r.scope === "own" || (r.scope === "type" && (boardId == null || types.get(Number(boardId)) === (r.board_type || "training")))) best = Math.max(best, lv(r, perm));
     for (const a of asg) if (boardId == null || a.schedule_id === Number(boardId)) best = Math.max(best, lv(a.role, perm));
     return best;
   };
@@ -212,7 +227,8 @@ async function setBoardRoles(email, roleId_, boards) {
   const list = boards.map((b) => ({ id: Number(b.id), teams: (b.teams || []).map((t) => String(t).trim()).filter(Boolean) })).filter((b) => b.id);
   if (r.key === "coach") {
     await query(`DELETE FROM schedule_coaches WHERE lower(email)=$1 AND NOT (schedule_id = ANY($2))`, [email, list.map((b) => b.id)]);
-    for (const b of list) await query(`INSERT INTO schedule_coaches (schedule_id, email) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM schedule_coaches WHERE schedule_id=$1 AND lower(email)=$2)`, [b.id, email]);
+    for (const b of list) { const n = (await query(`UPDATE schedule_coaches SET teams=$3 WHERE schedule_id=$1 AND lower(email)=$2`, [b.id, email, b.teams])).rowCount;
+      if (!n) await query(`INSERT INTO schedule_coaches (schedule_id, email, teams) VALUES ($1,$2,$3)`, [b.id, email, b.teams]); }
   } else if (r.key === "manager") {
     await query(`DELETE FROM board_managers WHERE lower(email)=$1 AND NOT (schedule_id = ANY($2))`, [email, list.map((b) => b.id)]);
     for (const b of list) await query(`INSERT INTO board_managers (schedule_id, email, teams) VALUES ($1,$2,$3) ON CONFLICT (schedule_id, email) DO UPDATE SET teams=EXCLUDED.teams`, [b.id, email, b.teams]);
@@ -221,4 +237,30 @@ async function setBoardRoles(email, roleId_, boards) {
     for (const b of list) await query(`INSERT INTO role_boards (email, role_id, schedule_id, teams) VALUES ($1,$2,$3,$4)`, [email, r.id, b.id, b.teams]);
   }
 }
-module.exports = { PERMS, KIND, ALL, LV, SCOPE, REPORTS, REPORT_CATS, BUILTIN, ensure, list, rolesOf, assignmentsOf, forUser, setUserRoles, setPersonRoles, setBoardRoles, settle, grantsOf };
+// Emails by role (App Settings → Roles → Notifications): tell everyone whose role covers this board (and team).
+async function roleAlert(event, claimId) {
+  if (!NOTIFY[event]) return 0;
+  const c = (await query(`SELECT c.status, c.athlete_id, a.first_name, a.last_name, i.id AS item_id, i.schedule_id, i.title, i.starts_at, i.ends_at, i.capacity, sc.name AS board, coalesce(sc.board_type,'training') AS btype, m.group_name AS team,
+      (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed' AND x.counts) AS taken
+    FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id
+    LEFT JOIN schedule_members m ON m.schedule_id=i.schedule_id AND m.athlete_id=c.athlete_id WHERE c.id=$1`, [claimId])).rows[0];
+  if (!c) return 0;
+  const roles = (await query(`SELECT * FROM roles WHERE archived_at IS NULL AND (notify->>$1)::boolean`, [event])).rows; if (!roles.length) return 0;
+  const to = new Set();
+  for (const r of roles) {
+    if (r.scope === "everywhere" || (r.scope === "type" && (r.board_type || "training") === c.btype)) for (const u of (await query(`SELECT u.email FROM user_roles ur JOIN users u ON u.id=ur.user_id WHERE ur.role_id=$1`, [r.id])).rows) to.add(u.email.toLowerCase());
+    if (r.scope === "board") {
+      const rows = r.key === "coach" ? (await query(`SELECT email, teams FROM schedule_coaches WHERE schedule_id=$1`, [c.schedule_id])).rows : r.key === "manager" ? (await query(`SELECT email, teams FROM board_managers WHERE schedule_id=$1`, [c.schedule_id])).rows
+        : (await query(`SELECT email, teams FROM role_boards WHERE schedule_id=$1 AND role_id=$2`, [c.schedule_id, r.id])).rows;
+      for (const x of rows) if (!(x.teams || []).length || (x.teams || []).includes(c.team)) to.add(String(x.email).toLowerCase());
+    }
+  }
+  if (!to.size) return 0;
+  const when = c.starts_at ? new Date(c.starts_at).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  const what = { claimed: c.status === "waitlisted" ? "joined the waitlist for" : "claimed", released: "released their spot on", full: "filled the last spot on", opened: "released a spot, so this session has an opening:" }[event];
+  const vars = { event: NOTIFY[event], person_name: `${c.first_name} ${c.last_name || ""}`.trim(), what, session: [c.title, when].filter(Boolean).join(" · "), board_name: c.board, team: c.team || "",
+    spots: `${Math.max(0, c.capacity - c.taken)} of ${c.capacity} open`, session_link: `${require("./config").APP_URL || ""}/admin/b/${c.schedule_id}/items/${c.item_id}/people` };
+  let n = 0; for (const e of to) { try { await require("./emailTemplates").send("role_alert", e, vars); n++; } catch (err) { console.error("role_alert:", err.message); } }
+  return n;
+}
+module.exports = { NOTIFY, BOARD_TYPES, roleAlert, PERMS, KIND, ALL, LV, SCOPE, REPORTS, REPORT_CATS, BUILTIN, ensure, list, rolesOf, assignmentsOf, forUser, setUserRoles, setPersonRoles, setBoardRoles, settle, grantsOf };

@@ -198,7 +198,7 @@ about; claims and cancels from before it existed are filled in once at startup.
 `npm run test:reports` checks every report for every role without a browser. Add to `.env`:
 `TEST_DATABASE_URL=postgres://…/claimit_test`, an empty database used only for this (create it once, e.g. `createdb
 claimit_test`). The test refuses to run on a database with real data; re-running clears and rebuilds only its own test
-data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 43 checks, same test database) and `npm run check` (pages) before a deploy.
+data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 55 checks, same test database) and `npm run check` (pages) before a deploy.
 
 ### 4.7a Reports: access and metric definitions
 **Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
@@ -347,6 +347,16 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.76** More role controls. Record of changes: role edits (with each function's old → new level), role
+  assignments and roles given when adding a person or approving a request go in Activity (new kind "Roles &
+  permissions"). Preview a role (👀 Preview on each role card; per-board roles pick a board): see the app as that role,
+  with a banner and nothing saved, until Stop previewing. Reach "All boards of a type" (Program, Volunteer or RSVP,
+  including new boards). Assessment results by team: Coach assignments can carry teams; without "See every team's
+  assessment results" (Coach starts without it), assessment reports show only the teams on their role (all teams when
+  none are set). "Manage the waitlist" to remove people who are waiting. "Add family members": Can't / Request it (the
+  default, as before) / Add directly. Emails by role (Notifications on each role): someone claims or joins the
+  waitlist, releases a spot, a session fills up, spots open up on a full session; sent to people whose role covers
+  that board and team (template "Role alert"). Role tests: 55.
 - **v0.75** Roles, release 2 of 2: Claim Boards and App settings, function by function (69 functions in 9 areas).
   Claim Boards: create and import boards; per board: Board setup, Board details, Access & people, Board defaults,
   Notifications, Questions (each view or full), publish, export / QR, copy, archive and delete, a session's People page

@@ -36,7 +36,7 @@ async function backfill() {
   await query(`INSERT INTO app_kv (key, value) VALUES ('activity_backfilled', 'true'::jsonb) ON CONFLICT DO NOTHING`);
 }
 // what kind of action, from where it happened
-const KINDS = [["claims", "Claims & cancels"], ["rsvp", "RSVP answers"], ["checkin", "Check-in"], ["boards", "Boards & setup"], ["people", "People"],
+const KINDS = [["roles", "Roles & permissions"], ["claims", "Claims & cancels"], ["rsvp", "RSVP answers"], ["checkin", "Check-in"], ["boards", "Boards & setup"], ["people", "People"],
   ["requests", "Requests"], ["account", "Accounts & family"], ["settings", "App settings"], ["emails", "Emails"], ["signin", "Sign-ins"]];
 function kindOf(path) {
   if (/\/rsvp\b/.test(path)) return "rsvp";

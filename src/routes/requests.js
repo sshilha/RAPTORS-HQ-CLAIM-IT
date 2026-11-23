@@ -55,7 +55,7 @@ router.post("/:id/approve", wrap(async (req, res) => {
       await query(`UPDATE athletes SET self_user_id=$2, email=COALESCE(email,$3), phone=COALESCE(phone,$4), organization=COALESCE(organization,$5), birth_year=COALESCE(birth_year,$6) WHERE id=$1`,
         [p.id, u.id, auth.normalizeEmail(r.data.email), r.data.phone, r.data.organization, r.data.birth_year || null]);
       await query(`UPDATE account_requests SET status='approved', user_id=$2, admin_note=$3, decided_by=$4, decided_at=now() WHERE id=$1`, [r.id, u.id, str(req.body.note) || null, req.user.id]);
-      await require("../roles").setUserRoles(u.id, appRoles);
+      await require("../roles").setUserRoles(u.id, appRoles); require("../activity").record(req, { kind: "roles", summary: `Gave ${u.email} roles when approving their account request` }).catch(() => {}); require("../activity").record(req, { kind: "roles", summary: `Gave ${u.email} roles when approving their account request` }).catch(() => {});
       const link = await A.sendInvite(req, u.id);
       return go(res, "/admin/requests", { ok: `Approved and linked to ${p.first_name} ${p.last_name} (${p.kind === "athlete" ? "athlete" : "adult"}). ${r.data.email} was emailed an invite.${process.env.DEV_SHOW_LINK === "true" ? ` (Testing: ${link})` : ""}` });
     }
@@ -67,7 +67,7 @@ router.post("/:id/approve", wrap(async (req, res) => {
     await query(`UPDATE athletes SET first_name=$2, last_name=$3, phone=COALESCE($4, phone), organization=COALESCE($5, organization) WHERE id=$1`,
       [person.id, r.data.first_name, r.data.last_name, r.data.phone, r.data.organization]);
     await query(`UPDATE account_requests SET status='approved', user_id=$2, admin_note=$3, decided_by=$4, decided_at=now() WHERE id=$1`, [r.id, u.id, str(req.body.note) || null, req.user.id]);
-    await require("../roles").setUserRoles(u.id, appRoles);
+    await require("../roles").setUserRoles(u.id, appRoles); require("../activity").record(req, { kind: "roles", summary: `Gave ${u.email} roles when approving their account request` }).catch(() => {});
     const link = await A.sendInvite(req, u.id);
     return go(res, "/admin/requests", { ok: `Approved. ${r.data.email} was emailed an invite to set up their account.${process.env.DEV_SHOW_LINK === "true" ? ` (Testing: ${link})` : ""}` });
   }

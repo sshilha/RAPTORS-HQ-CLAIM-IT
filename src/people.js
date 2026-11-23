@@ -110,6 +110,7 @@ async function reportScope(user, r = null) {
     for (const [id, t] of b.map) { const cur = map.get(id); map.set(id, t === null || cur === null ? null : [...new Set([...(cur || []), ...t])]); } }
   if (!all && !map.size) return r ? { all: false, boards: [], teams: [], teamsBy: {}, coached: [], allow, cats: new Set(), can: {}, admin: acc.admin, none: true } : null;
   const teamsBy = {}; if (!all) for (const [id, t] of map) if (t) teamsBy[id] = t;
+  if (r && /^assess/.test(REPORT_OF(r)) && acc.has("assess.allteams")) for (const id of Object.keys(teamsBy)) delete teamsBy[id];   // every team's assessment results
   const ck = acc.boards("checkin.attendance"), cats = new Set(Object.entries(R.REPORT_CATS).filter(([, ks]) => ks.some((k) => allow.has(k))).map(([c]) => c));
   return { all, boards: all ? null : [...map.keys()], teams: [], teamsBy, coach: !!(ck.all || ck.map.size), coached: ck.all ? [] : [...ck.map.keys()], checkinAll: ck.all, manager: Object.keys(teamsBy).length > 0,
     admin: acc.admin, allow, cats, can: { export: acc.has("reports.export"), contacts: acc.has("reports.contacts"), emaillog: allow.has("emails") } };

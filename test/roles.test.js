@@ -121,6 +121,51 @@ const results = []; const ok = (name, pass, detail = "") => results.push({ name,
     ok("comms: assessment setup stays closed", (await req("comms", "/admin/assess")).status === 404);
     ok("coach: still enters scores for their board's testing day", (await req("coach", `/assess/days/${day}`)).status === 200);
     ok("comms: People stays closed", (await req("comms", "/admin/people")).status === 404);
+    // 10. the extras: change record, preview, reach by board type, assessments by team, waitlist, adding family, emails by role
+    const acts = (await query(`SELECT count(*)::int AS n FROM activity_log WHERE kind='roles'`)).rows[0].n;
+    ok("#3 role changes are in the Activity log", acts >= 3, String(acts));
+    // #4 preview Board helper on Test Program
+    const pv = async (url, method = "GET") => { const r0 = await fetch(BASE + url, { method, redirect: "manual", headers: { cookie: `${cookie.admin}; role_preview=${helpRole}:${D.B.prog}`, "content-type": "application/x-www-form-urlencoded" }, body: method === "POST" ? "name=Previewed" : undefined }); return { status: r0.status, html: r0.status === 200 ? await r0.text() : "" }; };
+    const pvs = await pv(`/admin/setup?s=${D.B.prog}`);
+    ok("#4 preview: banner, and Board setup view only", pvs.status === 200 && /Previewing the <b>Board helper<\/b>/.test(pvs.html) && /ro-banner/.test(pvs.html));
+    ok("#4 preview: People closed", (await pv("/admin/people")).status === 404);
+    const before = (await query(`SELECT count(*)::int AS n FROM board_nodes`)).rows[0].n;
+    await pv(`/admin/b/${D.B.prog}/nodes`, "POST");
+    ok("#4 preview: nothing can be saved", (await query(`SELECT count(*)::int AS n FROM board_nodes`)).rows[0].n === before);
+    // #5 Volunteer coordinator: every volunteer board
+    await req("admin", "/admin/roles", { method: "POST", form: [["name", "Volunteer coordinator"], ["scope", "type"], ["board_type", "volunteer"], ["g_board.setup", "view"], ["g_report.signups", "full"]] });
+    const vcRole = (await query(`SELECT id FROM roles WHERE name='Volunteer coordinator'`)).rows[0].id;
+    await req("admin", "/admin/people", { method: "POST", form: { kind: "adult", first_name: "Val", last_name: "Vol", email: "vol@test.local", app_roles: String(vcRole) } });
+    await session("vol", (await auth.findOrCreateUser("vol@test.local")).id); await req("vol", "/dashboard");
+    const vl = await req("vol", "/admin/settings");
+    ok("#5 reach by board type: only volunteer boards", vl.status === 200 && /Test Volunteers/.test(vl.html) && !/Test Program/.test(vl.html), String(vl.status));
+    // #7 a coach with team 10U sees only 10U assessment results, unless "every team"
+    await R.setBoardRoles("coach@test.local", (await query(`SELECT id FROM roles WHERE key='coach'`)).rows[0].id, [{ id: D.B.prog, teams: ["10U"] }]);
+    const ar = async () => { const h = (await req("coach", `/reports?view=mgmt&r=assessResults&s=${D.B.prog}`)).html; return ["Ava Adams", "Dee Diaz"].filter((n) => h.includes(n)); };
+    ok("#7 coach with 10U: only 10U results", JSON.stringify(await ar()) === JSON.stringify(["Ava Adams"]), (await ar()).join(", "));
+    await query(`UPDATE roles SET grants = grants || '{"assess.allteams": "full"}' WHERE key='coach'`);
+    ok("#7 …with See every team's results: everyone", (await ar()).length === 2, (await ar()).join(", "));
+    // #8 waitlist
+    const wl = (await query(`SELECT c.id, c.item_id FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE c.status='waitlisted' AND i.schedule_id=$1 LIMIT 1`, [D.B.prog])).rows[0];
+    r = await req("helper", `/admin/b/${D.B.prog}/items/${wl.item_id}/people/${wl.id}/remove`, { method: "POST", form: {} });
+    ok("#8 removing from the waitlist needs Manage the waitlist", /can't manage the waitlist/.test(r.loc) && (await query(`SELECT status FROM board_claims WHERE id=$1`, [wl.id])).rows[0].status === "waitlisted", r.loc);
+    // #10 adding family members: request / directly / can't
+    r = await req("parent", "/account/request", { method: "POST", form: { kind: "add_family", first_name: "Gus", last_name: "Request" } });
+    ok("#10 Request it: a request waits for approval", (await query(`SELECT status FROM account_requests WHERE data->>'first_name'='Gus'`)).rows[0]?.status === "waiting", r.loc);
+    await query(`UPDATE roles SET grants = grants || '{"family.add": "full"}' WHERE key='family'`);
+    r = await req("parent", "/account/request", { method: "POST", form: { kind: "add_family", first_name: "Hope", last_name: "Direct" } });
+    ok("#10 Add directly: linked right away", (await query(`SELECT 1 FROM athletes a JOIN parent_athletes pa ON pa.athlete_id=a.id WHERE a.first_name='Hope' AND pa.user_id=$1`, [D.users.parent])).rowCount === 1, r.loc);
+    await query(`UPDATE roles SET grants = grants - 'family.add' WHERE key='family'`);
+    r = await req("parent", "/account/request", { method: "POST", form: { kind: "add_family", first_name: "Ivy", last_name: "No" } });
+    ok("#10 Can't: refused", /doesn't include adding family/.test(r.loc), r.loc);
+    await query(`UPDATE roles SET grants = grants || '{"family.add": "view"}' WHERE key='family'`);
+    // #11 emails by role: the Coach role hears about claims on their board
+    await query(`UPDATE roles SET notify = '{"claimed": true}' WHERE key='coach'`);
+    const open1 = (await query(`INSERT INTO board_items (schedule_id, node_id, title, starts_at, ends_at, capacity, location) SELECT schedule_id, node_id, '', now() + interval '4 days', now() + interval '4 days 1 hour', 5, 'Gym' FROM board_items WHERE id=$1 RETURNING id`, [D.items[0].id])).rows[0].id;
+    await req("admin", `/admin/b/${D.B.prog}/items/${open1}/people/add`, { method: "POST", form: { athlete_id: String(D.A.Cal), [`q_${(await query(`SELECT id FROM claim_questions WHERE label='Helmet size?'`)).rows[0].id}`]: "S" } });
+    await wait(1200);
+    const sent = (await query(`SELECT lower(to_addr) AS t FROM email_log WHERE email_key='role_alert'`)).rows.map((x) => x.t);
+    ok("#11 a claim emails the board's coach (only)", sent.includes("coach@test.local") && !sent.includes("manager@test.local"), sent.join(", ") || "none");
     // 8. the last administrator
     const adminRole = (await query(`SELECT id FROM roles WHERE key='admin'`)).rows[0].id;
     await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [D.users.admin, adminRole]);

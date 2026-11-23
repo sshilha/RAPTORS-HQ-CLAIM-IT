@@ -379,6 +379,7 @@ router.post("/:sid/items/:iid/people/:cid/remove", wrap(async (req, res) => {
   const back = `/admin/b/${sc.id}/items/${it.id}/people`;
   const c = (await query(`SELECT c.*, a.first_name, a.last_name FROM board_claims c JOIN athletes a ON a.id=c.athlete_id WHERE c.id=$1 AND c.item_id=$2`, [int(req.params.cid), it.id])).rows[0];
   if (!c) return go(res, back, {});
+  if (c.status === "waitlisted" && !auth.isAdmin(req.user) && !(req.access && req.access.can("session.waitlist", sc.id))) return go(res, back, { err: "Your role can't manage the waitlist." });
   try {
     const r = await E.cancel({ claimId: c.id, admin: true });
     // the removed person is emailed only if asked; anyone moved up off the waitlist always hears they're in
