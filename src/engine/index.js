@@ -183,7 +183,7 @@ async function claim({ itemId, athleteId, userId = null, note = null, member = u
       [itemId, athleteId, userId, status, !extra && !helperFor, cleanNote])).rows[0];
     await Q.save(c.id, cleaned, db);
     await db.query("COMMIT");
-    Q.afterClaim(c.id).catch((e) => console.error("claim rules:", e.message));   // helper spots, emails, tags
+    if (process.env.CLAIM_FOLLOWUPS !== "off") Q.afterClaim(c.id).catch((e) => console.error("claim rules:", e.message));   // helper spots, emails, tags (off only in the engine test)
     return c;
   } catch (e) { await db.query("ROLLBACK"); throw e; } finally { db.release(); }
 }
@@ -221,7 +221,7 @@ async function cancel({ claimId, admin = false, now = new Date() }) {
     await db.query(`UPDATE board_claims SET status='canceled', canceled_at=now() WHERE id=$1`, [claimId]);
     const promoted = c.status === "confirmed" ? await promote(c.item_id, db) : [];
     await db.query("COMMIT");
-    require("../questions").afterCancel(c).catch((e) => console.error("cancel rules:", e.message));   // close or reopen helper spots
+    if (process.env.CLAIM_FOLLOWUPS !== "off") require("../questions").afterCancel(c).catch((e) => console.error("cancel rules:", e.message));   // close or reopen helper spots
     return { canceled: c, promoted };
   } catch (e) { await db.query("ROLLBACK"); throw e; } finally { db.release(); }
 }

@@ -115,4 +115,10 @@ async function leftoverDigest({ now = new Date(), force = false } = {}) {
   }
   return n;
 }
-module.exports = { ensure, welcome, leftoverDigest, leftoverDue, openSessions, markWelcomed };
+// Send now (Communication): sessions with open leftover spots right now (announced or not), on one board or all
+async function leftoverNow({ board = null, today = false } = {}) {
+  await ensure(); const now = new Date();
+  const list = (await openSessions(now)).filter((s) => (!board || s.board_id === Number(board)) && (!today || s.today));
+  return { list, send: async () => (list.length ? sendSummary(today ? "leftover_today" : "leftover_open", list, now) : 0) };
+}
+module.exports = { leftoverNow, ensure, welcome, leftoverDigest, leftoverDue, openSessions, markWelcomed };

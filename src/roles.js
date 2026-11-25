@@ -30,7 +30,8 @@ const PERMS = [
     ["people.export", "Export people", "Download the People list", "yn"], ["people.merge", "Merge duplicates", "", "yn"], ["people.cleanup", "Clean up", "Old and unused records", "yn"]]],
   ["Assessments", [["assess.setup", "Assessments, drills and testing days", "View only, or Full to change them", "vf"], ["assess.scores", "Enter scores", "View only, or Full to enter and change scores", "vf"],
     ["assess.share", "Share testing days with families", "", "yn"], ["assess.allteams", "See every team's assessment results", "No: only the teams on their role (when teams are set on it)", "yn"]]],
-  ["Communication", [["comm.templates", "Email templates and branding", "View only, or Full to change them", "vf"], ["comm.test", "Send test emails", "", "yn"], ["comm.emaillog", "Email log", "Every email sent and what happened to it", "yn"]]],
+  ["Communication", [["comm.message", "Send messages", "To people, a board or team, a session, or a list (per-board roles: their own boards)", "yn"],
+    ["comm.sendnow", "Send automated emails now", "Re-send open spots, helper spots, RSVP and claim reminders, invitations", "yn"], ["comm.templates", "Email templates and branding", "View only, or Full to change them", "vf"], ["comm.test", "Send test emails", "", "yn"], ["comm.emaillog", "Email log", "Every email sent and what happened to it", "yn"]]],
   ["Accounts", [["accounts.settings", "Account settings", "Sign-in and account options", "vf"], ["accounts.admins", "Administrators", "View only, or Full to add and remove administrators", "vf"],
     ["settings.roles", "Roles", "View only, or Full to create and edit roles", "vf"], ["accounts.online", "On now", "", "yn"], ["accounts.activity", "Activity log", "", "yn"],
     ["accounts.signins", "Sign-in activity", "", "yn"], ["accounts.signinas", "Sign in as someone", "See the app as another person", "yn"]]],
@@ -49,7 +50,7 @@ const staffReports = Object.fromEntries(REPORTS.filter(([k]) => k !== "emails").
 const famGrants = { "family.signup": "full", "family.release": "full", "family.answers": "full", "family.add": "view", "family.reports": "full" };
 const BUILTIN = [
   { key: "admin", name: "Administrator", scope: "everywhere", grants: FULL, locked: true, description: "Everything, everywhere. Can't be changed." },
-  { key: "coach", name: "Coach", scope: "board", grants: { "assess.scores": "full", "checkin.attendance": "full", "checkin.signups": "full", "checkin.markall": "full", "checkin.walkin": "full", ...staffReports, "reports.export": "full" }, description: "On the boards they coach: Check-in and Reports." },
+  { key: "coach", name: "Coach", scope: "board", grants: { "comm.message": "full", "assess.scores": "full", "checkin.attendance": "full", "checkin.signups": "full", "checkin.markall": "full", "checkin.walkin": "full", ...staffReports, "reports.export": "full" }, description: "On the boards they coach: Check-in and Reports." },
   { key: "manager", name: "Team manager", scope: "board", grants: { ...staffReports, "reports.export": "full" }, description: "On the boards (and teams) they manage: Reports." },
   { key: "family", name: "Family", scope: "own", grants: famGrants, description: "Parents and guardians: sign up their athletes and see My Family." },
   { key: "athlete", name: "Athlete", scope: "own", grants: famGrants, description: "Athletes with their own sign-in: sign themselves up and see My Family." },
@@ -124,6 +125,10 @@ async function migrate() {
     await setFlag("roles_v2");
   }
   // 3. Claim Boards and App settings by function: coaches keep entering scores for their boards' testing days
+  if (!(await flag("roles_v5"))) {   // coaches can message their own boards
+    await query(`UPDATE roles SET grants = coalesce(grants,'{}'::jsonb) || '{"comm.message": "full"}'::jsonb WHERE key='coach'`);
+    await setFlag("roles_v5");
+  }
   if (!(await flag("roles_v4"))) {   // families and athletes keep requesting additions, as before
     await query(`UPDATE roles SET grants = coalesce(grants,'{}'::jsonb) || '{"family.add": "view"}'::jsonb WHERE key IN ('family','athlete')`);
     await setFlag("roles_v4");
@@ -240,6 +245,7 @@ async function setBoardRoles(email, roleId_, boards) {
 // Emails by role (App Settings → Roles → Notifications): tell everyone whose role covers this board (and team).
 async function roleAlert(event, claimId) {
   if (!NOTIFY[event]) return 0;
+  await ensure();
   const c = (await query(`SELECT c.status, c.athlete_id, a.first_name, a.last_name, i.id AS item_id, i.schedule_id, i.title, i.starts_at, i.ends_at, i.capacity, sc.name AS board, coalesce(sc.board_type,'training') AS btype, m.group_name AS team,
       (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed' AND x.counts) AS taken
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id

@@ -55,6 +55,7 @@ app.use("/admin/b", require("./routes/board")); // container engine actions
 app.use("/admin/people", require("./routes/people")); // ⚙ App settings → People
 app.use("/admin/requests", require("./routes/requests")); // family / change requests to approve
 app.use("/admin/roles", require("./routes/roles")); // ⚙ App settings → Roles
+app.use("/admin/messages", require("./routes/messages")); // Communication → Send a message, Send now
 app.use("/admin/signins", require("./routes/signins")); // sign-in history for troubleshooting
 app.use("/admin/activity", require("./routes/activity")); // the activity log: who did what, when
 app.use("/admin/email-log", require("./routes/emailLog")); // every email sent, and what happened

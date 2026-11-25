@@ -202,13 +202,14 @@ async function afterCancel(claim) {
   await syncHelpers(claim.id);
 }
 // email everyone who could take an open helper spot (batched per account; held 9 PM–7 AM). Run by the reminders job.
-async function notifyHelpers(now = new Date()) {
+async function notifyHelpers(now = new Date(), { force = false, board = null, count = false } = {}) {
   await ensure();
-  const hour = Number(now.toLocaleString("en-US", { timeZone: TZ, hour: "numeric", hour12: false })) % 24; if (hour < 7 || hour >= 21) return 0;
+  const hour = Number(now.toLocaleString("en-US", { timeZone: TZ, hour: "numeric", hour12: false })) % 24; if (!force && (hour < 7 || hour >= 21)) return 0;
   const open = (await query(`SELECT i.id, i.title, i.starts_at, i.schedule_id, i.settings, sc.name AS board FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
-    WHERE i.canceled_at IS NULL AND i.settings ? 'helper_claim' AND i.starts_at > $1 AND sc.archived_at IS NULL
-      AND NOT EXISTS (SELECT 1 FROM helper_notices n WHERE n.item_id=i.id)
-      AND (SELECT count(*) FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') < i.capacity ORDER BY i.starts_at`, [now])).rows;
+    WHERE i.canceled_at IS NULL AND i.settings ? 'helper_claim' AND i.starts_at > $1 AND sc.archived_at IS NULL AND ($2::int IS NULL OR i.schedule_id=$2)
+      AND ($3 OR NOT EXISTS (SELECT 1 FROM helper_notices n WHERE n.item_id=i.id))
+      AND (SELECT count(*) FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') < i.capacity ORDER BY i.starts_at`, [now, board ? Number(board) : null, !!force])).rows;
+  if (count) return open.length;
   if (!open.length) return 0;
   for (const s of open) await query(`INSERT INTO helper_notices (item_id) VALUES ($1) ON CONFLICT DO NOTHING`, [s.id]);   // mark first: never twice
   const E = require("./engine");

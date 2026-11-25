@@ -117,7 +117,7 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
   const role = (user && user.role_names && user.role_names.length ? user.role_names.join(" · ") : admin ? "Administrator" : coach ? "Coach" : "No role yet");
   // App Settings for anyone whose roles open part of it (the first part they can open)
   const acc = user && user._access, setHref = admin ? "/admin/settings/app" : acc ? ([["people.person", "/admin/people"], ["assess.setup", "/admin/assess"], ["people.invite", "/admin/requests"], ["comm.templates", "/admin/people/communication"], ["comm.emaillog", "/admin/email-log"],
-    ["accounts.settings", "/admin/settings/app?part=accounts"], ["accounts.admins", "/admin/settings/app?part=admins"], ["settings.roles", "/admin/roles"], ["accounts.online", "/admin/online"], ["accounts.activity", "/admin/activity"],
+    ["comm.message", "/admin/messages"], ["comm.sendnow", "/admin/messages#now"], ["accounts.settings", "/admin/settings/app?part=accounts"], ["accounts.admins", "/admin/settings/app?part=admins"], ["settings.roles", "/admin/roles"], ["accounts.online", "/admin/online"], ["accounts.activity", "/admin/activity"],
     ["accounts.signins", "/admin/signins"], ["accounts.signinas", "/admin/settings/app?part=shadow"], ["org.locations", "/admin/settings/app?part=places"], ["org.wording", "/admin/settings/app?part=labels"],
     ["org.pictures", "/admin/settings/app?part=pictures"], ["org.olddata", "/admin/settings/app?part=olddata"]].find(([p]) => acc.has(p)) || [, ""])[1] : "";
   return `<header class="dh">

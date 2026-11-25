@@ -3519,3 +3519,7 @@ label.cq > input { display: block; width: 100%; margin: 0 !important; }
 .rl-btype { margin-top: 6px; max-width: 260px; } .rl-pv { display: flex; gap: 8px; align-items: center; margin-top: 8px; } .rl-pv select { max-width: 240px; font-size: 13.5px; padding: 4px 8px; }
 .rl-pvedit { margin-top: 12px; padding-top: 10px; border-top: 1px solid #EEF1F5; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; } .rl-pvedit .rl-pv { margin: 0; }
 .rl-pv button { white-space: nowrap; }
+/* Send a message */
+.ms-to { border: 1px solid #E3E8F0 !important; border-radius: 12px; padding: 10px 14px !important; } .ms-to legend { font-weight: 700; padding: 0 6px; }
+.ms-sub { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px 26px; } .ms-sub[hidden] { display: none; } .ms-sub select, .ms-sub input { max-width: 320px; } .ms-people { min-width: 280px; }
+.ms-email iframe { width: 100%; min-height: 460px; border: 1px solid #E3E8F0; border-radius: 12px; background: #fff; margin: 10px 0; }

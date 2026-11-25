@@ -166,6 +166,14 @@ const results = []; const ok = (name, pass, detail = "") => results.push({ name,
     await wait(1200);
     const sent = (await query(`SELECT lower(to_addr) AS t FROM email_log WHERE email_key='role_alert'`)).rows.map((x) => x.t);
     ok("#11 a claim emails the board's coach (only)", sent.includes("coach@test.local") && !sent.includes("manager@test.local"), sent.join(", ") || "none");
+    // 11. messages: a coach messages their own board (not another); Send now needs its own permission
+    r = await req("coach", "/admin/messages/send", { method: "POST", form: { to: "board", board: String(D.B.prog), team: "10U", who: "list", subject: "Hello 10U", message: "See you Tuesday." } });
+    ok("coach: messages their own board and team", /Sent to Everyone on Test Program \(10U\)/.test(r.loc) && (await query(`SELECT count(*)::int AS n FROM email_log WHERE email_key='manual_message'`)).rows[0].n > 0, r.loc);
+    r = await req("coach", "/admin/messages/send", { method: "POST", form: { to: "board", board: String(D.B.vol), who: "list", subject: "x", message: "y" } });
+    ok("coach: can't message another board", /can't message that board/.test(r.loc), r.loc);
+    ok("coach: Send now refused (not in Coach)", /can't send automated emails/.test((await req("coach", "/admin/messages/now", { method: "POST", form: { kind: "leftover", board: String(D.B.prog) } })).loc));
+    r = await req("admin", "/admin/messages/now", { method: "POST", form: { kind: "reminder", session: String(D.items[D.items.length - 1].id), confirm: "1" } });
+    ok("admin: Send now (claim reminder)", /Sent Claim reminder/.test(r.loc), r.loc);
     // 8. the last administrator
     const adminRole = (await query(`SELECT id FROM roles WHERE key='admin'`)).rows[0].id;
     await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [D.users.admin, adminRole]);
