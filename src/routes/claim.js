@@ -71,12 +71,19 @@ router.get("/dashboard", wrap(async (req, res) => {
     c.past = c.starts_at && new Date(c.starts_at) <= new Date();
     c.cancelable = !c.past && (!dl || new Date() < dl);
   }
+  // claim questions: each claim's answers, the questions it can change, and any helper spots its answers opened
+  { const Qm = require("../questions"), A = await Qm.answersFor(claims.map((c) => c.id)), qByBoard = {};
+    for (const b of [...new Set(claims.map((c) => c.schedule_id))]) Object.assign(qByBoard, await Qm.mapFor(b, claims.filter((c) => c.schedule_id === b).map((c) => c.item_id)));
+    const hs = claims.length ? (await query(`SELECT (i.settings->>'helper_claim')::int AS for_claim, i.title, (SELECT string_agg(a.first_name || ' ' || coalesce(a.last_name,''), ', ') FROM board_claims c JOIN athletes a ON a.id=c.athlete_id WHERE c.item_id=i.id AND c.status='confirmed') AS who
+      FROM board_items i WHERE i.canceled_at IS NULL AND (i.settings->>'helper_claim')::int = ANY($1)`, [claims.map((c) => c.id)])).rows : [];
+    for (const c of claims) { c.answers = A[c.id] || []; c.qs = qByBoard[c.item_id] || []; c.helpers = hs.filter((h) => h.for_claim === c.id); } }
   // for Details: everyone on each claimed spot (names + answers), and each board's sharing settings
   const itemIds = [...new Set(claims.map((c) => c.item_id))];
-  const goingAll = itemIds.length ? (await query(`SELECT c.item_id, c.status, c.note, c.athlete_id, a.first_name, a.last_name FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
+  const goingAll = itemIds.length ? (await query(`SELECT c.id, c.item_id, c.status, c.note, c.athlete_id, a.first_name, a.last_name FROM board_claims c JOIN athletes a ON a.id=c.athlete_id
     WHERE c.item_id = ANY($1) AND c.status<>'canceled' ORDER BY c.status, c.created_at, c.id`, [itemIds])).rows : [];
   const boardInfo = itemIds.length ? (await query(`SELECT DISTINCT sc.id, sc.family_names, sc.question, sc.event_location FROM schedules sc JOIN board_items i ON i.schedule_id=sc.id WHERE i.id = ANY($1)`, [itemIds])).rows : [];
   const caps = itemIds.length ? (await query(`SELECT id, capacity FROM board_items WHERE id = ANY($1)`, [itemIds])).rows : [];
+  { const GA = await require("../questions").answersFor(goingAll.map((g) => g.id)); for (const g of goingAll) g.answers = GA[g.id] || []; }
   for (const c of claims) {
     c.going = goingAll.filter((g) => g.item_id === c.item_id);
     c.board = boardInfo.find((b) => b.id === c.schedule_id) || {};
@@ -119,7 +126,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
     const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [sid])).rows[0];
     req.user.can_reports = true;
     const rsvp = require("../rsvp").isRsvp(board) ? { answers: m ? await require("../rsvp").answersFor(sid, m.id) : new Map(), counts: await require("../rsvp").countsFor(sid) } : null;
-    return res.send(v.boardPage({ rsvp, user: req.user, flash: flashFrom(req), board, person, who: [], view, span, admin: true,
+    return res.send(v.boardPage({ qmap: view ? await require("../questions").mapFor((view.board || {}).id || 0, (view.items || []).map((r) => r.item.id)) : {}, rsvp, user: req.user, flash: flashFrom(req), board, person, who: [], view, span, admin: true,
       mode: ["list", "cal"].includes(req.query.v) ? req.query.v : "list", group: req.query.g === "day" ? "day" : "activity",
       filters: { act: str(req.query.act), grp: str(req.query.grp), show: req.query.show === "open" ? "open" : "" },
       month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: null,
@@ -139,7 +146,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   if (!pid && entry.who.length === 1) pid = entry.who[0].id || "me";
   const viewMode0 = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
   if (!pid) { req.user.can_reports = await PP.canReports(req.user);
-    return res.send(v.boardPage({ user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0, filters: {}, admin: auth.isAdmin(req.user) })); }
+    return res.send(v.boardPage({ qmap: {} /* the "who are you signing up?" picker: no sessions yet */, user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0, filters: {}, admin: auth.isAdmin(req.user) })); }
   res.cookie(ck, String(pid), { maxAge: 180 * 864e5, sameSite: "lax" });
   if (pid === "me") {   // claiming for themselves: make sure they have a record
     if (!people.me) people.me = (await PP.ensureAdult(req.user.email)).person;
@@ -157,18 +164,21 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   const group = ["activity", "day"].includes(req.query.g) ? req.query.g : req.cookies && req.cookies.ci_group === "day" ? "day" : "activity";
   if (req.query.g) res.cookie("ci_group", group, { maxAge: 365 * 864e5, sameSite: "lax" });
   const rsvp = require("../rsvp").isRsvp(entry.board) ? { answers: await require("../rsvp").answersFor(sid, person.id), counts: await require("../rsvp").countsFor(sid) } : null;
-  res.send(v.boardPage({ rsvp, user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, group, admin: auth.isAdmin(req.user),
+  if (view && person) { const own = new Set((await query(`SELECT i.id FROM board_items i WHERE (i.settings->>'helper_claim')::int IN (SELECT id FROM board_claims WHERE athlete_id=$1 AND status<>'canceled')`, [person.id])).rows.map((r) => r.id));
+    if (own.size) view.items = view.items.filter((r) => !own.has(r.item.id)); }   // your own helper spots aren't for you
+  res.send(v.boardPage({ qmap: view ? await require("../questions").mapFor((view.board || {}).id || 0, (view.items || []).map((r) => r.item.id)) : {}, rsvp, user: req.user, flash: flashFrom(req), board: entry.board, person, who: entry.who, view, mode: viewMode, span, filters, group, admin: auth.isAdmin(req.user),
     month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: /^\d{4}-\d{2}-\d{2}$/.test(str(req.query.d)) ? str(req.query.d) : null }));
 }));
 
 router.post("/b/:sid/claim", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.signup")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include signing up. Ask an admin if you need it." });
   const sid = int(req.params.sid), pid = int(req.body.p), itemId = int(req.body.item);
   const back = str(req.body.back).startsWith(`/b/${sid}`) ? str(req.body.back) : `/b/${sid}?p=${pid}`;
   const people = await myPeople(req.user);
   const mineIds = [...people.kids.map((k) => k.id), ...(people.me ? [people.me.id] : [])];
   if (!mineIds.includes(pid)) return go(res, back, { err: "You can only claim for yourself or your own family." });
   try {
-    const c = await E.claim({ itemId, athleteId: pid, userId: req.user.id, note: req.body.note });
+    const c = await E.claim({ itemId, athleteId: pid, userId: req.user.id, note: req.body.note, answers: require("../questions").fromBody(req.body) });
     const it = (await query(`SELECT * FROM board_items WHERE id=$1`, [itemId])).rows[0];
     const who = people.kids.find((k) => k.id === pid) || people.me;
     const label = require("../time").slotName(it);
@@ -179,6 +189,7 @@ router.post("/b/:sid/claim", wrap(async (req, res) => {
 
 // RSVP boards: Going / Can't make it, with an optional note (can be changed until the event starts)
 router.post("/b/:sid/rsvp", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.signup")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include signing up. Ask an admin if you need it." });
   const sid = int(req.params.sid), pid = int(req.body.p), itemId = int(req.body.item);
   const back = str(req.body.back).startsWith(`/b/${sid}`) ? str(req.body.back) : `/b/${sid}?p=${pid}`;
   const people = await myPeople(req.user);
@@ -202,7 +213,20 @@ router.get("/claims/:id/calendar", wrap(async (req, res) => {
   res.setHeader("Content-Type", "text/calendar; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="${nm || "session"}.ics"`); res.send(file);
 }));
 
+router.post("/claims/:id/answers", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.answers")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include changing answers. Ask an admin if you need it." });
+  const id = int(req.params.id), people = await myPeople(req.user), mine = new Set([...people.kids.map((k) => k.id), ...(people.me ? [people.me.id] : [])]);
+  const c = (await query(`SELECT c.*, i.starts_at FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE c.id=$1`, [id])).rows[0];
+  if (!c || !mine.has(c.athlete_id) || c.status === "canceled") return go(res, "/dashboard", { err: "That claim isn't yours to change." });
+  if (c.starts_at && new Date(c.starts_at) <= new Date()) return go(res, "/dashboard", { err: "That session has already started." });
+  const Qm = require("../questions"); let cl;
+  const qs = await Qm.forItem(c.item_id);
+  try { cl = Qm.clean(qs, Qm.fromBody(req.body)); } catch (e) { return go(res, "/dashboard", { err: e.message }); }
+  await Qm.save(c.id, cl, undefined, qs); await Qm.afterClaim(c.id);   // answers to follow-ups no longer asked are cleared
+  go(res, "/dashboard", { ok: "Answers saved." });
+}));
 router.post("/claims/:id/cancel", wrap(async (req, res) => {
+  if (!(await require("../roles").forUser(req.user)).has("family.release")) return go(res, req.get("referer") && /^\/(dashboard|b\/)/.test(new URL(req.get("referer"), "http://x").pathname) ? new URL(req.get("referer"), "http://x").pathname : "/dashboard", { err: "Your role doesn't include releasing spots. Ask an admin if you need it." });
   const id = int(req.params.id);
   const back = str(req.body.back).startsWith("/") ? str(req.body.back) : "/dashboard";
   const c = (await query(`SELECT c.* FROM board_claims c WHERE c.id=$1`, [id])).rows[0];

@@ -13,11 +13,11 @@ const IC = {
 };
 const TABS = [["people", "/admin/people", IC.people, "People"], ["accounts", "/admin/settings/app?part=accounts", IC.key, "Accounts &amp; sign-in"],
   ["org", "/admin/settings/app?part=places", IC.org, "Organization"]];
-const ALIAS = { olddata: "org", shadow: "accounts", communication: "people", requests: "people", admins: "accounts", signins: "accounts", activity: "accounts", assess: "people", online: "accounts", emaillog: "people", overview: "people", locations: "org", wording: "org", pictures: "org" };   // sub-pages light their area
+const ALIAS = { messages: "people", roles: "accounts", olddata: "org", shadow: "accounts", communication: "people", requests: "people", admins: "accounts", signins: "accounts", activity: "accounts", assess: "people", online: "accounts", emaillog: "people", overview: "people", locations: "org", wording: "org", pictures: "org" };   // sub-pages light their area
 // areas with more than one page get a second row of tabs
 const SUBS = {
-  people: [["people", "/admin/people", "People"], ["assess", "/admin/assess", "Assessments"], ["requests", "/admin/requests", "Requests"], ["communication", "/admin/people/communication", "Communication"], ["emaillog", "/admin/email-log", "Email log"]],
-  accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["online", "/admin/online", "On now"], ["activity", "/admin/activity", "Activity"], ["signins", "/admin/signins", "Sign-in activity"], ["shadow", "/admin/settings/app?part=shadow", "Sign in as"]],
+  people: [["people", "/admin/people", "People"], ["assess", "/admin/assess", "Assessments"], ["requests", "/admin/requests", "Requests"], ["communication", "/admin/people/communication", "Communication"], ["messages", "/admin/messages", "Send a message"], ["emaillog", "/admin/email-log", "Email log"]],
+  accounts: [["accounts", "/admin/settings/app?part=accounts", "Account settings"], ["admins", "/admin/settings/app?part=admins", "Administrators"], ["roles", "/admin/roles", "Roles"], ["online", "/admin/online", "On now"], ["activity", "/admin/activity", "Activity"], ["signins", "/admin/signins", "Sign-in activity"], ["shadow", "/admin/settings/app?part=shadow", "Sign in as"]],
   org: [["locations", "/admin/settings/app?part=places", "Locations"], ["wording", "/admin/settings/app?part=labels", "Wording"], ["pictures", "/admin/settings/app?part=pictures", "Pictures"], ["olddata", "/admin/settings/app?part=olddata", "Old data"]],
 };
 
@@ -30,15 +30,22 @@ async function counts() {
   r.admins += (process.env.ADMIN_EMAILS || "").split(",").map((x) => x.trim()).filter(Boolean).length;
   return r;
 }
-function appHeader({ active = "people", c = {}, title = "App Settings", meta = "", actions = "", tools = "" } = {}) {
+// For someone who isn't an administrator, only what their roles open: People (View People), Requests (approve), Roles.
+const MAY = { messages: ["comm.message", "comm.sendnow"], people: "people.person", requests: "people.invite", roles: "settings.roles", assess: "assess.setup", communication: "comm.templates", emaillog: "comm.emaillog",
+  accounts: "accounts.settings", admins: "accounts.admins", online: "accounts.online", activity: "accounts.activity", signins: "accounts.signins", shadow: "accounts.signinas",
+  locations: "org.locations", wording: "org.wording", pictures: "org.pictures", olddata: "org.olddata" };
+function appHeader({ active = "people", c = {}, title = "App Settings", meta = "", actions = "", tools = "", acc = null } = {}) {
   const sub = active; active = ALIAS[active] || active;
-  const subs = SUBS[active] || [];
+  acc = acc || require("../reqctx").access();
+  const limited = acc && !acc.admin, may = (k) => !limited || (MAY[k] && [].concat(MAY[k]).some((p) => acc.has(p)));
+  const subs = (SUBS[active] || []).filter(([k]) => may(k));
+  const tabs = limited ? TABS.filter(([k]) => (SUBS[k] || []).some(([sk]) => may(sk))).map((t) => { const first = (SUBS[t[0]] || []).find(([sk]) => may(sk)); return first ? [t[0], first[1], t[2], t[3]] : t; }) : TABS;
   const line = meta || `${c.people || 0} ${c.people === 1 ? "person" : "people"} · ${c.waiting || 0} request${c.waiting === 1 ? "" : "s"} waiting · ${c.admins || 0} admin${c.admins === 1 ? "" : "s"}`;
   return `<section class="bh2">
       <div class="bh2-l"><span class="bh2-tile dash-tile">${IC.gear}</span>
         <div><div class="bh2-t"><h1>${esc(title)}</h1></div><span class="bh2-meta">${line}</span></div></div>
       ${actions ? `<div class="bh2-acts">${actions}</div>` : ""}</section>
-    <nav class="bh2-tabs dash-tabs app-tabs">${TABS.map(([k, href, ic, label]) => `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${ic}${label}${k === "people" && c.waiting ? ` <i class="app-badge" title="${c.waiting} request${c.waiting === 1 ? "" : "s"} waiting">${c.waiting}</i>` : ""}</a>`).join("")}
+    <nav class="bh2-tabs dash-tabs app-tabs">${tabs.map(([k, href, ic, label]) => `<a href="${href}"${k === active ? ' aria-current="page"' : ""}>${ic}${label}${k === "people" && c.waiting ? ` <i class="app-badge" title="${c.waiting} request${c.waiting === 1 ? "" : "s"} waiting">${c.waiting}</i>` : ""}</a>`).join("")}
       ${tools ? `<span class="dash-tools app-tools">${tools}</span>` : ""}</nav>
     ${subs.length ? `<nav class="sub-tabs" aria-label="In ${TABS.find((t) => t[0] === active)[3]}">${subs.map(([k, href, label]) => `<a href="${href}"${k === sub ? ' aria-current="page"' : ""}>${label}${k === "requests" && c.waiting ? ` <i class="app-badge">${c.waiting}</i>` : ""}</a>`).join("")}</nav>` : ""}`;
 }

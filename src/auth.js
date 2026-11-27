@@ -120,11 +120,12 @@ async function loadAdmins() {
   for (const r of (await query(`SELECT email FROM app_admins`)).rows) dbAdmins.add(r.email);
 }
 function isAdmin(user) {
+  if (user && user._preview) return false;   // previewing a role: see the app as that role only
   return !!user && (envAdmins().includes(user.email) || dbAdmins.has(user.email));
 }
 
-function requireAdmin(req, res, next) {
-  if (!isAdmin(req.user)) return res.status(404).send("Not found");
+function requireAdmin(req, res, next) {   // administrators, or someone the gate let in for this page (src/gate.js)
+  if (!isAdmin(req.user) && !req.gatePassed) return res.status(404).send("Not found");
   next();
 }
 

@@ -12,6 +12,7 @@ const { wrap, flashFrom, go, int, str } = require("./util");
 const router = express.Router();
 router.use(auth.requireUser);
 router.use(wrap(async (req, res, next) => {
+  req.access = await require("../roles").forUser(req.user);
   req.boards = await A.boardsFor(req.user);
   if (!req.boards.length) return res.status(403).send(require("../views/layout").errorPage("Check-in is for admins and coaches.", { user: req.user }));
   req.user.can_reports = await require("../people").canReports(req.user);
@@ -39,8 +40,11 @@ function lockOf(it) {
   return { locked: localDate(new Date()) > until, until };
 }
 const dayLabel = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-const closedFor = (req, it) => it.lock.locked && !auth.isAdmin(req.user);
-const closedMsg = (it) => `Check-in for this session closed ${dayLabel(it.lock.until)}. An admin can still change it.`;
+const boardOf = (it) => it.schedule_id || it.board_id;   // a session's board
+const canMark = (req, it) => req.access.can("checkin.attendance", boardOf(it), undefined, 2);   // Attendance tab: Full (roles)
+const may = (req, perm, it) => req.access.can(perm, boardOf(it));
+const closedFor = (req, it) => !canMark(req, it) || (it.lock.locked && !auth.isAdmin(req.user) && !may(req, "checkin.afterclose", it));
+const closedMsg = (it, req) => (req && !canMark(req, it) ? "Your role can see this roster but not record attendance." : `Check-in for this session closed ${dayLabel(it.lock.until)}. An admin can still change it.`);
 
 // ---------- the day ----------
 router.get("/", wrap(async (req, res) => {
@@ -56,11 +60,12 @@ router.get("/", wrap(async (req, res) => {
       AND to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') = $2
     GROUP BY i.id, sc.name, sc.board_type, sc.event_location ORDER BY i.starts_at, i.id`, [req.boards, day])).rows;
   for (const s of all) if (s.board_type === "rsvp") { const r = await require("../rsvp").summary(s.id); if (r) s.rsvp = { going: r.going.length, no: r.no.length, none: r.none.length }; }
-  const sessions = [];
-  for (const s of all) if (s.board_type === "rsvp" || await tracked(s.id)) { s.path = await pathOf(s.node_id); sessions.push(s); }   // RSVP events always: coaches see who's coming
+  const sessions = [], signups = [];
+  for (const s of all) { s.path = await pathOf(s.node_id); if (s.board_type === "rsvp" || await tracked(s.id)) { if (req.access.can("checkin.attendance", s.board_id)) sessions.push(s); } else if (req.access.can("checkin.signups", s.board_id)) signups.push(s); }   // no attendance: sign-ups only   // RSVP events always: coaches see who's coming
   const days = (await query(`SELECT DISTINCT to_char(i.starts_at AT TIME ZONE 'America/Chicago', 'YYYY-MM-DD') AS d FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id
     WHERE i.schedule_id = ANY($1) AND i.canceled_at IS NULL AND i.starts_at IS NOT NULL AND sc.archived_at IS NULL ORDER BY d`, [req.boards])).rows.map((r) => r.d);
-  res.send(v.dayPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
+  let ro = req.query.ro; if (ro === "0" || ro === "1") res.cookie("ck_ro", ro, { maxAge: 30 * 864e5, sameSite: "lax", httpOnly: true }); else ro = (req.cookies && req.cookies.ck_ro) || "0";
+  res.send(v.dayPage({ signups, showSignups: ro === "1", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), day, sessions, board: Number(req.query.b) || 0, isToday: day === localDate(new Date()),
     prev: days.filter((d) => d < day).pop() || null, next: days.find((d) => d > day) || null }));
 }));
 
@@ -75,6 +80,13 @@ router.get("/i/:id", wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id));
   if (!it) return go(res, "/checkin", { err: "That session isn't one you can check in." });
   const people = await roster(it.id);
+  const isTracked = it.board_type === "rsvp" || await tracked(it.id);
+  if (!may(req, isTracked ? "checkin.attendance" : "checkin.signups", it)) return go(res, "/checkin", { err: "Your role can't open that roster." });
+  if (!isTracked) {
+    const A = await require("../questions").answersFor(people.map((p) => p.id));
+    for (const p of people) p.answers = (A[p.id] || []).filter((a) => (a.q.show || {}).roster !== false);
+    return res.send(v.signupsPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people }));
+  }
   const onIds = new Set(people.map((p) => p.athlete_id));
   // walk-in choices: this board's list first, then everyone else in People
   const board = (await query(`SELECT a.id, a.first_name, a.last_name, m.group_name FROM schedule_members m JOIN athletes a ON a.id=m.athlete_id
@@ -82,13 +94,15 @@ router.get("/i/:id", wrap(async (req, res) => {
   const others = (await query(`SELECT id, first_name, last_name, kind FROM athletes WHERE archived_at IS NULL AND id <> ALL($1) ORDER BY lower(last_name), lower(first_name) LIMIT 800`,
     [[...onIds, ...board.map((p) => p.id)]])).rows;
   const rsvp = it.board_type === "rsvp" ? await require("../rsvp").summary(it.id) : null;   // RSVP: who's going, who can't, who hasn't answered
-  res.send(v.rosterPage({ rsvp, sub: ["roster", "waitlist", "walkin"].includes(req.query.sub) ? req.query.sub : "roster", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people, board, others }));
+  { const A = await require("../questions").answersFor(people.map((p) => p.id));   // claim answers set to show on rosters
+    for (const p of people) p.answers = (A[p.id] || []).filter((a) => (a.q.show || {}).roster !== false); }
+  res.send(v.rosterPage({ noMark: !canMark(req, it), noMarkAll: !may(req, "checkin.markall", it), noWalkin: !may(req, "checkin.walkin", it), rsvp, sub: ["roster", "waitlist", "walkin"].includes(req.query.sub) ? req.query.sub : "roster", user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), it, people, board, others }));
 }));
 
 // Here / No-show / clear (instant from the page; plain form as a fallback)
 router.post("/i/:id/mark", wrap(async (req, res, next) => {
   const it0 = await itemFor(req, int(req.params.id));
-  if (it0 && closedFor(req, it0)) return req.accepts("json") && /json/.test(req.get("accept") || "") ? res.status(403).json({ ok: false, locked: true, message: closedMsg(it0) }) : go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0) });
+  if (it0 && closedFor(req, it0)) return req.accepts("json") && /json/.test(req.get("accept") || "") ? res.status(403).json({ ok: false, locked: true, message: closedMsg(it0, req) }) : go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0, req) });
   next();
 }), wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id));
@@ -108,7 +122,8 @@ router.post("/i/:id/mark", wrap(async (req, res, next) => {
 }));
 router.post("/i/:id/all", wrap(async (req, res, next) => {
   const it0 = await itemFor(req, int(req.params.id));
-  if (it0 && closedFor(req, it0)) return go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0) });
+  if (it0 && !may(req, "checkin.markall", it0)) return go(res, `/checkin/i/${it0.id}`, { err: "Your role can't mark everyone here." });
+  if (it0 && closedFor(req, it0)) return go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0, req) });
   next();
 }), wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id)); if (!it) return go(res, "/checkin", { err: "Not allowed." });
@@ -118,7 +133,8 @@ router.post("/i/:id/all", wrap(async (req, res, next) => {
 // Walk-in: someone who showed up without claiming (doesn't use a spot or count toward limits)
 router.post("/i/:id/walkin", wrap(async (req, res, next) => {
   const it0 = await itemFor(req, int(req.params.id));
-  if (it0 && closedFor(req, it0)) return go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0) });
+  if (it0 && !may(req, "checkin.walkin", it0)) return go(res, `/checkin/i/${it0.id}`, { err: "Your role can't add walk-ins." });
+  if (it0 && closedFor(req, it0)) return go(res, `/checkin/i/${it0.id}`, { err: closedMsg(it0, req) });
   next();
 }), wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id)); if (!it) return go(res, "/checkin", { err: "Not allowed." });

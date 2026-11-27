@@ -8,8 +8,24 @@ const { wrap, flashFrom, go, int, str } = require("./util");
 
 const router = express.Router();
 // the App Settings header (with fresh counts) for these pages
-const AHead = async () => { const AH = require("../views/apphead"), c = await AH.counts(); return (o = {}) => AH.appHeader({ c, ...o }); };
-router.use(auth.requireAdmin);
+const AHead = async (req) => { const AH = require("../views/apphead"), c = await AH.counts(); return (o = {}) => AH.appHeader({ c, acc: req && req.access, ...o }); };
+router.use(auth.requireUser);
+// People by permission (App Settings → Roles). Not listed here (lists, bulk, import, export, merge, communication, cleanup): administrators.
+const NEED = [["GET", /^\/(\d+)?$/, "people.person", 1], ["POST", /^\/\d+\/(invite|setup|signin-code)$/, "people.invite", 2], ["POST", /^\/\d+\/(roles|managing|coaching|reports)$/, "people.roles", 2],
+  ["POST", /^\/(\d+(\/(family|family\/remove|self|kind|archive))?)?$/, "people.person", 2],
+  ["POST", /^\/(lists(\/\d+(\/delete)?)?|\d+\/lists)$/, "people.lists", 2], ["POST", /^\/bulk$/, "people.bulk", 2], ["GET", /^\/export\.csv$/, "people.export", 2],
+  ["*", /^\/import(\/.*)?$/, "people.import", 2], ["*", /^\/\d+\/merge$/, "people.merge", 2], ["*", /^\/cleanup$/, "people.cleanup", 2],
+  ["GET", /^\/communication(\/[a-z_]+)?$/, "comm.templates", 1], ["POST", /^\/communication\/[a-z_]+\/test$/, "comm.test", 2], ["POST", /^\/communication(\/.*)?$/, "comm.templates", 2]];
+const R0 = require("../roles");
+router.use(wrap(async (req, res, next) => {
+  const acc = await R0.forUser(req.user); req.access = acc;
+  if (acc.admin) return next();
+  const rule = NEED.find(([m, re]) => (m === "*" || m === req.method) && re.test(req.path));
+  if (rule && acc.has(rule[2], rule[3])) { req.peopleRO = !acc.has("people.person", 2);
+    if (req.method === "GET" && R0.KIND[rule[2]] === "vf" && !acc.has(rule[2], 2)) Object.defineProperty(req.user, "_ro", { value: true, configurable: true });   // view only
+    return next(); }
+  res.status(404).send("Not found");
+}));
 const clean = (x, n) => str(x).replace(/\s+/g, " ").slice(0, n);
 const ROLES = ["parent", "coach", "manager", "volunteer"];
 
@@ -26,18 +42,33 @@ async function directory() {
     FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id WHERE a.archived_at IS NULL ORDER BY lower(a.last_name), lower(a.first_name), a.id`)).rows;
 }
 
+// each person's app roles: their sign-in's roles, or the ones picked for them before they sign in
+async function withRoles(list) {
+  const R = require("../roles"); await R.ensure();
+  const name = new Map((await query(`SELECT id, name FROM roles WHERE archived_at IS NULL`)).rows.map((r) => [r.id, r.name]));
+  const byUser = new Map(); for (const r of (await query(`SELECT ur.user_id, r.name FROM user_roles ur JOIN roles r ON r.id=ur.role_id AND r.archived_at IS NULL ORDER BY r.sort, r.id`)).rows) { if (!byUser.has(r.user_id)) byUser.set(r.user_id, []); byUser.get(r.user_id).push(r.name); }
+  const byEmail = new Map((await query(`SELECT id, lower(email) AS e FROM users`)).rows.map((u) => [u.e, u.id]));
+  const pend = new Map((await query(`SELECT id, role_ids FROM athletes WHERE role_ids IS NOT NULL`)).rows.map((r) => [r.id, r.role_ids]));
+  const per = new Map(); for (const r of (await query(`SELECT lower(email) AS e, 'Coach' AS n FROM schedule_coaches UNION SELECT lower(email), 'Team manager' FROM board_managers
+      UNION SELECT lower(rb.email), r.name FROM role_boards rb JOIN roles r ON r.id=rb.role_id AND r.archived_at IS NULL`)).rows) { if (!per.has(r.e)) per.set(r.e, new Set()); per.get(r.e).add(r.n); }
+  for (const p of list) { const uid = p.self_user_id || (p.email ? byEmail.get(String(p.email).toLowerCase()) : null);
+    const emailOf = p.email ? String(p.email).toLowerCase() : null;
+    p.app_roles = [...new Set([...(uid ? byUser.get(uid) || [] : (pend.get(p.id) || []).map((id) => name.get(id)).filter(Boolean)), ...(emailOf && per.has(emailOf) ? per.get(emailOf) : [])])];
+    p.needs_role = !!(uid || p.email) && !p.app_roles.length; }
+  return list;
+}
 router.get("/", wrap(async (req, res) => {
-  const all = await directory();
+  const all = await withRoles(await directory());
   const f = { q: str(req.query.q).toLowerCase(), kind: str(req.query.kind), role: str(req.query.role), team: str(req.query.team), status: str(req.query.status), batch: int(req.query.batch) || 0, list: int(req.query.list) || 0 };
   const batchRow = f.batch ? await IM().batch(f.batch) : null, batchIds = batchRow ? new Set(batchRow.people) : null;
-  const shown = all.filter((p) => (!f.q || `${p.first_name} ${p.last_name} ${p.email || ""} ${p.phone || ""}`.toLowerCase().includes(f.q))
+  const shown = all.filter((p) => (f.status !== "norole" || p.needs_role) && (!f.q || `${p.first_name} ${p.last_name} ${p.email || ""} ${p.phone || ""}`.toLowerCase().includes(f.q))
     && (!f.list || (p.list_ids || []).includes(f.list))
     && (!f.kind || p.kind === f.kind) && (!f.role || (p.roles || []).includes(f.role)) && (!f.team || p.team === f.team) && (!f.status || PP.statusOf(p) === f.status) && (!batchIds || batchIds.has(p.id)));
   const teams = [...new Set(all.map((p) => p.team).filter(Boolean))].sort(), groups = [];
   const waiting = (await query(`SELECT count(*)::int AS n FROM account_requests WHERE status='waiting'`)).rows[0].n;
   const assessDays = await require("../assess").daysFor(shown.filter((x) => x.kind === "athlete").map((x) => x.id));
   for (const x of shown) x.assessDays = assessDays.get(x.id) || [];
-  res.send(v.directoryPage({ waiting, head: await AHead(), user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
+  res.send(v.directoryPage({ readOnly: !!req.peopleRO, noRole: all.filter((p) => p.needs_role).length, appRolesAll: req.access.has("people.roles") ? await require("../roles").list() : [], roleBoards: (await query(`SELECT id, name FROM schedules WHERE archived_at IS NULL ORDER BY lower(name)`)).rows, waiting, head: await AHead(req), user: req.user, flash: flashFrom(req), people: shown, total: all.length, f, teams, groups, lists: await PP.lists() }));
 }));
 
 function readPerson(b, kind) {
@@ -51,8 +82,10 @@ function readPerson(b, kind) {
 
 router.post("/", wrap(async (req, res) => {
   const kind = req.body.kind === "adult" ? "adult" : "athlete";
-  const p = readPerson(req.body, kind);
+  const p = readPerson(req.body, kind), RR = require("../roles"), allRoles = await RR.list(), pick = require("../views/roles").readPick(req.body, allRoles), appRoles = pick.roles;
   if (!p.first_name || !p.last_name) return go(res, "/admin/people#add", { err: "Enter a first and last name." });
+  if (p.email && !pick.any && req.access.has("people.roles")) return go(res, "/admin/people#add", { err: "Pick at least one app role (what they can see and do)." });
+  if (pick.any && !req.access.has("people.roles")) return go(res, "/admin/people#add", { err: "Your role can't assign roles." });
   let id;
   if (kind === "adult" && p.email) {
     if (!auth.isValidEmail(p.email)) return go(res, "/admin/people#add", { err: "That email doesn't look right." });
@@ -67,7 +100,21 @@ router.post("/", wrap(async (req, res) => {
   }
   // a new athlete's parents, by email
   if (kind === "athlete") for (const e of String(req.body.parent_emails || "").split(/[\s,;]+/).map(auth.normalizeEmail).filter(auth.isValidEmail)) await PP.linkParent(id, e);
+  if (appRoles.length) await RR.setPersonRoles(id, appRoles);
+  if (p.email) for (const b of pick.boards) if (b.boards.length) await RR.setBoardRoles(p.email, b.roleId, b.boards);
+  if (pick.any) require("../activity").record(req, { kind: "roles", summary: `Gave ${p.first_name} ${p.last_name} roles when adding them`, athleteId: id }).catch(() => {});
   go(res, `/admin/people/${id}`, { ok: `Added ${p.first_name} ${p.last_name}.` });
+}));
+// a person's app roles (what they can see and do)
+router.post("/:id(\\d+)/roles", wrap(async (req, res) => {
+  const id = int(req.params.id), RR = require("../roles"), pick = require("../views/roles").readPick(req.body, await RR.list());
+  const p = (await query(`SELECT a.id, a.first_name, coalesce(u.email, a.email) AS email, a.self_user_id FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id WHERE a.id=$1`, [id])).rows[0]; if (!p) return go(res, "/admin/people", { err: "Not found." });
+  if (!pick.any && (p.email || p.self_user_id)) return go(res, `/admin/people/${id}#roles`, { err: "Everyone with a sign-in needs at least one role." });
+  try { await RR.setPersonRoles(id, pick.roles); if (p.email) for (const b of pick.boards) await RR.setBoardRoles(p.email, b.roleId, b.boards); } catch (e) { return go(res, `/admin/people/${id}#roles`, { err: e.message }); }
+  { const names = (await RR.list()).filter((r) => pick.roles.includes(r.id)).map((r) => r.name), all = await RR.list(), bn = new Map((await query(`SELECT id, name FROM schedules`)).rows.map((b) => [b.id, b.name]));
+    const per = pick.boards.filter((b) => b.boards.length).map((b) => `${(all.find((r) => r.id === b.roleId) || {}).name} on ${b.boards.map((x) => `${bn.get(x.id)}${x.teams.length ? ` (${x.teams.join(", ")})` : ""}`).join(", ")}`);
+    require("../activity").record(req, { kind: "roles", summary: `Set ${p.first_name}'s roles: ${[...names, ...per].join("; ") || "none"}`, athleteId: id }).catch(() => {}); }
+  go(res, `/admin/people/${id}#roles`, { ok: `Saved ${p.first_name}'s roles.` });
 }));
 
 // ---------- lists ----------
@@ -146,7 +193,7 @@ const H = () => require("./members").importHelpers;
 // ---------- import: 1 the file · 2 match the columns + review pop-up · 3 the result ----------
 const IM = () => require("../peopleImport"), IV = () => require("../views/peopleImport");
 const KINDS = ["athlete", "adult", "mixed"];
-router.get("/import", wrap(async (req, res) => res.send(IV().step1Page({ user: req.user, flash: flashFrom(req), head: await AHead() }))));
+router.get("/import", wrap(async (req, res) => res.send(IV().step1Page({ user: req.user, flash: flashFrom(req), head: await AHead(req) }))));
 router.post("/import/preview", wrap(async (req, res) => {
   const rows = CSV.parse(req.body.data || "");
   if (rows.length < 2) return go(res, "/admin/people/import", { err: "That file has no rows under its headings. Make sure the first row is the column names." });
@@ -156,7 +203,7 @@ router.post("/import/preview", wrap(async (req, res) => {
   if (req.body.mapped) map = IM().mapFrom(req.body, headers);
   else { const saved = await IM().savedMap(headers); if (saved) { map = saved.map; remembered = true; } else map = IM().guess(headers); }
   const people = await IM().analyze(IM().toRows(rows.slice(1), map, kind));
-  res.send(IV().mapPage({ user: req.user, flash: flashFrom(req), head: await AHead(), headers, map, kind, data: req.body.data, rows: people, counts: IM().counts(people),
+  res.send(IV().mapPage({ user: req.user, flash: flashFrom(req), head: await AHead(req), headers, map, kind, data: req.body.data, rows: people, counts: IM().counts(people),
     lists: await PP.lists(), remembered, openReview: false }));
 }));
 // the review pop-up's Re-check
@@ -178,7 +225,7 @@ router.post("/import/commit", wrap(async (req, res) => {
 router.get("/import/:batch(\\d+)", wrap(async (req, res) => {
   const b = await IM().batch(int(req.params.batch)); if (!b) return go(res, "/admin/people", { err: "Not found." });
   const compare = str(req.query.compare), missing = compare ? await IM().missing(b, compare) : null;
-  res.send(IV().resultPage({ user: req.user, flash: flashFrom(req), head: await AHead(), b, invite: b.undone_at ? 0 : (await IM().invitable(b)).length, undoable: IM().canUndo(b),
+  res.send(IV().resultPage({ user: req.user, flash: flashFrom(req), head: await AHead(req), b, invite: b.undone_at ? 0 : (await IM().invitable(b)).length, undoable: IM().canUndo(b),
     lists: await PP.lists(), compare, missing }));
 }));
 router.post("/import/:batch(\\d+)/invite", wrap(async (req, res) => {
@@ -207,7 +254,7 @@ router.post("/import/:batch(\\d+)/undo", wrap(async (req, res) => {
 const ET = () => require("../emailTemplates"), CV = () => require("../views/communication");
 router.get("/communication", wrap(async (req, res) => {
   const all = await Promise.all(ET().TEMPLATES.map((t) => ET().get(t.key)));
-  res.send(CV().listPage({ user: req.user, flash: flashFrom(req), head: await AHead(), templates: all, brand: await ET().brand(), logo: (await require("../appimages").urls()).email_logo }));
+  res.send(CV().listPage({ user: req.user, flash: flashFrom(req), head: await AHead(req), templates: all, brand: await ET().brand(), logo: (await require("../appimages").urls()).email_logo }));
 }));
 router.post("/communication/brand", wrap(async (req, res) => {
   const b = req.body, hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(str(v)) ? str(v) : d), D = ET().BRAND_DEFAULTS;
@@ -226,7 +273,7 @@ router.post("/communication/brand", wrap(async (req, res) => {
 }));
 router.get("/communication/:key", wrap(async (req, res) => {
   const t = await ET().get(req.params.key); if (!t) return go(res, "/admin/people/communication", { err: "Not found." });
-  res.send(CV().editPage({ user: req.user, flash: flashFrom(req), head: await AHead(), t, brand: await ET().brand() }));
+  res.send(CV().editPage({ user: req.user, flash: flashFrom(req), head: await AHead(req), t, brand: await ET().brand() }));
 }));
 const draftOf = (b) => ({ subject: str(b.subject).slice(0, 200), heading: str(b.heading).slice(0, 200), body: String(b.body || "").replace(/\r/g, "").slice(0, 6000), buttonLabel: b.button_label == null ? null : str(b.button_label).slice(0, 60) });
 router.post("/communication/:key", wrap(async (req, res) => {
@@ -257,7 +304,7 @@ router.post("/communication/:key/test", wrap(async (req, res) => {
 
 // ---------- merge a duplicate into this person ----------
 // ---------- Clean up: sign-ins unused for a year ----------
-router.get("/cleanup", wrap(async (req, res) => res.send(IV().cleanupPage({ user: req.user, flash: flashFrom(req), head: await AHead(), rows: await PP.cleanupList(req.user.id) }))));
+router.get("/cleanup", wrap(async (req, res) => res.send(IV().cleanupPage({ user: req.user, flash: flashFrom(req), head: await AHead(req), rows: await PP.cleanupList(req.user.id) }))));
 router.post("/cleanup", wrap(async (req, res) => {
   let act = req.body.act, ids = [].concat(req.body.ids || []);
   if (req.body.one) { const [a, id] = String(req.body.one).split(":"); act = a; ids = [id]; }
@@ -334,7 +381,11 @@ router.get("/:id", wrap(async (req, res) => {
   const history = acct || p.email ? (await query(`SELECT * FROM login_events WHERE user_id=$1 OR (user_id IS NULL AND lower(identity)=lower($2)) ORDER BY at DESC LIMIT 25`, [acct ? acct.id : 0, p.email || ""])).rows : [];
   const allTeams = [...new Set((await query(`SELECT unnest(groups) AS g FROM schedules WHERE archived_at IS NULL`)).rows.map((r) => r.g))].sort();
   p.assessDays = (await require("../assess").daysFor([p.id])).get(p.id) || [];
-  res.send(v.personPage({ managing, boardTeams, head: await AHead(), user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
+  const Rr = require("../roles"), uid = p.self_user_id || (p.email ? ((await query(`SELECT id FROM users WHERE lower(email)=lower($1)`, [p.email])).rows[0] || {}).id : null);
+  const myRoles = uid ? (await Rr.rolesOf(uid)).map((r) => r.id) : p.role_ids || [];
+  const roleEmail = uid ? ((await query(`SELECT email FROM users WHERE id=$1`, [uid])).rows[0] || {}).email : p.email;
+  const roleBoards = (await query(`SELECT id, name FROM schedules WHERE archived_at IS NULL ORDER BY lower(name)`)).rows, assigned = await Rr.assignmentsOf(roleEmail);
+  res.send(v.personPage({ readOnly: !!req.peopleRO, appRoles: await Rr.list(), myRoles, canAssign: req.access.has("people.roles"), hasSignin: !!uid, roleBoards, assigned, managing, boardTeams, head: await AHead(req), user: req.user, flash: flashFrom(req), p, boards, claimedElsewhere, parents, kids, athletes, allBoards, coaching, mine, lists: await PP.lists(), allTeams, acct, history }));
 }));
 
 router.post("/:id", wrap(async (req, res) => {

@@ -9,7 +9,10 @@ const router = express.Router();
 
 // start: from App Settings → Accounts & sign-in → Sign in as, or a person's page in People
 router.post("/admin/shadow/start", wrap(async (req, res) => {
-  if (req.shadow || !auth.isAdmin(req.user)) return res.status(404).send("Not found");
+  const acc = req.user ? await require("../roles").forUser(req.user) : null;
+  if (req.shadow || !acc || !(acc.admin || acc.has("accounts.signinas"))) return res.status(404).send("Not found");
+  if (!acc.admin) { const t = (await require("../db").query(`SELECT email FROM users WHERE id=$1`, [Number(req.body.user_id || req.body.id) || 0])).rows[0];
+    if (t && auth.isAdmin(t)) return res.status(404).send("Not found"); }   // only administrators can see the app as an administrator
   if (req.body.visitor_person) {   // someone who signed up through a public link (no sign-in)
     const pid = int(req.body.visitor_person), v = pid && await SH.visitorOf(pid);
     if (!v) return go(res, "/admin/settings/app?part=shadow", { err: "That person isn't here anymore." });

@@ -8,25 +8,35 @@ const leaf = (p) => (p || "").split(" › ").pop();
 const crumb = (p) => (p || "").split(" › ").slice(0, -1).join(" • ");
 
 const CK_IC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg>`;
-function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, isToday, prev, next }) {
+function dayPage({ signups: allSignups = [], showSignups = false, user, flash, admin, day, sessions: allSessions, board = 0, isToday, prev, next }) {
   // boards with sessions this day become sub-tabs (only when there's more than one)
   const boards = [...new Map(allSessions.map((x) => [x.board_id, x.board_name])).entries()];
   const sessions = board && boards.some(([id]) => id === board) ? allSessions.filter((x) => x.board_id === board) : allSessions;
+  const signups = board ? allSignups.filter((x) => x.board_id === board) : allSignups;
+  // sessions without attendance: a button to show who's signed up (kept off the page until asked)
+  const roUrl = (on) => `/checkin?d=${day}${board ? `&b=${board}` : ""}&ro=${on ? 1 : 0}`;   // both tabs say which, so the choice is remembered
+  const modeTabs = `<span class="fm-mode ck-mode" role="tablist" aria-label="Which sessions"><a href="${roUrl(false)}"${!showSignups ? ' class="on" aria-current="page"' : ""}>Attendance <span class="ck-mc">${sessions.length}</span></a><a href="${roUrl(true)}"${showSignups ? ' class="on" aria-current="page"' : ""}>Sign-ups only <span class="ck-mc">${signups.length}</span></a></span>`;
+  const signupSec = !showSignups ? "" : !signups.length ? `<div class="d-empty"><b>No sign-up-only sessions ${isToday ? "today" : "this day"}.</b><span>Sessions that don't take attendance show here, with who's signed up.</span></div>` : `${`<section class="ck-bsec ck-ro" id="signups"><div class="ck-bhd"><span class="ck-btile">👀</span><div><b>Sign-ups only</b><span class="fine">Attendance isn't tracked for these: view who's signed up</span></div></div>
+      <div class="ck-list">${signups.map((s) => `<a class="ck-card" href="/checkin/i/${s.id}">
+        <span class="ck-time">${esc(timeRange(s.starts_at, s.ends_at))}</span>
+        <span class="ck-what"><b>${esc(leaf(s.path) || s.title || "Session")}</b><small>${esc([s.board_name, crumb(s.path), s.title && s.path ? s.title : ""].filter(Boolean).join(" • "))}</small>${where(s) ? `<small>${esc(where(s))}</small>` : ""}</span>
+        <span class="ck-nums"><b>${s.claimed}</b> of ${s.capacity} signed up</span><span class="ck-go">${R}</span></a>`).join("")}</div></section>`}`;
   const tot = sessions.reduce((t, x) => ({ c: t.c + x.claimed, h: t.h + x.here }), { c: 0, h: 0 });
   const bq = board ? `&b=${board}` : "";
   return layout({ title: "Check-in", user, flash, admin, tab: "checkin", dash: true,
     body: `<div class="d-wrap ck-wrap">
     <section class="bh2 ck-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${CK_IC}</span>
-      <div><div class="bh2-t"><h1>Check-in</h1></div><span class="bh2-meta">${esc(dayLabel(day))}${isToday ? " (today)" : ""} · ${sessions.length} session${sessions.length === 1 ? "" : "s"} · ${tot.c} claimed · ${tot.h} checked in</span></div></div></section>
+      <div><div class="bh2-t"><h1>Check-in</h1></div><span class="bh2-meta">${esc(dayLabel(day))}${isToday ? " (today)" : ""} · ${showSignups ? `${signups.length} sign-up-only session${signups.length === 1 ? "" : "s"} · ${signups.reduce((t, x) => t + x.claimed, 0)} signed up` : `${sessions.length} session${sessions.length === 1 ? "" : "s"} · ${tot.c} claimed · ${tot.h} checked in`}</span></div></div></section>
     <nav class="bh2-tabs dash-tabs ck-gbar">
       <span class="ck-days">${prev ? `<a href="/checkin?d=${prev}${bq}" aria-label="Previous day with sessions">${L}</a>` : `<span class="off">${L}</span>`}
         <b>${isToday ? "Today · " : ""}${esc(dayLabel(day))}</b>
         ${next ? `<a href="/checkin?d=${next}${bq}" aria-label="Next day with sessions">${R}</a>` : `<span class="off">${R}</span>`}</span>
       ${isToday ? "" : `<a class="sb-btn ck-today" href="/checkin${board ? `?b=${board}` : ""}">Today</a>`}
+      ${modeTabs}
     </nav>
-    ${boards.length > 1 ? `<nav class="sub-tabs ck-subs"><a href="/checkin?d=${day}&b=0"${!board ? ' aria-current="page"' : ""}>All boards</a>${boards.map(([id, n]) => `<a href="/checkin?d=${day}&b=${id}"${board === id ? ' aria-current="page"' : ""}>${esc(n)}</a>`).join("")}</nav>` : ""}
+    ${boards.length > 1 && !showSignups ? `<nav class="sub-tabs ck-subs"><a href="/checkin?d=${day}&b=0"${!board ? ' aria-current="page"' : ""}>All boards</a>${boards.map(([id, n]) => `<a href="/checkin?d=${day}&b=${id}"${board === id ? ' aria-current="page"' : ""}>${esc(n)}</a>`).join("")}</nav>` : ""}
     <div class="sub-body ck-sheet${boards.length > 1 ? "" : " no-subs"}">
-    ${sessions.length ? [...new Map(sessions.map((x) => [x.board_id, x.board_name])).entries()].map(([bid, bname]) => { const mine = sessions.filter((x) => x.board_id === bid), t2 = mine.reduce((t, x) => ({ c: t.c + x.claimed, h: t.h + x.here }), { c: 0, h: 0 });
+    ${showSignups ? "" : sessions.length ? [...new Map(sessions.map((x) => [x.board_id, x.board_name])).entries()].map(([bid, bname]) => { const mine = sessions.filter((x) => x.board_id === bid), t2 = mine.reduce((t, x) => ({ c: t.c + x.claimed, h: t.h + x.here }), { c: 0, h: 0 });
       const ini = String(bname || "?").split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
       return `<section class="ck-bsec"><div class="ck-bhd"><span class="ck-btile">${esc(ini)}</span><div><b>${esc(bname)}</b><span class="fine">${mine.length} session${mine.length === 1 ? "" : "s"} · ${t2.c} claimed · ${t2.h} here</span></div></div>
       <div class="ck-list">${mine.map((s) => {
@@ -39,11 +49,29 @@ function dayPage({ user, flash, admin, day, sessions: allSessions, board = 0, is
           <span class="ck-bar"><i style="width:${pct}%"></i></span></span>
         <span class="ck-go">${R}</span></a>`; }).join("")}</div></section>`; }).join("")
       : `<div class="d-empty"><b>No sessions to check in ${isToday ? "today" : "this day"}.</b><span>${next ? `<a href="/checkin?d=${next}">Next: ${esc(dayLabel(next))}</a>` : prev ? `<a href="/checkin?d=${prev}">Last: ${esc(dayLabel(prev))}</a>` : "Sessions show here once a board you check in has them."}</span></div>`}
+    ${!showSignups && !sessions.length && signups.length ? `<p class="fine ck-hint">${signups.length} session${signups.length === 1 ? "" : "s"} without attendance ${isToday ? "today" : "this day"}: see the <a href="${roUrl(true)}">Sign-ups only</a> tab.</p>` : ""}
+    ${signupSec}
     </div></div>` });
 }
 
-function rosterPage({ user, flash, admin, it, people, board, others, sub = "roster", rsvp = null }) {
-  const lock = it.lock || { locked: false, until: null }, ro = lock.locked && !admin;   // read-only for coaches once it's closed
+function signupsPage({ user, flash, admin, it, people }) {
+  const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
+  const day = it.starts_at ? new Date(it.starts_at).toLocaleDateString("en-CA", { timeZone: "America/Chicago" }) : "";
+  const row = (p, i) => `<li class="ck-su"><span class="ck-su-n">${i != null ? `<span class="ck-su-i">${i + 1}</span>` : ""}<b>${esc(p.first_name)} ${esc(p.last_name || "")}</b>${p.group_name ? ` <small>${esc(p.group_name)}</small>` : ""}</span>
+    ${(p.answers || []).map((a) => `<small class="ck-ans">${esc(a.q.label)}: <b>${esc(a.text)}</b></small>`).join("")}${it.question && it.question.label && p.note ? `<small class="ck-ans">${esc(it.question.label)}: ${esc(p.note)}</small>` : ""}</li>`;
+  return layout({ title: "Who's signed up", user, flash, admin, tab: "checkin", dash: true,
+    body: `<div class="d-wrap ck-wrap"><nav class="back-row"><a class="back-btn" href="/checkin?d=${day}&ro=1">${L}Check-in</a></nav>
+    <section class="bh2 ck-hd"><div class="bh2-l"><div><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
+      <span class="bh2-meta">${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))} · ${esc(it.starts_at ? new Date(it.starts_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }) : "")} · ${esc(timeRange(it.starts_at, it.ends_at))}${it.location ? ` · ${esc(it.location)}` : ""}</span></div></div></section>
+    <div class="sub-body no-subs"><section class="d-card ck-su-card">
+      <p class="ck-su-note">Attendance isn't tracked for this session, so there's nothing to check in. This is who's signed up.</p>
+      <h3>Signed up <span class="fine">${conf.length} of ${it.capacity}</span></h3>
+      ${conf.length ? `<ol class="ck-su-list">${conf.map((p, i) => row(p, i)).join("")}</ol>` : `<p class="muted">No one has signed up yet.</p>`}
+      ${wl.length ? `<h3>Waitlist <span class="fine">${wl.length}</span></h3><ol class="ck-su-list">${wl.map((p, i) => row(p, i)).join("")}</ol>` : ""}
+    </section></div></div>` });
+}
+function rosterPage({ noMark = false, noMarkAll = false, noWalkin = false, user, flash, admin, it, people, board, others, sub = "roster", rsvp = null }) {
+  const lock = it.lock || { locked: false, until: null }, ro = noMark || (lock.locked && !admin);   // read-only: closed for coaches, or a role without Record attendance
   const short = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
   const q = it.question || {};
@@ -51,7 +79,7 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
   const row = (p) => `<li class="ck-p" data-claim="${p.id}" data-state="${p.attended === true ? "here" : p.attended === false ? "noshow" : ""}">
       <span class="ck-name"><b>${esc(p.first_name)} ${esc(p.last_name)}</b>
         <small>${[p.group_name, p.walk_in ? "Walk-in" : "", p.counts === false && !p.walk_in && !rsvp ? "Extra spot" : "", p.status === "waitlisted" ? "Waitlist" : ""].filter(Boolean).map(esc).join(" · ")}</small>
-        ${q.label && p.note ? `<small class="ck-ans">${esc(q.label)}: ${esc(p.note)}</small>` : rsvp && p.note ? `<small class="ck-ans">“${esc(p.note)}”</small>` : ""}</span>
+        ${q.label && p.note ? `<small class="ck-ans">${esc(q.label)}: ${esc(p.note)}</small>` : rsvp && p.note ? `<small class="ck-ans">“${esc(p.note)}”</small>` : ""}${(p.answers || []).map((a) => `<small class="ck-ans">${esc(a.q.label)}: <b>${esc(a.text)}</b></small>`).join("")}</span>
       <form method="post" action="/checkin/i/${it.id}/mark" class="ck-btns"><input type="hidden" name="claim" value="${p.id}">
         <button name="state" value="here" class="ck-here" type="submit" aria-label="Here"${ro ? " disabled" : ""}>✓ Here</button>
         <button name="state" value="noshow" class="ck-no" type="submit" aria-label="No-show"${ro ? " disabled" : ""}>✗ No-show</button></form></li>`;
@@ -65,12 +93,13 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
     <nav class="bh2-tabs dash-tabs ck-gbar">
       <span class="ck-sum"><b id="ck-here">${here}</b> here · <b id="ck-no">${no}</b> no-show · <span id="ck-claimed">${conf.length}</span> ${rsvp ? "going" : "claimed"}
         <span class="ck-bar-p"><i id="ck-pct" style="width:${conf.length ? Math.round(((here + no) / conf.length) * 100) : 0}%"></i></span></span>
-      ${lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
-      ${conf.length && !ro ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
+      ${noMark ? `<span class="ck-lock on">View only: your role can see this roster but not record attendance.</span>` : ""}
+      ${!noMark && lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
+      ${conf.length && !ro && !noMarkAll ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
     </nav>
     <div class="sub-body ck-sheet no-subs">
     <div class="ck-listbar"><h3>${rsvp ? "Going" : "Signed up"} <i class="sub-n">${conf.length}</i></h3>
-      ${ro ? "" : `<button type="button" class="sb-btn ck-addwalk" onclick="var w=document.getElementById('walkin'); w.hidden=!w.hidden; window.dispatchEvent(new Event('resize')); if (!w.hidden) { w.querySelector('select, input').focus(); }">+ Add walk-in</button>`}</div>
+      ${ro || noWalkin ? "" : `<button type="button" class="sb-btn ck-addwalk" onclick="var w=document.getElementById('walkin'); w.hidden=!w.hidden; window.dispatchEvent(new Event('resize')); if (!w.hidden) { w.querySelector('select, input').focus(); }">+ Add walk-in</button>`}</div>
         <section class="d-card ck-walk" id="walkin" hidden><h3>Add a walk-in</h3><p class="fine">Someone here who didn't claim? Add them. They're added to the list as here, and don't use a spot or count toward limits.</p>
       <form method="post" action="/checkin/i/${it.id}/walkin" class="a-form">
         <label>Pick someone<select name="athlete_id"><option value="">Choose…</option>
@@ -112,4 +141,4 @@ function rosterPage({ user, flash, admin, it, people, board, others, sub = "rost
     })();
     </script>` });
 }
-module.exports = { dayPage, rosterPage };
+module.exports = { signupsPage, dayPage, rosterPage };

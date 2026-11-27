@@ -133,6 +133,17 @@ router.post("/request", wrap(async (req, res) => {
     data = { about: clean(req.body.about, 80) || null, message: String(req.body.message || "").trim().slice(0, 1000) };
     if (!data.message) return go(res, back("requests"), { err: "Tell us what should change." });
   }
+  if (kind === "add_family") {   // App Settings → Roles: Can't / Request it / Add directly
+    const lvl = (await require("../roles").forUser(req.user)).level("family.add");
+    if (!lvl) return go(res, back("requests"), { err: "Your role doesn't include adding family members. Contact the club." });
+    if (lvl >= 2) {
+      const id = (await query(`INSERT INTO athletes (first_name, last_name, birth_year, team) VALUES ($1,$2,$3,$4) RETURNING id`, [data.first_name, data.last_name, data.birth_year || null, data.team || null])).rows[0].id;
+      await require("../people").linkParent(id, req.user.email);
+      await query(`INSERT INTO account_requests (user_id, kind, data, status, decided_at, admin_note) VALUES ($1,$2,$3,'approved',now(),'Added directly (role allows it)')`, [req.user.id, kind, JSON.stringify(data)]);
+      require("../activity").record(req, { kind: "account", summary: `Added ${data.first_name} ${data.last_name} to their family (role allows adding directly)`, athleteId: id }).catch(() => {});
+      return go(res, back("requests"), { ok: `Added ${data.first_name} ${data.last_name} to your family.` });
+    }
+  }
   await query(`INSERT INTO account_requests (user_id, kind, data) VALUES ($1,$2,$3)`, [req.user.id, kind, JSON.stringify(data)]);
   const to = require("../catalog").current().change_email || "info@chippewavalleyraptors.com";
   const what = kind === "add_family" ? `add ${data.first_name} ${data.last_name} to their family` : `change ${data.about || "their info"}`;

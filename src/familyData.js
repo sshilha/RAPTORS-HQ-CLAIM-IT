@@ -52,20 +52,28 @@ async function progress(ids) {
     const dk = `${r.day_id}`; if (!drillsOf.has(dk)) drillsOf.set(dk, new Map((await A.dayDrills(r.day_id, r.assessment_id)).map((d) => [d.id, d])));
     const dr = drillsOf.get(dk).get(r.drill_id); if (!dr) continue;
     const k = `${r.athlete_id}|${r.assessment_id}|${r.drill_id}`;
-    if (!out.has(k)) out.set(k, { athlete_id: r.athlete_id, assessment: r.assessment, drill: dr.name, unit: dr.unit || "", better: dr.better, days: new Map() });
+    if (!out.has(k)) out.set(k, { athlete_id: r.athlete_id, assessment_id: r.assessment_id, drill_id: r.drill_id, assessment: r.assessment, drill: dr.name, unit: dr.unit || "", better: dr.better, days: new Map() });
     const s = out.get(k); if (!s.days.has(r.day_id)) s.days.set(r.day_id, { day: r.day, kind: r.kind, dr, tries: [] }); s.days.get(r.day_id).tries[r.attempt - 1] = Number(r.value);
   }
-  return [...out.values()].map((s) => {
+  const desc = await A.descriptions([...new Set([...out.values()].map((s) => s.drill_id))]);
+  const list = [...out.values()].map((s) => {
     const pts = [...s.days.values()].map((d) => ({ day: d.day, kind: d.kind, dr: d.dr, v: A.score(d.tries, d.dr, "best") })).filter((p) => p.v != null);
     if (!pts.length) return null;
     const first = pts[0], last = pts[pts.length - 1]; let best = first; for (const p of pts) if (s.better === "higher" ? p.v > best.v : p.v < best.v) best = p;
     const ch = pts.length > 1 ? A.change(first.v, last.v, last.dr) : null;
     const lbl = (p) => `${p.kind} · ${new Date(String(p.day.toISOString ? p.day.toISOString() : p.day).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-    return { athlete_id: s.athlete_id, assessment: s.assessment, drill: s.drill, unit: s.unit, better: s.better, first: first.v, latest: last.v, best: best.v, pb: pts.length > 1 && best === last, tests: pts.length,
+    return { desc: desc.get(s.drill_id) || "", athlete_id: s.athlete_id, assessment: s.assessment, drill: s.drill, unit: s.unit, better: s.better, first: first.v, latest: last.v, best: best.v, pb: pts.length > 1 && best === last, tests: pts.length,
       points: pts.map((p) => ({ label: lbl(p), value: p.v })), latestDay: last.day,
+      tries: [...s.days.values()].map((d) => ({ label: lbl(d), tries: d.tries, best: A.score(d.tries, d.dr, "best") })),   // every try, per testing day
       summary: !ch ? "Only one testing day so far: more testing is needed to show improvement." : ch.diff === 0 ? "Same result as the first test." :
         `${ch.diff > 0 ? "Improved" : "Went from"} ${ch.diff > 0 ? `by ${Math.abs(ch.diff)}${s.unit ? " " + s.unit : ""}${ch.pct != null ? ` (${Math.abs(ch.pct)}%)` : ""} since the first test` : `${first.v} to ${last.v}${s.unit ? " " + s.unit : ""} since the first test`}.` };
   }).filter(Boolean);
+  // the next testing day for each assessment they've been tested in, or one set for their programs
+  const boards = (await query(`SELECT DISTINCT schedule_id FROM schedule_members WHERE athlete_id = ANY($1)`, [ids])).rows.map((r) => r.schedule_id);
+  const tests = new Map((await query(`SELECT id, name FROM assessments WHERE archived_at IS NULL AND (id = ANY($1) OR id IN (SELECT assessment_id FROM assess_days WHERE board_id = ANY($2)))`, [[...new Set([...out.values()].map((s) => s.assessment_id))], boards])).rows.map((r) => [r.id, r.name]));
+  list.next = [];
+  for (const [id, name] of tests) { const d = await A.nextDay(id, boards); if (d) list.next.push({ assessment: name, kind: d.kind, day: d.day }); }
+  return list;
 }
 
 // recent activity, only from real records: claims made or released, attendance on past sessions, shared results

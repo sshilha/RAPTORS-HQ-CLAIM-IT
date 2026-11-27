@@ -25,21 +25,37 @@ app.use((req, res, next) => {   // finish the Welcome step first (password etc.)
 });
 // Coaches (not admins) get a Check-in link; remember that on the signed-in user
 app.use(async (req, res, next) => {
-  try { if (req.user && !auth.isAdmin(req.user)) req.user.is_coach = await require("./attendance").isCoach(req.user); next(); } catch (e) { next(e); }
+  try {
+    // previewing a role (set from App Settings → Roles by someone who can edit roles): nothing can be saved
+    const pv = req.user && req.cookies && req.cookies.role_preview;
+    if (pv && /^\d+(:\d+)?$/.test(pv) && (auth.isAdmin(req.user) || (await require("./roles").rolesOf(req.user.id)).some((r) => r.key === "admin" || ((r.grants || {})["settings.roles"] === "full")))) {
+      const [role, board] = pv.split(":").map(Number);
+      const rr = (await require("./db").query(`SELECT name FROM roles WHERE id=$1`, [role])).rows[0];
+      if (rr) Object.defineProperty(req.user, "_preview", { value: { role, board: board || null, name: rr.name }, configurable: true });
+      if (rr && req.method !== "GET" && req.path !== "/role-preview/stop") return res.redirect(303, (req.get("referer") || "/dashboard").replace(/^https?:\/\/[^/]+/, "") );
+    }
+    if (req.user) { const acc = await require("./roles").forUser(req.user); req.user.role_names = acc.names;
+      if (!auth.isAdmin(req.user)) req.user.is_coach = await require("./attendance").isCoach(req.user); } next(); } catch (e) { next(e); }
 });
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use(require("./routes/auth"));
 // Every admin page knows which schedule you're working in (?s=, else your last one)
+app.post("/role-preview/stop", (req, res) => { res.clearCookie("role_preview"); res.redirect(303, "/admin/roles"); });
+app.use(require("./reqctx").middleware);   // the current visitor, for shared page pieces
+app.use("/admin", require("./gate").admin);   // which function each admin page needs (App Settings → Roles)
+app.use("/assess", require("./gate").scores);
 app.use("/admin", async (req, res, next) => {
   try {
-    if (req.user && auth.isAdmin(req.user)) { req.sched = await require("./schedules").current(req, res); req.user.sched = req.sched; }
+    if (req.user && (auth.isAdmin(req.user) || req.gatePassed)) { req.sched = await require("./schedules").current(req, res); req.user.sched = req.sched; }
     next();
   } catch (e) { next(e); }
 });
 app.use("/admin/b", require("./routes/board")); // container engine actions
 app.use("/admin/people", require("./routes/people")); // ⚙ App settings → People
 app.use("/admin/requests", require("./routes/requests")); // family / change requests to approve
+app.use("/admin/roles", require("./routes/roles")); // ⚙ App settings → Roles
+app.use("/admin/messages", require("./routes/messages")); // Communication → Send a message, Send now
 app.use("/admin/signins", require("./routes/signins")); // sign-in history for troubleshooting
 app.use("/admin/activity", require("./routes/activity")); // the activity log: who did what, when
 app.use("/admin/email-log", require("./routes/emailLog")); // every email sent, and what happened
@@ -97,6 +113,8 @@ async function start() {
   await require("./accounts").migrate(); // passwords, codes, family requests
   { const n = await require("./engine").recountClaims(); if (n) console.log(`Recounted claims: ${n} fixed`); }
   await require("./locations").migrate(); // saved places (names from older lists, addresses added in ⚙ App)
+  await require("./questions").ensure(); await require("./questions").moveBoardQuestions();
+  await require("./roles").ensure(); // roles (first time: everyone gets the role matching what they could do before) // claim questions; each board's original question moves to its Questions tab
   setInterval(() => auth.cleanupExpired().catch((e) => console.error(e.message)), 60 * 60 * 1000);
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => console.log(`${require("./config").LABELS.app_name} running on port ${PORT}`));

@@ -8,6 +8,23 @@ const { wrap, flashFrom, go, int, str, dest } = require("./util");
 
 const router = express.Router();
 router.use(auth.requireUser, auth.requireAdmin);
+// Roles on this board (before the routes below, so "/roles" isn't read as a group id)
+router.post("/roles", wrap(async (req, res) => {
+  const sid = int(req.query.s), R = require("../roles"), email = String(req.body.email || "").trim().toLowerCase(), roleId = int(req.body.role);
+  if (!sid || !email || !roleId) return go(res, `/admin/members?s=${sid}#board-roles`, { err: "Pick a person and a role." });
+  const cur = (await R.assignmentsOf(email)).filter((a) => a.role.id === roleId && a.schedule_id !== sid).map((a) => ({ id: a.schedule_id, teams: a.teams }));
+  await R.setBoardRoles(email, roleId, [...cur, { id: sid, teams: String(req.body.teams || "").split(",").map((t) => t.trim()).filter(Boolean) }]);
+require("../activity").record(req, { kind: "roles", summary: `Gave ${email} the role ${((await R.list()).find((r) => r.id === roleId) || {}).name} on board ${sid}`, boardId: sid }).catch(() => {});
+  go(res, `/admin/members?s=${sid}#board-roles`, { ok: "Role added on this board." });
+}));
+router.post("/roles/remove", wrap(async (req, res) => {
+  const sid = int(req.query.s), R = require("../roles"), email = String(req.body.email || "").trim().toLowerCase(), roleId = int(req.body.role);
+  const keep = (await R.assignmentsOf(email)).filter((a) => a.role.id === roleId && a.schedule_id !== sid).map((a) => ({ id: a.schedule_id, teams: a.teams }));
+  await R.setBoardRoles(email, roleId, keep);
+require("../activity").record(req, { kind: "roles", summary: `Removed ${email}'s role ${((await R.list()).find((r) => r.id === roleId) || {}).name} on board ${sid}`, boardId: sid }).catch(() => {});
+  go(res, `/admin/members?s=${sid}#board-roles`, { ok: "Role removed on this board." });
+}));
+
 
 const home = (sc, anchor = "") => `/admin/members?s=${sc.id}&card=${anchor === "#add" ? "add" : "people"}`;
 
@@ -49,7 +66,13 @@ router.get("/", wrap(async (req, res) => {
   const card = String(req.query.card || "");
   const sub = ["people", "groups", "shortcuts"].includes(req.query.sub) ? req.query.sub : ({ groups: "groups", tags: "groups", copy: "groups", presets: "shortcuts" }[card] || "people");
   { const ad = await require("../assess").daysFor(members.map((m) => m.id)); for (const m of members) m.assessDays = ad.get(m.id) || []; }
-  res.send(v.membersPage({ eng: engCounts, stageF,  head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams, sub, addOpen: card === "add" || req.query.add === "1" || (!total && sub === "people") }));
+  const R = require("../roles"), broles = (await R.list()).filter((r) => r.scope === "board");
+  const brRows = []; for (const e of (await query(`SELECT DISTINCT lower(email) AS e FROM (SELECT email FROM schedule_coaches WHERE schedule_id=$1 UNION SELECT email FROM board_managers WHERE schedule_id=$1 UNION SELECT email FROM role_boards WHERE schedule_id=$1) x`, [sc.id])).rows)
+    for (const a of (await R.assignmentsOf(e.e)).filter((a) => a.schedule_id === sc.id)) brRows.push({ email: e.e, name: ((await query(`SELECT first_name || ' ' || coalesce(last_name,'') AS n FROM athletes WHERE lower(email)=$1 AND archived_at IS NULL LIMIT 1`, [e.e])).rows[0] || {}).n, role: a.role, teams: a.teams });
+  const brPeople = (await query(`SELECT DISTINCT ON (lower(coalesce(u.email, a.email))) lower(coalesce(u.email, a.email)) AS email, a.first_name || ' ' || coalesce(a.last_name,'') AS name FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id
+    WHERE a.archived_at IS NULL AND coalesce(u.email, a.email) IS NOT NULL ORDER BY lower(coalesce(u.email, a.email))`)).rows.sort((x, y) => x.name.localeCompare(y.name));
+  const rolesHtml = require("../views/boardroles").boardRoles({ sc, rows: brRows.sort((x, y) => (x.name || x.email).localeCompare(y.name || y.email)), roles: broles, people: brPeople });
+  res.send(v.membersPage({ rolesHtml, eng: engCounts, stageF,  head, user: req.user, flash: flashFrom(req), sc, members, others, group, total, teams, sub, addOpen: card === "add" || req.query.add === "1" || (!total && sub === "people") }));
 }));
 
 // A brand-new person, added to this schedule

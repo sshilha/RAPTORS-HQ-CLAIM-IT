@@ -44,6 +44,7 @@ function head(title) {
 </head>`;
 }
 
+const pvBar = (user) => (user && user._preview ? `<div class="pv-banner">👀 Previewing the <b>${esc(user._preview.name)}</b> role${user._preview.board ? " on one board" : ""}: this is what they see. Nothing can be saved. <form method="post" action="/role-preview/stop"><button type="submit">Stop previewing</button></form></div>` : "");
 const VERSION = `v${require("../../package.json").version}`;
 // Success messages fade after a few seconds (errors stay until dismissed); either can be closed with ×.
 // The message is also taken out of the address, so a refresh doesn't show it again.
@@ -66,7 +67,7 @@ const foot = () => `<footer class="foot">© ${new Date().getFullYear()} ${esc(LA
 // Signed-out pages use the dark sign-in gate, like the tryout app's admin login
 function gateLayout({ title, body, flash }) {
   return `${head(title)}
-<body class="gate">${envBar()}${shadowBar()}
+<body class="gate">${envBar()}${shadowBar()}${pvBar(typeof user === "undefined" ? null : user)}
 <main class="gate-box">
   <h1 class="gate-brand"><img class="gate-logo" src="/claim-it-logo.png" width="900" height="450" alt="${esc(LABELS.app_name)}"></h1>
   ${LABELS.org_name ? `<p class="gate-sub">${esc(LABELS.org_name)}</p>` : ""}
@@ -81,7 +82,7 @@ ${FLASH_JS}
 
 function publicLayout({ title, body, flash }) {
   return `${head(title)}
-<body>${envBar()}${shadowBar()}
+<body>${envBar()}${shadowBar()}${pvBar(typeof user === "undefined" ? null : user)}
 <header class="appbar"><div class="appbar-inner">
   <span class="brand"><img class="appbar-logo" src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></span>
   <span class="spacer"></span><a class="link-btn" href="/">Sign in</a>
@@ -110,10 +111,15 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
   const on = isDash ? (tab === "home" ? "mine" : tab === "reports" ? "reports" : tab === "checkin" ? "checkin" : "")
     : tab === "reports" ? "reports" : tab === "checkin" ? "checkin" : SETTINGS_AREA.includes(tab) && !["settings", "people"].includes(tab) ? "boards" : "";
   const items = [["/dashboard", "My Claims", DI.cal, on === "mine"],
-    ...(admin ? [["/admin/settings", LABELS.schedules, DI.board, on === "boards"]] : []),
+    ...(admin || (user && user._access && require("../gate").anyBoard(user._access)) ? [["/admin/settings", LABELS.schedules, DI.board, on === "boards"]] : []),
     ...(admin || coach ? [["/checkin", "Check-in", DI.check, on === "checkin"]] : []),
     ...(admin || user.can_reports ? [["/reports", "Reports", DI.report, on === "reports"]] : [])];
-  const role = admin ? "Administrator" : coach ? "Coach" : "Parent/Guardian Account";
+  const role = (user && user.role_names && user.role_names.length ? user.role_names.join(" · ") : admin ? "Administrator" : coach ? "Coach" : "No role yet");
+  // App Settings for anyone whose roles open part of it (the first part they can open)
+  const acc = user && user._access, setHref = admin ? "/admin/settings/app" : acc ? ([["people.person", "/admin/people"], ["assess.setup", "/admin/assess"], ["people.invite", "/admin/requests"], ["comm.templates", "/admin/people/communication"], ["comm.emaillog", "/admin/email-log"],
+    ["comm.message", "/admin/messages"], ["comm.sendnow", "/admin/messages#now"], ["accounts.settings", "/admin/settings/app?part=accounts"], ["accounts.admins", "/admin/settings/app?part=admins"], ["settings.roles", "/admin/roles"], ["accounts.online", "/admin/online"], ["accounts.activity", "/admin/activity"],
+    ["accounts.signins", "/admin/signins"], ["accounts.signinas", "/admin/settings/app?part=shadow"], ["org.locations", "/admin/settings/app?part=places"], ["org.wording", "/admin/settings/app?part=labels"],
+    ["org.pictures", "/admin/settings/app?part=pictures"], ["org.olddata", "/admin/settings/app?part=olddata"]].find(([p]) => acc.has(p)) || [, ""])[1] : "";
   return `<header class="dh">
   <div class="dh-in">
     <a class="dh-logo" href="/dashboard"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
@@ -122,14 +128,14 @@ function dashHeader(user, admin, coach, tab, isDash = true) {
       <details class="dh-acct"><summary>${DI.user}<span class="dh-who"><b>${esc(user.email)}</b><small>${role}</small></span>${DI.down}</summary>
         <div class="dh-menu">
           <a href="/account">${DI.user}My Account</a>
-          ${admin ? `<a href="/admin/settings/app">${DI.gear}App Settings</a>` : ""}
+          ${setHref ? `<a href="${setHref}">${DI.gear}App Settings</a>` : ""}
           <form method="post" action="/logout"><button type="submit" class="dh-signout">${DI.out}Sign Out</button></form></div></details>
     </div>
     <details class="dh-burger"><summary aria-label="Menu">${DI.menu}</summary>
       <div class="dh-sheet">
         <div class="dh-sheet-who">${DI.user}<span><b>${esc(user.email)}</b><small>${role}</small></span></div>
         ${items.map(([href, label, icon, on]) => `<a href="${href}"${on ? ' aria-current="page"' : ""}>${icon}${esc(label)}</a>`).join("")}
-        ${admin ? `<a href="/admin/settings/app">${DI.gear}App Settings</a>` : ""}
+        ${setHref ? `<a href="${setHref}">${DI.gear}App Settings</a>` : ""}
         <a href="/account">${DI.user}My Account</a>
         <form method="post" action="/logout"><button type="submit">Sign Out</button></form>
       </div></details>
@@ -155,7 +161,7 @@ function layout({ title, body, user, admin, flash, wide, xwide, readonly, gate, 
   const w = xwide ? " wide xwide" : wide ? " wide" : "";
   const ro = readonly ? " ro" : ""; // read-only styling applies to page content only
   if (dash) return `${head(title)}
-<body class="member-area dash">${envBar()}${shadowBar()}
+<body class="member-area dash">${envBar()}${shadowBar()}${pvBar(typeof user === "undefined" ? null : user)}
 ${user ? dashHeader(user, admin, coach, tab) : `<header class="dh"><div class="dh-in"><a class="dh-logo" href="/"><img src="/claim-it-logo-sm.png" width="320" height="160" alt="${esc(LABELS.app_name)}"></a>
   <div class="dh-right dh-guest"><a class="dh-signin" href="/">Sign in</a></div></div></header>`}
 ${toastHtml(flash)}<main class="dash-page">${body}</main>
@@ -165,7 +171,7 @@ ${FLASH_JS}
 </body>
 </html>`;
   return `${head(title)}
-<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">${envBar()}${shadowBar()}
+<body class="${SETTINGS_AREA.includes(tab) || tab === "reports" || tab === "checkin" ? "admin-area" : "member-area"}">${envBar()}${shadowBar()}${pvBar(typeof user === "undefined" ? null : user)}
 ${dashHeader(user, admin, coach, tab, false)}
 ${toastHtml(flash)}<main class="page${w}${ro}">${body}</main>
 ${foot(user, tab)}

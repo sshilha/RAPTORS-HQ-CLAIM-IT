@@ -194,6 +194,12 @@ kind, dates; Download CSV. Kept a year. How it works: every change ends in a con
 src/activity.js records each one (plus check-in taps, which have no message) with the board, person and session it was
 about; claims and cancels from before it existed are filled in once at startup.
 
+### 4.7 Report tests
+`npm run test:reports` checks every report for every role without a browser. Add to `.env`:
+`TEST_DATABASE_URL=postgres://…/claimit_test`, an empty database used only for this (create it once, e.g. `createdb
+claimit_test`). The test refuses to run on a database with real data; re-running clears and rebuilds only its own test
+data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 65 checks, same test database) and `npm run check` (pages) before a deploy.
+
 ### 4.7a Reports: access and metric definitions
 **Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
 person → Team manager; table board_managers): the boards they manage, optionally limited per board to some teams (none
@@ -204,7 +210,9 @@ report, chart, alert, search, CSV and PDF is computed only from them; board ids 
 admin-only. Non-admins get no links into admin pages and no contact details (in the page, CSV and PDF). Assessment
 reports only include athletes on the user's boards.
 **Definitions** (within the active filters: boards, dates, level, team, location, weekdays):
-- Active claim = status confirmed. Takes a spot = active and counts (walk-ins and extra spots don't).
+- Active claim = status confirmed. Seats taken = every active claim, including extra spots (claimed past a reached
+  limit) and walk-ins: the same count the sign-up page uses for "Full". "Counts" only decides whether a claim counts
+  toward the person's limit.
 - Waitlist entry = status waitlisted (position = order added). Canceled = status canceled, not an RSVP "no"
   (an RSVP "Can't make it" is stored as a canceled claim with rsvp='no').
 - Attended / No-show / Unrecorded = attended true / false / empty, past sessions only.
@@ -341,6 +349,153 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 
 ## 7. Version history (short)
 
+- **v0.76.1** 👀 Preview is also in a role's edit form (under Save role), previewing the role as saved.
+- **v0.78** Cancel a session (session's People page → Cancel this session): a reason (in the email), and "Email
+  everyone signed up or waitlisted" (on by default). Releases every claim and waitlist spot (no promotions; doesn't
+  count against limits), closes helper spots it opened, leaves sign-up, Check-in and reports, emails "Session canceled"
+  (template, with the reason), and is recorded in Activity. The People page then shows when and why, with Reopen session
+  (released claims stay released). Board setup lists canceled sessions to find and reopen. New role function "Cancel a
+  session" (administrators to start). Fixed: the sign-up page's "who are you signing up?" picker (a family with two or
+  more athletes, none picked) failed to open since v0.68. Role tests: 65.
+- **v0.77.1** Seats: reports and the open-spot, helper and role emails now count every confirmed claim as a seat,
+  including extra spots claimed past a reached limit (and walk-ins), the same as the sign-up page's "Full"; before, they
+  left extra spots out. Report tests: 397. Adds .gitattributes (LF line endings; .bat stays CRLF).
+- **v0.77** Communication → Send a message (src/messages.js): to a board (everyone on its list, or only people signed
+  up for upcoming sessions, optionally one team), a session, picked people, or a People list; subject and message in the
+  club's email style (template "A message"), replies to the club's address; for athletes, parents/guardians and their own
+  sign-in. Preview shows people, email addresses and the email before sending. Send an automated email now: open
+  leftover spots (all or today), helper spots, an RSVP reminder, a claim reminder, an invitation or a welcome email,
+  with a preview first. New role functions "Send messages" (Coach gets it for their boards and teams) and "Send
+  automated emails now" (administrators). Every send is in the Email log and Activity. Role tests: 59.
+- **v0.76.1** Preview is also in a role's edit form (it previews the role as saved). Role summaries say "Add family
+  members (request it / add directly)" instead of "(view only)".
+- **v0.76** More role controls. Record of changes: role edits (with each function's old → new level), role
+  assignments and roles given when adding a person or approving a request go in Activity (new kind "Roles &
+  permissions"). Preview a role (👀 Preview on each role card; per-board roles pick a board): see the app as that role,
+  with a banner and nothing saved, until Stop previewing. Reach "All boards of a type" (Program, Volunteer or RSVP,
+  including new boards). Assessment results by team: Coach assignments can carry teams; without "See every team's
+  assessment results" (Coach starts without it), assessment reports show only the teams on their role (all teams when
+  none are set). "Manage the waitlist" to remove people who are waiting. "Add family members": Can't / Request it (the
+  default, as before) / Add directly. Emails by role (Notifications on each role): someone claims or joins the
+  waitlist, releases a spot, a session fills up, spots open up on a full session; sent to people whose role covers
+  that board and team (template "Role alert"). Role tests: 55.
+- **v0.75** Roles, release 2 of 2: Claim Boards and App settings, function by function (69 functions in 9 areas).
+  Claim Boards: create and import boards; per board: Board setup, Board details, Access & people, Board defaults,
+  Notifications, Questions (each view or full), publish, export / QR, copy, archive and delete, a session's People page
+  (view or full), override the rules. People: lists, bulk, import, export, merge, clean up. Assessments: setup (view or
+  full), enter scores (view or full, per board: Coach keeps it), share. Communication: templates and branding (view or
+  full), test emails, email log. Accounts: settings, administrators, roles, on now, activity, sign-in activity, sign in
+  as (never as an administrator unless you are one). Organization: locations, wording, pictures, old data. One gate in
+  front of every admin page (src/gate.js) maps each address to its function, level and board; a board page without a
+  board allows Everywhere roles only; anything not mapped stays administrator-only. View only opens pages with a
+  banner and forms off; saves are refused. Claim Boards in the menu, the boards list and each board's tabs follow
+  the roles. New functions start as administrator-only (Coach also gets Enter scores, as before). Role tests: 43.
+- **v0.74** Roles, function by function (release 1 of 2). The role editor lists every function with No access / View
+  only / Full (or No / Yes), with All full / All view only / None per area: Family (sign up, release spots, change
+  answers, My Family), Check-in (Attendance tab view or record, Sign-ups only tab, Mark everyone here, walk-ins, change
+  after check-in closes), Reports (each of the 19 reports, download CSV/PDF, contact details), People (list and person
+  pages view or edit, invite and approve, assign roles), App settings (Roles view or edit). Role kinds: Everywhere, Per
+  board (given for chosen boards and maybe teams: on the person's page, or Board → Access & people → Roles on this
+  board; Coach = the board's coaches list, Team manager = Team manager cards, other roles in role_boards), Own family
+  or self (new Athlete role for athletes with their own sign-in; Family for parents and guardians). The upgrade keeps
+  everyone's access as it was (roles_v2): levels from the old permissions; custom coaching roles become per-board roles
+  on the boards they coached (and come off the coaches list); athletes move from Family to Athlete. Report boards
+  narrow to the roles that grant that report. Tests: `npm run test:roles` (26 checks).
+- **v0.73** Roles, phase 1 (src/roles.js; App Settings → Accounts & sign-in → Roles). A role is a set of permissions
+  with a reach: Everything, Boards they coach (board → Access & people), Boards and teams they manage (Team manager card),
+  or Their own family. People can have several roles; abilities add up. Permissions (server-enforced): Family (sign up
+  their family, My Family reports), Check-in (open / view rosters, record attendance), Reports (each category,
+  download CSV/PDF, contact details, email log), People (view incl. contact details, edit, invite and approve requests,
+  assign roles), App settings (create and edit roles). Built-in roles match the access before roles: Administrator
+  (locked; mirrored to Administrators; the last one can't be removed; ADMIN_EMAILS always admins), Coach, Team manager,
+  Family. First start assigns everyone (older Reports access grants become Team manager assignments); coaching a board
+  or managing teams brings Coach / Team manager unless a role already reaches those boards; a new sign-in linked to
+  athletes gets Family. App roles are required when adding a person with an email and when approving an account
+  request; each person's page has an App roles card; People shows role chips and "No app role". Without Record
+  attendance a roster is view only; without Edit people, People is view only. Board setup, sessions, assessments
+  setup, communication and app settings stay administrator-only (phase 2). Tests: `npm run test:roles` (19 checks).
+- **v0.72.1** Check-in has two tabs that always show, with counts: Attendance (sessions you check in, the default) and
+  Sign-ups only (sessions without attendance, opening the view-only roster). The choice is remembered; the header
+  counts follow the tab. Replaces the show/hide button.
+- **v0.72** Who's signed up, for sessions that don't take attendance. Check-in keeps listing only sessions with
+  attendance (and RSVP events); when a day also has sessions without attendance, a "Show sign-up-only sessions (N)"
+  button opens a Sign-ups only section (count signed up of capacity), and each opens a view-only roster (numbered names,
+  team, answers, waitlist; no Here / No-show). Reports → Sessions → Sign-ups: a card per session with who's signed up
+  and the waitlist, When (Today / Next 7 days / Dates in Filters) and Show (All / Without attendance only); CSV and PDF
+  one row per person; scoped like every report. Report tests: 396 checks.
+- **v0.71** Assessment context. Drills get "What it measures" (assess_drills.description; shown to families). Admins
+  and coaches, on an athlete's assessment view in Reports: next testing day; per drill, on their latest testing day,
+  rank and share beaten in their age group, age-group and team averages, and the age group's top-quarter mark (or "in
+  the top quarter"); also in the CSV. Families (My Family → Assessments): next testing day for their programs, what each
+  drill measures, Personal best badges and a PB tag on their best-ever try; no ranks or other athletes' scores.
+- **v0.70** Assessments: new Reports → Assessments → Testing day (one testing day, the latest by default): summary cards
+  (athletes tested, drills, tries) and a card per drill with the best score and who set it, a bar chart of the top 10
+  (scaled from the weakest shown to the best) and average / median / tested; table for CSV and PDF. Group by Everyone /
+  Team / Age group on Testing day and Leaderboard (age group = the athlete's age group, or their age that year from the
+  birth year). My Family → Assessments shows every try per testing day under each drill, best try highlighted. Report
+  tests: 374 checks.
+- **v0.69.4** Two more helper-spot emails. "Helper requested": when an answer opens a helper spot, the person helped
+  (or their family) hears the request went out and that they'll be emailed when someone signs up. "Helper spot still
+  open": 24 hours before a helper spot's session, if no one has taken it, the board's coaches (or its organizer contact
+  when it has none) get the list of open spots with a link to Reports; once per spot, batched per coach, not 9 PM–7 AM.
+- **v0.69.3** Question answers line up: each radio or checkbox sits on the same line as its label, stacked and
+  left-aligned, with no box around the question and follow-ups indented (the app's general form styles no longer
+  stretch them), in the Claim window, Change answers and admin Add someone.
+- **v0.69.2** Questions are asked when someone taps Claim: a session with questions shows just a Claim button, which
+  opens a "Claim this spot" window for that session with its questions (and follow-ups), Cancel and Claim (or Join
+  waitlist). Sessions without questions still claim in one tap. A person's own helper spots no longer show on their
+  sign-up page.
+- **v0.69.1** Questions page clean-up: a "How questions work" guide at the top, Add a question first, then Your
+  questions grouped by "Asked on: …" with each card tagged Question or Follow-up question and labeled Answers and Rules;
+  help text under every field ("Ask on" is now "Where to ask it", with an example); rules read "When someone answers
+  … → …"; Edit and Remove sit side by side on every screen size.
+- **v0.69** Follow-up questions (cascading rules). New rule action "Ask a follow-up question" on Pick one, Pick any and
+  Yes / No answers: a question of any type asked right under its question only when that answer is picked; follow-ups can
+  have their own rules and follow-ups (up to 6 levels). Required follow-ups are required only when showing; hidden ones
+  are ignored; changing an answer clears follow-ups that no longer apply (and their rules' effects, e.g. a helper spot
+  closes). Works on the sign-up page, the public link, admin Add someone and Change answers (public/app-ui.js shows and
+  hides them). Questions tab nests follow-ups under the answer that asks them; moving a question moves its follow-ups;
+  removing a question or one of its answers removes the follow-ups below. Questions test: 17 checks.
+- **v0.68.1** One place for questions: at startup, each board's original question (Board defaults → Question) moves to
+  its Questions tab as a Short answer question with the same settings and every past answer (copied from the claim note;
+  the original is kept in settings.legacy_question). Board defaults now points to the Questions tab (RSVP boards keep
+  the original question). New option per question: Show answers to other families (in a session's Details; families
+  always see their own). The weekly roster no longer repeats a moved answer.
+- **v0.68** Claim questions and answer rules (src/questions.js; Board → Questions tab). Questions on the whole board or a
+  level (that level's sessions and below): Pick one, Pick any, Yes / No, Short answer, Number; required or optional; shown
+  on rosters/Check-in and the weekly roster. Asked on the sign-up page, the public link and admin Add someone (admins
+  answer required ones too; Override keeps whatever was answered). Answers per claim (claim_answers); families change them
+  on My Claims. Rules on Pick-one and Yes/No answers: Open a helper spot (a linked one-session spot in another level at the
+  same time and place, claimable by whoever that level allows, outside limits, not for the person it helps; closes when
+  the claim is canceled or the answer changes; whoever can take it is emailed, batched, held 9 PM–7 AM), Email someone
+  (coaches, organizer, an address), Add a tag. New emails: Helper spots open, Helper found, Still looking, Helper spot no
+  longer needed, An answer to know about. Reports → Participation → Answers (with counts per answer); Needs attention
+  "Helper still needed" within 3 days; helper spots kept out of low-enrollment and nearly-full alerts. The board's
+  original question (Board defaults → Question) is unchanged. Tests: `npm run test:questions` (17 checks).
+- **v0.67.1** Open leftover spots emails are per family: a family sees only sessions where at least one of their athletes
+  could still sign up (not already claimed or waitlisted, and allowed on that board); a parent's own adult record counts
+  only on volunteer boards. Nothing left for a family = no email. Accounts with no athletes (admins, coaches) get the
+  whole list. The spot count in the subject matches what's listed.
+- **v0.67** Open leftover spots now sends twice per session, each only while spots are open: "Spots open" when the
+  session's leftover window opens (checked every 15 minutes, held from 9 PM to 7 AM), and "Today" at 7 AM the morning of
+  the session. Same-day openings fold into that morning's email (one email, not two); several sessions are batched per
+  family. Board → Notifications: the main switch plus "Also send the morning of the session" (both on by default). New
+  template "Open leftover spots (morning of the session)".
+- **v0.66** Two automatic emails (src/notices.js, run by the 15-minute reminders job). Welcome: every new account gets
+  "New: sign up for Raptors training in Claim It" once (sign-in steps, signing up, releasing a spot, View My Reports);
+  admin invites send the Invitation instead, which now carries the same welcome plus Set up my account. Accounts that
+  existed before v0.66 are marked as welcomed (users.welcome_emailed_at). Open leftover spots: a morning summary (from
+  7 AM Chicago) to everyone with an account listing sessions whose "open leftover spots" time has come and that still
+  have open spots (claimable past a reached limit); only sessions with that setting; nothing when no spots are open; each
+  session announced once (leftover_notices); per-board switch under Board → Notifications (on by default). New templates
+  "Welcome (new account)" and "Open leftover spots (morning summary)" are editable with the others.
+- **v0.65** Report tests in the project: `npm run test:reports` (test/reports.test.js + test/seed-reports.js) builds its own
+  test data in an empty database (TEST_DATABASE_URL in .env; it refuses any database with real data) and checks every
+  report for admin, coach, team manager and parent (loads, layout, no broken values), CSV headings vs the page, no emails
+  for non-admins, what each role may see, every old report address, and key numbers against the database (397 checks).
+  Fixes it found: the Limits report now applies level limits on boards open to signed-in families (it showed only the
+  board-wide limit there); Attendance → Not recorded shows a coach's email only to admins. RSVP eligibility for past
+  events is judged as of just before the event. My Family: "My Progress" renamed "Assessments".
 - **v0.64** "More Reports" becomes RSVP (shown only with RSVP boards in view): one report, Group by Event | Athlete | Answer
   (Answer filter in the Answer view). Shift coverage joins Volunteer hours as Families → Volunteers: Group by Family (hours
   toward the requirement) | Shift (needed, claimed, open, coverage). Old addresses (rsvpAnswers, rsvpAthletes, coverage)

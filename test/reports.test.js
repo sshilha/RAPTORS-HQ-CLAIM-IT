@@ -20,8 +20,8 @@ const BAD = /\b(undefined|NaN|Invalid Date|\[object Object\])\b/;
 const text = (html) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 const heads = (html) => { const m = /<table class="r-table[^"]*"[^>]*>[\s\S]*?<thead>([\s\S]*?)<\/thead>/.exec(html); return m ? [...m[1].matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((x) => text(x[1]).trim()).filter(Boolean) : []; };
 const REPORTS = ["overview", "claims", "claims&group=claim", "attend", "attend&group=session", "attend&ashow=noshow", "attend&group=session&ashow=unrec", "teams", "limits", "waitlists",
-  "sess", "sess&group=location", "sess&group=time", "week", "engagement", "engagement&group=family", "volunteer", "volunteer&group=shift", "emails",
-  "assessResults", "assessProgress", "assessProgress&cmp=days", "assessLeaders", "assessLeaders&rank=records", "assessTeam", "assessTeam&tshow=improve", "rsvp", "rsvp&group=athlete", "rsvp&group=answer"];
+  "sess", "signups", "signups&sshow=notrack&sw=today", "sess&group=location", "sess&group=time", "week", "engagement", "engagement&group=family", "volunteer", "volunteer&group=shift", "emails",
+  "assessResults", "assessDay", "assessDay&ag=age", "assessLeaders&ag=team", "assessProgress", "assessProgress&cmp=days", "assessLeaders", "assessLeaders&rank=records", "assessTeam", "assessTeam&tshow=improve", "rsvp", "rsvp&group=athlete", "rsvp&group=answer"];
 const OLD = { person: "r=claims", all: "group=claim", attendance: "r=attend", attSessions: "group=session", noshows: "ashow=noshow", unchecked: "ashow=unrec", fill: "r=sess", upcoming: "view=upcoming",
   busiest: "group=time", locations: "group=location", notSignedIn: "fview=never", notSignedUp: "fview=noclaims", rsvpAnswers: "group=answer", rsvpAthletes: "group=athlete", coverage: "group=shift",
   assessImprove: "cmp=days", assessAttend: "cmp=days", assessRecords: "rank=records", assessTeamBest: "r=assessTeam", assessTeamProgress: "tshow=improve", assessTeams: "cmp=days" };
@@ -86,6 +86,11 @@ async function main() {
     const row = lim.split(/\r?\n/).find((l) => l.startsWith('"Ava Adams"') && /Batting Cage/.test(l)) || "", used = Number((row.split('","')[5] || "").replace(/"/g, ""));
     const dbUsed = (await query(`SELECT count(*)::int AS n FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE c.athlete_id=$1 AND i.schedule_id=$2 AND c.status<>'canceled' AND c.counts`, [D.A.Ava, D.B.prog])).rows[0].n;
     ok("Limits: Ava's Batting Cage used = database", used === dbUsed, `${used} vs ${dbUsed}`);
+    // extra spots (claimed past a reached limit) take a seat, as on the sign-up page
+    const ex = (await query(`INSERT INTO board_items (schedule_id, title, starts_at, ends_at, capacity, location) VALUES ($1,'Extra-spot test', now() + interval '2 days', now() + interval '2 days 1 hour', 3, 'Gym') RETURNING id`, [D.B.prog])).rows[0].id;
+    for (const [k, counts] of [["Ava", true], ["Bea", true], ["Fay", false]]) await query(`INSERT INTO board_claims (item_id, athlete_id, status, counts) VALUES ($1,$2,'confirmed',$3)`, [ex, D.A[k], counts]);
+    const exRow = (await (await fetch(`${BASE}/reports?view=mgmt&r=sess&csv=1&q=Extra-spot`, { headers: { cookie: cookie.admin } })).text()).split(/\r?\n/).find((l) => l.includes("Extra-spot test")) || "";
+    ok("Sessions: extra spots take a seat (3 of 3, Full)", /"3","3"/.test(exRow) && /Full/.test(exRow), exRow.slice(0, 160));
     const rs = text((await get("/reports?view=mgmt&r=rsvp", "admin")).html);
     ok("RSVP: Kickoff 6 on the list, 5 answered (83%)", /Kickoff Test Meetings 6 5 83%/.test(rs.replace(/\s+/g, " ")), (/Kickoff[^%]*%/.exec(rs) || [""])[0]);
   } catch (e) { ok("test run", false, e.message); }

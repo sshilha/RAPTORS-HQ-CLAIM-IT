@@ -41,7 +41,8 @@ router.get("/", wrap(async (req, res) => {
   sc._roll = await E.rollingMap(sc.id);   // "only the next one": which sessions families see right now
   const V = require("../views/setup2"), args = { sc, tree, topItems, totals, eff: E.effectiveAt(sc, []), sel };
   if (req.query.partial) return res.json(V.panels(args));
-  res.send(V.setupPage({ user: req.user, flash: flashFrom(req), ...args }));
+  const canceled = (await query(`SELECT * FROM board_items WHERE schedule_id=$1 AND canceled_at IS NOT NULL AND (settings->>'helper_claim') IS NULL ORDER BY starts_at DESC NULLS LAST LIMIT 50`, [req.sched.sc.id])).rows;   // to find and reopen
+  res.send(V.setupPage({ canceled, user: req.user, flash: flashFrom(req), ...args }));
 }));
 
 // The board's Rules page (1-2 level boards; rounds boards keep per-round rules for now)
@@ -53,6 +54,101 @@ router.get("/new", wrap(async (req, res) => res.send(v.newSchedulePage({ user: r
 const NOTE_KEYS = [["confirm", "Spot claimed", "When someone claims a spot (signed in)."], ["waitlist", "Put on the waitlist", "When someone joins a waitlist (signed in)."],
   ["cancel", "Spot canceled", "When a claim is canceled, by them or an admin."], ["moved_up", "Moved off the waitlist", "When a spot opens and someone moves up."]];
 const REMIND = [[0, "Off"], [2, "2 hours before"], [12, "12 hours before"], [24, "1 day before"], [48, "2 days before"], [72, "3 days before"]];
+// ---------- Board → Questions (claim questions and their answer rules) ----------
+async function qLevels(sid) {
+  const nodes = (await query(`SELECT id, parent_id, name FROM board_nodes WHERE schedule_id=$1 ORDER BY sort, id`, [sid])).rows, by = new Map(nodes.map((n) => [n.id, n]));
+  const path = (n) => { const out = []; while (n) { out.unshift(n.name); n = by.get(n.parent_id); } return out.join(" › "); };
+  return nodes.map((n) => ({ id: n.id, path: path(n) })).sort((a, b) => a.path.localeCompare(b.path));
+}
+async function qDescendants(id) {   // every follow-up below a question (any depth)
+  const out = []; let front = [id];
+  while (front.length && out.length < 200) { const k = (await query(`SELECT id FROM claim_questions WHERE parent_id = ANY($1) AND archived_at IS NULL`, [front])).rows.map((r) => r.id); out.push(...k); front = k; }
+  return out;
+}
+async function qAncestors(id) { const out = []; let cur = id;
+  for (let i = 0; i < 10; i++) { const r = (await query(`SELECT parent_id FROM claim_questions WHERE id=$1`, [cur])).rows[0]; if (!r || !r.parent_id) break; out.push(r.parent_id); cur = r.parent_id; } return out; }
+router.get("/questions", wrap(async (req, res) => {
+  const sc = await SC.get(int(req.query.s)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
+  const Qm = require("../questions"); await Qm.ensure();
+  const qs = (await query(`SELECT * FROM claim_questions WHERE schedule_id=$1 AND archived_at IS NULL ORDER BY node_id NULLS FIRST, sort, id`, [sc.id])).rows;
+  const counts = Object.fromEntries((await query(`SELECT question_id, count(*)::int AS n FROM claim_answers WHERE question_id = ANY($1) GROUP BY 1`, [qs.map((q) => q.id)])).rows.map((r) => [r.question_id, r.n]));
+  const H = require("../views/setup2"), head = H.boardHeader(sc, { ...(await H.headerData(sc)), active: "questions" });
+  res.send(require("../views/admin").page({ title: `Questions · ${sc.name}`, tab: "setup", user: req.user, flash: flashFrom(req), wide: true, noBack: true,
+    body: `<nav class="back-row"><a class="back-btn" href="/admin/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All Boards</a></nav>
+    ${require("../views/questions").questionsPage({ sc, head, qs, levels: await qLevels(sc.id), counts, editId: int(req.query.edit) })}` }));
+}));
+function qFromForm(b, old = null) {
+  const kind = Object.keys(require("../questions").KINDS).includes(b.kind) ? b.kind : "choice";
+  let options = [];
+  if (kind === "choice" || kind === "multi") {   // keep each answer's key when its line stays in place, so earlier answers keep their meaning
+    const labels = String(b.options || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 20), prev = old ? require("../questions").opts(old) : [];
+    const used = new Set(prev.map((o) => o.key)); let n = prev.length;
+    options = labels.map((l, i) => { if (prev[i]) return { key: prev[i].key, label: l }; let k; do k = `o${n++}`; while (used.has(k)); used.add(k); return { key: k, label: l }; });
+  }
+  return { label: String(b.label || "").trim().slice(0, 160), kind, options, required: b.required === "1", show: { roster: b.show_roster === "1", week: b.show_week === "1", public: b.show_public === "1" } };
+}
+router.post("/questions", wrap(async (req, res) => {
+  const sc = await SC.get(int(req.query.s)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
+  await require("../questions").ensure(); const q = qFromForm(req.body), back = `/admin/setup/questions?s=${sc.id}`;
+  if (!q.label) return go(res, back, { err: "Type the question." });
+  if ((q.kind === "choice" || q.kind === "multi") && q.options.length < 2) return go(res, back, { err: "Give at least two answers, one per line." });
+  const node = int(req.body.node_id) || null;
+  if (node && !(await query(`SELECT 1 FROM board_nodes WHERE id=$1 AND schedule_id=$2`, [node, sc.id])).rowCount) return go(res, back, { err: "Pick a level on this board." });
+  await query(`INSERT INTO claim_questions (schedule_id, node_id, label, kind, options, required, show) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [sc.id, node, q.label, q.kind, JSON.stringify(q.options), q.required, JSON.stringify(q.show)]);
+  go(res, back, { ok: `Added "${q.label}". Add a rule to it if an answer should do something.` });
+}));
+async function qGet(req) { const sc = await SC.get(int(req.query.s)); if (!sc) return {}; await require("../questions").ensure();
+  return { sc, q: (await query(`SELECT * FROM claim_questions WHERE id=$1 AND schedule_id=$2 AND archived_at IS NULL`, [int(req.params.id), sc.id])).rows[0] }; }
+router.post("/questions/:id(\\d+)", wrap(async (req, res) => {
+  const { sc, q: old } = await qGet(req); if (!old) return go(res, "/admin/settings", { err: "Not found." });
+  const q = qFromForm(req.body, old), back = `/admin/setup/questions?s=${sc.id}#q${old.id}`, node = old.parent_id ? old.node_id : int(req.body.node_id) || null;
+  if (!q.label) return go(res, back, { err: "Type the question." });
+  if ((q.kind === "choice" || q.kind === "multi") && q.options.length < 2) return go(res, back, { err: "Give at least two answers, one per line." });
+  const keys = new Set(require("../questions").opts({ ...old, ...q }).map((o) => o.key)), rules = (old.rules || []).filter((r) => keys.has(r.when) && /choice|yesno/.test(q.kind));
+  await query(`UPDATE claim_questions SET node_id=$2, label=$3, kind=$4, options=$5, required=$6, show=$7, rules=$8 WHERE id=$1`, [old.id, node, q.label, q.kind, JSON.stringify(q.options), q.required, JSON.stringify(q.show), JSON.stringify(rules)]);
+  const desc = await qDescendants(old.id);
+  if (desc.length) await query(`UPDATE claim_questions SET node_id=$2 WHERE id = ANY($1)`, [desc, node]);
+  const dropped = (await query(`SELECT id FROM claim_questions WHERE parent_id=$1 AND archived_at IS NULL AND NOT (parent_when = ANY($2))`, [old.id, [...keys]])).rows.map((r) => r.id);
+  for (const d of dropped) await query(`UPDATE claim_questions SET archived_at=now() WHERE id = ANY($1)`, [[d, ...(await qDescendants(d))]]);
+  go(res, back, { ok: `Saved.${rules.length < (old.rules || []).length ? " Rules for answers you removed were removed too." : ""}${dropped.length ? ` ${dropped.length} follow-up question${dropped.length === 1 ? "" : "s"} for answers you removed ${dropped.length === 1 ? "was" : "were"} removed.` : ""}` });
+}));
+router.post("/questions/:id(\\d+)/archive", wrap(async (req, res) => {
+  const { sc, q } = await qGet(req); if (!q) return go(res, "/admin/settings", { err: "Not found." });
+  const desc = await qDescendants(q.id);
+  await query(`UPDATE claim_questions SET archived_at=now() WHERE id = ANY($1)`, [[q.id, ...desc]]);
+  go(res, `/admin/setup/questions?s=${sc.id}`, { ok: `Removed "${q.label}"${desc.length ? ` and its ${desc.length} follow-up${desc.length === 1 ? "" : "s"}` : ""}. Answers already given stay in reports.` });
+}));
+router.post("/questions/:id(\\d+)/rules", wrap(async (req, res) => {
+  const { sc, q } = await qGet(req); if (!q) return go(res, "/admin/settings", { err: "Not found." });
+  const b = req.body, back = `/admin/setup/questions?s=${sc.id}#q${q.id}`, Qm = require("../questions");
+  if (!Qm.opts(q).some((o) => o.key === b.when)) return go(res, back, { err: "Pick an answer." });
+  if (b.action === "followup") {
+    if (((await qAncestors(q.id)).length) >= 5) return go(res, back, { err: "Follow-ups can go 6 levels deep. Add this one higher up." });
+    const f = qFromForm({ label: b.f_label, kind: b.f_kind, options: b.f_options, required: b.f_required, show_roster: (q.show || {}).roster !== false ? "1" : "", show_week: (q.show || {}).week !== false ? "1" : "", show_public: (q.show || {}).public ? "1" : "" });
+    if (!f.label) return go(res, back, { err: "Type the follow-up question." });
+    if ((f.kind === "choice" || f.kind === "multi") && f.options.length < 2) return go(res, back, { err: "Give the follow-up at least two answers, one per line." });
+    const id = (await query(`INSERT INTO claim_questions (schedule_id, node_id, parent_id, parent_when, sort, label, kind, options, required, show) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [sc.id, q.node_id, q.id, b.when, q.sort, f.label, f.kind, JSON.stringify(f.options), f.required, JSON.stringify(f.show)])).rows[0].id;
+    return go(res, `/admin/setup/questions?s=${sc.id}#q${id}`, { ok: `Added the follow-up "${f.label}".` });
+  }
+  if (q.kind === "multi") return go(res, back, { err: "Pick any questions can ask follow-ups; other rules need a Pick one or Yes / No question." });
+  let r;
+  if (b.action === "helper") { const node = int(b.node); if (!(await query(`SELECT 1 FROM board_nodes WHERE id=$1 AND schedule_id=$2`, [node, sc.id])).rowCount) return go(res, back, { err: "Pick the level the helper spot goes in." });
+    r = { when: b.when, action: "helper", node, label: String(b.label || "Helper for {athlete}").trim().slice(0, 100) || "Helper for {athlete}", spots: Math.min(10, Math.max(1, int(b.spots) || 1)) }; }
+  else if (b.action === "email") { const to = ["coaches", "organizer", "address"].includes(b.to) ? b.to : "coaches";
+    if (to === "address" && !/^\S+@\S+\.\S+$/.test(String(b.address || ""))) return go(res, back, { err: "Type the email address." });
+    r = { when: b.when, action: "email", to, address: to === "address" ? String(b.address).trim() : "" }; }
+  else if (b.action === "tag") { const tag = String(b.tag || "").trim().slice(0, 40); if (!tag) return go(res, back, { err: "Type the tag." }); r = { when: b.when, action: "tag", tag }; }
+  else return go(res, back, { err: "Pick what happens." });
+  await query(`UPDATE claim_questions SET rules = rules || $2::jsonb WHERE id=$1`, [q.id, JSON.stringify([r])]);
+  go(res, back, { ok: "Rule added. It applies to new answers from now on." });
+}));
+router.post("/questions/:id(\\d+)/rules/:i(\\d+)/delete", wrap(async (req, res) => {
+  const { sc, q } = await qGet(req); if (!q) return go(res, "/admin/settings", { err: "Not found." });
+  const rules = (q.rules || []).filter((_, i) => i !== int(req.params.i));
+  await query(`UPDATE claim_questions SET rules=$2 WHERE id=$1`, [q.id, JSON.stringify(rules)]);
+  go(res, `/admin/setup/questions?s=${sc.id}#q${q.id}`, { ok: "Rule removed. Helper spots it already opened stay until their claim is canceled or the answer changes." });
+}));
 router.get("/notifications", wrap(async (req, res) => {
   const sc = await SC.get(int(req.query.s)); if (!sc) return go(res, "/admin/settings", { err: "Not found." });
   const n = (sc.settings && sc.settings.notify) || {}, rh = n.reminder_hours == null ? 24 : Number(n.reminder_hours);

@@ -141,7 +141,7 @@ async function itemsUnder(nodeId, db) {
 }
 
 // ---------- claiming ----------
-async function claim({ itemId, athleteId, userId = null, note = null, member = undefined, now = new Date() }) {
+async function claim({ itemId, athleteId, userId = null, note = null, member = undefined, now = new Date(), answers = {} }) {
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
@@ -159,10 +159,16 @@ async function claim({ itemId, athleteId, userId = null, note = null, member = u
     const q = chain.board.question;
     const cleanNote = q && q.label ? String(note || "").replace(/\s+/g, " ").trim().slice(0, 120) || null : null;
     if (q && q.label && q.required && !cleanNote) throw new ClaimError(`Please answer: ${q.label}`);
+    // claim questions (on the board and the levels above this session): required ones must be answered
+    const Q = require("../questions"), qs = await Q.forItem(itemId, db);
+    let cleaned; try { cleaned = Q.clean(qs, answers || {}); } catch (e) { throw new ClaimError(e.message); }
+    // a helper spot (opened by an answer rule): outside limits, and not for the person it helps
+    const helperFor = chain.item.settings && chain.item.settings.helper_claim ? Number(chain.item.settings.helper_claim) : null;
+    if (helperFor && (await db.query(`SELECT 1 FROM board_claims WHERE id=$1 AND athlete_id=$2`, [helperFor, athleteId])).rowCount) throw new ClaimError("That spot is for someone helping you.");
     // limits: every limit on the path applies. An open leftover spot can go past a reached limit
     // (that claim is an "extra" and doesn't count); under the limit, it counts like any other claim.
     let extra = false;
-    for (const L of eff.limits) {
+    for (const L of helperFor ? [] : eff.limits) {
       const ids = L.kind === "board" ? (await db.query(`SELECT id FROM board_items WHERE schedule_id=$1`, [chain.board.id])).rows.map((r) => r.id) : await itemsUnder(L.id, db);
       const n = (await db.query(`SELECT count(*)::int AS n FROM board_claims WHERE athlete_id=$1 AND item_id = ANY($2) AND status<>'canceled' AND counts`, [athleteId, ids])).rows[0].n;
       if (n >= L.limit) {
@@ -174,8 +180,10 @@ async function claim({ itemId, athleteId, userId = null, note = null, member = u
     let status = "confirmed";
     if (taken >= chain.item.capacity) { if (!eff.waitlist) throw new ClaimError("That's full."); status = "waitlisted"; }
     const c = (await db.query(`INSERT INTO board_claims (item_id, athlete_id, booked_by, status, counts, note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [itemId, athleteId, userId, status, !extra, cleanNote])).rows[0];
+      [itemId, athleteId, userId, status, !extra && !helperFor, cleanNote])).rows[0];
+    await Q.save(c.id, cleaned, db);
     await db.query("COMMIT");
+    if (process.env.CLAIM_FOLLOWUPS !== "off") Q.afterClaim(c.id).catch((e) => console.error("claim rules:", e.message));   // helper spots, emails, tags (off only in the engine test)
     return c;
   } catch (e) { await db.query("ROLLBACK"); throw e; } finally { db.release(); }
 }
@@ -213,6 +221,7 @@ async function cancel({ claimId, admin = false, now = new Date() }) {
     await db.query(`UPDATE board_claims SET status='canceled', canceled_at=now() WHERE id=$1`, [claimId]);
     const promoted = c.status === "confirmed" ? await promote(c.item_id, db) : [];
     await db.query("COMMIT");
+    if (process.env.CLAIM_FOLLOWUPS !== "off") require("../questions").afterCancel(c).catch((e) => console.error("cancel rules:", e.message));   // close or reopen helper spots
     return { canceled: c, promoted };
   } catch (e) { await db.query("ROLLBACK"); throw e; } finally { db.release(); }
 }

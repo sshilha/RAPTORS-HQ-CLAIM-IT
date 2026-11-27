@@ -2,7 +2,7 @@ const { esc } = require("./layout");
 const { page } = require("./admin");
 const { fmtDateTime } = require("../time");
 
-function requestsPage({ user, flash, rows, head = "", tools = "" }) {
+function requestsPage({ roleBoards = [], appRoles = [], user, flash, rows, head = "", tools = "" }) {
   const waiting = rows.filter((r) => r.status === "waiting"), done = rows.filter((r) => r.status !== "waiting");
   const row = (r) => `<li class="rq${r.status === "waiting" ? "" : " rq-done"}">
     <div class="rq-main"><b>${r.kind === "new_account" ? `New account: ${esc(r.data.first_name)} ${esc(r.data.last_name)}` : r.kind === "add_family" ? `Add ${esc(r.data.first_name)} ${esc(r.data.last_name)} to their family` : `Change ${esc(r.data.about || "their own info")}`}</b>
@@ -12,6 +12,7 @@ function requestsPage({ user, flash, rows, head = "", tools = "" }) {
       ${r.status !== "waiting" ? `<span class="fine">${{ approved: "Approved", declined: "Declined", done: "Done" }[r.status]} ${r.decided_at ? esc(fmtDateTime(r.decided_at)) : ""}${r.admin_note ? ` · “${esc(r.admin_note)}”` : ""}</span>` : ""}</div>
     ${r.status === "waiting" ? `<div class="rq-act">
       <form method="post" action="/admin/requests/${r.id}/approve" class="stack">
+        ${r.kind === "new_account" ? `<fieldset class="ar-fs"><legend>App roles <span class="opt">(required: what they can see and do)</span></legend>${require("./roles").rolePick(appRoles, [], { boards: roleBoards, withTeams: false })}</fieldset>` : ""}
         ${r.kind === "new_account" && r.people && r.people.length ? `<fieldset class="rq-match"><legend>Already in People?</legend>
           ${r.people.map((m, i) => `<label class="radio-row"><input type="radio" name="person_id" value="${m.id}"${i === 0 && (m.same_email || !m.login) ? " checked" : ""}> <span>This is <b>${esc(m.first_name)} ${esc(m.last_name)}</b>
             <span class="fine">${[m.kind === "athlete" ? "Athlete" : "Adult", m.team, m.birth_year && `born ${m.birth_year}`, m.same_email ? "same email" : "same name", m.login ? `signs in as ${m.login}` : "no sign-in yet"].filter(Boolean).map(esc).join(" · ")}</span></span></label>`).join("")}

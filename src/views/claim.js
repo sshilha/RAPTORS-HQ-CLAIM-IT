@@ -53,11 +53,13 @@ function homePage({ top = null, user, flash, claims, boards, extra, admin, coach
   const detailDialogs = [];
   const details = (c) => {
     const q = (c.board && c.board.question) || {}, names = (c.board && c.board.family_names) || "initial";
-    const showAnswer = (g) => q.label && g.note && (admin || q.public !== false || familyIds.has(g.athlete_id));
+    const shown = (g) => [...(q.label && g.note && (admin || q.public !== false || familyIds.has(g.athlete_id)) ? [g.note] : []),
+      ...(g.answers || []).filter((a) => admin || (a.q.show || {}).public || familyIds.has(g.athlete_id)).map((a) => a.text)].join(" · ");
+    const showAnswer = (g) => !!shown(g);
     const nm = (g) => (admin || names === "full" || familyIds.has(g.athlete_id)) ? `${g.first_name} ${g.last_name}` : `${g.first_name} ${(g.last_name || "").slice(0, 1)}.`;
     const conf = c.going.filter((g) => g.status === "confirmed"), wl = c.going.filter((g) => g.status === "waitlisted");
     const hidden = names === "off" && !admin;
-    const list = (arr) => `<ul class="dt-list">${arr.map((g) => `<li${familyIds.has(g.athlete_id) ? ' class="me"' : ""}><b>${esc(hidden && !familyIds.has(g.athlete_id) ? "Someone" : nm(g))}</b>${showAnswer(g) ? `<span>${esc(g.note)}</span>` : ""}</li>`).join("")}</ul>`;
+    const list = (arr) => `<ul class="dt-list">${arr.map((g) => `<li${familyIds.has(g.athlete_id) ? ' class="me"' : ""}><b>${esc(hidden && !familyIds.has(g.athlete_id) ? "Someone" : nm(g))}</b>${showAnswer(g) ? `<span>${esc(shown(g))}</span>` : ""}</li>`).join("")}</ul>`;
     detailDialogs.push(`<dialog class="b-dlg" id="dt${c.id}"><div class="b-dlg-h"><span class="b-dlg-t"><b>${esc(c.path ? c.path.split(" › ").slice(-1)[0] : c.board_name)}</b><small>${esc([c.board_name, ...(c.path ? c.path.split(" › ").slice(0, -1) : [])].join(" • "))}</small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
       <div class="b-dlg-b"><dl class="b-facts"><div><dt>When</dt><dd>${esc(slotName(c))}</dd></div>
         ${c.location || (c.board && c.board.event_location) ? `<div><dt>Where</dt><dd>${P.link(c.location || c.board.event_location)}</dd></div>` : ""}
@@ -89,7 +91,11 @@ function homePage({ top = null, user, flash, claims, boards, extra, admin, coach
         <span class="d-group-s">${when === "past" ? `<b>${cs.length} done</b>${cs[0] && cs[0].starts_at ? ` · Latest ${esc(shortDay(cs[0].starts_at))}` : ""}` : `<b>${upcoming.length} claimed</b>${next ? ` · Next ${esc(shortDay(next.starts_at))}` : ""}`}</span></div>
       ${rows.map((c) => `<div class="d-claim${c.past ? " past" : ""}${c.status === "waitlisted" ? " wl" : ""}">${dayBlock(c.starts_at)}
         <div class="d-claim-b"><div class="d-claim-t"><b>${c.starts_at ? esc(timeRange(c.starts_at, c.ends_at)) : esc(c.title || "Anytime")}</b>${c.status === "waitlisted" ? `<span class="d-pill wl">Waitlist</span>` : ""}${c.past ? `<span class="d-pill">Done</span>` : ""}</div>
-          <span>${esc([nm(c), ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}${c.location && c.location !== c.board_location ? ` · ${P.link(c.location)}` : ""}</span></div>
+          <span>${esc([nm(c), ...(c.path ? c.path.split(" › ") : []), c.starts_at && c.title ? c.title : ""].filter(Boolean).join(" · "))}${c.location && c.location !== c.board_location ? ` · ${P.link(c.location)}` : ""}</span>
+          ${(c.answers || []).map((a) => `<span class="d-ans">${esc(a.q.label)} <b>${esc(a.text)}</b></span>`).join("")}
+          ${(c.helpers || []).map((h) => `<span class="d-ans d-help">${h.who ? `Helper: <b>${esc(h.who)}</b>` : `Looking for a helper: <b>${esc(h.title)}</b>`}</span>`).join("")}
+          ${!c.past && (c.qs || []).length && c.status !== "canceled" ? `<details class="d-qedit"><summary class="link-dark">Change answers</summary><form method="post" action="/claims/${c.id}/answers" class="d-qform">
+            ${require("../questions").fields(c.qs, { answers: Object.fromEntries((c.answers || []).map((a) => [a.q.id, a.value])), esc })}<button class="btn-small" type="submit">Save answers</button></form></details>` : ""}</div>
         <div class="d-acts">${details(c)}${!c.past && c.starts_at && c.status === "confirmed" ? calMenu(c.id) : ""}
         ${c.past ? "" : c.cancelable ? `<form method="post" action="/claims/${c.id}/cancel" class="d-cancel" onsubmit="return confirm('Cancel this spot for ${esc((c.self_user_id ? "yourself" : c.first_name).replace(/'/g, ""))}? It will open for someone else.')">
             <input type="hidden" name="back" value="/dashboard"><button type="submit">${IC.trash}<span>Cancel</span></button></form>`
@@ -167,7 +173,7 @@ const calMenu = (claimId) => `<details class="cal-add"><summary title="Add to ca
   <a role="menuitem" href="/claims/${claimId}/calendar?to=google" target="_blank" rel="noopener"><b>Google Calendar</b><span>Opens Google with it filled in</span></a>
   <a role="menuitem" href="/claims/${claimId}/calendar?to=outlook" target="_blank" rel="noopener"><b>Outlook.com</b><span>Personal Outlook, Hotmail or Live</span></a>
   <a role="menuitem" href="/claims/${claimId}/calendar?to=office" target="_blank" rel="noopener"><b>Microsoft 365</b><span>Work or school Outlook</span></a></div></details>`;
-function boardPage({ user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null, preview = null, rsvp = null }) {
+function boardPage({ qmap = {}, user, flash, board, person, who: people, view, mode, month, day, span = null, filters = {}, admin = false, group = "activity", guest = null, preview = null, rsvp = null }) {
   // guest = { code }: the public link ("Anyone with the link"), no account; claims ask for name + email
   const basePath = guest ? `/s/${guest.code}` : `/b/${board.id}`;
   if (guest) { person = { id: 0, first_name: "", guest: true }; people = []; }
@@ -197,7 +203,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
     const last = w[w.length - 1]; return last.mode === "signed_in" ? "Anyone with an account" : last.mode === "list" ? "Everyone on the list" : `Only ${[...(last.groups || []), ...(last.tags || [])].join(", ")}`; };
   const going = (r) => { const g = r.going || []; if (!g.length) return ""; const mode = board.family_names || "initial"; if (mode === "off") return `${g.length} going`;
     return `Going: ${g.map((x) => mode === "full" ? `${x.first_name} ${x.last_name}` : `${x.first_name} ${(x.last_name || "").slice(0, 1)}.`).join(", ")}`; };
-  const claimForm = (r, big = false) => preview ? `<button type="button" class="b-claim${big ? " big" : ""}" disabled title="Preview only: claiming is off here">${r.full ? "Join waitlist" : "Claim"}</button>` : guest ? `<button type="button" class="b-claim${big ? " big" : ""}" data-guest="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>` : `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
+  const claimForm = (r, big = false) => preview ? `<button type="button" class="b-claim${big ? " big" : ""}" disabled title="Preview only: claiming is off here">${r.full ? "Join waitlist" : "Claim"}</button>` : guest ? `<button type="button" class="b-claim${big ? " big" : ""}" data-guest="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>` : qmap[r.item.id] ? `<button type="button" class="b-claim${big ? " big" : ""}" data-qclaim="${r.item.id}" data-what="${esc(`${(r.chain[r.chain.length - 1] || {}).name ? `${r.chain[r.chain.length - 1].name} · ` : ""}${slotName(r.item)}`)}">${r.full ? "Join waitlist" : "Claim"}</button>`
+    : `<form method="post" action="/b/${board.id}/claim" class="b-claimf"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item" value="${r.item.id}"><input type="hidden" name="back" value="${esc(back)}">
       ${q.label ? `<input name="note" maxlength="120"${q.required ? " required" : ""} placeholder="${esc(q.label)}${q.required ? "" : " (optional)"}" aria-label="${esc(q.label)}">` : ""}
       <button class="b-claim${big ? " big" : ""}" type="submit">${r.full ? "Join waitlist" : "Claim"}</button></form>`;
   const cancelForm = (r) => `<form method="post" action="/claims/${r.mine.id}/cancel" class="b-cancelf" onsubmit="return confirm('Cancel this spot for ${esc((person.self_user_id ? "yourself" : person.first_name).replace(/'/g, ""))}? It will open for someone else.')">
@@ -381,11 +388,25 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
       window.addEventListener("beforeunload", function () { try { sessionStorage.setItem(key, String(box.scrollTop)); } catch (e) {} });
     })();</script>
     ${dialogs}
+    ${!guest && !preview && person && Object.keys(qmap).length ? `<dialog class="b-dlg" id="q-claim"><div class="b-dlg-h"><span class="b-dlg-t"><b>Claim this spot</b><small class="qc-what"></small></span><button type="button" class="dlg-x qc-x" aria-label="Close">×</button></div>
+      <form method="post" action="/b/${board.id}/claim" class="b-dlg-b a-form qc-form"><input type="hidden" name="p" value="${person.id}"><input type="hidden" name="item"><input type="hidden" name="back" value="${esc(back)}">
+        <p class="qc-for">For <b>${esc(Name)}</b>. Please answer before claiming.</p>
+        ${q.label ? `<label><span>${esc(q.label)}${q.required ? "" : ` <span class="opt">(optional)</span>`}</span><input name="note" maxlength="120"${q.required ? " required" : ""}></label>` : ""}
+        <div class="qc-q"></div>${Object.entries(qmap).map(([id, qs]) => `<template id="qq-${id}">${require("../questions").fields(qs, { esc })}</template>`).join("")}
+        <div class="b-dlg-act"><button type="button" class="b-cancelf-btn qc-x">Cancel</button><button class="b-claim big qc-go" type="submit">Claim</button></div></form></dialog>
+      <script>(function () { var d = document.getElementById("q-claim"); if (!d) return; var f = d.querySelector("form");
+        document.addEventListener("click", function (e) { var b = e.target.closest("[data-qclaim]"); if (!b) return;
+          f.item.value = b.dataset.qclaim; d.querySelector(".qc-what").textContent = b.dataset.what; d.querySelector(".qc-go").textContent = b.textContent.trim();
+          var t = document.getElementById("qq-" + b.dataset.qclaim); d.querySelector(".qc-q").innerHTML = t ? t.innerHTML : ""; if (window.cqSync) window.cqSync(d);
+          d.showModal(); var first = d.querySelector(".qc-q input, .qc-q select"); if (first) first.focus(); });
+        [].forEach.call(d.querySelectorAll(".qc-x"), function (x) { x.addEventListener("click", function () { d.close(); }); });
+        d.addEventListener("click", function (e) { if (e.target === d) d.close(); }); })();</script>` : ""}
     ${guest ? `<dialog class="b-dlg" id="guest-claim"><div class="b-dlg-h"><span class="b-dlg-t"><b>Claim this spot</b><small class="gc-what"></small></span><button type="button" class="dlg-x" aria-label="Close">×</button></div>
       <form method="post" action="${basePath}/claim" class="b-dlg-b a-form gc-form"><input type="hidden" name="item"><input type="hidden" name="back" value="${esc(back)}">
         <div class="a-row"><label>First name<input name="first_name" required maxlength="40" autocomplete="given-name"></label><label>Last name<input name="last_name" required maxlength="40" autocomplete="family-name"></label></div>
         <label>Email<input name="email" type="email" required maxlength="120" autocomplete="email"></label>
         ${q.label ? `<label><span>${esc(q.label)}${q.required ? "" : ` <span class="opt">(optional)</span>`}</span><input name="note" maxlength="120"${q.required ? " required" : ""}></label>` : ""}
+        <div class="gc-q"></div>${Object.entries(qmap).map(([id, qs]) => `<template id="gq-${id}">${require("../questions").fields(qs, { esc })}</template>`).join("")}
         <p class="fine">We'll email a confirmation with a link to cancel. ${board.family_names === "off" ? "" : "Your first name and last initial show as going."}</p>
         <div class="b-dlg-act"><button type="button" class="b-cancelf-btn gc-x">Cancel</button><button class="b-claim big" type="submit">Claim</button></div>
       </form></dialog>
@@ -399,7 +420,8 @@ function boardPage({ user, flash, board, person, who: people, view, mode, month,
         ["first_name", "last_name", "email"].forEach(function (k) { if (saved[k]) gf[k].value = saved[k]; });
         document.addEventListener("click", function (e) { var b = e.target.closest("[data-guest]"); if (!b) return;
           document.querySelectorAll("dialog[open]").forEach(function (d) { if (d !== gd) d.close(); });
-          gf.item.value = b.dataset.guest; gd.querySelector(".gc-what").textContent = b.dataset.what; gd.showModal(); (gf.first_name.value ? gf.querySelector("[name=note]") || gf.email : gf.first_name).focus(); });
+          gf.item.value = b.dataset.guest; gd.querySelector(".gc-what").textContent = b.dataset.what;
+          var gt = document.getElementById("gq-" + b.dataset.guest), gs = gd.querySelector(".gc-q"); if (gs) gs.innerHTML = gt ? gt.innerHTML : ""; if (window.cqSync) window.cqSync(gd); gd.showModal(); (gf.first_name.value ? gf.querySelector("[name=note]") || gf.email : gf.first_name).focus(); });
         gd.querySelector(".gc-x").addEventListener("click", function () { gd.close(); });
         gf.addEventListener("submit", function () { if (window.SHADOW_GUEST) return; try { localStorage.setItem("ci-guest", JSON.stringify({ first_name: gf.first_name.value, last_name: gf.last_name.value, email: gf.email.value })); } catch (e) {} });
       }

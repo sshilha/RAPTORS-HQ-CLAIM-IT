@@ -173,14 +173,17 @@ function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }
   const tree = { length: tops };
   // on the Setup page, Board setup / Board details switch in place (data-btab); elsewhere they're plain links
   const inPlace = active === "setup" || active === "details";
-  const tab = (k, href, ic, label) => `<a href="${href}"${k === active ? ' aria-current="page"' : ""}${inPlace && (k === "setup" || k === "details") ? ` data-btab="${k}"` : ""}>${ic}${label}</a>`;
+  // only the tabs this visitor's roles open on this board (administrators: all)
+  const acc = require("../reqctx").access(), TABP = { setup: "board.setup", details: "board.details", access: "board.access", defaults: "board.defaults", notify: "board.notify", questions: "board.questions" };
+  const mayTab = (k) => !acc || acc.admin || !TABP[k] || acc.can(TABP[k], sc.id);
+  const tab = (k, href, ic, label) => !mayTab(k) ? "" : `<a href="${href}"${k === active ? ' aria-current="page"' : ""}${inPlace && (k === "setup" || k === "details") ? ` data-btab="${k}"` : ""}>${ic}${label}</a>`;
   const shareUrl = sc.share_code ? `${process.env.APP_URL || ""}/s/${sc.share_code}` : "";
   return `<section class="bh2">
     <div class="bh2-l">${sc.image ? `<span class="d-thumb photo bh2-tile"><img src="/img/board/${sc.id}?v=${sc.image_at ? new Date(sc.image_at).getTime() : 0}" alt=""></span>` : `<span class="d-thumb code bh2-tile"><b>${esc(require("./setup").codeOf(sc))}</b></span>`}
       <div><div class="bh2-t"><h1>${esc(sc.name)}</h1><span class="bh2-st ${locked ? "arch" : published ? "pub" : "draft"}">${locked ? "Archived" : published ? "Published" : "Draft"}</span></div>
         <span class="bh2-meta">${depth > 1 ? `${plural(tree.length, word(0))} · ` : ""}${plural(totals.items, L.slot)} · ${(sc && sc.board_type === "rsvp") ? `${totals.claimed} going` : `${totals.spots} total spots · ${totals.claimed} claimed (${pct}%)`}${sc.event_location ? ` · ${P.link(sc.event_location)}` : ""}</span></div></div>
     <div class="bh2-acts">
-      <details class="tx-exp"><summary class="sb-btn" title="Download this board to import into another copy (e.g. staging → production)">Export</summary>
+      ${acc && !acc.admin && !acc.can("board.export", sc.id) ? "" : ""}<details class="tx-exp"${acc && !acc.admin && !acc.can("board.export", sc.id) ? " hidden" : ""}><summary class="sb-btn" title="Download this board to import into another copy (e.g. staging → production)">Export</summary>
         <form class="tx-pop" method="get" action="/admin/setup/schedules/${sc.id}/export" onsubmit="this.people.value=this.p.checked?'1':'0';this.coaches.value=this.c.checked?'1':'0';setTimeout(()=>this.closest('details').open=false,300);">
           <b>Export this board</b><span class="fine">Setup, levels and sessions. Never claims.</span>
           <label class="radio-row"><input type="checkbox" name="p" checked> People on the board</label><label class="radio-row"><input type="checkbox" name="c" checked> Coaches</label>
@@ -190,10 +193,10 @@ function boardHeader(sc, { tops = 0, totals = { items: 0, spots: 0, claimed: 0 }
           <p class="fine">Anyone with this link can sign up, no account needed.</p>
           <div class="share-row"><input readonly value="${esc(shareUrl)}" class="share-url" onclick="this.select()"><button type="button" class="btn-small" onclick="var i=this.previousElementSibling; i.select(); navigator.clipboard && navigator.clipboard.writeText(i.value); this.textContent='Copied'">Copy</button></div>
           <div class="share-qr"><img src="/admin/b/${sc.id}/qr.svg" alt="QR code" width="140" height="140"><span><a class="btn-ghost" href="/admin/b/${sc.id}/qr.svg?download=1">Download QR code</a></span></div></div></details>` : ""}
-      ${locked ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
+      ${locked || (acc && !acc.admin && !acc.can("board.publish", sc.id)) ? "" : `<form method="post" action="/admin/b/${sc.id}/publish" onsubmit="return confirm(${esc(JSON.stringify(published ? `Unpublish ${sc.name}? People won't see it until you publish again. Claims are kept.` : `Publish ${sc.name}? People who can claim will be able to see it.`))})">
         <button class="sb-btn ${published ? "" : "primary"}" type="submit">${published ? "Unpublish" : "Publish"}</button></form>`}</div>
   </section>
-  <nav class="bh2-tabs board-tabs">${tab("setup", `/admin/setup?s=${sc.id}`, IC.gear, "Board setup")}${locked ? "" : tab("details", `/admin/setup?s=${sc.id}&tab=details`, IC.board, "Board details")}${tab("access", `/admin/members?s=${sc.id}`, IC.people, "Access &amp; people")}${tab("defaults", `/admin/setup/schedule?s=${sc.id}`, IC.edit, "Board defaults")}${tab("notify", `/admin/setup/notifications?s=${sc.id}`, `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`, "Notifications")}</nav><script>(function () { var n = document.currentScript.previousElementSibling, c = n && n.querySelector("[aria-current]"); if (c && n.scrollWidth > n.clientWidth) n.scrollLeft = c.offsetLeft - 12; })();</script>`;
+  <nav class="bh2-tabs board-tabs">${tab("setup", `/admin/setup?s=${sc.id}`, IC.gear, "Board setup")}${locked ? "" : tab("details", `/admin/setup?s=${sc.id}&tab=details`, IC.board, "Board details")}${tab("access", `/admin/members?s=${sc.id}`, IC.people, "Access &amp; people")}${tab("defaults", `/admin/setup/schedule?s=${sc.id}`, IC.edit, "Board defaults")}${tab("notify", `/admin/setup/notifications?s=${sc.id}`, `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`, "Notifications")}${sc.board_type === "rsvp" ? "" : tab("questions", `/admin/setup/questions?s=${sc.id}`, `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 1c0 1.8-2.5 2.2-2.5 3.8M12 17.2h.01"/></svg>`, "Questions")}</nav><script>(function () { var n = document.currentScript.previousElementSibling, c = n && n.querySelector("[aria-current]"); if (c && n.scrollWidth > n.clientWidth) n.scrollLeft = c.offsetLeft - 12; })();</script>`;
 }
 // what the header needs, for pages other than Setup
 async function headerData(sc) {
@@ -207,7 +210,7 @@ async function headerData(sc) {
 // Mark sections with data-card="id" (and data-title, data-sum; an optional <span class="card-ico" hidden>svg</span>).
 // No ?card= in the address: a grid of cards. ?card=id: only that section, with "← Back to …".
 // ---------- the whole page ----------
-function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
+function setupPage({ canceled = [], user, flash, sc, tree, topItems, totals, eff, sel }) {
   const L = SC.labels(sc), depth = SC.depthOf(sc), keys = SC.levelKeys(sc);
   const word = (i) => L[keys[i]];
   const published = !!sc.published_at, locked = !!sc.archived_at;
@@ -235,6 +238,8 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
   const L0 = depth > 1 ? word(0) : L.slot;
   return page({ title: pane.title, tab: "setup", user, flash, xwide: true,
     body: `${header}
+    ${canceled.length ? `<details class="sp-canc-list"><summary class="link-dark">Canceled sessions (${canceled.length})</summary><ul>${canceled.map((c) => `<li><a class="link-dark" href="/admin/b/${sc.id}/items/${c.id}/people">${esc(require("../time").slotName(c))}</a>
+      <span class="fine">canceled ${esc(new Date(c.canceled_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric" }))}${c.cancel_reason ? ` · ${esc(c.cancel_reason)}` : ""}</span></li>`).join("")}</ul><p class="fine">Open one to reopen it.</p></details>` : ""}
     <div class="sp3" data-sid="${sc.id}">
       <aside class="sp3-tree"><div class="spt-h">${IC.tree}<h3>Board structure</h3>
           ${locked ? "" : depth > 1 ? `<button type="button" class="sb-btn primary sm" data-add-node="" data-word="${esc(L0.one)}">${IC.plus}Add ${esc(L0.one.toLowerCase())}</button>` : ""}</div>

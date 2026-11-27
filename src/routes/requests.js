@@ -8,7 +8,8 @@ const { wrap, flashFrom, go, int, str } = require("./util");
 const { esc } = require("../views/layout");
 
 const router = express.Router();
-router.use(auth.requireAdmin);
+router.use(auth.requireUser);
+router.use(wrap(async (req, res, next) => { const acc = await require("../roles").forUser(req.user); if (!acc.has("people.invite")) return res.status(404).send("Not found"); req.access = acc; next(); }));
 
 async function tell(r, key, vars) {
   const u = r.user_id ? (await query(`SELECT email FROM users WHERE id=$1`, [r.user_id])).rows[0] : r.data && r.data.email ? { email: r.data.email } : null; if (!u) return;
@@ -34,14 +35,16 @@ router.get("/", wrap(async (req, res) => {
   const show = ["waiting", "handled", "all"].includes(req.query.show) ? req.query.show : "waiting";
   const tools = `<form method="get" action="/admin/requests"><label>Show <select name="show" onchange="this.form.submit()">${[["waiting", "Waiting"], ["handled", "Handled"], ["all", "All"]].map(([k, l]) => `<option value="${k}"${show === k ? " selected" : ""}>${l}</option>`).join("")}</select></label></form>`;
   const shownRows = show === "all" ? rows : show === "handled" ? rows.filter((r) => r.status !== "waiting") : rows.filter((r) => r.status === "waiting");
-  res.send(require("../views/requests").requestsPage({ user: req.user, flash: flashFrom(req), rows: shownRows, show, tools, head: await AH.head({ active: "requests" }) }));
+  res.send(require("../views/requests").requestsPage({ roleBoards: (await query(`SELECT id, name FROM schedules WHERE archived_at IS NULL ORDER BY lower(name)`)).rows, appRoles: await require("../roles").list(), user: req.user, flash: flashFrom(req), rows: shownRows, show, tools, head: await AH.head({ acc: req.access, active: "requests" }) }));
 }));
 
 router.post("/:id/approve", wrap(async (req, res) => {
   const r = (await query(`SELECT * FROM account_requests WHERE id=$1 AND status='waiting'`, [int(req.params.id)])).rows[0];
   if (!r) return go(res, "/admin/requests", { err: "That request was already handled." });
   if (r.kind === "new_account") {
-    const A = require("../accounts");
+    const A = require("../accounts"), RR = require("../roles"), pick = require("../views/roles").readPick(req.body, await RR.list()), appRoles = pick.roles;
+    if (!pick.any) return go(res, "/admin/requests", { err: "Pick at least one app role for the new account (what they can see and do)." });
+    for (const b of pick.boards) if (b.boards.length) await RR.setBoardRoles(r.data.email, b.roleId, b.boards);
     const linkTo = int(req.body.person_id) || null;
     if (linkTo) {   // "This is …": that record gets the sign-in; it keeps its kind, boards, claims and family
       const p = (await query(`SELECT a.*, u.email AS login FROM athletes a LEFT JOIN users u ON u.id=a.self_user_id WHERE a.id=$1 AND a.archived_at IS NULL`, [linkTo])).rows[0];
@@ -52,6 +55,7 @@ router.post("/:id/approve", wrap(async (req, res) => {
       await query(`UPDATE athletes SET self_user_id=$2, email=COALESCE(email,$3), phone=COALESCE(phone,$4), organization=COALESCE(organization,$5), birth_year=COALESCE(birth_year,$6) WHERE id=$1`,
         [p.id, u.id, auth.normalizeEmail(r.data.email), r.data.phone, r.data.organization, r.data.birth_year || null]);
       await query(`UPDATE account_requests SET status='approved', user_id=$2, admin_note=$3, decided_by=$4, decided_at=now() WHERE id=$1`, [r.id, u.id, str(req.body.note) || null, req.user.id]);
+      await require("../roles").setUserRoles(u.id, appRoles); require("../activity").record(req, { kind: "roles", summary: `Gave ${u.email} roles when approving their account request` }).catch(() => {}); require("../activity").record(req, { kind: "roles", summary: `Gave ${u.email} roles when approving their account request` }).catch(() => {});
       const link = await A.sendInvite(req, u.id);
       return go(res, "/admin/requests", { ok: `Approved and linked to ${p.first_name} ${p.last_name} (${p.kind === "athlete" ? "athlete" : "adult"}). ${r.data.email} was emailed an invite.${process.env.DEV_SHOW_LINK === "true" ? ` (Testing: ${link})` : ""}` });
     }
@@ -63,6 +67,7 @@ router.post("/:id/approve", wrap(async (req, res) => {
     await query(`UPDATE athletes SET first_name=$2, last_name=$3, phone=COALESCE($4, phone), organization=COALESCE($5, organization) WHERE id=$1`,
       [person.id, r.data.first_name, r.data.last_name, r.data.phone, r.data.organization]);
     await query(`UPDATE account_requests SET status='approved', user_id=$2, admin_note=$3, decided_by=$4, decided_at=now() WHERE id=$1`, [r.id, u.id, str(req.body.note) || null, req.user.id]);
+    await require("../roles").setUserRoles(u.id, appRoles); require("../activity").record(req, { kind: "roles", summary: `Gave ${u.email} roles when approving their account request` }).catch(() => {});
     const link = await A.sendInvite(req, u.id);
     return go(res, "/admin/requests", { ok: `Approved. ${r.data.email} was emailed an invite to set up their account.${process.env.DEV_SHOW_LINK === "true" ? ` (Testing: ${link})` : ""}` });
   }

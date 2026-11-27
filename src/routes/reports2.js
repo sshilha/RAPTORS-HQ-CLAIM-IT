@@ -12,8 +12,8 @@ router.use(auth.requireUser);
 
 // ---------- the newer reports (Overview, Attendance, Sessions, RSVP, Families, Emails, Week sheet) ----------
 const D = require("../reportsData");
-const NEW = { assessTeam: 1, sess: 1, claims: 1, attend: 1, limits: 1, assessProgress: 1, assessTeamProgress: 1, assessAthlete: 1, attSessions: 1, upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
-const RUN = { assessTeam: D.teamV, sess: D.sessView, claims: D.claimsView, attend: D.attendView, limits: D.limits, assessProgress: D.progressV, assessTeamProgress: D.assessTeamProgress, attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement({ ...f, fview: "never" }); return { ...d, note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
+const NEW = { signups: 1, assessDay: 1, answers: 1, assessTeam: 1, sess: 1, claims: 1, attend: 1, limits: 1, assessProgress: 1, assessTeamProgress: 1, assessAthlete: 1, attSessions: 1, upcoming: 1, notSignedIn: 1, personView: 1, rsvpAnswers: 1, teams: 1, coverage: 1, assessResults: 1, assessLeaders: 1, assessTeamBest: 1, assessRecords: 1, assessImprove: 1, assessAttend: 1, assessTeams: 1, person: 1, all: 1, overview: 1, attendance: 1, noshows: 1, unchecked: 1, fill: 1, busiest: 1, waitlists: 1, locations: 1, rsvp: 1, rsvpAthletes: 1, engagement: 1, notSignedUp: 1, volunteer: 1, emails: 1, week: 1 };
+const RUN = { signups: D.signupsReport, assessDay: D.assessDay, answers: D.answersReport, assessTeam: D.teamV, sess: D.sessView, claims: D.claimsView, attend: D.attendView, limits: D.limits, assessProgress: D.progressV, assessTeamProgress: D.assessTeamProgress, attSessions: D.attendanceSessions, upcoming: (f) => D.fill({ ...f, when: "up" }), notSignedIn: async (f) => { const d = await D.engagement({ ...f, fview: "never" }); return { ...d, note: "On a board's list, and neither the athlete nor a parent/guardian has signed in yet." }; },
   rsvpAnswers: D.rsvpAnswers, teams: D.teamsReport, coverage: D.coverage, assessResults: D.assessResults, assessLeaders: D.leadersV, assessTeamBest: D.assessTeamBest, assessRecords: D.assessRecords, assessImprove: D.assessImprove, assessAttend: D.assessAttend, assessTeams: D.assessTeams, person: D.claimsByPerson, all: D.claimsAll, attendance: D.attendance, noshows: D.noshows, unchecked: D.unchecked, fill: D.fill, busiest: D.busiest, waitlists: D.waitlists, locations: D.locations,
   rsvp: (f) => (f.group === "answer" ? D.rsvpAnswers(f) : f.group === "athlete" ? D.rsvpAthletes(f) : D.rsvpEvents(f)), rsvpAthletes: D.rsvpAthletes, engagement: D.engagement, notSignedUp: D.notSignedUp, emails: D.emailProblems };
 const localDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
@@ -45,10 +45,15 @@ const ADMIN_ONLY = { emails: 1 };   // reports only admins can open (every view,
 const MERGED = { person: { r: "claims", group: "person" }, all: { r: "claims", group: "claim" }, attendance: { r: "attend", group: "athlete" },
   attSessions: { r: "attend", group: "session" }, fill: { r: "sess" }, rsvpAnswers: { r: "rsvp", group: "answer" }, rsvpAthletes: { r: "rsvp", group: "athlete" }, coverage: { r: "volunteer", group: "shift" }, assessImprove: { r: "assessProgress", cmp: "days" }, assessAttend: { r: "assessProgress", cmp: "days" }, assessRecords: { r: "assessLeaders", rank: "records" },
   assessTeamBest: { r: "assessTeam" }, assessTeamProgress: { r: "assessTeam", tshow: "improve" }, assessTeams: { r: "assessTeam", tshow: "improve", cmp: "days" }, notSignedIn: { r: "engagement", fview: "never" }, notSignedUp: { r: "engagement", fview: "noclaims" }, upcoming: { r: "sess", view: "upcoming" }, busiest: { r: "sess", group: "time" }, locations: { r: "sess", group: "location" }, noshows: { r: "attend", group: "athlete", ashow: "noshow" }, unchecked: { r: "attend", group: "session", ashow: "unrec" } };
-async function newReport(req, res, scope, boards) {
+async function newReport(req, res, scope, boards) {   // scope and boards narrow to the chosen report below
   if (MERGED[req.query.r]) return res.redirect(`/reports?${new URLSearchParams({ ...req.query, ...MERGED[req.query.r] })}`);
   let r = NEW[req.query.r] ? req.query.r : "overview";
-  if (ADMIN_ONLY[r] && !scope.all) r = "overview";
+  // one permission per report (App Settings → Roles): not allowed → their first allowed report; then only that report's boards
+  const BASE = (k) => (k === "personView" ? "claims" : k === "assessAthlete" ? "assessProgress" : k);
+  if (!scope.allow.has(BASE(r))) r = [...scope.allow][0];
+  { const rs = await PP.reportScope(req.user, r); if (!rs || rs.none) return go(res, "/dashboard", { err: "You don't have access to that report." });
+    const okIds = new Set(rs.all ? boards.map((b) => b.id) : rs.boards); boards = boards.filter((b) => okIds.has(b.id)); scope = rs; }
+  if ((req.query.csv || req.query.pdf) && !scope.can.export) return go(res, `/reports?r=${r}`, { err: "Your role doesn't include downloading reports." });
   // boards: All, one, or several, and never anything outside this person's boards
   const pickIds = [].concat(req.query.s || []).flatMap((x) => String(x).split(",")).map((x) => x.trim()).filter((x) => x && x !== "all").map(Number);
   const picked = boards.filter((b) => pickIds.includes(b.id));
@@ -74,7 +79,7 @@ async function newReport(req, res, scope, boards) {
   const CS = { confirmed: "Active", waitlisted: "Waitlisted", canceled: "Canceled" }, cstatus = CS[req.query.cs] ? req.query.cs : "";
   const AT = { attended: "Attended", noshow: "No-show", unrecorded: "Unrecorded" }, astatus = AT[req.query.at] ? req.query.at : "";
   const kinds = [...new Set(boards.filter((b) => ids.includes(b.id)).map((b) => b.board_type || "training"))];
-  const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today, admin: !!scope.all, scoped: !scope.all,
+  const f = { boards: ids, from, to, team, weekFrom: isDay(req.query.week) ? req.query.week : today, admin: !!scope.can.contacts, scoped: !scope.all,
     teamsBy: Object.keys(scope.teamsBy || {}).length ? scope.teamsBy : null };   // per-board team limits (team managers)
   const teams = (await query(`SELECT DISTINCT group_name FROM schedule_members m WHERE schedule_id = ANY($1) AND group_name IS NOT NULL${f.teamsBy ? " AND (NOT ($2::jsonb ? m.schedule_id::text) OR ($2::jsonb -> m.schedule_id::text) ? m.group_name)" : ""} ORDER BY 1`, f.teamsBy ? [ids, JSON.stringify(f.teamsBy)] : [ids])).rows.map((x) => x.group_name);
   // the fine filters: level (and everything inside it), location, weekdays, search
@@ -86,12 +91,13 @@ async function newReport(req, res, scope, boards) {
   const location = locations.includes(req.query.loc) ? req.query.loc : "";
   const days = [...new Set([].concat(req.query.d || []).concat(String(req.query.days || "").split(",")).filter((x) => String(x).length).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
   const q = str(req.query.q).slice(0, 80), wl = req.query.wl !== "0", blanks = [0, 1, 2, 3, 4, 6].includes(int(req.query.blanks)) ? int(req.query.blanks) : 3;
-  const RF = { cmp: { first: "First → latest", days: "Two testing days" }, tshow: { best: "Best & averages", improve: "Improvement" }, group: r === "claims" ? { person: "Person", claim: "Claim" } : r === "rsvp" ? { event: "Event", athlete: "Athlete", answer: "Answer" } : r === "volunteer" ? { family: "Family", shift: "Shift" } : r === "engagement" ? { athlete: "Athlete", family: "Family" } : r === "sess" ? { session: "Session", location: "Location", time: "Day & time" } : { athlete: "Athlete", session: "Session" }, ashow: { noshow: "No-shows", repeat: "Repeat no-shows (3+)", unrec: "Not recorded" }, lview: { at: "At limit", left: "Has spots left", none: "Not started", over: "Over limit" }, fview: { never: "Never signed in", noclaims: "No claims", active: "Active participants", inactive: "Inactive", noaccount: "No account" }, view: { upcoming: "Upcoming", past: "Past", low: "Low enrollment", near: "Nearly full", full: "Full", over: "Over capacity", waitlisted: "Waitlisted", pending: "Attendance pending" }, when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
+  const RF = { sw: { today: "Today", week: "Next 7 days", range: "Dates in Filters" }, sshow: { notrack: "Without attendance only" }, cmp: { first: "First → latest", days: "Two testing days" }, tshow: { best: "Best & averages", improve: "Improvement" }, group: r === "claims" ? { person: "Person", claim: "Claim" } : r === "rsvp" ? { event: "Event", athlete: "Athlete", answer: "Answer" } : r === "volunteer" ? { family: "Family", shift: "Shift" } : r === "engagement" ? { athlete: "Athlete", family: "Family" } : r === "sess" ? { session: "Session", location: "Location", time: "Day & time" } : { athlete: "Athlete", session: "Session" }, ashow: { noshow: "No-shows", repeat: "Repeat no-shows (3+)", unrec: "Not recorded" }, lview: { at: "At limit", left: "Has spots left", none: "Not started", over: "Over limit" }, fview: { never: "Never signed in", noclaims: "No claims", active: "Active participants", inactive: "Inactive", noaccount: "No account" }, view: { upcoming: "Upcoming", past: "Past", low: "Low enrollment", near: "Nearly full", full: "Full", over: "Over capacity", waitlisted: "Waitlisted", pending: "Attendance pending" }, when: { up: "Upcoming", past: "Past" }, cap: { Low: "Low", Healthy: "Healthy", "Nearly full": "Nearly full", Full: "Full", "Over capacity": "Over capacity" },
     cov: { "Needs people": "Needs people", Covered: "Covered" }, st: { "No account": "No account", "Never signed in": "Never signed in", "Signed in, no claims": "No claims", Active: "Active" },
     prob: { Bounced: "Bounced", spam: "Marked as spam", failed: "Failed" }, ans: { Going: "Going", "Can't make it": "Can't make it", "No answer": "No answer" } };
   const rf = Object.fromEntries(Object.keys(RF).map((k) => [k, RF[k][req.query[k]] ? req.query[k] : ""]));
   const U = require("../views/reports2").USES, uses = (k) => (U[k] || []).includes(r) || (k === "team" && /^assess/.test(r));
-  f.cmp = rf.cmp; f.tshow = rf.tshow;
+  f.cmp = rf.cmp; f.tshow = rf.tshow; f.sw = rf.sw || "week"; f.sshow = rf.sshow;
+  const qOpts = r === "answers" ? await D.questionList(f) : []; f.qq = qOpts.some((q) => q.id === int(req.query.qq)) ? int(req.query.qq) : null;
   f.view = rf.view; f.fview = rf.fview; f.lview = rf.lview; f.group = rf.group; f.ashow = rf.ashow;
   const whoOpts = r === "claims" ? await D.claimPeople(f) : [];
   f.who = whoOpts.some(([id]) => id === int(req.query.who)) ? int(req.query.who) : null;   // only someone in view
@@ -111,14 +117,14 @@ async function newReport(req, res, scope, boards) {
     const drills = full ? full.drills.filter((x) => !x.retired_at || x.scores) : [];
     assess = { tests, test: t, days: dayList, a: da && da.id, b: db && db.id, how: req.query.how === "avg" ? "avg" : "best", dsel, drills,
       drill: drills.some((x) => x.id === int(req.query.drill)) ? int(req.query.drill) : null, top: req.query.top === "0" ? 0 : [5, 10, 25].includes(int(req.query.top)) ? int(req.query.top) : 10,
-      bornFrom: yr(req.query.bf), bornTo: yr(req.query.bt), rank: ["improved", "records"].includes(req.query.rank) ? req.query.rank : "best" };
+      bornFrom: yr(req.query.bf), bornTo: yr(req.query.bt), ag: ["team", "age"].includes(req.query.ag) ? req.query.ag : "", rank: ["improved", "records"].includes(req.query.rank) ? req.query.rank : "best" };
     f.assess = assess;
   }
   let data = r === "assessAthlete" ? await D.assessAthlete(f, int(req.query.pid)) : r === "personView" ? await D.personView(f, int(req.query.pid)) : r === "overview" ? await D.dashboard(f) : r === "volunteer" ? (f.group === "shift" ? await D.coverage(f) : await D.volunteer(f, required)) : r === "week" ? await D.weekSheet(f) : await RUN[r](f);
-  if (!scope.all && data && data.cols) {   // non-admins: no links into admin pages, no contact details
+  if (!(scope.admin && scope.can.contacts) && data && data.cols) {   // no links into admin pages (non-admins); no contact details (without that permission)
     const hide = new Set(["emails", "email", "addr"]);
-    const lk = data.link, mine = new Set((scope.coached || []).map(Number));
-    data = { ...data, link: lk ? (row) => { const h = lk(row); return h && (h.startsWith("/reports") || (h.startsWith("/checkin/") && mine.has(Number(row.board_id)))) ? h : null; } : null, cols: data.cols.filter((c) => !hide.has(c[0])), rows: (data.rows || []).map((row) => { const o = { ...row }; for (const k of hide) delete o[k]; return o; }) };
+    const lk = data.link, mine = new Set((scope.coached || []).map(Number)), ckAll = !!scope.checkinAll;
+    data = { ...data, link: lk && !scope.admin ? (row) => { const h = lk(row); return h && (h.startsWith("/reports") || (h.startsWith("/checkin/") && (ckAll || mine.has(Number(row.board_id))))) ? h : null; } : lk, cols: scope.can.contacts ? data.cols : data.cols.filter((c) => !hide.has(c[0])), rows: (data.rows || []).map((row) => { const o = { ...row }; for (const k of hide) delete o[k]; return o; }) };
   }
   // the report's own row filters
   if (data && data.rows && !data.grid) {
@@ -128,7 +134,7 @@ async function newReport(req, res, scope, boards) {
   }
   if (data && data.rows && data.cols && data.cols.some((c) => c[2] === "act")) {   // action buttons: only where this person may go
     const mineB = new Set((scope.coached || []).map(Number));
-    const ok = (h, row) => scope.all ? true : h.startsWith("/reports") || (h.startsWith("/checkin/") && mineB.has(Number(row.board_id)));
+    const ok = (h, row) => scope.admin ? true : h.startsWith("/reports") || (h.startsWith("/checkin/") && (scope.checkinAll || mineB.has(Number(row.board_id))));
     data = { ...data, rows: data.rows.map((row) => (row.act && !ok(row.act[1], row) ? { ...row, act: null } : row)) };
   }
   if (q) {   // search: keep rows where any column mentions it
@@ -154,7 +160,7 @@ async function newReport(req, res, scope, boards) {
     res.set("Content-Type", "text/csv; charset=utf-8").set("Content-Disposition", `attachment; filename="${r}-${(board ? board.name : "all-boards").replace(/[^A-Za-z0-9 -]/g, "")}.csv"`);
     return res.send("\ufeff" + lines.join("\r\n"));
   }
-  res.send(require("../views/reports2").reportPage({ user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, whoOpts, who: f.who || "", famOK: !!req.famOK, pid: int(req.query.pid) || "", coached: scope.all ? "all" : scope.coached || [], board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
+  res.send(require("../views/reports2").reportPage({ allowReports: scope.allow, allowCats: scope.cats, canExport: scope.can.export, canEmails: scope.can.emaillog, user: req.user, flash: flashFrom(req), admin: auth.isAdmin(req.user), boards, qOpts, qq: f.qq || "", whoOpts, who: f.who || "", famOK: !!req.famOK, pid: int(req.query.pid) || "", coached: scope.all ? "all" : scope.coached || [], board, several, qd, QD, allDates, custom, RF, rf, BT, btype, CS, cstatus, AT, astatus, kinds, views: await savedViews(req.user.id), r, data, from, to, team, teams, required, week: f.weekFrom, opts, filterText }));
 }
 
 // remembered report + top filters, per person (re-checked against their permissions like any address)
@@ -208,7 +214,8 @@ router.get("/", wrap(async (req, res, next) => {
   next();
 }));
 router.get("/", wrap(async (req, res) => {
-  const scope = await PP.reportScope(req.user), fam = await require("../familyData").people(req.user);
+  const acc = await require("../roles").forUser(req.user), scope = await PP.reportScope(req.user);
+  const fam = acc.has("family.reports") ? await require("../familyData").people(req.user) : [];   // My Family: the Family reports permission
   if (!scope && !fam.length) return go(res, "/dashboard", { err: "You don't have access to reports. Ask an admin if you need it." });
   req.user.can_reports = true;
   // My Family for parents / athletes; people with both views get a switch, and the last one they used is remembered

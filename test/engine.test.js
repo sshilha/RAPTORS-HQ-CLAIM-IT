@@ -1,3 +1,4 @@
+process.env.CLAIM_FOLLOWUPS = "off";   // the engine alone: no claim follow-ups (rules, role emails) on this minimal database
 // Run: DATABASE_URL=postgres://... node test/engine.test.js   (uses a scratch database; wipes the engine tables)
 const assert = require("node:assert/strict");
 const { query, migrate, pool } = require("../src/db");
@@ -160,5 +161,6 @@ const rejects = async (p, re) => { try { await p; } catch (e) { if (!(e instance
   await t("a signed-in person can claim the Beer Garden", async () => assert.equal((await E.claim({ itemId: B1.id, athleteId: out.a, userId: out.u })).status, "confirmed"));
 
   console.log(`\n${pass} passed, ${fail} failed`);
+  await new Promise((r) => setTimeout(r, 1500));   // let claims' background follow-ups (rules, role emails) finish
   await pool.end(); process.exit(fail ? 1 : 0);
 })().catch(async (e) => { console.error(e); await pool.end(); process.exit(1); });

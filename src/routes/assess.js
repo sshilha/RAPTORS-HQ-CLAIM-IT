@@ -11,10 +11,12 @@ const router = express.Router();
 const ARROW = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>`;
 const fmtDay = (d) => new Date(String(d).slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 const num = (v) => (v == null ? "" : String(Number(v)));
-async function canEnter(user, d) {
+// Enter scores (App Settings → Roles): View only to open, Full to save; on the testing day's linked board,
+// or, for a day with no board, an Everywhere role.
+async function canEnter(user, d, need = 1) {
   if (auth.isAdmin(user)) return true;
-  if (!d.board_id) return false;
-  return (await query(`SELECT 1 FROM schedule_coaches WHERE schedule_id=$1 AND lower(email)=lower($2)`, [d.board_id, user.email])).rowCount > 0;
+  const acc = await require("../roles").forUser(user);
+  return d.board_id ? acc.can("assess.scores", d.board_id, undefined, need) : acc.boards("assess.scores", need).all;
 }
 const head = async (active) => (await require("../views/apphead").head({ active }));
 
@@ -55,6 +57,7 @@ router.get("/admin/assess/:id(\\d+)", auth.requireAdmin, wrap(async (req, res) =
         <option value="__other"${other ? " selected" : ""}>Other…</option></select>
       <input name="method_other" value="${esc(other ? cur : "")}" placeholder="Name it" maxlength="60" aria-label="Other method"${other ? "" : " hidden"}></label>
     <label class="dr-c dr-how"><span class="dr-l">How it's measured</span><input name="method_note" value="${esc(d ? d.method_note || "" : "")}" maxlength="200" placeholder="optional"></label>
+    <label class="dr-c dr-what"><span class="dr-l">What it measures <span class="opt">(families see this)</span></span><input name="description" value="${esc(d ? d.description || "" : "")}" maxlength="200" placeholder="e.g. Lateral quickness and change of direction"></label>
     <span class="dr-c dr-acts">${d ? `<button class="btn-small" type="submit" onclick="this.form.dataset.act='save'">Save</button><button class="btn-ghost danger" name="remove" value="1" type="submit" title="${d.scores ? "Retire: gone from future testing days; its past results stay" : "Delete: it has no scores"}" onclick="this.form.dataset.act='remove'; return window.confirm(${d.scores ? "'This drill has scores, so it will be retired: gone from future testing days, but its past results stay. Continue?'" : "'Delete this drill? It has no scores.'"})">${d.scores ? "Retire" : "Delete"}</button>`
       : `<button type="button" class="link-dark" onclick="var x=this.closest('details'); x.open=false; this.form.reset();">Cancel</button><button class="btn-small" type="submit" onclick="this.form.dataset.act='save'">Add drill</button>`}</span></form>`; };
   const heads = `<div class="dr-head" aria-hidden="true"><span>#</span><span>Drill</span><span>Unit</span><span>Better</span><span>Tries</span><span>Measured with</span><span>How it's measured</span><span></span></div>`;
@@ -127,12 +130,12 @@ router.post("/admin/assess/:id(\\d+)/drills", auth.requireAdmin, wrap(async (req
   const method = (req.body.method === "__other" ? str(req.body.method_other).slice(0, 60) : A.METHOD_LIST.includes(req.body.method) ? req.body.method : "") || null, methodNote = str(req.body.method_note).slice(0, 200) || null;
   if (old && attempts < old.max_try && req.body.lower_ok !== "1") return go(res, back, { err: `${old.name} has scores in try ${attempts + 1}${old.max_try > attempts + 1 ? `–${old.max_try}` : ""}. Lower the tries again and confirm to continue.` });
   if (old) {
-    await query(`UPDATE assess_drills SET name=$2, unit=$3, better=$4, attempts=$5, method=$6, method_note=$7 WHERE id=$1`, [did, name, unit, better, attempts, method, methodNote]);
+    await query(`UPDATE assess_drills SET name=$2, unit=$3, better=$4, attempts=$5, method=$6, method_note=$7, description=$8 WHERE id=$1`, [did, name, unit, better, attempts, method, methodNote, str(req.body.description).slice(0, 200) || null]);
     const ch = [old.name !== name && `name "${old.name}" → "${name}"`, (old.unit || null) !== unit && `unit ${old.unit || "none"} → ${unit || "none"}`, old.better !== better && `${old.better} is better → ${better} is better`, old.attempts !== attempts && `tries ${old.attempts} → ${attempts}`,
       (old.method || null) !== method && `measured with ${old.method || "not set"} → ${method || "not set"}`, (old.method_note || null) !== methodNote && `how it's measured: "${methodNote || ""}"`].filter(Boolean);
     if (ch.length) await A.logChange(id, who, `Changed "${old.name}": ${ch.join(" · ")}`);
   } else {
-    await query(`INSERT INTO assess_drills (assessment_id, name, unit, better, attempts, sort, method, method_note) VALUES ($1,$2,$3,$4,$5,(SELECT coalesce(max(sort),0)+1 FROM assess_drills WHERE assessment_id=$1),$6,$7)`, [id, name, unit, better, attempts, method, methodNote]);
+    await query(`INSERT INTO assess_drills (assessment_id, name, unit, better, attempts, sort, method, method_note, description) VALUES ($1,$2,$3,$4,$5,(SELECT coalesce(max(sort),0)+1 FROM assess_drills WHERE assessment_id=$1),$6,$7,$9)`, [id, name, unit, better, attempts, method, methodNote, str(req.body.description).slice(0, 200) || null]);
     await A.logChange(id, who, `Added the drill "${name}" (${unit || "no unit"}, ${better} is better, ${attempts} ${attempts === 1 ? "try" : "tries"}${method ? `, measured with ${method}` : ""})`);
   }
   await A.syncDays(id);
@@ -196,7 +199,7 @@ router.get("/assess/days/:id(\\d+)", auth.requireUser, wrap(async (req, res) => 
     })();</script>` }));
 }));
 router.post("/assess/days/:id(\\d+)/save", auth.requireUser, wrap(async (req, res) => {
-  const d = await A.day(int(req.params.id)); if (!d || !(await canEnter(req.user, d))) return res.status(403).json({ ok: false, err: "Not allowed." });
+  const d = await A.day(int(req.params.id)); if (!d || !(await canEnter(req.user, d, 2))) return res.status(403).json({ ok: false, err: "Not allowed." });
   const dr = d.drills.find((x) => x.id === int(req.body.drill)), t = int(req.body.attempt);
   if (!dr || !(t >= 1 && t <= dr.attempts)) return res.json({ ok: false, err: "Unknown drill or try." });
   try { await A.save(d.id, int(req.body.athlete), dr.id, t, str(req.body.value), req.user.id); } catch (e) { return res.json({ ok: false, err: e.message }); }
