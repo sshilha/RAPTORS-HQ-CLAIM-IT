@@ -35,7 +35,7 @@ async function sessions(f) {
   return (await query(`SELECT (i.settings ? 'helper_claim') AS helper, i.id, i.title, i.starts_at, i.ends_at, i.capacity, coalesce(nullif(i.location,''), sc.event_location) AS location, i.schedule_id AS board_id, sc.name AS board, sc.board_type, sc.question,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path,
-      count(c.*) FILTER (WHERE c.status='confirmed')::int AS claimed, count(c.*) FILTER (WHERE c.status='confirmed' AND c.counts)::int AS taken, count(c.*) FILTER (WHERE c.status='waitlisted')::int AS waitlisted,
+      count(c.*) FILTER (WHERE c.status='confirmed')::int AS claimed, count(c.*) FILTER (WHERE c.status='confirmed')::int AS taken, count(c.*) FILTER (WHERE c.status='waitlisted')::int AS waitlisted,
       count(c.*) FILTER (WHERE c.status='canceled' AND c.rsvp IS NULL)::int AS canceled, sc.settings->'report' AS thresholds,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended)::int AS here, count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended = false)::int AS noshow,
       count(c.*) FILTER (WHERE c.status='confirmed' AND c.attended IS NULL)::int AS unmarked

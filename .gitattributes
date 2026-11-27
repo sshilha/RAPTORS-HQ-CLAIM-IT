@@ -1,0 +1,7 @@
+# Line endings: LF everywhere (the app runs on Linux); Windows batch files keep CRLF
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary

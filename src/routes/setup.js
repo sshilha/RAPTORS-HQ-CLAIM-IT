@@ -41,7 +41,8 @@ router.get("/", wrap(async (req, res) => {
   sc._roll = await E.rollingMap(sc.id);   // "only the next one": which sessions families see right now
   const V = require("../views/setup2"), args = { sc, tree, topItems, totals, eff: E.effectiveAt(sc, []), sel };
   if (req.query.partial) return res.json(V.panels(args));
-  res.send(V.setupPage({ user: req.user, flash: flashFrom(req), ...args }));
+  const canceled = (await query(`SELECT * FROM board_items WHERE schedule_id=$1 AND canceled_at IS NOT NULL AND (settings->>'helper_claim') IS NULL ORDER BY starts_at DESC NULLS LAST LIMIT 50`, [req.sched.sc.id])).rows;   // to find and reopen
+  res.send(V.setupPage({ canceled, user: req.user, flash: flashFrom(req), ...args }));
 }));
 
 // The board's Rules page (1-2 level boards; rounds boards keep per-round rules for now)

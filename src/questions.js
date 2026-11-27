@@ -162,8 +162,8 @@ async function afterClaim(claimId, { actor = null } = {}) {
   const c = await claimInfo(claimId); if (!c) return;
   if (!(c.item_settings && c.item_settings.helper_claim)) {   // role alerts (App Settings → Roles → Notifications)
     const R = require("./roles"); await R.roleAlert("claimed", claimId).catch((e) => console.error("role alert:", e.message));
-    const t = (await query(`SELECT i.capacity, (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed' AND x.counts) AS taken FROM board_items i WHERE i.id=$1`, [c.item_id])).rows[0];
-    if (c.status === "confirmed" && c.counts && t && t.taken === t.capacity) await R.roleAlert("full", claimId).catch((e) => console.error("role alert:", e.message));
+    const t = (await query(`SELECT i.capacity, (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed') AS taken FROM board_items i WHERE i.id=$1`, [c.item_id])).rows[0];
+    if (c.status === "confirmed" && t && t.taken === t.capacity) await R.roleAlert("full", claimId).catch((e) => console.error("role alert:", e.message));
   }
   const N = require("./engine/notify"), T = (k, to, v) => require("./emailTemplates").send(k, to, v).catch((e) => console.error(`${k}:`, e.message));
   if (c.item_settings && c.item_settings.helper_claim && c.status === "confirmed") {   // someone took a helper spot
@@ -187,9 +187,9 @@ async function afterClaim(claimId, { actor = null } = {}) {
 async function afterCancel(claim) {
   await ensure();
   if (claim.status === "confirmed") {   // role alerts (a spot was held): released; and a full session that now has an opening
-    const R = require("./roles"), wasHeld = claim.counts !== false;
+    const R = require("./roles"), wasHeld = true;   // every confirmed claim holds a seat
     await R.roleAlert("released", claim.id).catch((e) => console.error("role alert:", e.message));
-    const t = (await query(`SELECT i.capacity, (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed' AND x.counts) AS taken FROM board_items i WHERE i.id=$1`, [claim.item_id])).rows[0];
+    const t = (await query(`SELECT i.capacity, (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed') AS taken FROM board_items i WHERE i.id=$1`, [claim.item_id])).rows[0];
     if (wasHeld && t && t.taken === t.capacity - 1) await R.roleAlert("opened", claim.id).catch((e) => console.error("role alert:", e.message));
   }
   const it = (await query(`SELECT settings FROM board_items WHERE id=$1`, [claim.item_id])).rows[0];

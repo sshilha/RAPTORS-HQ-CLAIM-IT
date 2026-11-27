@@ -210,7 +210,7 @@ async function headerData(sc) {
 // Mark sections with data-card="id" (and data-title, data-sum; an optional <span class="card-ico" hidden>svg</span>).
 // No ?card= in the address: a grid of cards. ?card=id: only that section, with "← Back to …".
 // ---------- the whole page ----------
-function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
+function setupPage({ canceled = [], user, flash, sc, tree, topItems, totals, eff, sel }) {
   const L = SC.labels(sc), depth = SC.depthOf(sc), keys = SC.levelKeys(sc);
   const word = (i) => L[keys[i]];
   const published = !!sc.published_at, locked = !!sc.archived_at;
@@ -238,6 +238,8 @@ function setupPage({ user, flash, sc, tree, topItems, totals, eff, sel }) {
   const L0 = depth > 1 ? word(0) : L.slot;
   return page({ title: pane.title, tab: "setup", user, flash, xwide: true,
     body: `${header}
+    ${canceled.length ? `<details class="sp-canc-list"><summary class="link-dark">Canceled sessions (${canceled.length})</summary><ul>${canceled.map((c) => `<li><a class="link-dark" href="/admin/b/${sc.id}/items/${c.id}/people">${esc(require("../time").slotName(c))}</a>
+      <span class="fine">canceled ${esc(new Date(c.canceled_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric" }))}${c.cancel_reason ? ` · ${esc(c.cancel_reason)}` : ""}</span></li>`).join("")}</ul><p class="fine">Open one to reopen it.</p></details>` : ""}
     <div class="sp3" data-sid="${sc.id}">
       <aside class="sp3-tree"><div class="spt-h">${IC.tree}<h3>Board structure</h3>
           ${locked ? "" : depth > 1 ? `<button type="button" class="sb-btn primary sm" data-add-node="" data-word="${esc(L0.one)}">${IC.plus}Add ${esc(L0.one.toLowerCase())}</button>` : ""}</div>

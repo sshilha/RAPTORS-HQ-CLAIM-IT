@@ -18,7 +18,7 @@ const PERMS = [
     ["board.access", "Access & people", "Who's on the board, groups, tags, and roles on the board", "vf"], ["board.defaults", "Board defaults", "Rules, limits, attendance and other defaults", "vf"],
     ["board.notify", "Notifications", "Reminders and notification emails for the board", "vf"], ["board.questions", "Questions", "Claim questions and their rules", "vf"],
     ["board.publish", "Publish and unpublish", "", "yn"], ["board.export", "Export and QR code", "", "yn"], ["board.copy", "Copy a board", "", "yn"], ["board.archive", "Archive and delete boards", "", "yn"],
-    ["session.people", "A session's People page", "View who's on a session, or Full to add, remove and record RSVPs", "vf"], ["session.waitlist", "Manage the waitlist", "Remove people from a session's waitlist (promotion happens on its own when a spot opens)", "yn"], ["session.override", "Override the rules when adding someone", "Past limits, full sessions and closed sign-ups", "yn"]]],
+    ["session.people", "A session's People page", "View who's on a session, or Full to add, remove and record RSVPs", "vf"], ["session.cancel", "Cancel a session", "Releases everyone on it and emails them the reason", "yn"], ["session.waitlist", "Manage the waitlist", "Remove people from a session's waitlist (promotion happens on its own when a spot opens)", "yn"], ["session.override", "Override the rules when adding someone", "Past limits, full sessions and closed sign-ups", "yn"]]],
   ["Family", [["family.signup", "Sign up for sessions", "Claim spots on Sign Up for Something", "yn"], ["family.release", "Release their spots", "Give a claimed spot back", "yn"],
     ["family.answers", "Change their answers", "Answers to claim questions, on My Claims", "yn"], ["family.add", "Add family members", "Request it: an administrator approves. Add directly: added right away", "ra"], ["family.reports", "My Family reports", "Schedule, claims, attendance and assessment results", "yn"]]],
   ["Check-in", [["checkin.attendance", "Attendance tab", "View only: see rosters. Full: record Here / No-show", "vf"], ["checkin.signups", "Sign-ups only tab", "Who's signed up for sessions without attendance", "yn"],
@@ -64,7 +64,8 @@ function ensure() {
     await query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS grants JSONB`);
     await query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS board_type TEXT`);   // scope "type": which kind of board
     await query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS notify JSONB NOT NULL DEFAULT '{}'`);   // emails people with this role get
-    await query(`ALTER TABLE schedule_coaches ADD COLUMN IF NOT EXISTS teams TEXT[] NOT NULL DEFAULT '{}'`);   // a coach's teams on that board (optional)
+    await query(`ALTER TABLE schedule_coaches ADD COLUMN IF NOT EXISTS teams TEXT[] NOT NULL DEFAULT '{}'`);
+    await query(`ALTER TABLE board_items ADD COLUMN IF NOT EXISTS cancel_reason TEXT`);   // why a session was canceled   // a coach's teams on that board (optional)
     await query(`CREATE TABLE IF NOT EXISTS user_roles (user_id INT NOT NULL, role_id INT NOT NULL, assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (user_id, role_id))`);
     // per-board roles other than Coach (board coaches list) and Team manager (Team manager cards): who, which role, which board, which teams
     await query(`CREATE TABLE IF NOT EXISTS role_boards (email TEXT NOT NULL, role_id INT NOT NULL, schedule_id INT NOT NULL, teams TEXT[] NOT NULL DEFAULT '{}', PRIMARY KEY (email, role_id, schedule_id))`);
@@ -247,7 +248,7 @@ async function roleAlert(event, claimId) {
   if (!NOTIFY[event]) return 0;
   await ensure();
   const c = (await query(`SELECT c.status, c.athlete_id, a.first_name, a.last_name, i.id AS item_id, i.schedule_id, i.title, i.starts_at, i.ends_at, i.capacity, sc.name AS board, coalesce(sc.board_type,'training') AS btype, m.group_name AS team,
-      (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed' AND x.counts) AS taken
+      (SELECT count(*)::int FROM board_claims x WHERE x.item_id=i.id AND x.status='confirmed') AS taken
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id
     LEFT JOIN schedule_members m ON m.schedule_id=i.schedule_id AND m.athlete_id=c.athlete_id WHERE c.id=$1`, [claimId])).rows[0];
   if (!c) return 0;

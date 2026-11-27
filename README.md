@@ -198,7 +198,7 @@ about; claims and cancels from before it existed are filled in once at startup.
 `npm run test:reports` checks every report for every role without a browser. Add to `.env`:
 `TEST_DATABASE_URL=postgres://…/claimit_test`, an empty database used only for this (create it once, e.g. `createdb
 claimit_test`). The test refuses to run on a database with real data; re-running clears and rebuilds only its own test
-data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 59 checks, same test database) and `npm run check` (pages) before a deploy.
+data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 65 checks, same test database) and `npm run check` (pages) before a deploy.
 
 ### 4.7a Reports: access and metric definitions
 **Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
@@ -210,7 +210,9 @@ report, chart, alert, search, CSV and PDF is computed only from them; board ids 
 admin-only. Non-admins get no links into admin pages and no contact details (in the page, CSV and PDF). Assessment
 reports only include athletes on the user's boards.
 **Definitions** (within the active filters: boards, dates, level, team, location, weekdays):
-- Active claim = status confirmed. Takes a spot = active and counts (walk-ins and extra spots don't).
+- Active claim = status confirmed. Seats taken = every active claim, including extra spots (claimed past a reached
+  limit) and walk-ins: the same count the sign-up page uses for "Full". "Counts" only decides whether a claim counts
+  toward the person's limit.
 - Waitlist entry = status waitlisted (position = order added). Canceled = status canceled, not an RSVP "no"
   (an RSVP "Can't make it" is stored as a canceled claim with rsvp='no').
 - Attended / No-show / Unrecorded = attended true / false / empty, past sessions only.
@@ -348,6 +350,16 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 ## 7. Version history (short)
 
 - **v0.76.1** 👀 Preview is also in a role's edit form (under Save role), previewing the role as saved.
+- **v0.78** Cancel a session (session's People page → Cancel this session): a reason (in the email), and "Email
+  everyone signed up or waitlisted" (on by default). Releases every claim and waitlist spot (no promotions; doesn't
+  count against limits), closes helper spots it opened, leaves sign-up, Check-in and reports, emails "Session canceled"
+  (template, with the reason), and is recorded in Activity. The People page then shows when and why, with Reopen session
+  (released claims stay released). Board setup lists canceled sessions to find and reopen. New role function "Cancel a
+  session" (administrators to start). Fixed: the sign-up page's "who are you signing up?" picker (a family with two or
+  more athletes, none picked) failed to open since v0.68. Role tests: 65.
+- **v0.77.1** Seats: reports and the open-spot, helper and role emails now count every confirmed claim as a seat,
+  including extra spots claimed past a reached limit (and walk-ins), the same as the sign-up page's "Full"; before, they
+  left extra spots out. Report tests: 397. Adds .gitattributes (LF line endings; .bat stays CRLF).
 - **v0.77** Communication → Send a message (src/messages.js): to a board (everyone on its list, or only people signed
   up for upcoming sessions, optionally one team), a session, picked people, or a People list; subject and message in the
   club's email style (template "A message"), replies to the club's address; for athletes, parents/guardians and their own
@@ -480,7 +492,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 - **v0.65** Report tests in the project: `npm run test:reports` (test/reports.test.js + test/seed-reports.js) builds its own
   test data in an empty database (TEST_DATABASE_URL in .env; it refuses any database with real data) and checks every
   report for admin, coach, team manager and parent (loads, layout, no broken values), CSV headings vs the page, no emails
-  for non-admins, what each role may see, every old report address, and key numbers against the database (396 checks).
+  for non-admins, what each role may see, every old report address, and key numbers against the database (397 checks).
   Fixes it found: the Limits report now applies level limits on boards open to signed-in families (it showed only the
   board-wide limit there); Attendance → Not recorded shows a coach's email only to admins. RSVP eligibility for past
   events is judged as of just before the event. My Family: "My Progress" renamed "Assessments".

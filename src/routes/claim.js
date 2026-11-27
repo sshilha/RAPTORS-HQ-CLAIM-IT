@@ -146,7 +146,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   if (!pid && entry.who.length === 1) pid = entry.who[0].id || "me";
   const viewMode0 = ["list", "cal"].includes(req.query.v) ? req.query.v : req.cookies && req.cookies.ci_view === "cal" ? "cal" : "list";
   if (!pid) { req.user.can_reports = await PP.canReports(req.user);
-    return res.send(v.boardPage({ qmap: view ? await require("../questions").mapFor((view.board || {}).id || 0, (view.items || []).map((r) => r.item.id)) : {}, user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0, filters: {}, admin: auth.isAdmin(req.user) })); }
+    return res.send(v.boardPage({ qmap: {} /* the "who are you signing up?" picker: no sessions yet */, user: req.user, flash: flashFrom(req), board: entry.board, person: null, who: entry.who, view: null, mode: viewMode0, filters: {}, admin: auth.isAdmin(req.user) })); }
   res.cookie(ck, String(pid), { maxAge: 180 * 864e5, sameSite: "lax" });
   if (pid === "me") {   // claiming for themselves: make sure they have a record
     if (!people.me) people.me = (await PP.ensureAdult(req.user.email)).person;

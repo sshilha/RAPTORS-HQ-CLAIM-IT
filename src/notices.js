@@ -46,7 +46,7 @@ async function openSessions(now = new Date()) {   // sessions whose leftover win
   const E = require("./engine");
   await query(`ALTER TABLE leftover_notices ADD COLUMN IF NOT EXISTS morning_sent_at TIMESTAMPTZ`);
   const items = (await query(`SELECT i.id, i.schedule_id, i.starts_at, i.capacity, sc.name AS board, sc.settings, coalesce(sc.board_type,'training') AS board_type, n.item_id IS NOT NULL AS opened, n.morning_sent_at,
-      (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed' AND c.counts) AS taken
+      (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status='confirmed') AS taken
     FROM board_items i JOIN schedules sc ON sc.id=i.schedule_id LEFT JOIN leftover_notices n ON n.item_id=i.id
     WHERE i.canceled_at IS NULL AND i.starts_at > $1 AND sc.archived_at IS NULL AND sc.published_at IS NOT NULL AND coalesce(sc.board_type,'training') <> 'rsvp'
       AND coalesce((sc.settings->'notify'->>'leftover_email')::boolean, true) ORDER BY i.starts_at`, [now])).rows;

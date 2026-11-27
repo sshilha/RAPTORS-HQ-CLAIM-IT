@@ -86,6 +86,11 @@ async function main() {
     const row = lim.split(/\r?\n/).find((l) => l.startsWith('"Ava Adams"') && /Batting Cage/.test(l)) || "", used = Number((row.split('","')[5] || "").replace(/"/g, ""));
     const dbUsed = (await query(`SELECT count(*)::int AS n FROM board_claims c JOIN board_items i ON i.id=c.item_id WHERE c.athlete_id=$1 AND i.schedule_id=$2 AND c.status<>'canceled' AND c.counts`, [D.A.Ava, D.B.prog])).rows[0].n;
     ok("Limits: Ava's Batting Cage used = database", used === dbUsed, `${used} vs ${dbUsed}`);
+    // extra spots (claimed past a reached limit) take a seat, as on the sign-up page
+    const ex = (await query(`INSERT INTO board_items (schedule_id, title, starts_at, ends_at, capacity, location) VALUES ($1,'Extra-spot test', now() + interval '2 days', now() + interval '2 days 1 hour', 3, 'Gym') RETURNING id`, [D.B.prog])).rows[0].id;
+    for (const [k, counts] of [["Ava", true], ["Bea", true], ["Fay", false]]) await query(`INSERT INTO board_claims (item_id, athlete_id, status, counts) VALUES ($1,$2,'confirmed',$3)`, [ex, D.A[k], counts]);
+    const exRow = (await (await fetch(`${BASE}/reports?view=mgmt&r=sess&csv=1&q=Extra-spot`, { headers: { cookie: cookie.admin } })).text()).split(/\r?\n/).find((l) => l.includes("Extra-spot test")) || "";
+    ok("Sessions: extra spots take a seat (3 of 3, Full)", /"3","3"/.test(exRow) && /Full/.test(exRow), exRow.slice(0, 160));
     const rs = text((await get("/reports?view=mgmt&r=rsvp", "admin")).html);
     ok("RSVP: Kickoff 6 on the list, 5 answered (83%)", /Kickoff Test Meetings 6 5 83%/.test(rs.replace(/\s+/g, " ")), (/Kickoff[^%]*%/.exec(rs) || [""])[0]);
   } catch (e) { ok("test run", false, e.message); }

@@ -348,7 +348,8 @@ router.get("/:sid/items/:iid/people", wrap(async (req, res) => {
   const helpers = {}; for (const h of (await query(`SELECT i.id, i.title, (i.settings->>'helper_claim')::int AS for_claim, (SELECT string_agg(a.first_name || ' ' || coalesce(a.last_name,''), ', ') FROM board_claims c JOIN athletes a ON a.id=c.athlete_id WHERE c.item_id=i.id AND c.status='confirmed') AS who
       FROM board_items i WHERE i.canceled_at IS NULL AND (i.settings->>'helper_claim')::int = ANY($1)`, [people.map((p) => p.id)])).rows) (helpers[h.for_claim] = helpers[h.for_claim] || []).push(h);
   const helpedBy = it.settings && it.settings.helper_claim ? (await query(`SELECT a.first_name, a.last_name, i.starts_at FROM board_claims c JOIN athletes a ON a.id=c.athlete_id JOIN board_items i ON i.id=c.item_id WHERE c.id=$1`, [Number(it.settings.helper_claim)])).rows[0] : null;
-  res.send(require("../views/board").spotPeoplePage({ rsvp, head, user: req.user, flash: flashFrom(req), sc, it, path: chain ? chain.nodes.map((n) => n.name) : [], people, onBoard, everyone, qs, ans, helpers, helpedBy }));
+  const canCancel = auth.isAdmin(req.user) || !!(req.access && req.access.can("session.cancel", sc.id));
+  res.send(require("../views/board").spotPeoplePage({ canCancel, rsvp, head, user: req.user, flash: flashFrom(req), sc, it, path: chain ? chain.nodes.map((n) => n.name) : [], people, onBoard, everyone, qs, ans, helpers, helpedBy }));
 }));
 router.post("/:sid/items/:iid/people/add", wrap(async (req, res) => {
   const { sc, it } = await spot(req); if (!it) return go(res, at(sc && sc.id), { err: "Not found." });
@@ -388,6 +389,31 @@ router.post("/:sid/items/:iid/people/:cid/remove", wrap(async (req, res) => {
   } catch (e) { if (e instanceof E.ClaimError) return go(res, back, { err: e.message }); throw e; }
 }));
 
+// Cancel a session: release everyone on it (no promotions), email them the reason, close any helper spots it opened.
+router.post("/:sid/items/:iid/cancel-session", wrap(async (req, res) => {
+  const sc = await board(req), it = (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];
+  if (!it) return go(res, at(sc.id), { err: "Not found." });
+  const back = `/admin/b/${sc.id}/items/${it.id}/people`, reason = String(req.body.reason || "").trim().slice(0, 500);
+  if (it.canceled_at) return go(res, back, { err: "This session is already canceled." });
+  if (!reason) return go(res, back, { err: "Add a reason; it goes in the email to families." });
+  await query(`UPDATE board_items SET canceled_at=now(), cancel_reason=$2 WHERE id=$1`, [it.id, reason]);
+  const claims = (await query(`UPDATE board_claims SET status='canceled', canceled_at=now() WHERE item_id=$1 AND status IN ('confirmed','waitlisted') RETURNING id`, [it.id])).rows;
+  const Q = require("../questions"), N = require("../engine/notify"); let sent = 0; const addrs = new Set();
+  for (const c of claims) {
+    await Q.syncHelpers(c.id).catch(() => {});   // helper spots this claim opened close
+    if (req.body.email === "1") { const d = await N.details(c.id); if (d) { try { const to = N.to(d, null); await require("../emailTemplates").send("session_canceled", to, { ...(await N.claimVars(d)), reason }); sent++; [].concat(to || []).forEach((e) => addrs.add(String(e).toLowerCase())); } catch (e) { console.error("session_canceled:", e.message); } } }
+  }
+  const name = require("../time").slotName(it);
+  require("../activity").record(req, { kind: "boards", summary: `Canceled the session "${name}" (${reason}); released ${claims.length} claim${claims.length === 1 ? "" : "s"}${req.body.email === "1" ? `, emailed ${sent}` : ", no emails"}`, boardId: sc.id }).catch(() => {});
+  go(res, back, { ok: `Canceled "${name}". Released ${claims.length} claim${claims.length === 1 ? "" : "s"}${req.body.email === "1" ? ` and emailed ${addrs.size} address${addrs.size === 1 ? "" : "es"}` : ""}.` });
+}));
+router.post("/:sid/items/:iid/reopen-session", wrap(async (req, res) => {
+  const sc = await board(req), it = (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];
+  if (!it) return go(res, at(sc.id), { err: "Not found." });
+  await query(`UPDATE board_items SET canceled_at=NULL WHERE id=$1`, [it.id]);
+  require("../activity").record(req, { kind: "boards", summary: `Reopened the session "${require("../time").slotName(it)}" (released claims stay released)`, boardId: sc.id }).catch(() => {});
+  go(res, `/admin/b/${sc.id}/items/${it.id}/people`, { ok: "Reopened. People who were released need to sign up again." });
+}));
 router.post("/:sid/items/:iid/delete", wrap(async (req, res) => {
   const sc = await board(req);
   const it = (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];

@@ -174,6 +174,20 @@ const results = []; const ok = (name, pass, detail = "") => results.push({ name,
     ok("coach: Send now refused (not in Coach)", /can't send automated emails/.test((await req("coach", "/admin/messages/now", { method: "POST", form: { kind: "leftover", board: String(D.B.prog) } })).loc));
     r = await req("admin", "/admin/messages/now", { method: "POST", form: { kind: "reminder", session: String(D.items[D.items.length - 1].id), confirm: "1" } });
     ok("admin: Send now (claim reminder)", /Sent Claim reminder/.test(r.loc), r.loc);
+    // 12. the sign-up page for a parent with two athletes and none picked yet: the "who are you signing up?" picker
+    const pick = await fetch(`${BASE}/b/${D.B.prog}`, { redirect: "manual", headers: { cookie: cookie.parent } });
+    ok("sign-up page: parent with two athletes, none picked → the picker opens", pick.status === 200, String(pick.status));
+    // 13. canceling a session: releases everyone, emails them, can be found in Board setup and reopened
+    const cs = (await query(`INSERT INTO board_items (schedule_id, title, starts_at, ends_at, capacity, location) VALUES ($1,'Cancel test', now() + interval '5 days', now() + interval '5 days 1 hour', 4, 'Gym') RETURNING id`, [D.B.prog])).rows[0].id;
+    for (const k of ["Ava", "Bea"]) await query(`INSERT INTO board_claims (item_id, athlete_id, status, counts) VALUES ($1,$2,'confirmed',true)`, [cs, D.A[k]]);
+    ok("cancel: a coach without Cancel a session is refused", (await req("coach", `/admin/b/${D.B.prog}/items/${cs}/cancel-session`, { method: "POST", form: { reason: "x", email: "1" } })).status === 404);
+    const e0 = (await query(`SELECT count(*)::int AS n FROM email_log WHERE email_key='session_canceled'`)).rows[0].n;
+    r = await req("admin", `/admin/b/${D.B.prog}/items/${cs}/cancel-session`, { method: "POST", form: { reason: "Gym closed", email: "1" } });
+    ok("cancel: everyone released", (await query(`SELECT count(*)::int AS n FROM board_claims WHERE item_id=$1 AND status<>'canceled'`, [cs])).rows[0].n === 0 && /Canceled/.test(r.loc), r.loc);
+    ok("cancel: they're emailed", (await query(`SELECT count(*)::int AS n FROM email_log WHERE email_key='session_canceled'`)).rows[0].n > e0);
+    ok("cancel: Board setup lists it to reopen", /Canceled sessions \(1\)/.test((await req("admin", `/admin/setup?s=${D.B.prog}`)).html));
+    await req("admin", `/admin/b/${D.B.prog}/items/${cs}/reopen-session`, { method: "POST", form: {} });
+    ok("cancel: reopen", (await query(`SELECT canceled_at IS NULL AS open FROM board_items WHERE id=$1`, [cs])).rows[0].open === true);
     // 8. the last administrator
     const adminRole = (await query(`SELECT id FROM roles WHERE key='admin'`)).rows[0].id;
     await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [D.users.admin, adminRole]);

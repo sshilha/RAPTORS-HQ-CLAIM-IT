@@ -201,7 +201,7 @@ function copyPage({ user, flash, sc, counts: c }) {
     <script>(function () { var b = document.getElementById("cp-items"), s = document.getElementById("cp-start"); if (b && s) { b.addEventListener("change", function () { s.hidden = !b.checked; }); } })();</script>` });
 }
 
-function spotPeoplePage({ rsvp = null, head = "", user, flash, sc, it, path, people, onBoard, everyone, qs = [], ans = {}, helpers = {}, helpedBy = null }) {
+function spotPeoplePage({ canCancel = false, rsvp = null, head = "", user, flash, sc, it, path, people, onBoard, everyone, qs = [], ans = {}, helpers = {}, helpedBy = null }) {
   const q = sc.question || {};
   const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
   const tags = (p) => [p.group_name, p.added_by_admin ? "Added by admin" : "", p.override ? "Override" : "", p.counts === false && !p.walk_in ? "Extra spot" : "", p.walk_in ? "Walk-in" : ""].filter(Boolean);
@@ -220,6 +220,14 @@ function spotPeoplePage({ rsvp = null, head = "", user, flash, sc, it, path, peo
     <div class="sp-session"><b>${esc(it.title && !it.starts_at ? it.title : path[path.length - 1] || it.title || "Spot")}</b>
       <span>${esc([...path.slice(0, -1)].join(" • "))}${path.length > 1 ? " · " : ""}${esc(slotName(it))}${it.location ? ` · ${esc(it.location)}` : ""}</span>
       ${helpedBy ? `<span class="sp-helpnote">Helper spot for <b>${esc(helpedBy.first_name)} ${esc(helpedBy.last_name || "")}</b>, opened by their answer. It closes if their claim is canceled or the answer changes; it doesn't count toward limits.</span>` : ""}</div>
+    ${it.canceled_at ? `<div class="sp-canceled"><b>Canceled ${esc(new Date(it.canceled_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</b>${it.cancel_reason ? ` · ${esc(it.cancel_reason)}` : ""}
+      ${canCancel ? `<form method="post" action="/admin/b/${sc.id}/items/${it.id}/reopen-session" onsubmit="return confirm('Reopen this session? People who were released will need to sign up again.')"><button class="btn-ghost" type="submit">Reopen session</button></form>` : ""}</div>`
+    : canCancel ? `<details class="sp-cancel"><summary class="link-dark">Cancel this session</summary>
+      <form method="post" action="/admin/b/${sc.id}/items/${it.id}/cancel-session" class="stack" onsubmit="return confirm('Cancel this session and release everyone on it?')">
+        <label>Reason <span class="opt">(goes in the email to families)</span><textarea name="reason" rows="3" maxlength="500" required placeholder="e.g. The gym is closed for a tournament."></textarea></label>
+        <label class="radio-row"><input type="checkbox" name="email" value="1" checked> Email everyone signed up or waitlisted (${people.filter((p) => p.status === "confirmed" || p.status === "waitlisted").length})</label>
+        <p class="fine">Everyone on it is released (it doesn't count against their limits), helper spots it opened close, and it leaves sign-up, Check-in and reports. You can reopen it later, but people would sign up again.</p>
+        <div class="q-actions"><button class="btn-small danger-btn" type="submit">Cancel the session</button></div></form></details>` : ""}
     ${rsvp ? (() => { const nm = (p) => `${esc(p.first_name)} ${esc(p.last_name || "")}`;
       const act = `/admin/b/${sc.id}/items/${it.id}`;
       const edit = (p, cur) => `<details class="rv-edit"><summary>Change</summary>

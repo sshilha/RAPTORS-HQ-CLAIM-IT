@@ -19,6 +19,7 @@ const RULES = [
   ["POST", /^\/setup\/schedules\/(\d+)\/(archive|delete)$/, "board.archive", 1],
   ["*", /^\/members(\/.*)?$/, "board.access", "q"], ["*", /^\/settings\/(groups|tags|presets)(\/.*)?$/, "board.access", "q"], ["GET", /^\/settings\/activities$/, "board.access", "q"],
   // inside a board: levels and sessions, publishing, a session's People page
+  ["POST", /^\/b\/(\d+)\/items\/\d+\/(cancel-session|reopen-session)$/, "session.cancel", 1],
   ["POST", /^\/b\/(\d+)\/publish$/, "board.publish", 1], ["GET", /^\/b\/(\d+)\/(qr\.svg|nodes\/\d+\/export)$/, "board.export", 1],
   ["POST", /^\/b\/(\d+)\/defaults$/, "board.defaults", 1],
   ["GET", /^\/b\/(\d+)\/items\/\d+\/people$/, "session.people", 1], ["POST", /^\/b\/(\d+)\/items\/\d+\/(people\/add|people\/\d+\/remove|rsvp-set|rsvp-remove|rsvp-remind)$/, "session.people", 1],
