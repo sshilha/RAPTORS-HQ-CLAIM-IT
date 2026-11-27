@@ -198,7 +198,7 @@ about; claims and cancels from before it existed are filled in once at startup.
 `npm run test:reports` checks every report for every role without a browser. Add to `.env`:
 `TEST_DATABASE_URL=postgres://…/claimit_test`, an empty database used only for this (create it once, e.g. `createdb
 claimit_test`). The test refuses to run on a database with real data; re-running clears and rebuilds only its own test
-data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 65 checks, same test database) and `npm run check` (pages) before a deploy.
+data. Run it with `npm run test` (engine), `npm run test:questions` (claim questions and helper spots, same test database), `npm run test:roles` (roles and permissions, 67 checks, same test database) and `npm run check` (pages) before a deploy.
 
 ### 4.7a Reports: access and metric definitions
 **Who sees what.** Admins: every board. Coaches: the boards they coach, automatically. Team managers (People → a
@@ -350,6 +350,10 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 ## 7. Version history (short)
 
 - **v0.76.1** 👀 Preview is also in a role's edit form (under Save role), previewing the role as saved.
+- **v0.79** Check-in → a session's roster (attendance or sign-ups only) → 🖨 Print: a printer-friendly sheet with the
+  session, board, date, time and place; a numbered list of everyone signed up with a Here box, team, up to three claim
+  answers shown on rosters, and notes; blank rows for walk-ins; the waitlist below. Opens the print dialog (Save as PDF
+  works). Same access as opening that roster. Role tests: 67.
 - **v0.78** Cancel a session (session's People page → Cancel this session): a reason (in the email), and "Email
   everyone signed up or waitlisted" (on by default). Releases every claim and waitlist spot (no promotions; doesn't
   count against limits), closes helper spots it opened, leaves sign-up, Check-in and reports, emails "Session canceled"

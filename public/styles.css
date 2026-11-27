@@ -3527,3 +3527,4 @@ label.cq > input { display: block; width: 100%; margin: 0 !important; }
 .sp-cancel { margin: 10px 0; padding: 8px 12px; border: 1px solid #F3C9C9; border-radius: 12px; } .sp-cancel summary { cursor: pointer; color: #B42318; font-weight: 600; } .sp-cancel form { margin-top: 8px; }
 .danger-btn { background: #D92D20 !important; color: #fff !important; border-color: #D92D20 !important; }
 .sp-canc-list { margin: 0 0 12px; padding: 8px 14px; border: 1px solid #F3C9C9; border-radius: 12px; background: #FFF8F8; } .sp-canc-list ul { margin: 6px 0; padding-left: 18px; } .sp-canc-list li { margin: 3px 0; }
+.ck-print { margin-left: auto; } .back-row:has(.ck-print) { display: flex; align-items: center; gap: 10px; }

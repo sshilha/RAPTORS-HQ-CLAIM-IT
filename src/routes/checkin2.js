@@ -76,6 +76,16 @@ async function roster(itemId) {
     LEFT JOIN schedule_members m ON m.schedule_id=i.schedule_id AND m.athlete_id=a.id
     WHERE c.item_id=$1 AND c.status<>'canceled' ORDER BY c.status, lower(a.last_name), lower(a.first_name)`, [itemId])).rows;
 }
+// a printable list of who's signed up (and the waitlist), for whoever may open that roster
+router.get("/i/:id/print", wrap(async (req, res) => {
+  const it = await itemFor(req, int(req.params.id)); if (!it) return res.status(404).send("Not found");
+  const isTracked = it.board_type === "rsvp" || await tracked(it.id);
+  if (!may(req, isTracked ? "checkin.attendance" : "checkin.signups", it)) return res.status(404).send("Not found");
+  const people = await roster(it.id), A = await require("../questions").answersFor(people.map((p) => p.id));
+  for (const p of people) p.answers = (A[p.id] || []).filter((a) => (a.q.show || {}).roster !== false);
+  const cols = [...new Map(people.flatMap((p) => p.answers.map((a) => [a.q.id, a.q]))).values()].slice(0, 3);   // up to three answer columns
+  res.send(v.printPage({ it, people: people.filter((p) => p.status !== "canceled"), cols }));
+}));
 router.get("/i/:id", wrap(async (req, res) => {
   const it = await itemFor(req, int(req.params.id));
   if (!it) return go(res, "/checkin", { err: "That session isn't one you can check in." });

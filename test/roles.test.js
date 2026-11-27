@@ -188,6 +188,10 @@ const results = []; const ok = (name, pass, detail = "") => results.push({ name,
     ok("cancel: Board setup lists it to reopen", /Canceled sessions \(1\)/.test((await req("admin", `/admin/setup?s=${D.B.prog}`)).html));
     await req("admin", `/admin/b/${D.B.prog}/items/${cs}/reopen-session`, { method: "POST", form: {} });
     ok("cancel: reopen", (await query(`SELECT canceled_at IS NULL AS open FROM board_items WHERE id=$1`, [cs])).rows[0].open === true);
+    // 14. printing a roster: whoever may open it; not a team manager (no Check-in)
+    const pr = await req("coach", `/checkin/i/${past.id}/print`);
+    ok("print: the coach gets the roster sheet", pr.status === 200 && /Ava Adams|Bea Brooks|Dee Diaz|Eve Evans/.test(pr.html), String(pr.status));
+    ok("print: a team manager can't", (await req("manager", `/checkin/i/${past.id}/print`)).status !== 200);
     // 8. the last administrator
     const adminRole = (await query(`SELECT id FROM roles WHERE key='admin'`)).rows[0].id;
     await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [D.users.admin, adminRole]);
