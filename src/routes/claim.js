@@ -107,7 +107,16 @@ router.get("/dashboard", wrap(async (req, res) => {
     WHERE c.athlete_id = ANY($1) AND c.status IN ('confirmed','waitlisted') AND sc.archived_at IS NULL AND i.canceled_at IS NULL AND (i.starts_at IS NULL OR i.starts_at > now())`, [ids])).rows[0] : { n: 0, next: null };
   const me = people.me, myName = me ? [me.first_name, me.last_name].filter(Boolean).join(" ").trim() : "";
   const top = { name: myName || req.user.email, upcoming: up.n, next: up.next, pics: await require("../appimages").urls() };
-  res.send(v.homePage({ top, user: req.user, flash: flashFrom(req), claims, boards, extra, admin: auth.isAdmin(req.user),
+  // Coming soon: levels still hidden (Visible from) and claiming that hasn't opened (Claiming opens), soonest five
+  const bids = boards.map((x) => x.board.id), soon = !bids.length ? [] : (await query(`
+    SELECT 'visible' AS kind, coalesce(p.name || ' › ', '') || n.name AS name, s.name AS board, n.visible_from::timestamptz AS at FROM board_nodes n JOIN schedules s ON s.id=n.schedule_id LEFT JOIN board_nodes p ON p.id=n.parent_id
+      WHERE n.schedule_id = ANY($1) AND n.visible_from IS NOT NULL AND n.visible_from::timestamptz > now()
+    UNION ALL SELECT 'claim', coalesce(p.name || ' › ', '') || n.name, s.name, (n.settings->>'opens_at')::timestamptz FROM board_nodes n JOIN schedules s ON s.id=n.schedule_id LEFT JOIN board_nodes p ON p.id=n.parent_id
+      WHERE n.schedule_id = ANY($1) AND (n.settings->>'opens_at') IS NOT NULL AND (n.settings->>'opens_at')::timestamptz > now()
+    UNION ALL SELECT 'claim', NULL, s.name, (s.settings->>'opens_at')::timestamptz FROM schedules s
+      WHERE s.id = ANY($1) AND (s.settings->>'opens_at') IS NOT NULL AND (s.settings->>'opens_at')::timestamptz > now()
+    ORDER BY at LIMIT 5`, [bids]).catch(() => ({ rows: [] }))).rows;
+  res.send(v.homePage({ soon, top, user: req.user, flash: flashFrom(req), claims, boards, extra, admin: auth.isAdmin(req.user),
     coach: !!req.user.is_coach, family, familyIds, who: req.query.who === "me" ? "me" : who, when, more,
     tab: req.query.tab === "vol" ? "vol" : "", allBoards: req.query.boards === "all" }));
 }));
@@ -128,7 +137,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
     const rsvp = require("../rsvp").isRsvp(board) ? { answers: m ? await require("../rsvp").answersFor(sid, m.id) : new Map(), counts: await require("../rsvp").countsFor(sid) } : null;
     return res.send(v.boardPage({ qmap: view ? await require("../questions").mapFor((view.board || {}).id || 0, (view.items || []).map((r) => r.item.id)) : {}, rsvp, user: req.user, flash: flashFrom(req), board, person, who: [], view, span, admin: true,
       mode: ["list", "cal"].includes(req.query.v) ? req.query.v : "list", group: req.query.g === "day" ? "day" : "activity",
-      filters: { act: str(req.query.act), grp: str(req.query.grp), show: req.query.show === "open" ? "open" : "" },
+      filters: { act: str(req.query.act), grp: str(req.query.grp), show: req.query.show === "open" ? "open" : "", when: req.query.when === "all" ? "all" : "" },
       month: /^\d{4}-\d{2}$/.test(str(req.query.m)) ? str(req.query.m) : null, day: null,
       preview: { members, as: m ? m.id : 0, published: !!board.published_at, archived: !!board.archived_at } }));
   }
@@ -159,7 +168,7 @@ router.get("/b/:sid", wrap(async (req, res, next) => {
   if (req.query.v) res.cookie("ci_view", viewMode, { maxAge: 365 * 864e5, sameSite: "lax" });
   req.user.can_reports = await PP.canReports(req.user);
   const span = (await query(`SELECT min(starts_at) AS first, max(starts_at) AS last FROM board_items WHERE schedule_id=$1 AND canceled_at IS NULL AND starts_at IS NOT NULL`, [sid])).rows[0];
-  const filters = { act: str(req.query.act), grp: str(req.query.grp), show: ["open", "mine"].includes(req.query.show) ? req.query.show : "" };
+  const filters = { act: str(req.query.act), grp: str(req.query.grp), show: ["open", "mine"].includes(req.query.show) ? req.query.show : "", when: req.query.when === "all" ? "all" : "" };   // when: upcoming (default) or all dates
   // Group by activity (default) or day; remembered like List/Calendar
   const group = ["activity", "day"].includes(req.query.g) ? req.query.g : req.cookies && req.cookies.ci_group === "day" ? "day" : "activity";
   if (req.query.g) res.cookie("ci_group", group, { maxAge: 365 * 864e5, sameSite: "lax" });

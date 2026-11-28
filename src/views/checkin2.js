@@ -86,7 +86,7 @@ function rosterPage({ noMark = false, noMarkAll = false, noWalkin = false, user,
   const here = conf.filter((p) => p.attended === true).length, no = conf.filter((p) => p.attended === false).length;
   return layout({ title: `Check-in · ${it.board_name}`, user, flash, admin, tab: "checkin", dash: true,
     body: `<div class="d-wrap ck-wrap">
-    <nav class="back-row"><a class="back-btn" href="/checkin?d=${day}">${L}Back to Check-in</a><a class="sb-btn ck-print" href="/checkin/i/${it.id}/print" target="_blank" rel="noopener">🖨 Print</a></nav>
+    <nav class="back-row"><a class="back-btn" href="/checkin?d=${day}">${L}Back to Check-in</a></nav>
     <section class="bh2 ck-hd"><div class="bh2-l"><span class="bh2-tile dash-tile">${CK_IC}</span>
       <div><span class="ck-board">${esc(it.board_name)}</span><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
         <span class="bh2-meta">${esc([crumb(it.path), it.starts_at ? timeRange(it.starts_at, it.ends_at) : "", where(it)].filter(Boolean).join(" · "))}</span></div></div></section>
@@ -96,6 +96,7 @@ function rosterPage({ noMark = false, noMarkAll = false, noWalkin = false, user,
       ${noMark ? `<span class="ck-lock on">View only: your role can see this roster but not record attendance.</span>` : ""}
       ${!noMark && lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
       ${conf.length && !ro && !noMarkAll ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
+      <a class="sb-btn ck-print2" href="/checkin/i/${it.id}/print" target="_blank" rel="noopener">🖨 Print</a>
     </nav>
     <div class="sub-body ck-sheet no-subs">
     <div class="ck-listbar"><h3>${rsvp ? "Going" : "Signed up"} <i class="sub-n">${conf.length}</i></h3>

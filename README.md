@@ -350,6 +350,25 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 ## 7. Version history (short)
 
 - **v0.76.1** 👀 Preview is also in a role's edit form (under Save role), previewing the role as saved.
+- **v0.82** Reports → Participation → Claims: "Type: All claims / Extra spots only" (extra spots = active claims made
+  past a reached limit when leftover spots opened; helper spots aren't extras). Group by Person shows each athlete's
+  extra spots used; Group by Claim lists each extra session. New columns: Extra spots (by person) and Extra spot (by
+  claim), in CSV and PDF too. Report tests: 398.
+- **v0.81** Board setup: select several sessions (a checkbox on each, Select all) and Delete selected; sessions with
+  claims are skipped and named (cancel them, or remove the people, first); one Activity entry.
+- **v0.80.1** Sign-up page: "When: upcoming / all dates" filter (shown when a board has past sessions); upcoming is the
+  default on every visit and leaves out sessions that have ended; undated sessions always show; kept when switching views.
+- **v0.80** My Claims → "Coming soon": levels still hidden (Visible from: "appears …") and levels or boards whose
+  claiming hasn't opened ("claiming opens …"), on boards the family can use; soonest five, each gone once its date
+  passes; no note when nothing is pending.
+- **v0.79.3** Sign-up page → List → By activity: one heading per activity name, with every round's sessions together;
+  when a heading mixes rounds, each session shows its round and the heading shows each round's own limit (in Board
+  setup order).
+- **v0.79.2** Sign-up page: the "what's left" line groups limits by round (the top level each limit is under), one line
+  per round in Board setup order, after any board-wide limit; rounds with no upcoming sessions are left out (all show
+  when none have any).
+- **v0.79.1** The attendance roster's 🖨 Print sits next to "Mark the rest here" in the session bar (the Sign-ups only
+  roster keeps it at the top).
 - **v0.79** Check-in → a session's roster (attendance or sign-ups only) → 🖨 Print: a printer-friendly sheet with the
   session, board, date, time and place; a numbered list of everyone signed up with a Here box, team, up to three claim
   answers shown on rosters, and notes; blank rows for walk-ins; the waitlist below. Opens the print dialog (Save as PDF
@@ -496,7 +515,7 @@ message (`go(res, url, { ok | err })`); every database change is additive and ru
 - **v0.65** Report tests in the project: `npm run test:reports` (test/reports.test.js + test/seed-reports.js) builds its own
   test data in an empty database (TEST_DATABASE_URL in .env; it refuses any database with real data) and checks every
   report for admin, coach, team manager and parent (loads, layout, no broken values), CSV headings vs the page, no emails
-  for non-admins, what each role may see, every old report address, and key numbers against the database (397 checks).
+  for non-admins, what each role may see, every old report address, and key numbers against the database (398 checks).
   Fixes it found: the Limits report now applies level limits on boards open to signed-in families (it showed only the
   board-wide limit there); Attendance → Not recorded shows a coach's email only to admins. RSVP eligibility for past
   events is judged as of just before the event. My Family: "My Progress" renamed "Assessments".
