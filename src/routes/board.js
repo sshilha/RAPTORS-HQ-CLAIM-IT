@@ -287,6 +287,18 @@ router.post("/:sid/copy-day", wrap(async (req, res) => {
   const nice = (x) => new Date(x + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   go(res, at(sc.id, nodeId), { ok: `Copied ${nice(from)} onto ${to.length} day${to.length === 1 ? "" : "s"}: ${made} session${made === 1 ? "" : "s"} added${skipped ? `, ${skipped} already there (skipped)` : ""}.` });
 }));
+// delete several sessions at once; any with claims are skipped (cancel them, or remove the people, first)
+router.post("/:sid/items/delete-many", wrap(async (req, res) => {
+  const sc = await board(req), ids = [].concat(req.body.ids || []).map(Number).filter(Boolean);
+  if (!sc || !ids.length) return go(res, at(sc && sc.id), { err: "Select the sessions to delete." });
+  const rows = (await query(`SELECT i.*, (SELECT count(*)::int FROM board_claims c WHERE c.item_id=i.id AND c.status<>'canceled') AS n FROM board_items i WHERE i.id = ANY($1) AND i.schedule_id=$2`, [ids, sc.id])).rows;
+  const ok = rows.filter((r) => !r.n), skipped = rows.filter((r) => r.n), T = require("../time");
+  if (ok.length) await query(`DELETE FROM board_items WHERE id = ANY($1) AND schedule_id=$2`, [ok.map((r) => r.id), sc.id]);
+  if (ok.length) require("../activity").record(req, { kind: "boards", summary: `Deleted ${ok.length} session${ok.length === 1 ? "" : "s"}: ${ok.slice(0, 8).map((r) => T.slotName(r)).join("; ")}${ok.length > 8 ? "…" : ""}`, boardId: sc.id }).catch(() => {});
+  const node = (ok[0] || rows[0] || {}).node_id;
+  go(res, at(sc.id, node), skipped.length ? { [ok.length ? "ok" : "err"]: `${ok.length ? `Deleted ${ok.length} session${ok.length === 1 ? "" : "s"}. ` : ""}Skipped ${skipped.length} with claims: ${skipped.slice(0, 5).map((r) => T.slotName(r)).join("; ")}${skipped.length > 5 ? "…" : ""}. Cancel them, or remove the people first.` }
+    : { ok: `Deleted ${ok.length} session${ok.length === 1 ? "" : "s"}.` });
+}));
 router.post("/:sid/items/:iid", wrap(async (req, res) => {
   const sc = await board(req);
   const it = (await query(`SELECT * FROM board_items WHERE id=$1 AND schedule_id=$2`, [int(req.params.iid), sc.id])).rows[0];

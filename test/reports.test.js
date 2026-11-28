@@ -90,6 +90,8 @@ async function main() {
     const ex = (await query(`INSERT INTO board_items (schedule_id, title, starts_at, ends_at, capacity, location) VALUES ($1,'Extra-spot test', now() + interval '2 days', now() + interval '2 days 1 hour', 3, 'Gym') RETURNING id`, [D.B.prog])).rows[0].id;
     for (const [k, counts] of [["Ava", true], ["Bea", true], ["Fay", false]]) await query(`INSERT INTO board_claims (item_id, athlete_id, status, counts) VALUES ($1,$2,'confirmed',$3)`, [ex, D.A[k], counts]);
     const exRow = (await (await fetch(`${BASE}/reports?view=mgmt&r=sess&csv=1&q=Extra-spot`, { headers: { cookie: cookie.admin } })).text()).split(/\r?\n/).find((l) => l.includes("Extra-spot test")) || "";
+    const exCsv = await (await fetch(`${BASE}/reports?view=mgmt&r=claims&group=claim&ext=extra&when=all&csv=1`, { headers: { cookie: cookie.admin } })).text();
+    ok("Claims → Type: Extra spots only lists the extra claim (Fay), not regular ones (Ava)", /Fay/.test(exCsv) && !/Ava Adams/.test(exCsv), exCsv.split(/\r?\n/).slice(0, 3).join(" / ").slice(0, 200));
     ok("Sessions: extra spots take a seat (3 of 3, Full)", /"3","3"/.test(exRow) && /Full/.test(exRow), exRow.slice(0, 160));
     const rs = text((await get("/reports?view=mgmt&r=rsvp", "admin")).html);
     ok("RSVP: Kickoff 6 on the list, 5 answered (83%)", /Kickoff Test Meetings 6 5 83%/.test(rs.replace(/\s+/g, " ")), (/Kickoff[^%]*%/.exec(rs) || [""])[0]);

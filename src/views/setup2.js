@@ -54,7 +54,7 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
       const pct = it.capacity ? Math.round((it.claimed / it.capacity) * 100) : 0;
       const d = it.starts_at ? new Date(it.starts_at) : null;
       const dpart = (o) => d.toLocaleDateString("en-US", { timeZone: "America/Chicago", ...o });
-      return `<li class="ss-row">
+      return `<li class="ss-row">${locked ? "" : `<label class="ss-pickl" title="Select"><input type="checkbox" class="ss-pick" value="${it.id}" data-claims="${it.claimed + it.waitlisted}" aria-label="Select ${esc(slotName(it))}"></label>`}
         ${d ? `<span class="ss-date"><small>${esc(dpart({ month: "short" }).toUpperCase())}</small><b>${esc(dpart({ day: "numeric" }))}</b><small>${esc(dpart({ weekday: "short" }))}</small></span>` : `<span class="ss-date nodate">${IC.slot}</span>`}
         <span class="ss-main"><b>${esc(it.title || (t ? `${t.node.name} ${L.slot.one.toLowerCase()}` : L.slot.one))}</b>
           ${d ? `<span>${IC.clock}${esc(slotName({ starts_at: it.starts_at, ends_at: it.ends_at }).replace(/^[^,]+, [^,]+, /, ""))}</span>` : ""}
@@ -73,7 +73,8 @@ function panels({ sc, tree, topItems, totals, eff, sel }) {
     };
     body = `<section class="sp-card"><div class="sp-card-h">${IC.clock}<b>${esc(L.slot.many)}</b><span class="fine">${(sc && sc.board_type === "rsvp") ? "(events to RSVP)" : "(spots to claim)"}</span>
         ${locked ? "" : `${SC.usesCalendar(sc) ? `<button type="button" class="sb-btn" data-copy-day="${t ? t.node.id : ""}">Copy a day</button>` : ""}<button type="button" class="sb-btn primary" data-add-item="${t ? t.node.id : ""}">${IC.plus}Add ${esc(L.slot.one.toLowerCase())}</button>`}</div>
-      ${items.length ? `<ul class="ss-list">${items.map(row).join("")}</ul>` : `<div class="sp-empty">${IC.clock}<b>No ${esc(L.slot.many.toLowerCase())} yet.</b><span>Add one, and people can start claiming it once the board is published.</span></div>`}</section>`;
+      ${items.length ? `${locked ? "" : `<div class="ss-bulk"><label class="radio-row"><input type="checkbox" class="ss-all"> Select all</label>
+        <span class="ss-bulk-on" hidden><b class="ss-n">0</b> selected <button type="button" class="sb-btn sm danger ss-delsel">${IC.trash}Delete selected</button><button type="button" class="link-dark ss-clear">Clear</button></span></div>`}<ul class="ss-list">${items.map(row).join("")}</ul>` : `<div class="sp-empty">${IC.clock}<b>No ${esc(L.slot.many.toLowerCase())} yet.</b><span>Add one, and people can start claiming it once the board is published.</span></div>`}</section>`;
   } else {
     body = `<section class="sp-card"><div class="sp-card-h">${LEVEL_IC[(lvl + 1) % LEVEL_IC.length]}<b>${esc(childW.many)}</b><span class="fine">in ${esc(t ? t.node.name : "this board")}</span>
         ${locked ? "" : `<a class="sb-btn" href="/admin/b/${sc.id}/import-level?parent=${t ? t.node.id : ""}" title="Add a level exported from another copy of Claim It">Import a level</a><button type="button" class="sb-btn primary" data-add-node="${t ? t.node.id : ""}" data-word="${esc(childW.one)}">${IC.plus}Add ${esc(childW.one.toLowerCase())}</button>`}</div>
@@ -342,6 +343,25 @@ const CLIENT_JS = `
   document.addEventListener("input", function (e) { if (e.target.closest(".node-settings")) dirty = true; });
   document.addEventListener("submit", function (e) { dirty = false; });
   var dn = document.getElementById("dlg-node"), di = document.getElementById("dlg-item"), del = document.getElementById("del-form");
+  // select several sessions and delete them at once (sessions with claims are skipped). The list is swapped in place, so look things up when used.
+  (function () {
+    var q = function (sel) { return document.querySelector(sel); }, picks = function () { return [].slice.call(document.querySelectorAll(".ss-pick")); };
+    var chosen = function () { return picks().filter(function (c) { return c.checked; }); };
+    var sync = function () { var all = q(".ss-all"), on = q(".ss-bulk-on"); if (!all || !on) return; var n = chosen().length, t = picks().length;
+      on.hidden = !n; on.querySelector(".ss-n").textContent = n; all.checked = !!n && n === t; all.indeterminate = n > 0 && n < t; };
+    document.addEventListener("change", function (e) { var all = q(".ss-all");
+      if (all && e.target === all) { picks().forEach(function (c) { c.checked = all.checked; }); sync(); } else if (e.target.classList && e.target.classList.contains("ss-pick")) sync(); });
+    document.addEventListener("click", function (e) {
+      var t = e.target.closest && e.target.closest(".ss-clear, .ss-delsel"); if (!t) return;
+      if (t.classList.contains("ss-clear")) { picks().forEach(function (c) { c.checked = false; }); sync(); return; }
+      var c = chosen(), withClaims = c.filter(function (x) { return +x.dataset.claims; }).length, n = c.length - withClaims;
+      if (!n) { alert("All of these have claims, so none can be deleted. Cancel them or remove the people first."); return; }
+      if (!confirm("Delete " + n + " session" + (n === 1 ? "" : "s") + "? This can't be undone." + (withClaims ? "\\n\\n" + withClaims + " with claims will be skipped." : ""))) return;
+      var f = document.createElement("form"); f.method = "post"; f.action = "/admin/b/" + sid + "/items/delete-many";
+      c.forEach(function (x) { var i = document.createElement("input"); i.type = "hidden"; i.name = "ids"; i.value = x.value; f.appendChild(i); });
+      document.body.appendChild(f); f.submit();
+    });
+  })();
   function nameOf(id) { var a = document.querySelector('.tn[data-id="' + id + '"] > .tn-row .tn-name'); return a ? a.textContent : ""; }
   document.addEventListener("click", function (e) {
     var t = e.target.closest("button, a"); if (!t) { document.querySelectorAll(".tn-menu").forEach(function (m) { m.hidden = true; }); return; }

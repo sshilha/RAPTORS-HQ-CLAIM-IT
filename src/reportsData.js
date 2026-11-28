@@ -46,18 +46,19 @@ async function sessions(f) {
 // confirmed claims on past sessions in range (for attendance)
 async function claimsIn(f, { past = true, statuses = ["confirmed"] } = {}) {
   if (f.cstatus) statuses = statuses.includes(f.cstatus) || f.cstatus === "canceled" ? [f.cstatus] : statuses;   // Claim status filter
+  const extraOnly = f.ext === "extra";   // Type: extra spots only
   const [lo, hi] = span("$2", "$3"), args = [f.boards, f.from, f.to, statuses];
   let x = more(f, args); if (f.team) { args.push(f.team); x += ` AND m.group_name = $${args.length}`; }
   x += teamCond(f, args, "i.schedule_id", "c.athlete_id");
   if (f.who) { args.push(Number(f.who)); x += ` AND c.athlete_id = $${args.length}`; }   // Claims: one person
   return (await query(`SELECT c.id, c.status, c.attended, c.walk_in, c.note, c.counts, c.added_by_admin, c.rsvp, c.created_at, c.canceled_at, c.promoted_at, a.id AS athlete_id, a.first_name, a.last_name, m.group_name AS team, i.id AS item_id, i.title, i.starts_at, i.ends_at,
-      sc.name AS board, sc.board_type, i.schedule_id AS board_id, coalesce(nullif(i.location,''), sc.event_location) AS location,
+      sc.name AS board, sc.board_type, i.schedule_id AS board_id, i.settings AS item_settings, coalesce(nullif(i.location,''), sc.event_location) AS location,
       (SELECT string_agg(n.name, ' › ' ORDER BY n.d DESC) FROM (WITH RECURSIVE up AS (SELECT id, parent_id, name, 0 AS d FROM board_nodes WHERE id=i.node_id
          UNION ALL SELECT p.id, p.parent_id, p.name, up.d+1 FROM board_nodes p JOIN up ON p.id=up.parent_id) SELECT * FROM up) n) AS path
     FROM board_claims c JOIN board_items i ON i.id=c.item_id JOIN schedules sc ON sc.id=i.schedule_id JOIN athletes a ON a.id=c.athlete_id
     LEFT JOIN schedule_members m ON m.schedule_id=i.schedule_id AND m.athlete_id=a.id
     WHERE i.schedule_id = ANY($1) AND c.status = ANY($4) AND i.canceled_at IS NULL AND i.starts_at >= ${lo} AND i.starts_at < ${hi}${past ? " AND coalesce(i.ends_at, i.starts_at) < now()" : ""}${x}
-      ${f.cstatus === "canceled" ? "AND c.rsvp IS NULL" : ""}${f.astatus === "attended" ? " AND c.attended" : f.astatus === "noshow" ? " AND c.attended = false" : f.astatus === "unrecorded" ? " AND c.attended IS NULL AND coalesce(i.ends_at, i.starts_at) < now()" : ""}
+      ${extraOnly ? " AND c.counts = false AND c.status <> 'canceled' AND NOT coalesce(i.settings ? 'helper_claim', false)" : ""}${f.cstatus === "canceled" ? "AND c.rsvp IS NULL" : ""}${f.astatus === "attended" ? " AND c.attended" : f.astatus === "noshow" ? " AND c.attended = false" : f.astatus === "unrecorded" ? " AND c.attended IS NULL AND coalesce(i.ends_at, i.starts_at) < now()" : ""}
     ORDER BY i.starts_at, lower(a.last_name), lower(a.first_name)`, args)).rows;
 }
 const pastClaims = (f) => claimsIn(f);
@@ -82,14 +83,15 @@ async function claimsAll(f) {
   const raw = (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).filter((c) => c.board_type !== "rsvp" || f.cstatus); await cancelWho(raw);
   const rows = raw.map((c) => ({ id: c.athlete_id, name: nm(c), team: c.team || "", board: c.board,
     session: [c.path, c.title && c.path ? c.title : ""].filter(Boolean).join(" › ") || c.title || "Session", when: c.starts_at, location: c.location || "", status: stat(c), attended: att(c),
-    claimed: c.created_at, canceled: c.canceled_at, note: c.note || "" }));
-  return { cols: [["name", "Name"], ["team", "Team"], ["board", "Board"], ["session", "Level & session"], ["when", "When", "dt"], ["location", "Location"], ["status", "Status"], ["attended", "Attendance"], ["claimed", "Claimed on", "dt"], ["canceled", "Canceled on", "dt"], ["note", "Answer / note"]],
-    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: f.cstatus === "canceled" ? "Canceled claims in the range (an RSVP \"Can't make it\" isn't a cancellation)." : "Every claim and waitlist spot in the range. Choose Claim status → Canceled to see cancellations." };
+    extra: c.counts === false && c.status !== "canceled" && !(c.item_settings && c.item_settings.helper_claim) ? "Extra" : "", claimed: c.created_at, canceled: c.canceled_at, note: c.note || "" }));
+  return { cols: [["name", "Name"], ["team", "Team"], ["board", "Board"], ["session", "Level & session"], ["when", "When", "dt"], ["location", "Location"], ["status", "Status"], ["extra", "Extra spot"], ["attended", "Attendance"], ["claimed", "Claimed on", "dt"], ["canceled", "Canceled on", "dt"], ["note", "Answer / note"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: (f.ext === "extra" ? "Extra spots only: claims made past a reached limit, when leftover spots opened (they don\'t count toward the limit). " : "") + (f.cstatus === "canceled" ? "Canceled claims in the range (an RSVP \"Can't make it\" isn't a cancellation)." : "Every claim and waitlist spot in the range. Choose Claim status → Canceled to see cancellations.") };
 }
 async function claimsByPerson(f) {
   const by = new Map(), now = Date.now();
   for (const c of (await claimsIn(f, { past: false, statuses: ["confirmed", "waitlisted"] })).filter((x) => x.board_type !== "rsvp")) {
-    const p = by.get(c.athlete_id) || { id: c.athlete_id, name: nm(c), team: c.team || "", levels: new Map(), total: 0, upcoming: 0, waitlisted: 0, here: 0, noshow: 0, last: null, next: null };
+    const p = by.get(c.athlete_id) || { id: c.athlete_id, name: nm(c), team: c.team || "", levels: new Map(), total: 0, extra: 0, upcoming: 0, waitlisted: 0, here: 0, noshow: 0, last: null, next: null };
+    if (c.status === "confirmed" && c.counts === false && !(c.item_settings && c.item_settings.helper_claim)) p.extra++;
     if (c.status === "waitlisted") p.waitlisted++; else {
       p.total++; const lv = (c.path || "").split(" › ").slice(0, 2).join(" › "); if (lv) p.levels.set(lv, (p.levels.get(lv) || 0) + 1);
       const t = new Date(c.starts_at).getTime(), done = new Date(c.ends_at || c.starts_at).getTime() < now;
@@ -98,10 +100,10 @@ async function claimsByPerson(f) {
     }
     by.set(c.athlete_id, p);
   }
-  const rows = [...by.values()].map((p) => ({ id: p.id, name: p.name, team: p.team, level: [...p.levels].sort((a, b) => b[1] - a[1]).map(([k]) => k)[0] || "", total: p.total, upcoming: p.upcoming,
+  const rows = [...by.values()].map((p) => ({ id: p.id, name: p.name, team: p.team, level: [...p.levels].sort((a, b) => b[1] - a[1]).map(([k]) => k)[0] || "", total: p.total, extra: p.extra, upcoming: p.upcoming,
     here: p.here, noshow: p.noshow, att: p.here + p.noshow ? pct(p.here, p.here + p.noshow) : null, waitlisted: p.waitlisted, last: p.last ? new Date(p.last) : null, next: p.next ? new Date(p.next) : null })).sort((a, b) => a.name.localeCompare(b.name));
-  return { cols: [["name", "Athlete"], ["team", "Team"], ["level", "Level"], ["total", "Total claims", "num"], ["upcoming", "Upcoming", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["att", "Attendance", "pct"], ["waitlisted", "Waitlisted", "num"], ["last", "Last session", "dt"], ["next", "Next session", "dt"]],
-    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: "Active claims in the range (program and volunteer boards). Attendance = attended ÷ (attended + no-shows) on past sessions; shown once any attendance is recorded. Click a name for their history." };
+  return { cols: [["name", "Athlete"], ["team", "Team"], ["level", "Level"], ["total", "Total claims", "num"], ["extra", "Extra spots", "num"], ["upcoming", "Upcoming", "num"], ["here", "Attended", "num"], ["noshow", "No-shows", "num"], ["att", "Attendance", "pct"], ["waitlisted", "Waitlisted", "num"], ["last", "Last session", "dt"], ["next", "Next session", "dt"]],
+    rows, link: (r) => `/reports?r=personView&pid=${r.id}`, note: (f.ext === "extra" ? "Extra spots only: claims made past a reached limit, when leftover spots opened (they don\'t count toward the limit). " : "") + "Active claims in the range (program and volunteer boards). Attendance = attended ÷ (attended + no-shows) on past sessions; shown once any attendance is recorded. Click a name for their history." };
 }
 // ---------- one person, in detail (opened from a name) ----------
 async function personView(f, pid) {

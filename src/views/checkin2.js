@@ -60,7 +60,7 @@ function signupsPage({ user, flash, admin, it, people }) {
   const row = (p, i) => `<li class="ck-su"><span class="ck-su-n">${i != null ? `<span class="ck-su-i">${i + 1}</span>` : ""}<b>${esc(p.first_name)} ${esc(p.last_name || "")}</b>${p.group_name ? ` <small>${esc(p.group_name)}</small>` : ""}</span>
     ${(p.answers || []).map((a) => `<small class="ck-ans">${esc(a.q.label)}: <b>${esc(a.text)}</b></small>`).join("")}${it.question && it.question.label && p.note ? `<small class="ck-ans">${esc(it.question.label)}: ${esc(p.note)}</small>` : ""}</li>`;
   return layout({ title: "Who's signed up", user, flash, admin, tab: "checkin", dash: true,
-    body: `<div class="d-wrap ck-wrap"><nav class="back-row"><a class="back-btn" href="/checkin?d=${day}&ro=1">${L}Check-in</a></nav>
+    body: `<div class="d-wrap ck-wrap"><nav class="back-row"><a class="back-btn" href="/checkin?d=${day}&ro=1">${L}Check-in</a><a class="sb-btn ck-print" href="/checkin/i/${it.id}/print" target="_blank" rel="noopener">🖨 Print</a></nav>
     <section class="bh2 ck-hd"><div class="bh2-l"><div><div class="bh2-t"><h1>${esc(leaf(it.path) || it.title || "Session")}</h1></div>
       <span class="bh2-meta">${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))} · ${esc(it.starts_at ? new Date(it.starts_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }) : "")} · ${esc(timeRange(it.starts_at, it.ends_at))}${it.location ? ` · ${esc(it.location)}` : ""}</span></div></div></section>
     <div class="sub-body no-subs"><section class="d-card ck-su-card">
@@ -96,6 +96,7 @@ function rosterPage({ noMark = false, noMarkAll = false, noWalkin = false, user,
       ${noMark ? `<span class="ck-lock on">View only: your role can see this roster but not record attendance.</span>` : ""}
       ${!noMark && lock.until ? `<span class="ck-lock${lock.locked ? " on" : ""}">${lock.locked ? (admin ? `Closed for coaches ${esc(short(lock.until))}. You can still change it.` : `Check-in closed ${esc(short(lock.until))}`) : `Open until ${esc(short(lock.until))}`}</span>` : ""}
       ${conf.length && !ro && !noMarkAll ? `<form method="post" action="/checkin/i/${it.id}/all" class="ck-allf" onsubmit="var n = document.querySelectorAll('.ck-p-roster .ck-p:not([data-state=here]):not([data-state=noshow])').length; if (!n) { alert('Everyone is already marked.'); return false; } return confirm('Mark the ' + n + (n === 1 ? ' person' : ' people') + ' not checked in yet as here?');"><button class="sb-btn primary" type="submit">Mark the rest here</button></form>` : ""}
+      <a class="sb-btn ck-print2" href="/checkin/i/${it.id}/print" target="_blank" rel="noopener">🖨 Print</a>
     </nav>
     <div class="sub-body ck-sheet no-subs">
     <div class="ck-listbar"><h3>${rsvp ? "Going" : "Signed up"} <i class="sub-n">${conf.length}</i></h3>
@@ -141,4 +142,22 @@ function rosterPage({ noMark = false, noMarkAll = false, noWalkin = false, user,
     })();
     </script>` });
 }
-module.exports = { signupsPage, dayPage, rosterPage };
+function printPage({ it, people, cols = [] }) {
+  const conf = people.filter((p) => p.status === "confirmed"), wl = people.filter((p) => p.status === "waitlisted");
+  const day = it.starts_at ? new Date(it.starts_at).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "";
+  const row = (p, i) => `<tr><td class="n">${i + 1}</td><td class="box">☐</td><td><b>${esc(p.first_name)} ${esc(p.last_name || "")}</b>${p.walk_in ? " <i>(walk-in)</i>" : ""}</td><td>${esc(p.group_name || "")}</td>${cols.map((c) => `<td>${esc(((p.answers || []).find((a) => a.q.id === c.id) || {}).text || "")}</td>`).join("")}<td class="note"></td></tr>`;
+  const blank = (k, start) => [...Array(k)].map((_, i) => `<tr><td class="n">${start + i + 1}</td><td class="box">☐</td><td></td><td></td>${cols.map(() => "<td></td>").join("")}<td class="note"></td></tr>`).join("");
+  const head = `<tr><th class="n">#</th><th class="box">Here</th><th>Name</th><th>Team</th>${cols.map((c) => `<th>${esc(c.label)}</th>`).join("")}<th class="note">Notes</th></tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(leaf(it.path) || it.title || "Session")} · roster</title>
+<style>body{font:14px/1.4 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;margin:28px}h1{font-size:20px;margin:0 0 2px}.meta{color:#444;margin:0 0 14px}
+table{width:100%;border-collapse:collapse;margin:8px 0 18px}th,td{border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top}th{background:#eee;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+td.n,th.n{width:28px;text-align:center}td.box,th.box{width:44px;text-align:center}td.box{font-size:18px}td.note,th.note{width:24%}h2{font-size:15px;margin:14px 0 4px}.bar{margin-bottom:14px}
+@media print{.bar{display:none}body{margin:12mm}tr{page-break-inside:avoid}}</style></head><body>
+<div class="bar"><button onclick="window.print()">🖨 Print</button> <span style="color:#666">Opens your printer's dialog (choose "Save as PDF" for a file).</span></div>
+<h1>${esc(leaf(it.path) || it.title || "Session")}</h1>
+<p class="meta">${esc([it.board_name, crumb(it.path)].filter(Boolean).join(" • "))} · ${esc(day)} · ${esc(timeRange(it.starts_at, it.ends_at))}${it.location ? ` · ${esc(it.location)}` : ""}<br>${conf.length} of ${it.capacity} signed up${wl.length ? ` · ${wl.length} on the waitlist` : ""} · printed ${esc(new Date().toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</p>
+<table>${head}${conf.map(row).join("")}${blank(Math.max(3, 0), conf.length)}</table>
+${wl.length ? `<h2>Waitlist</h2><table>${head}${wl.map(row).join("")}</table>` : ""}
+<script>window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 300); });</script></body></html>`;
+}
+module.exports = { printPage, signupsPage, dayPage, rosterPage };

@@ -23,7 +23,7 @@ const RULES = [
   ["POST", /^\/b\/(\d+)\/publish$/, "board.publish", 1], ["GET", /^\/b\/(\d+)\/(qr\.svg|nodes\/\d+\/export)$/, "board.export", 1],
   ["POST", /^\/b\/(\d+)\/defaults$/, "board.defaults", 1],
   ["GET", /^\/b\/(\d+)\/items\/\d+\/people$/, "session.people", 1], ["POST", /^\/b\/(\d+)\/items\/\d+\/(people\/add|people\/\d+\/remove|rsvp-set|rsvp-remove|rsvp-remind)$/, "session.people", 1],
-  ["*", /^\/b\/(\d+)\/(nodes(\/.*)?|items|items\/\d+|items\/\d+\/delete|import-level(\/.*)?|days|copy-day)$/, "board.setup", 1],
+  ["*", /^\/b\/(\d+)\/(nodes(\/.*)?|items|items\/\d+|items\/\d+\/delete|items\/delete-many|import-level(\/.*)?|days|copy-day)$/, "board.setup", 1],
   // App settings
   ["*", /^\/settings\/app$/, (req) => PART[req.query.part] || "accounts.settings", null],
   ["*", /^\/settings\/(app\/accounts|app\/change-email)$/, "accounts.settings", null], ["*", /^\/settings\/admins(\/remove)?$/, "accounts.admins", null],
